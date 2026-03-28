@@ -206,9 +206,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     // Determine screen position for smart popup alignment
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
-      const buffer = 150;
-      if (rect.left < buffer) setHoverPosition('left');
-      else if (window.innerWidth - rect.right < buffer) setHoverPosition('right');
+      const popupWidth = window.innerWidth > 1024 ? 320 : 280;
+      const expansionBuffer = (popupWidth * 1.25 - rect.width) / 2;
+      
+      if (rect.left < expansionBuffer) setHoverPosition('left');
+      else if (window.innerWidth - rect.right < expansionBuffer) setHoverPosition('right');
       else setHoverPosition('center');
     }
 
@@ -264,8 +266,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   // Dynamic Class Calculation
   const getPositionClasses = () => {
     switch (hoverPosition) {
-      case 'left': return { wrapper: 'left-[5%] translate-x-2', inner: 'origin-left' };
-      case 'right': return { wrapper: 'right-[5%] -translate-x-2', inner: 'origin-right' };
+      case 'left': return { wrapper: 'left-0 translate-x-0', inner: 'origin-left' };
+      case 'right': return { wrapper: 'right-0 translate-x-0', inner: 'origin-right' };
       default: return { wrapper: 'left-1/2 -translate-x-1/2', inner: 'origin-center' };
     }
   };
@@ -306,7 +308,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   return (
     <div
       ref={cardRef}
-      className={`relative transition-all duration-300 z-10 
+      className={`relative z-10 
         ${isGrid
           ? 'w-full aspect-video cursor-pointer hover:z-50'
           : 'flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.32] cursor-pointer hover:z-[100]'
@@ -349,9 +351,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
       {/* Hover Popup - Active on all views */}
       {isHovered && (
-        <div className={`absolute top-[-40px] md:top-[-60px] lg:top-[-75px] z-[100] ${posClasses.wrapper}`}>
+        <div className={`absolute top-[-40px] md:top-[-60px] lg:top-[-75px] z-[100] transition-all duration-300 ease-out ${posClasses.wrapper}`}>
           <div
-            className={`w-[250px] md:w-[280px] lg:w-[320px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] scale-[1.25] transition-transform duration-300 animate-scaleIn ring-1 ring-zinc-700/50 ${posClasses.inner}`}
+            className={`w-[250px] md:w-[280px] lg:w-[320px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] scale-[1.25] overflow-hidden transition-all duration-300 ease-out ring-1 ring-zinc-700/50 ${posClasses.inner}`}
             onClick={(e) => e.stopPropagation()} // Prevent click from bubbling to base card
           >
             {/* Media Container */}
