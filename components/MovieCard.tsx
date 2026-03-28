@@ -206,8 +206,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     // Determine screen position for smart popup alignment
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
-      const popupWidth = window.innerWidth > 1024 ? 320 : 280;
-      const expansionBuffer = (popupWidth * 1.25 - rect.width) / 2;
+      const popupWidth = window.innerWidth > 1024 ? 300 : 260;
+      const expansionBuffer = (popupWidth * 1.15 - rect.width) / 2;
       
       if (rect.left < expansionBuffer) setHoverPosition('left');
       else if (window.innerWidth - rect.right < expansionBuffer) setHoverPosition('right');
@@ -353,7 +353,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       {isHovered && (
         <div className={`absolute top-[-40px] md:top-[-60px] lg:top-[-75px] z-[100] transition-all duration-300 ease-out ${posClasses.wrapper}`}>
           <div
-            className={`w-[250px] md:w-[280px] lg:w-[320px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] scale-[1.25] overflow-hidden transition-all duration-300 ease-out ring-1 ring-zinc-700/50 ${posClasses.inner}`}
+            className={`w-[240px] md:w-[260px] lg:w-[300px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] scale-[1.15] overflow-hidden transition-all duration-300 ease-out ring-1 ring-zinc-700/50 ${posClasses.inner}`}
             onClick={(e) => e.stopPropagation()} // Prevent click from bubbling to base card
           >
             {/* Media Container */}
