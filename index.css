@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Carter+One&display=swap');
+
+@font-face {
+  font-family: 'Bebas Neue';
+  src: url('./BebasNeue-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Leaner Bold';
+  src: url('./assets/fonts/LeanerBold.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Harmonia Sans';
+  src: url('./assets/fonts/Harmonia Sans W01 Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Harmonia Sans';
+  src: url('./assets/fonts/Harmonia Sans W01 Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Harmonia Sans Mono';
+  src: url('./assets/fonts/Harmonia Sans Mono W01 Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Harmonia Sans Condensed';
+  src: url('./assets/fonts/Harmonia Sans W06 Condensed.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Harmonia Sans Black Italic';
+  src: url('./assets/fonts/Harmonia Sans W06 Black Italic.ttf') format('truetype');
+  font-weight: 900;
+  font-style: italic;
+}
+
+.font-leaner {
+  font-family: 'Leaner Bold', sans-serif;
+}
+
+.font-harmonia {
+  font-family: 'Harmonia Sans', sans-serif;
+}
+
+.font-harmonia-mono {
+  font-family: 'Harmonia Sans Mono', monospace;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-harmonia antialiased;
+    background-color: #141414;
+    color: white;
+    overscroll-behavior-y: none;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: auto;
+  scrollbar-color: #4e4e4e #141414;
+}
+
+.text-shadow-minimal {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.shadow-minimal {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+body {
+  background-color: #141414;
+  color: white;
+  overscroll-behavior-y: none;
+}
+
+/* Custom Scrollbar Design — sleek Netflix-style */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #141414;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #3a3a3a;
+  border-radius: 10px;
+  border: 2px solid #141414;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #888;
+}
+
+::-webkit-scrollbar-corner {
+  background: #141414;
+}
+
+/* Utilities */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.text-shadow-hard {
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
