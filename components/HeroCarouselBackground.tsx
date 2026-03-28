@@ -79,6 +79,11 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                 // Apply settings
                                 if (isMuted) e.target.mute();
                                 else e.target.unMute();
+
+                                // Cinematic: Force Highest Quality
+                                if (typeof e.target.setPlaybackQuality === 'function') {
+                                    e.target.setPlaybackQuality('hd1080');
+                                }
                                 
                                 // Sync check: Resume from last known position (Bidirectional Sync)
                                 const syncTime = onSyncCheck?.(trailerQueue[0]);

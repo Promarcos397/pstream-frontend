@@ -77,41 +77,36 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         const validResults = (request?.data?.results || []).filter(m => m.backdrop_path);
 
         if (validResults.length > 0) {
-          // Use date-seeded index for daily consistent selection
           const pageType = getPageType(url);
           const dailyIndex = getDailyIndex(validResults, pageType);
           let selectedMovie = validResults[dailyIndex];
 
-          // Fetch full details for IMDb ID if missing
+          // Fetch full details for IMDb ID in the background (Non-blocking)
           if (!selectedMovie.imdb_id) {
-            try {
-              const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-              const externalIds = await getExternalIds(selectedMovie.id, mediaType);
+            const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+            getExternalIds(selectedMovie.id, mediaType).then(externalIds => {
               if (externalIds?.imdb_id) {
-                selectedMovie = { ...selectedMovie, imdb_id: externalIds.imdb_id };
+                setMovie(prev => prev?.id === selectedMovie.id ? { ...prev, imdb_id: externalIds.imdb_id } : prev);
               }
-            } catch (e) {}
+            }).catch(() => {});
           }
 
           setMovie(selectedMovie);
 
-          // Prefetch stream for hero movie (user likely to click play)
-          if (selectedMovie) {
-            console.log('[HeroCarousel] Selected Hero Content:', selectedMovie.title || selectedMovie.name, selectedMovie.imdb_id ? `(IMDb: ${selectedMovie.imdb_id})` : '(No IMDb)');
-            const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-            const releaseDate = selectedMovie.release_date || selectedMovie.first_air_date;
-            const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
-            
-            prefetchStream(
-              selectedMovie.title || selectedMovie.name || '',
-              year,
-              String(selectedMovie.id),
-              mediaType,
-              1,
-              1,
-              selectedMovie.imdb_id
-            );
-          }
+          // Prefetch stream (user likely to click play)
+          const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+          const releaseDate = selectedMovie.release_date || selectedMovie.first_air_date;
+          const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
+          
+          prefetchStream(
+            selectedMovie.title || selectedMovie.name || '',
+            year,
+            String(selectedMovie.id),
+            mediaType,
+            1,
+            1,
+            selectedMovie.imdb_id
+          );
         }
         setLoading(false);
       } catch (error) {
