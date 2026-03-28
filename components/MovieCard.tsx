@@ -203,11 +203,14 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   // Prefetch stream on hover
   const handleMouseEnter = (e: React.MouseEvent) => {
+    // Prevent hover effect on touch devices
+    if (!window.matchMedia('(hover: hover)').matches) return;
+
     // Determine screen position for smart popup alignment
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
       const popupWidth = window.innerWidth > 1024 ? 300 : 260;
-      const expansionBuffer = (popupWidth * 1.15 - rect.width) / 2;
+      const expansionBuffer = (popupWidth * 1.05 - rect.width) / 2;
       
       if (rect.left < expansionBuffer) setHoverPosition('left');
       else if (window.innerWidth - rect.right < expansionBuffer) setHoverPosition('right');
@@ -224,10 +227,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
 
       if (year) {
-        console.log(`[MovieCard] Prefetching stream for: ${movie.title || movie.name}`);
-        // For TV shows, we ideally want to prefetch the resume episode, but for hover, S1E1 is safe default
-        // or we could check getEpisodeProgress/resumeContext logic here if cheap.
-        // For now, defaulting to 1,1 is standard behavior for "first play".
+        // prefetch without logging normally to reduce console spam
         prefetchStream(
           movie.title || movie.name || '',
           year,
@@ -237,7 +237,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           1
         );
       }
-    }, 500); // 500ms dwell time
+    }, 600); // Increased dwell time to 600ms to prevent accidental triggers while moving across rows
   };
 
   const handleMouseLeave = () => {
@@ -351,9 +351,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
       {/* Hover Popup - Active on all views */}
       {isHovered && (
-        <div className={`absolute top-[-40px] md:top-[-60px] lg:top-[-75px] z-[100] transition-all duration-300 ease-out ${posClasses.wrapper}`}>
+        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ${posClasses.wrapper}`}>
           <div
-            className={`w-[240px] md:w-[260px] lg:w-[300px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] scale-[1.15] overflow-hidden transition-all duration-300 ease-out ring-1 ring-zinc-700/50 ${posClasses.inner}`}
+            className={`w-[220px] md:w-[240px] lg:w-[280px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] scale-[1.05] overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ring-1 ring-zinc-700/50 ${posClasses.inner}`}
             onClick={(e) => e.stopPropagation()} // Prevent click from bubbling to base card
           >
             {/* Media Container */}

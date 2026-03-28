@@ -227,6 +227,25 @@ export const prefetchStream = async (title: string, year: number | undefined, tm
   }, 1000);
 };
 
+export const predictStream = async (type: 'movie' | 'tv', tmdbId: string, season: number = 1, episode: number = 1, imdbId?: string) => {
+  try {
+    const params = new URLSearchParams({
+      tmdbId: tmdbId || '',
+      type,
+      season: season.toString(),
+      episode: episode.toString(),
+      imdbId: imdbId || ''
+    });
+    
+    // Fire and forget a very fast HEAD request to the backend
+    const response = await axios.get(`${GIGA_BACKEND_URL}/api/predict_stream?${params.toString()}`);
+    return response.data;
+  } catch (error) {
+    // Fails silently if prediction fails
+    return { available: false };
+  }
+};
+
 export const getReleaseDates = async (id: number | string, type: 'movie' | 'tv') => {
   try {
     const response = await api.get(`/${type}/${id}/release_dates`);
