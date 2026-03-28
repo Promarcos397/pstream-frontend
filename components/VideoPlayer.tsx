@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Movie, Episode } from '../types';
-import { getSeasonDetails, getMovieDetails, getStream } from '../services/api';
+import { getSeasonDetails, getMovieDetails, getStream, getExternalIds } from '../services/api';
 import Hls from 'hls.js';
 import ISO6391 from 'iso-639-1';
 
@@ -199,13 +199,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     ? SubtitleService.getOpenSubtitles(String(movie.id), playingSeasonNumber, currentEpisode).catch(() => [])
                     : Promise.resolve([]);
 
+                let imdbId = movie.imdb_id;
+                if (!imdbId) {
+                    try {
+                        const ext = await getExternalIds(movie.id, mediaType === 'tv' ? 'tv' : 'movie');
+                        if (ext && ext.imdb_id) imdbId = ext.imdb_id;
+                    } catch (e) { console.warn("Could not fetch IMDb ID", e); }
+                }
+
                 const result = await getStream(
                     title,
                     mediaType === 'tv' ? 'tv' : 'movie',
                     releaseYear,
                     playingSeasonNumber,
                     currentEpisode,
-                    String(movie.id || '')
+                    String(movie.id || ''),
+                    imdbId || ''
                 );
 
                 if (result.success && result.sources && result.sources.length > 0) {
