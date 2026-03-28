@@ -6,8 +6,9 @@ import YouTube from 'react-youtube';
 import { useGlobalContext } from '../context/GlobalContext';
 import axios from 'axios';
 import { GENRES, LOGO_SIZE } from '../constants';
-import { fetchTrailer, getMovieImages, prefetchStream } from '../services/api';
+import { getMovieImages, prefetchStream, getExternalIds } from '../services/api';
 import { Movie } from '../types';
+import { searchTrailersWithFallback } from '../services/YouTubeService';
 
 interface MovieCardProps {
   movie: Movie;
@@ -182,52 +183,54 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     return () => { isMounted = false; };
   }, [movie.id, movie.media_type, movie.title]);
 
-  // Fetch Trailer on Hover
-  useEffect(() => {
-    let isMounted = true;
-    if (isHovered && !trailerUrl) {
-      const getTrailer = async () => {
-        try {
-          const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-          const url = await fetchTrailer(String(movie.id), mediaType);
-          if (isMounted && url) setTrailerUrl(url);
-        } catch (e) { }
-      };
-      getTrailer();
-    }
-    return () => { isMounted = false; };
-  }, [isHovered, movie.id, movie.media_type, movie.title, trailerUrl, setTrailerUrl]);
-
-
-
-
   // Prefetch stream on hover
   const handleMouseEnter = (e: React.MouseEvent) => {
     // Prevent hover effect on touch devices
     if (!window.matchMedia('(hover: hover)').matches) return;
 
     // Determine screen position for smart popup alignment
+    let currentPos: 'center' | 'left' | 'right' = 'center';
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
       const popupWidth = window.innerWidth > 1024 ? 300 : 260;
       const expansionBuffer = (popupWidth * 1.05 - rect.width) / 2;
       
-      if (rect.left < expansionBuffer) setHoverPosition('left');
-      else if (window.innerWidth - rect.right < expansionBuffer) setHoverPosition('right');
-      else setHoverPosition('center');
+      if (rect.left < expansionBuffer) currentPos = 'left';
+      else if (window.innerWidth - rect.right < expansionBuffer) currentPos = 'right';
+      setHoverPosition(currentPos);
     }
 
-    // Set timer for hover effect (existing logic)
+    // Predictive Fetching: Start searching for the trailer IMMEDIATELY on hover (no dwell wait)
+    const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+    const releaseDate = movie.release_date || movie.first_air_date;
+    const yearString = releaseDate ? releaseDate.split('-')[0] : undefined;
+    
+    // We don't set the trailerUrl yet (that's for dwell), but we warm the cache and pre-search
+    if (!trailerUrl && !isBook) {
+      searchTrailersWithFallback({ 
+        title: movie.title || movie.name || '', 
+        year: yearString,
+        type: mediaType 
+      }).then(keys => {
+        if (keys && keys.length > 0) {
+          // Store locally if we haven't already
+          (window as any)[`trailer_${movie.id}`] = keys[0];
+        }
+      });
+    }
+
+    // Set timer for hover effect (Visual expansion triggers after dwell)
     timerRef.current = setTimeout(() => {
       setIsHovered(true);
 
       // Request stream prefetch when user dwells on the card
-      const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-      const releaseDate = movie.release_date || movie.first_air_date;
-      const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
+      const year = yearString ? parseInt(yearString) : undefined;
+      
+      // Check predictive search result first
+      const predictedKey = (window as any)[`trailer_${movie.id}`];
+      if (predictedKey) setTrailerUrl(predictedKey);
 
       if (year) {
-        // prefetch without logging normally to reduce console spam
         prefetchStream(
           movie.title || movie.name || '',
           year,
@@ -237,7 +240,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           1
         );
       }
-    }, 600); // Increased dwell time to 600ms to prevent accidental triggers while moving across rows
+    }, 600); // Dwell time
   };
 
   const handleMouseLeave = () => {
@@ -351,9 +354,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
       {/* Hover Popup - Active on all views */}
       {isHovered && (
-        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] animate-netflix-zoom ${posClasses.wrapper}`}>
+        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] animate-netflix-zoom-${hoverPosition} ${posClasses.wrapper}`}>
           <div
-            className={`w-[220px] md:w-[240px] lg:w-[280px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ring-1 ring-zinc-700/50 ${posClasses.inner}`}
+            className={`w-[220px] md:w-[240px] lg:w-[280px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] ring-1 ring-zinc-700/50 ${posClasses.inner}`}
             onClick={(e) => e.stopPropagation()} // Prevent click from bubbling to base card
           >
             {/* Media Container */}
