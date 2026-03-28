@@ -12,7 +12,7 @@ const api = axios.create({
 });
 
 // Giga Engine Backend URL
-const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://pstream-giga.hf.space');
+const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || (window.location.hostname === 'localhost' ? window.location.origin : 'https://ibrahimar397-pstream-giga.hf.space');
 
 // Current language (defaults to en-US, updated from settings)
 let currentLanguage = 'en-US';
@@ -186,21 +186,19 @@ export const fetchTrailer = async (id: number | string, type: 'movie' | 'tv'): P
 export const getStream = async (title: string, type: 'movie' | 'tv', year?: number, season: number = 1, episode: number = 1, tmdbId?: string, imdbId?: string) => {
   try {
     const params = new URLSearchParams({
-      id: tmdbId || '',
+      tmdbId: tmdbId || '',
       type,
-      s: season.toString(),
-      e: episode.toString(),
-      title,
-      year: year?.toString() || '',
+      season: season.toString(),
+      episode: episode.toString(),
       imdbId: imdbId || ''
     });
     
-    console.log(`[GigaEngine] Requesting stream from: ${GIGA_BACKEND_URL}`);
+    console.log(`[GigaEngine] Requesting stream (Giga Backend)...`);
     const response = await axios.get(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`);
     return response.data;
   } catch (error: any) {
-    console.error('[GigaEngine] Stream fetch error:', error.message);
-    return { success: false, error: 'Failed to connect to Giga Engine', sources: [], subtitles: [] };
+    console.error(`[GigaEngine] Ultimate resolution failure: ${error.message}`);
+    throw error;
   }
 };
 

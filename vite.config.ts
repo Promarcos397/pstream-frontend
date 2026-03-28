@@ -1,26 +1,20 @@
-import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import tailwindcss from 'tailwindcss';
-import autoprefixer from 'autoprefixer';
+import path from 'path';
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, '.', '');
-  return {
-    server: {
-      port: 5173,
-      host: '0.0.0.0',
-      allowedHosts: true, // Fix for host blocking errors (scrennnifu.click, etc)
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
     },
-    base: './', // CRITICAL for Electron: ensures relative path asset loading
-    css: {
-      postcss: {
-        plugins: [
-          tailwindcss(),
-          autoprefixer(),
-        ],
-      },
-    },
-    plugins: [react()],
-  };
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+  },
 });
