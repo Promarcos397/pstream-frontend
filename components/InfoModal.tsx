@@ -60,22 +60,24 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     useEffect(() => {
         if (movie) {
+            // Reset state for new movie
             setTrailerQueue([]);
             setIsPlayingTrailer(false);
-
             setEpisodes([]);
             setSelectedSeason(1);
             setResumeContext(null);
 
-            // Load Resume Context
-            if (mediaType === 'tv') {
+            const type = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+
+            // 1. Load Last Watched (TV only)
+            if (type === 'tv') {
                 const saved = localStorage.getItem(`kinemora-last-watched-${movie.id}`);
                 if (saved) {
                     try {
                         const { season, episode } = JSON.parse(saved);
                         if (season && episode) {
                             setResumeContext({ season, episode });
-                            setSelectedSeason(season); // Sync dropdown to last watched season
+                            setSelectedSeason(season);
                         }
                     } catch (e) {
                         console.error("Failed to parse last watched", e);
@@ -88,50 +90,15 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 setTrailerQueue([trailerId]);
                 setIsPlayingTrailer(true);
             } else {
-                fetchTrailers(movie.id, mediaType).then(keys => {
+                fetchTrailers(movie.id, type).then(keys => {
                     if (keys && keys.length > 0) {
                         setTrailerQueue(keys);
-                        setIsPlayingTrailer(true); // Auto-play trailer if available
+                        setIsPlayingTrailer(true);
                     }
                 });
             }
-
-            // 3. Prefetch stream (user likely to click play)
-            const api = (window as any).electron?.pstream;
-            if (api?.prefetchStream) {
-                const releaseDate = movie.release_date || movie.first_air_date;
-                const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
-                console.log('[InfoModal] Prefetching stream for:', movie.title || movie.name);
-                api.prefetchStream(
-                    movie.title || movie.name,
-                    mediaType,
-                    year,
-                    mediaType === 'tv' ? (resumeContext?.season || 1) : undefined,
-                    mediaType === 'tv' ? (resumeContext?.episode || 1) : undefined
-                );
-            }
-
-            // 5. Fetch Episodes (if TV)
-            if (mediaType === 'tv') {
-                // If we have a resume context, fetch THAT season. Otherwise fetch season 1.
-                // Note: selectedSeason isn't updated instantly in this effect cycle for fetchEpisodes below,
-                // so we use the retrieved value if available.
-                // Actually, the useEffect on [selectedSeason] will trigger fetchEpisodes(selectedSeason).
-                // But we reset selectedSeason to 1 above.
-                // If we call setSelectedSeason(season) above, it will trigger the effect.
-                // So we DON'T need to call fetchEpisodes here manually for S1 if we set state.
-                // BUT, if there is no resume context, selectedSeason stays 1, and we SHOULD ensure S1 loads.
-                // The effect on lines 95-99 handles fetching when selectedSeason changes.
-                // If selectedSeason is set to 1 (same as default), effect might not run if it was already 1?
-                // But we are in "if (movie)" which implies a new movie open. new instance?
-                // InfoModal is mounted once in App.tsx and props change.
-                // So selectedSeason state persists? No, we reset it to 1.
-                // The effect dependency [selectedSeason] will fire if it changes.
-                // If we reset to 1, and it WAS 1, it won't fire.
-                // So we should fetch default S1 here if no resume context.
-            }
         }
-    }, [movie, mediaType, trailerId]);
+    }, [movie, trailerId]);
 
     const fetchEpisodes = useCallback(async (id: number, season: number) => {
         setLoadingEpisodes(true);

@@ -2,11 +2,11 @@ import axios from 'axios';
 
 // YouTube API keys with rotation
 const YOUTUBE_API_KEYS = [
-    'AIzaSyBJHthTDYf9lot4KvH9NONo_lcUBF9SbUY', // Original
-    'AIzaSyD8URfM0IqZDT4dgl9dpLfQcnJ42q4_XCs',
-    'AIzaSyAPYK_Miisu65B_rzwUH8FoI83AVgmXA50',
-    'AIzaSyDUfzBoybcjWFUkA7jqVV1UP45jOWz4L1g',
-    'AIzaSyCCNJoPIJVB7r2AOIFn0C-UELpvZrK9AM4',
+    'AIzaSyB-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 1
+    'AIzaSyC-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 2
+    'AIzaSyD-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 3
+    'AIzaSyE-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 4
+    'AIzaSyF-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 5
 ];
 
 let currentKeyIndex = 0;
