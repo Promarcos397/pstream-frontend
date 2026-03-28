@@ -58,6 +58,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [allSources, setAllSources] = useState<any[]>([]);
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [isStreamM3U8, setIsStreamM3U8] = useState<boolean>(true);
+    const [isEmbed, setIsEmbed] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
     // TV Show state - PLAYBACK state
@@ -265,12 +266,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const applyStreamResult = (sources: any[], subtitles: any[], referer?: string | null) => {
             setAllSources(sources);
             setCurrentSourceIndex(0);
-            
             // Find HLS source (m3u8) or fallback to first
             const hlsSource = sources[0];
-            const finalUrl = hlsSource.isM3U8 
-                ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(referer || '')}`
-                : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(referer || '')}`;
+            const isEmbedFallback = !!hlsSource.isEmbed;
+            setIsEmbed(isEmbedFallback);
+
+            let finalUrl = hlsSource.url;
+            if (!isEmbedFallback) {
+                finalUrl = hlsSource.isM3U8 
+                    ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(referer || '')}`
+                    : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(referer || '')}`;
+            }
 
             console.log('[VideoPlayer] Selected source:', finalUrl);
 
@@ -365,9 +371,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
     }, [currentCaption]);
 
-    // --- Initialize HLS.js when stream URL is available ---
+    // --- Initialize HLS.js when stream    // HLS Initialization
     useEffect(() => {
-        if (!streamUrl || !videoRef.current) return;
+        if (!streamUrl || !videoRef.current || isEmbed) {
+            // For embeds, we stop buffering immediately because the iframe handles its own loading.
+            if (isEmbed && isBuffering) {
+                setTimeout(() => setIsBuffering(false), 500); 
+            }
+            return;
+        }
 
         const video = videoRef.current;
 
@@ -445,10 +457,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         const nextSource = allSources[nextIndex];
                         setCurrentSourceIndex(nextIndex);
                         setLoadingMessage(`Switching to mirror ${nextIndex + 1}...`);
-                        
-                        const nextUrl = nextSource.isM3U8 
-                            ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`
-                            : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`;
+                        const nextIsEmbed = !!nextSource.isEmbed;
+                        setIsEmbed(nextIsEmbed);
+                        let nextUrl = nextSource.url;
+                        if (!nextIsEmbed) {
+                            nextUrl = nextSource.isM3U8 
+                                ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`
+                                : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`;
+                        }
                         
                         setStreamUrl(nextUrl);
                         setIsStreamM3U8(!!nextSource.isM3U8);
@@ -837,9 +853,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 </button>
             </div>
 
-            {/* Native Video Element */}
-            <video
-                ref={videoRef}
+            {/* Native Video Element or Embedded Iframe */}
+            {isEmbed ? (
+                <iframe
+                    src={streamUrl || undefined}
+                    className="absolute inset-0 w-full h-full border-none pointer-events-auto"
+                    style={{ zIndex: 25, backgroundColor: 'black' }}
+                    allowFullScreen
+                    allow="autoplay; fullscreen"
+                    sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+                />
+            ) : (
+                <video
+                    ref={videoRef}
                 className="absolute inset-0 w-full h-full object-contain bg-black"
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={() => setIsPlaying(true)}
@@ -863,7 +889,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         default
                     />
                 )}
-            </video>
+                </video>
+            )}
 
             {/* Loading Overlay */}
             {isBuffering && (
