@@ -1,7 +1,8 @@
-import React from 'react';
-import { PlayIcon, InfoIcon } from '@phosphor-icons/react';
+import React, { useState, useEffect } from 'react';
+import { InfoIcon, TicketIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
+import { getReleaseDates } from '../services/api';
 
 interface HeroCarouselContentProps {
     movie: Movie;
@@ -23,14 +24,56 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
     hasVideoEnded = false
 }) => {
     const { t } = useTranslation();
+    const [showDescription, setShowDescription] = useState(true);
+    const [isCinemaOnly, setIsCinemaOnly] = useState(false);
+
+    // 1. Netflix-style description fade delay (7 seconds)
+    useEffect(() => {
+        if (isVideoReady && !hasVideoEnded) {
+            const timer = setTimeout(() => {
+                setShowDescription(false);
+            }, 7000); // 7s delay
+            return () => clearTimeout(timer);
+        } else {
+            setShowDescription(true);
+        }
+    }, [isVideoReady, hasVideoEnded]);
+
+    // 2. Check for "In Theaters" status
+    useEffect(() => {
+        const checkRelease = async () => {
+            const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+            if (mediaType === 'tv') return; // TV is usually digital-first
+
+            const releases = await getReleaseDates(movie.id, 'movie');
+            const now = new Date();
+            
+            // Logic: If there's a theatrical release (type 3) but no digital release (type 4) yet
+            let hasTheater = false;
+            let hasDigital = false;
+
+            for (const country of releases) {
+                for (const release of country.release_dates) {
+                    const releaseDate = new Date(release.release_date);
+                    if (release.type === 3 && releaseDate <= now) hasTheater = true;
+                    if (release.type >= 4 && releaseDate <= now) hasDigital = true;
+                }
+            }
+
+            // Simple proxy: if movie is very new and no digital release found
+            setIsCinemaOnly(hasTheater && !hasDigital);
+        };
+        checkRelease();
+    }, [movie]);
+
     return (
         <div className={`absolute top-0 left-0 w-full h-full flex flex-col justify-end z-20 
           pl-6 md:pl-14 lg:pl-16 pr-4 md:pr-12 pointer-events-none pb-[18%] sm:pb-[16%] md:pb-[14%]`}
         >
             <div className="max-w-[90%] sm:max-w-lg md:max-w-xl lg:max-w-2xl space-y-3 md:space-y-4 pointer-events-auto">
 
-                {/* Logo/Title - Anchored lower, scales down during video playback */}
-                <div className={`h-14 sm:h-20 md:h-28 flex items-end mb-4 md:mb-5 origin-bottom-left transition-all duration-700 ${isVideoReady && !hasVideoEnded ? 'scale-[0.65] origin-bottom-left translate-y-6' : ''}`}>
+                {/* Logo/Title - Anchored lower, scales down after delay */}
+                <div className={`h-14 sm:h-20 md:h-28 flex items-end mb-4 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.65] origin-bottom-left translate-y-6' : ''}`}>
                     {logoUrl ? (
                         <img src={logoUrl} alt="title logo" className="h-full object-contain drop-shadow-2xl" />
                     ) : (
@@ -40,27 +83,37 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     )}
                 </div>
 
-                {/* Description - Hides when video plays */}
-                <div className={`transition-all duration-700 overflow-hidden ${isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-5 md:mb-6'}`}>
+                {/* Description - Hides after 7 seconds of video play */}
+                <div className={`transition-all duration-700 overflow-hidden ${!showDescription && isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-5 md:mb-6'}`}>
                     <p
                         className={`text-[13px] md:text-[15px] font-medium text-white line-clamp-2 md:line-clamp-3 drop-shadow-lg leading-snug max-w-lg transition-all duration-700 ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
-                        dir={['ar', 'he'].includes(useTranslation().i18n.language.split('-')[0]) ? "rtl" : "ltr"}
                     >
                         {movie?.overview}
                     </p>
                 </div>
 
                 {/* Netflix-style CTA Buttons */}
-                <div className={`flex items-center gap-2 transition-transform duration-700 ${isVideoReady && !hasVideoEnded ? 'translate-y-2' : ''}`}>
-                    <button
-                        onClick={() => onPlay(movie)}
-                        className="flex items-center justify-center bg-white text-black px-4 md:px-6 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-white/80 transition-colors text-sm md:text-[15px] gap-1.5"
-                    >
-                        <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] md:w-5 md:h-5 fill-black">
-                            <polygon points="6,3 20,12 6,21" />
-                        </svg>
-                        {t('hero.play')}
-                    </button>
+                <div className={`flex items-center gap-2 transition-transform duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'translate-y-2' : ''}`}>
+                    {isCinemaOnly ? (
+                        <button
+                            onClick={() => onSelect(movie, undefined, trailerVideoId)}
+                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 md:px-6 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-colors text-sm md:text-[15px] gap-2 blur-[0.3px]"
+                        >
+                            <TicketIcon weight="bold" className="text-lg md:text-xl" />
+                            {t('hero.inTheaters', { defaultValue: 'In Theaters' })}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => onPlay(movie)}
+                            className="flex items-center justify-center bg-white text-black px-4 md:px-6 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-white/80 transition-colors text-sm md:text-[15px] gap-1.5"
+                        >
+                            <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] md:w-5 md:h-5 fill-black">
+                                <polygon points="6,3 20,12 6,21" />
+                            </svg>
+                            {t('hero.play')}
+                        </button>
+                    )}
+                    
                     <button
                         onClick={() => onSelect(movie, undefined, trailerVideoId)}
                         className="flex items-center justify-center bg-[#6d6d6e]/60 text-white px-5 md:px-7 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/40 backdrop-blur-sm transition-colors text-sm md:text-[15px] gap-2"
@@ -75,4 +128,3 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 };
 
 export default HeroCarouselContent;
-

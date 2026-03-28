@@ -227,4 +227,14 @@ export const prefetchStream = async (title: string, year: number | undefined, tm
   }, 1000);
 };
 
+export const getReleaseDates = async (id: number | string, type: 'movie' | 'tv') => {
+  try {
+    const response = await api.get(`/${type}/${id}/release_dates`);
+    return response.data.results || [];
+  } catch (error) {
+    console.error(`Error fetching release dates for ${type} ${id}:`, error);
+    return [];
+  }
+};
+
 export default api;
