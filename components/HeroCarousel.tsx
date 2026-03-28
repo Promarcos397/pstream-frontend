@@ -27,9 +27,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   const [loading, setLoading] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
 
-  // ... (Smart Video State omitted for brevity, referencing lines 29-41 in original if needed, but I am replacing top block)
-  // Wait, I should not delete lines 29-41. I will only replace the top part and the useEffect.
-
   // Smart Video State
   const [trailerQueue, setTrailerQueue] = useState<string[]>([]);
   const [showVideo, setShowVideo] = useState(false);
@@ -201,7 +198,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
 
   useEffect(() => {
     const handleScroll = () => {
-      // Pause if scrolled down more than 400px
       const scrolled = window.scrollY > 400;
       setIsOutOfView(scrolled);
     };
@@ -215,63 +211,51 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
 
     const recheckHover = () => {
       if (!heroContainer) return;
-
-      // Get mouse position from last known position or check if element is hovered
       const rect = heroContainer.getBoundingClientRect();
       const mouseX = (window as any).__lastMouseX ?? -1;
       const mouseY = (window as any).__lastMouseY ?? -1;
-
-      const isMouseInside =
-        mouseX >= rect.left &&
-        mouseX <= rect.right &&
-        mouseY >= rect.top &&
-        mouseY <= rect.bottom;
-
+      const isMouseInside = mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom;
       setIsHovered(isMouseInside);
     };
 
-    // Track mouse position globally
     const trackMouse = (e: MouseEvent) => {
       (window as any).__lastMouseX = e.clientX;
       (window as any).__lastMouseY = e.clientY;
     };
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        recheckHover();
-      }
-    };
-
-    const handleFocus = () => {
-      recheckHover();
-    };
-
+    const handleFocus = () => recheckHover();
     window.addEventListener('mousemove', trackMouse);
     window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       window.removeEventListener('mousemove', trackMouse);
       window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
-  // Handle Play/Pause based on Scroll & Hover with Audio Fade
+  // Cinematic: Window Visibility Pause (Netflix Logic)
+  useEffect(() => {
+      const handleVisibility = () => {
+          if (document.visibilityState === 'hidden' && playerRef.current) {
+              playerRef.current.pauseVideo?.();
+          } else if (document.visibilityState === 'visible' && !isOutOfView && isHovered && playerRef.current) {
+              playerRef.current.playVideo?.();
+          }
+      };
+      document.addEventListener('visibilitychange', handleVisibility);
+      return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isOutOfView, isHovered]);
+
+  // Handle Play/Pause
   useEffect(() => {
     if (playerRef.current && isVideoReady && showVideo) {
-      // Play if: Visible (not scrolled out) AND Hovered
       const shouldPlay = !isOutOfView && isHovered;
-
       if (shouldPlay) {
-        // Play sequence
         try {
           if (playerRef.current.playVideo) playerRef.current.playVideo();
           else playerRef.current.play();
           if (!isMuted) fadeAudioIn();
         } catch (e) { }
       } else {
-        // Pause sequence with Fade
         if (!isMuted) {
           fadeAudioOut(() => {
             try {
@@ -289,184 +273,103 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     }
   }, [isOutOfView, isVideoReady, showVideo, isHovered, isMuted]);
 
-  // Sync mute state
-
-
-  // Handle Seek Command (Resume from InfoModal)
+  // Handle Seek
   useEffect(() => {
     if (seekTime && seekTime > 0 && playerRef.current) {
       try {
         if (playerRef.current.seekTo) playerRef.current.seekTo(seekTime, true);
         else playerRef.current.currentTime = seekTime;
-
         if (playerRef.current.playVideo) playerRef.current.playVideo();
         else playerRef.current.play();
       } catch (e) { }
     }
   }, [seekTime]);
 
-  // Handle Movie Assets (Logo & Video)
+  // Handle Assets
   useEffect(() => {
     if (!movie) return;
-
     setLogoUrl(null);
     setShowVideo(false);
     setIsVideoReady(false);
     setTrailerQueue([]);
     clearTimeout(videoTimerRef.current);
-
     const fetchAssets = async () => {
       try {
         const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-
-        // Fetch Logo
         try {
           const imageData = await getMovieImages(movie.id, mediaType);
-          if (imageData && imageData.logos) {
+          if (imageData?.logos) {
             const logo = imageData.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
-            if (logo) {
-              setLogoUrl(`https://image.tmdb.org/t/p/${LOGO_SIZE}${logo.file_path}`);
+            if (logo) setLogoUrl(`https://image.tmdb.org/t/p/${LOGO_SIZE}${logo.file_path}`);
+          }
+        } catch (e) {}
+        videoTimerRef.current = setTimeout(async () => {
+          if (window.scrollY < 400) {
+            const title = movie.title || movie.name;
+            if (title) {
+              const releaseDate = movie.release_date || movie.first_air_date;
+              const year = releaseDate ? releaseDate.split('-')[0] : undefined;
+              const keys = await searchTrailersWithFallback({ title, year, type: mediaType }, 5);
+              if (keys?.length > 0) {
+                setTrailerQueue(keys);
+                setShowVideo(true);
+              }
             }
           }
-        } catch (e) { }
-
-        // Start Video Loading Timer
-        videoTimerRef.current = setTimeout(async () => {
-          if (window.scrollY < 100) {
-            try {
-              // Search YouTube with smart fallback queries
-              const title = movie.title || movie.name;
-              if (title) {
-                // Extract year from release_date or first_air_date
-                const releaseDate = movie.release_date || movie.first_air_date;
-                const year = releaseDate ? releaseDate.split('-')[0] : undefined;
-
-                // Get production company if available (often in movie data)
-                const company = (movie as any).production_companies?.[0]?.name;
-
-                const keys = await searchTrailersWithFallback({
-                  title,
-                  year,
-                  company,
-                  type: mediaType
-                }, 5);
-
-                console.log('[HeroCarousel] YouTube trailers:', keys.length, 'for', title, year ? `(${year})` : '');
-
-                if (keys && keys.length > 0) {
-                  setTrailerQueue(keys);
-                  setShowVideo(true);
-                }
-              }
-            } catch (e) { }
-          }
         }, 1000);
-
-      } catch (e) { }
+      } catch (e) {}
     };
     fetchAssets();
-
     return () => clearTimeout(videoTimerRef.current);
   }, [movie]);
 
-  if (loading) {
-    return (
-      <div className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full bg-[#141414] overflow-hidden">
-        <div className="absolute inset-0 bg-[#1f1f1f] animate-pulse" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full bg-[#141414] overflow-hidden">
+      <div className="absolute inset-0 bg-[#1f1f1f] animate-pulse" />
+    </div>
+  );
 
   if (!movie) return null;
 
   return (
-    <div
-      id="hero-container"
-      className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full overflow-hidden group bg-black"
+    <div id="hero-container" className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full overflow-hidden group bg-black"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={(e) => {
-        // Prevent pause if moving to App Bar (Top < 60px) or Scroll Bar (Right > width-20px)
         if (e.clientY < 60 || e.clientX > window.innerWidth - 20) return;
         setIsHovered(false);
       }}
     >
       <HeroCarouselBackground
-        movie={movie}
-        showVideo={showVideo}
-        trailerQueue={trailerQueue}
-        isVideoReady={isVideoReady}
-        setIsVideoReady={setIsVideoReady}
-        setTrailerQueue={setTrailerQueue}
-        setShowVideo={setShowVideo}
-        isMuted={isMuted}
-        videoDimensions={videoDimensions}
-        playerRef={playerRef}
-        isHovered={isHovered}
-        replayCount={replayCount}
+        movie={movie} showVideo={showVideo} trailerQueue={trailerQueue} isVideoReady={isVideoReady} setIsVideoReady={setIsVideoReady} setTrailerQueue={setTrailerQueue} setShowVideo={setShowVideo} isMuted={isMuted} videoDimensions={videoDimensions} playerRef={playerRef} isHovered={isHovered} replayCount={replayCount}
         onSyncCheck={(videoId) => {
           const state = getVideoState(movie.id);
           return state?.videoId === videoId ? state.time : undefined;
         }}
-        onVideoEnd={() => {
-          // Hide video and show image with replay button
-          setHasVideoEnded(true);
-          setShowVideo(false);
-          setIsVideoReady(false);
-        }}
+        onVideoEnd={() => { setHasVideoEnded(true); setShowVideo(false); setIsVideoReady(false); }}
         youtubeQuality={networkQuality.quality}
       />
-
       <HeroCarouselContent
-        movie={movie}
-        logoUrl={logoUrl}
-        isVideoReady={isVideoReady}
-        onPlay={onPlay}
+        movie={movie} logoUrl={logoUrl} isVideoReady={isVideoReady} onPlay={onPlay}
         onSelect={(m, _, videoId) => {
-          // Get LIVE time directly from the player at the moment of click
           const actualTime = playerRef.current?.getCurrentTime?.() || 0;
-          if (videoId) {
-            updateVideoState(m.id, actualTime, videoId);
-          }
+          if (videoId) updateVideoState(m.id, actualTime, videoId);
           onSelect(m, actualTime, videoId);
         }}
-        trailerVideoId={trailerQueue[0]}
-        hasVideoEnded={hasVideoEnded}
+        trailerVideoId={trailerQueue[0]} hasVideoEnded={hasVideoEnded}
       />
-
-      {/* Controls (Mute/Replay & Rating) - Bottom Right, flush against edge */}
       <div className="absolute right-0 bottom-[34%] flex items-center gap-3 z-30 pointer-events-auto">
-
-        {/* Mute Button - Thinner, more delicate stroke */}
         {showVideo && isVideoReady && !hasVideoEnded && (
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/70 rounded-full flex items-center justify-center bg-transparent hover:bg-white/10 transition group"
-          >
-            {isMuted ? <SpeakerSlashIcon size={16} weight="light" className="text-white group-hover:scale-110 transition-transform" /> : <SpeakerHighIcon size={16} weight="light" className="text-white group-hover:scale-110 transition-transform" />}
+          <button onClick={() => setIsMuted(!isMuted)} className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/70 rounded-full flex items-center justify-center bg-transparent hover:bg-white/10 transition group">
+            {isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
           </button>
         )}
-
-        {/* Replay Button */}
         {hasVideoEnded && (
-          <button
-            onClick={() => {
-              setReplayCount(c => c + 1);
-              setHasVideoEnded(false);
-              setShowVideo(true);
-              setIsVideoReady(false);
-            }}
-            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/70 rounded-full flex items-center justify-center bg-transparent hover:bg-white/10 transition group"
-            title="Replay Trailer"
-          >
-            <ArrowCounterClockwise size={16} weight="light" className="text-white group-hover:scale-110 transition-transform" />
+          <button onClick={() => { setHasVideoEnded(false); setReplayCount(prev => prev + 1); setShowVideo(true); }} className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/70 rounded-full flex items-center justify-center bg-transparent hover:bg-white/10 transition group">
+            <ArrowCounterClockwise size={20} className="text-white" />
           </button>
         )}
-
-        {/* Age Rating Badge - Flush right edge, left-border only */}
-        <div className="bg-[#333]/50 border-l-[3px] border-white/90 pl-2.5 pr-5 py-1">
-          <span className="text-white/90 font-medium text-[11px] md:text-xs tracking-wide">
-            {movie.adult ? 'TV-MA' : 'TV-PG'}
-          </span>
+        <div className="bg-gray-500/40 border-l-[3px] border-gray-300 py-1.5 px-3 md:px-5 min-w-[60px] md:min-w-[90px] flex items-center justify-start">
+          <span className="text-white text-sm md:text-lg font-medium drop-shadow-md select-none">{movie.adult ? '18+' : '13+'}</span>
         </div>
       </div>
     </div>

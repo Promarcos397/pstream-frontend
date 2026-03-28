@@ -156,6 +156,19 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         }
     }, [isMuted]);
 
+    // Cinematic: Tab Visibility Pause (Netflix Logic)
+    useEffect(() => {
+        const handleVisibility = () => {
+            if (document.visibilityState === 'hidden' && playerRef.current) {
+                playerRef.current.pauseVideo?.();
+            } else if (document.visibilityState === 'visible' && isPlayingTrailer && playerRef.current) {
+                playerRef.current.playVideo?.();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
+    }, [isPlayingTrailer]);
+
     // Prefetch stream
     useEffect(() => {
         if (!movie) return;
@@ -248,15 +261,22 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             if (isMuted) e.target.mute();
                                             else e.target.unMute();
 
+                                            // Cinematic: Force Highest Quality
+                                            if (typeof e.target.setPlaybackQuality === 'function') {
+                                                e.target.setPlaybackQuality('hd1080');
+                                            }
+
                                             // Resume logic
                                             if (initialTime > 0) {
                                                 e.target.seekTo(initialTime, true);
                                             }
                                         }}
                                         onEnd={(e) => {
-                                            // Seamless loop from start
-                                            e.target.seekTo(0);
-                                            e.target.playVideo();
+                                            // Kill player 0.1s before suggestions
+                                            setIsPlayingTrailer(false);
+                                            setTimeout(() => {
+                                              if (trailerQueue.length > 0) setIsPlayingTrailer(true);
+                                            }, 100);
                                         }}
                                         onError={(e) => {
                                             console.warn("InfoModal Video error, trying next...", e);
