@@ -40,7 +40,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
 }) => {
     // 1. Sync Mute State
     useEffect(() => {
-        if (playerRef.current) {
+        if (playerRef.current && typeof playerRef.current.mute === 'function') {
             try {
                 if (isMuted) playerRef.current.mute();
                 else playerRef.current.unMute();

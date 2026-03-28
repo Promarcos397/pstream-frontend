@@ -179,7 +179,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     };
 
     fetchLogo();
-    fetchLogo();
     return () => { isMounted = false; };
   }, [movie.id, movie.media_type, movie.title]);
 

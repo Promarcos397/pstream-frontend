@@ -18,9 +18,13 @@ export const useYouTubePlayer = (initialMuted = false): UseYouTubePlayerReturn =
     const playerRef = useRef<any>(null);
 
     useEffect(() => {
-        if (playerRef.current) {
-            if (isMuted) playerRef.current.mute();
-            else playerRef.current.unMute();
+        if (playerRef.current && typeof playerRef.current.mute === 'function') {
+            try {
+                if (isMuted) playerRef.current.mute();
+                else playerRef.current.unMute();
+            } catch (e) {
+                console.warn("[useYouTubePlayer] Failed to sync mute state:", e);
+            }
         }
     }, [isMuted]);
 
