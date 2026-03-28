@@ -12,7 +12,7 @@ const api = axios.create({
 });
 
 // Giga Engine Backend URL
-const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || (window.location.hostname === 'localhost' ? window.location.origin : 'https://ibrahimar397-pstream-giga.hf.space');
+const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
 // Current language (defaults to en-US, updated from settings)
 let currentLanguage = 'en-US';

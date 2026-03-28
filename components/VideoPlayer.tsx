@@ -13,7 +13,7 @@ import { useTouchGestures } from '../hooks/useTouchGestures';
 import { SubtitleService } from '../services/SubtitleService';
 
 // Giga Engine Backend URL
-const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || (window.location.hostname === 'localhost' ? window.location.origin : 'https://ibrahimar397-pstream-giga.hf.space');
+const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
 // Child Components
 import VideoPlayerControls from './VideoPlayerControls';
