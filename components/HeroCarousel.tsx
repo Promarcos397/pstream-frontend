@@ -8,7 +8,7 @@ import HeroCarouselBackground from './HeroCarouselBackground';
 import HeroCarouselContent from './HeroCarouselContent';
 import { Movie, TMDBResponse } from '../types';
 import { REQUESTS, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream } from '../services/api';
+import { getMovieImages, prefetchStream, getExternalIds } from '../services/api';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 
 interface HeroCarouselProps {
@@ -80,16 +80,28 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
           // Use date-seeded index for daily consistent selection
           const pageType = getPageType(url);
           const dailyIndex = getDailyIndex(validResults, pageType);
-          const selectedMovie = validResults[dailyIndex];
+          let selectedMovie = validResults[dailyIndex];
+
+          // Fetch full details for IMDb ID if missing
+          if (!selectedMovie.imdb_id) {
+            try {
+              const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+              const externalIds = await getExternalIds(selectedMovie.id, mediaType);
+              if (externalIds?.imdb_id) {
+                selectedMovie = { ...selectedMovie, imdb_id: externalIds.imdb_id };
+              }
+            } catch (e) {}
+          }
+
           setMovie(selectedMovie);
 
           // Prefetch stream for hero movie (user likely to click play)
           if (selectedMovie) {
+            console.log('[HeroCarousel] Selected Hero Content:', selectedMovie.title || selectedMovie.name, selectedMovie.imdb_id ? `(IMDb: ${selectedMovie.imdb_id})` : '(No IMDb)');
             const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
             const releaseDate = selectedMovie.release_date || selectedMovie.first_air_date;
             const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
             
-            console.log('[HeroCarousel] Prefetching stream for:', selectedMovie.title || selectedMovie.name);
             prefetchStream(
               selectedMovie.title || selectedMovie.name || '',
               year,
@@ -309,10 +321,14 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
             if (title) {
               const releaseDate = movie.release_date || movie.first_air_date;
               const year = releaseDate ? releaseDate.split('-')[0] : undefined;
+              console.log('[HeroCarousel] Searching trailers for:', title, year, movie.imdb_id);
               const keys = await searchTrailersWithFallback({ title, year, type: mediaType }, 5);
+              console.log('[HeroCarousel] Trailer keys found:', keys);
               if (keys?.length > 0) {
                 setTrailerQueue(keys);
                 setShowVideo(true);
+              } else {
+                console.warn('[HeroCarousel] No trailer keys found. Content will stay static.');
               }
             }
           }

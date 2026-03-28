@@ -127,4 +127,19 @@ body {
 .text-shadow-hard {
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
 }
+
+@keyframes netflixZoom {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.05); /* Match the JS scale */
+    opacity: 1;
+  }
+}
+
+.animate-netflix-zoom {
+  animation: netflixZoom 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
 

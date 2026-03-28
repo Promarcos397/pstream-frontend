@@ -351,9 +351,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
       {/* Hover Popup - Active on all views */}
       {isHovered && (
-        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ${posClasses.wrapper}`}>
+        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] animate-netflix-zoom ${posClasses.wrapper}`}>
           <div
-            className={`w-[220px] md:w-[240px] lg:w-[280px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] scale-[1.05] overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ring-1 ring-zinc-700/50 ${posClasses.inner}`}
+            className={`w-[220px] md:w-[240px] lg:w-[280px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ring-1 ring-zinc-700/50 ${posClasses.inner}`}
             onClick={(e) => e.stopPropagation()} // Prevent click from bubbling to base card
           >
             {/* Media Container */}
