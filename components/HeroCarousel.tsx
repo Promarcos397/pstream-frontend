@@ -176,7 +176,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         const targetAspect = 16 / 9; // YouTube aspect ratio
         const containerAspect = clientWidth / clientHeight;
 
-        const ZOOM_FACTOR = 1.35; // Zoom to push Title Bar & Logo off-screen
+        const ZOOM_FACTOR = 1.5; // Aggressive zoom to crop YouTube UI (logos/titles) off-screen
 
         if (containerAspect > targetAspect) {
           // Container is wider than video (Panoramic) -> Match Width, Crop Vertical

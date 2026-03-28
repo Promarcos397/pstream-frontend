@@ -66,7 +66,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
             >
                 {showVideo && trailerQueue.length > 0 && (
                     <div
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-[-42%] pointer-events-none z-0 overflow-hidden"
+                        className="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none z-0 overflow-hidden"
                         style={{ width: videoDimensions.width, height: videoDimensions.height }}
                     >
                         <YouTube
