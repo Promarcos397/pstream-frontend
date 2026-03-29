@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { InfoIcon, TicketIcon } from '@phosphor-icons/react';
+import { InfoIcon, TicketIcon, PlayCircle } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
-import { getReleaseDates } from '../services/api';
+import { useIsInTheaters } from '../hooks/useIsInTheaters';
 
 interface HeroCarouselContentProps {
     movie: Movie;
@@ -25,7 +25,11 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 }) => {
     const { t } = useTranslation();
     const [showDescription, setShowDescription] = useState(true);
-    const [isCinemaOnly, setIsCinemaOnly] = useState(false);
+    const [imgFailed, setImgFailed] = useState(false);
+    const isCinemaOnly = useIsInTheaters(movie);
+
+    // Reset image failure if logo URL changes (navigating between heroes)
+    useEffect(() => setImgFailed(false), [logoUrl]);
 
     // 1. Netflix-style description fade delay (7 seconds)
     useEffect(() => {
@@ -39,33 +43,6 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
         }
     }, [isVideoReady, hasVideoEnded]);
 
-    // 2. Check for "In Theaters" status
-    useEffect(() => {
-        const checkRelease = async () => {
-            const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-            if (mediaType === 'tv') return; // TV is usually digital-first
-
-            const releases = await getReleaseDates(movie.id, 'movie');
-            const now = new Date();
-            
-            // Logic: If there's a theatrical release (type 3) but no digital release (type 4) yet
-            let hasTheater = false;
-            let hasDigital = false;
-
-            for (const country of releases) {
-                for (const release of country.release_dates) {
-                    const releaseDate = new Date(release.release_date);
-                    if (release.type === 3 && releaseDate <= now) hasTheater = true;
-                    if (release.type >= 4 && releaseDate <= now) hasDigital = true;
-                }
-            }
-
-            // Simple proxy: if movie is very new and no digital release found
-            setIsCinemaOnly(hasTheater && !hasDigital);
-        };
-        checkRelease();
-    }, [movie]);
-
     return (
         <div className={`absolute top-0 left-0 w-full h-full flex flex-col justify-end z-20 
           pl-6 md:pl-14 lg:pl-16 pr-4 md:pr-12 pointer-events-none pb-[18%] sm:pb-[16%] md:pb-[14%]`}
@@ -74,8 +51,13 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 
                 {/* Logo/Title - Anchored lower, scales down after delay */}
                 <div className={`h-14 sm:h-20 md:h-28 flex items-end mb-4 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.65] origin-bottom-left translate-y-6' : ''}`}>
-                    {logoUrl ? (
-                        <img src={logoUrl} alt="title logo" className="h-full object-contain drop-shadow-2xl" />
+                    {logoUrl && !imgFailed ? (
+                        <img 
+                            src={logoUrl} 
+                            alt={movie?.name || movie?.title || "title logo"} 
+                            className="h-full object-contain drop-shadow-2xl" 
+                            onError={() => setImgFailed(true)}
+                        />
                     ) : (
                         <h1 className="text-3xl sm:text-5xl md:text-6xl font-black font-leaner drop-shadow-xl leading-none text-white tracking-wide">
                             {movie?.name || movie?.title || ''}

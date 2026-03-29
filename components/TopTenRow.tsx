@@ -100,10 +100,10 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
               <div
                 key={movie.id}
                 className="relative flex-none 
-                h-[120px] w-[140px] 
-                sm:h-[150px] sm:w-[180px] 
-                md:h-[180px] md:w-[210px] 
-                lg:h-[210px] lg:w-[240px] 
+                h-[100px] w-[120px] 
+                sm:h-[130px] sm:w-[150px] 
+                md:h-[150px] md:w-[170px] 
+                lg:h-[180px] lg:w-[200px] 
                 cursor-pointer transition-transform duration-300 hover:scale-105 hover:z-40 flex items-end 
                 mr-4 sm:mr-6
                 pointer-events-auto"

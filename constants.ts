@@ -2,7 +2,7 @@ export const API_KEY = 'c477878444affbf19e4818802309df39';
 export const BASE_URL = 'https://api.themoviedb.org/3';
 export const IMG_PATH = 'https://image.tmdb.org/t/p/original';
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
-export const LOGO_SIZE = 'w500';
+export const LOGO_SIZE = 'w780'; // Higher resolution for professional display popping
 
 // Helper to get current display language from localStorage
 const getCurrentLanguage = (): string => {
@@ -106,31 +106,58 @@ export interface MicroGenreEntry {
 }
 
 export const MICRO_GENRES: MicroGenreEntry[] = [
-  // --- TV Micro-Genres ---
-  { name: 'Exciting Criminal Investigation Drama Series', genres: '80,18', type: 'tv' },
-  { name: 'Binge-worthy US TV Dramas', genres: '18', type: 'tv', extra: '&with_origin_country=US' },
-  { name: 'US Crime Series', genres: '80', type: 'tv', extra: '&with_origin_country=US' },
-  { name: 'Comedy Series', genres: '35', type: 'tv' },
-  { name: 'Suspenseful Mystery Dramas', genres: '9648,18', type: 'tv' },
-  { name: 'Imaginative Series', genres: '10765', type: 'tv' },
-  { name: 'Critically Acclaimed Drama Series', genres: '18', type: 'tv', extra: '&vote_average.gte=8&vote_count.gte=1000' },
-  { name: 'Witty Workplace Comedies', genres: '35', type: 'tv', extra: '&vote_average.gte=7' },
-  { name: 'Thought-Provoking Sci-Fi Series', genres: '10765,18', type: 'tv' },
-  { name: 'Heart-Pounding Action Series', genres: '10759', type: 'tv' },
-  // --- Movie Micro-Genres ---
-  { name: 'Crime Stories with a Romance Twist', genres: '80,10749', type: 'movie' },
-  { name: 'Action-Packed Comedies', genres: '28,35', type: 'movie' },
-  { name: 'Chilling Mysteries', genres: '27,9648', type: 'movie' },
-  { name: 'Feel-Good Family Comedies', genres: '10751,35', type: 'movie' },
-  { name: 'Fantasy Adventures', genres: '14,12', type: 'movie' },
-  { name: 'Edge-of-your-seat Thrillers', genres: '53', type: 'movie', extra: '&vote_average.gte=7' },
-  { name: 'Epic War Dramas', genres: '10752,18', type: 'movie' },
-  { name: 'Mind-Bending Sci-Fi', genres: '878,9648', type: 'movie' },
-  { name: 'Gritty Crime Dramas', genres: '80,18', type: 'movie' },
-  { name: 'Heartfelt Romances', genres: '10749,18', type: 'movie' },
-  { name: 'Laugh-Out-Loud Comedies', genres: '35', type: 'movie', extra: '&vote_average.gte=7&vote_count.gte=1000' },
-  { name: 'Dark Scandinavian Thrillers', genres: '53,80', type: 'movie', extra: '&with_origin_country=SE|NO|DK|FI' },
+  // --- The "Offbeat" Pouch ---
+  { name: 'Offbeat Series', genres: '35,189', type: 'tv', extra: '&with_keywords=9715|10631&page=2' },
+  { name: 'K-Drama for Beginners', genres: '18', type: 'tv', extra: '&with_origin_country=KR&with_keywords=Romance' },
+  { name: 'Wit-Filled Comedies', genres: '35', type: 'tv', extra: '&vote_average.gte=7.5&page=1' },
+  { name: 'Gritty Crime Procedurals', genres: '80', type: 'tv', extra: '&with_keywords=9883&page=3' }, // Starts on page 3 to hide "Bones"
+  { name: 'Heart-Pounding Action', genres: '10759', type: 'tv', extra: '&vote_count.gte=5000' },
+  { name: 'Small Town Mysteries', genres: '9648', type: 'tv', extra: '&with_keywords=small town' },
+  { name: 'Thought-Provoking Sci-Fi', genres: '10765,18', type: 'tv', extra: '&vote_average.gte=7' },
+
+  // --- The "Era" Pouch (Discovery) ---
+  { name: 'The Vault: 90s Classics', genres: '18,35', type: 'tv', extra: '&first_air_date.gte=1990-01-01&first_air_date.lte=1999-12-31' },
+  { name: 'Essential Classics', genres: '18,36', type: 'movie', extra: '&primary_release_date.lte=1980-01-01&vote_average.gte=8' },
+  { name: 'Nostalgic 2000s Hits', genres: '18,35', type: 'tv', extra: '&first_air_date.gte=2000-01-01&first_air_date.lte=2009-12-31' },
+
+  // --- The "Vibe" Pouch (Psychographic) ---
+  { name: 'Edge-of-Your-Seat Thrills', genres: '53', type: 'movie', extra: '&vote_count.gte=10000' },
+  { name: 'Quick Watches', genres: '35,18', type: 'tv', extra: '&with_runtime.lte=30&without_genres=16' }, // Adult short series
+  { name: 'Animated Staples', genres: '16', type: 'tv', extra: '&with_runtime.lte=30' }, // Dedicated animation
+  { name: 'Epic Sagas & Legacies', type: 'tv', genres: '10765,12', extra: '&vote_count.gte=3000' },
+  { name: 'Stories That Spark Conversation', genres: '18,99', type: 'tv', extra: '&vote_average.gte=8&page=2' },
+  
+  // --- The "Deep discovery" Pouch (Page 3+ offsets) ---
+  { name: 'Unmissable Hidden Gems', genres: '18,53', type: 'movie', extra: '&vote_average.gte=7.5&page=4' },
+  { name: 'International Breakout Hits', type: 'tv', genres: '18', extra: '&without_origin_country=US&vote_average.gte=7.8' },
+  { name: 'Indie Favorites', type: 'movie', genres: '18', extra: '&vote_count.lte=2000&vote_average.gte=7.5&page=3' },
+  
+  // --- The "Temporal" Pouch (Mood-based) ---
+  { name: 'Sunday Night Wind-Down', genres: '35', type: 'tv', extra: '&vote_average.gte=7&page=2' },
+  { name: 'Friday Night Blockbusters', genres: '28,12', type: 'movie', extra: '&vote_count.gte=15000' },
+  { name: 'Late Night Chill', genres: '35,10749', type: 'movie', extra: '&with_runtime.lte=100' },
+
+  // Add more dynamic chocolates...
+  { name: 'Visually Stunning Worlds', genres: '10765,14', type: 'movie', extra: '&vote_count.gte=5000&page=2' },
+  { name: 'High-Stakes Heists', genres: '80,53', type: 'movie', extra: '&with_keywords=heist|bank heist' },
+  { name: 'Cyberpunk & Dystopia', genres: '878', type: 'movie', extra: '&with_keywords=cyberpunk|dystopia' },
+  { name: 'Political Mind Games', genres: '10768,18', type: 'tv', extra: '&vote_average.gte=7.5' },
+  { name: 'Supernatural Encounters', genres: '10765,27', type: 'tv', extra: '&with_keywords=supernatural|paranormal' },
+  { name: 'Mind-Bending Realities', genres: '9648,878', type: 'movie', extra: '&with_keywords=mind bending|time travel' },
+  { name: 'True Stories & Docuseries', genres: '99,80', type: 'tv', extra: '&vote_average.gte=7' },
+  { name: 'Based on Real Life', genres: '18,36', type: 'movie', extra: '&with_keywords=based on true story' }
 ];
+
+/** Day of the week themed streams - The "Special Pouch" */
+export const DAY_STREAMS: Record<string, MicroGenreEntry> = {
+  'Monday': { name: 'Monday Motivation', genres: '18', type: 'movie', extra: '&vote_average.gte=7' },
+  'Tuesday': { name: 'Tuesday True Crime', genres: '99,80', type: 'tv' },
+  'Wednesday': { name: 'Wednesday Warp', genres: '10765,878', type: 'tv' },
+  'Thursday': { name: 'Throwback Thursday', genres: '18,35', type: 'movie', extra: '&primary_release_date.lte=2000-01-01' },
+  'Friday': { name: 'Friday Night Hits', genres: '28,12', type: 'movie', extra: '&vote_count.gte=10000' },
+  'Saturday': { name: 'Saturday Family Night', genres: '16,10751', type: 'movie' },
+  'Sunday': { name: 'Sunday Binge-worthy Series', genres: '18,80', type: 'tv', extra: '&vote_count.gte=5000&page=2' },
+};
 
 export const GENRES: { [key: number]: string } = {
   28: "Action",
@@ -145,7 +172,7 @@ export const GENRES: { [key: number]: string } = {
   36: "History",
   27: "Horror",
   10402: "Music",
-  158: "Mystery",
+  9648: "Mystery",
   10749: "Romance",
   878: "Science Fiction",
   10770: "TV Movie",

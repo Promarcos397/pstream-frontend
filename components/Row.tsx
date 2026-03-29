@@ -4,11 +4,17 @@ import { CaretRightIcon, CaretLeftIcon } from '@phosphor-icons/react';
 import { Movie, RowProps } from '../types';
 import MovieCard from './MovieCard';
 import { fetchData } from '../services/api';
+import { useGlobalContext } from '../context/GlobalContext';
 
 const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) => {
   const { t } = useTranslation();
-  const [movies, setMovies] = useState<Movie[]>(data || []);
+  const { pageSeenIds, registerSeenIds } = useGlobalContext();
+  
+  // Start movies as empty unless data is provided
+  const [movies, setMovies] = useState<Movie[]>([]);
   const [initialLoad, setInitialLoad] = useState(!data && !!fetchUrl);
+  const [isHidden, setIsHidden] = useState(false);
+  
   const [isFetching, setIsFetching] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -25,22 +31,48 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
     }
 
     if (fetchUrl) {
+      let isMounted = true;
       setMovies([]);
       setPage(1);
       setHasMore(true);
       setInitialLoad(true);
+      setIsHidden(false);
+      
+      if (rowRef.current) {
+        rowRef.current.scrollLeft = 0;
+      }
 
       const loadRowData = async () => {
         try {
+          // Priority Network QoS: Staggered delay for high Hero bandwidth pipe
+          await new Promise(resolve => setTimeout(resolve, 250));
+          if (!isMounted) return;
+
           const results = await fetchData(fetchUrl);
-          setMovies(results);
+          if (!isMounted) return;
+
+          // Deduplicate based on global context and filter out missing images
+          const uniqueNew = results.filter((m: Movie) => {
+             const hasImage = m.backdrop_path || m.poster_path;
+             const notSeen = !pageSeenIds.includes(Number(m.id));
+             return hasImage && notSeen;
+          });
+
+          if (uniqueNew.length < 5) {
+             setIsHidden(true); // Don't show sparse, awkward rows
+          } else {
+             setMovies(uniqueNew);
+             registerSeenIds(uniqueNew.map((m: Movie) => Number(m.id)));
+          }
         } catch (error) {
           console.error("Error loading row data:", error);
+          if (isMounted) setIsHidden(true);
         } finally {
-          setInitialLoad(false);
+          if (isMounted) setInitialLoad(false);
         }
       };
       loadRowData();
+      return () => { isMounted = false; };
     }
   }, [fetchUrl, data]);
 
@@ -117,6 +149,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
     }
   };
 
+  if (isHidden) return null;
   if (!initialLoad && movies.length === 0) return null;
 
   return (

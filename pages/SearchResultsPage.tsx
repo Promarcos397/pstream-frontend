@@ -42,21 +42,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
           {t('search.explore')} <span className="text-white">"{query}"</span>
         </div>
 
-        {/* Mode Toggle */}
-        <div className="flex bg-[#222] rounded p-1">
-          <button
-            onClick={() => setMode('multi')}
-            className={`px-4 py-1.5 text-sm font-medium rounded transition ${mode === 'multi' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
-          >
-            Movies & TV
-          </button>
-          <button
-            onClick={() => setMode('comic')}
-            className={`px-4 py-1.5 text-sm font-medium rounded transition ${mode === 'comic' ? 'bg-[#46d369] text-black' : 'text-gray-400 hover:text-white'}`}
-          >
-            Comics
-          </button>
-        </div>
+
       </div>
 
       {isLoading ? (

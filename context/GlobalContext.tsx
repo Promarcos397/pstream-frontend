@@ -4,8 +4,8 @@ import { setApiLanguage } from '../services/api';
 import { AuthService, UserProfile } from '../services/AuthService';
 import { DEFAULT_AVATAR } from '../constants';
 import i18n from '../i18n';
-import { prefetchStream } from '../services/api'; // Added prefetchStream import
-
+import { prefetchStream } from '../services/api';
+import Cookies from 'js-cookie';
 interface VideoState {
   time: number;
   duration?: number;
@@ -56,6 +56,24 @@ interface GlobalContextType {
   deleteAccountData: () => Promise<boolean>;
   importProfileData: (data: any) => Promise<boolean>;
   syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
+  // 🛰️ Real-time Video Sync (What is Hero/Card playing right now?)
+  heroVideoState: {
+    movieId?: number | string;
+    videoId?: string;
+    time: number;
+    movie?: Movie | null;
+  };
+  setHeroVideoState: (state: Partial<GlobalContextType['heroVideoState']>) => void;
+  // Universal Player Synchronizer
+  activeVideoId: string | null;
+  setActiveVideoId: (id: string | null) => void;
+  // Universal Mute State
+  globalMute: boolean;
+  setGlobalMute: (mute: boolean) => void;
+  // Deduplication system
+  pageSeenIds: number[];
+  registerSeenIds: (ids: number[]) => void;
+  clearSeenIds: () => void;
 }
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
@@ -66,13 +84,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showSubtitles: true,
   subtitleSize: 'medium', // Default to medium
   subtitleColor: 'white',
-  subtitleBackground: 'none', 
+  subtitleBackground: 'none',
   subtitleOpacity: 75,
   subtitleBlur: 0,
   subtitleFontFamily: "'Harmonia Sans Mono', 'Consolas', monospace", // Premium Harmonia Mono default
-  subtitleEdgeStyle: 'drop-shadow', 
+  subtitleEdgeStyle: 'drop-shadow',
   subtitleWindowColor: 'black',
-  displayLanguage: 'en-US',  
+  displayLanguage: 'en-US',
   subtitleLanguage: 'en',
   avatarUrl: DEFAULT_AVATAR,
 };
@@ -102,13 +120,22 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [settings, setSettings] = useState<AppSettings>(() => {
     try {
       const saved = localStorage.getItem('pstream-settings');
-      // Merge with defaults to ensure new fields (opacity/blur) exist if loading old localstorage
       return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
   });
 
+  // Universal Mute State
+  const [globalMute, setGlobalMuteState] = useState<boolean>(() => {
+    const saved = Cookies.get('pstream-mute-state');
+    return saved === 'flase'; // Default is false (unmuted)
+  });
+
+  const setGlobalMute = useCallback((mute: boolean) => {
+    setGlobalMuteState(mute);
+    Cookies.set('pstream-mute-state', String(mute), { expires: 365 });
+  }, []);
 
   // Video Sync State (Persisted) - Stores movie progress
   const [videoStates, setVideoStates] = useState<{ [key: string]: VideoState }>(() => {
@@ -148,7 +175,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => { localStorage.setItem('pstream-video-states', JSON.stringify(videoStates)); }, [videoStates]);
   useEffect(() => { localStorage.setItem('pstream-liked', JSON.stringify(likedMovies)); }, [likedMovies]);
 
-  
+
   // Auth & Sync State
   const [user, setUser] = useState<UserProfile | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
@@ -174,7 +201,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Sync state with cloud when modified (debounced)
   useEffect(() => {
     if (!user) return;
-    
+
     const syncTimeout = setTimeout(() => {
       setSyncStatus('syncing');
       AuthService.syncProfile({
@@ -202,6 +229,15 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [top10TV, setTop10TV] = useState<number[]>([]);
   const [top10Movies, setTop10Movies] = useState<number[]>([]);
 
+  // Universal Player Synchronizer
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+
+  // Global Hero Sync
+  const [heroVideoState, _setHeroVideoState] = useState<GlobalContextType['heroVideoState']>({ time: 0, movie: null });
+  const setHeroVideoState = useCallback((state: Partial<GlobalContextType['heroVideoState']>) => {
+    _setHeroVideoState(prev => ({ ...prev, ...state }));
+  }, []);
+
   useEffect(() => {
     import('../constants').then(({ REQUESTS }) => {
       import('../services/api').then(({ fetchData }) => {
@@ -215,6 +251,20 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       });
     });
   }, [settings.displayLanguage]);
+
+  // Page Deduplication State (Short-term memory: ~3 rows / 45 items)
+  const [pageSeenIds, setPageSeenIds] = useState<number[]>([]);
+  const registerSeenIds = useCallback((ids: number[]) => {
+    setPageSeenIds(prev => {
+      const next = [...prev, ...ids];
+      // Keep only the most recent 45 items to allow huge blockbusters to reappear further down the page
+      if (next.length > 45) return next.slice(next.length - 45);
+      return next;
+    });
+  }, []);
+  const clearSeenIds = useCallback(() => {
+    setPageSeenIds([]);
+  }, []);
 
   const toggleList = useCallback((movie: Movie) => {
     setMyList((prev) => {
@@ -338,7 +388,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const login = async (mnemonic: string, displayName?: string) => {
     setSyncStatus('syncing');
-    
+
     // Capture current local state (Guest data) for potential migration
     const guestData = {
       settings: { ...settings },
@@ -352,13 +402,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const result = await AuthService.login(mnemonic, displayName);
     if (result.success && result.profile) {
       const cloudProfile = result.profile;
-      
+
       // SMART MIGRATION LOGIC:
       // If we are logging into a FRESH account (no settings, no list, no history),
       // we migrate the current Guest data to the cloud instead of wiping it.
-      const isNewAccount = !cloudProfile.settings && 
-                           (!cloudProfile.list || cloudProfile.list.length === 0) &&
-                           (!cloudProfile.history || cloudProfile.history.length === 0);
+      const isNewAccount = !cloudProfile.settings &&
+        (!cloudProfile.list || cloudProfile.list.length === 0) &&
+        (!cloudProfile.history || cloudProfile.history.length === 0);
 
       if (isNewAccount && (guestData.list.length > 0 || guestData.history.length > 0 || Object.keys(guestData.videoStates).length > 0)) {
         console.log('Sync Architecture: New account detected. Migrating detailed guest data (Watch Progress & Lists) to cloud...');
@@ -370,7 +420,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         // Standard Account Switch: Wipe local and load cloud truth
         clearAppData();
         setUser(cloudProfile);
-        
+
         // Apply cloud data
         if (cloudProfile.settings) setSettings(s => ({ ...s, ...cloudProfile.settings }));
         if (cloudProfile.list) setMyList(cloudProfile.list);
@@ -378,7 +428,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (cloudProfile.videoStates) setVideoStates(cloudProfile.videoStates);
         if (cloudProfile.episodeProgress) setEpisodeProgress(cloudProfile.episodeProgress);
       }
-      
+
       setSyncStatus('synced');
       return { success: true };
     }
@@ -413,7 +463,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const mediaType = lastWatched.media_type || (lastWatched.title ? 'movie' : 'tv');
       const releaseDate = lastWatched.release_date || lastWatched.first_air_date;
       const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
-      
+
       // Determine resume point (default 1,1 for movies or first episodes)
       let s = 1, e = 1;
       if (mediaType === 'tv') {
@@ -423,7 +473,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           e = lastEp.episode;
         }
       }
-      
+
       prefetchStream(
         lastWatched.title || lastWatched.name || '',
         year,
@@ -439,7 +489,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const importProfileData = async (data: any) => {
     try {
       if (!data) return false;
-      
+
       const parsedSettings = typeof data.settings === 'string' ? JSON.parse(data.settings) : data.settings;
       const parsedList = typeof data.myList === 'string' ? JSON.parse(data.myList) : (data.myList || []);
       const parsedHistory = typeof data.history === 'string' ? JSON.parse(data.history) : (data.history || []);
@@ -501,7 +551,16 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       logout,
       deleteAccountData,
       importProfileData,
-      syncStatus
+      syncStatus,
+      heroVideoState,
+      setHeroVideoState,
+      activeVideoId,
+      setActiveVideoId,
+      globalMute,
+      setGlobalMute,
+      pageSeenIds,
+      registerSeenIds,
+      clearSeenIds
     }}>
       {children}
     </GlobalContext.Provider>

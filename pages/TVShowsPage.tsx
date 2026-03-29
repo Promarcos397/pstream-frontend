@@ -50,7 +50,7 @@ const TVShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime }) =
         />
       </div>
 
-      <HeroCarousel key="tv" onSelect={onSelectMovie} onPlay={onPlay} fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV} seekTime={seekTime} />
+      <HeroCarousel key="tv" onSelect={onSelectMovie} onPlay={onPlay} fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV} seekTime={seekTime} pageType="tv" />
 
       <main className="relative z-10 pb-12 -mt-12 sm:-mt-20 md:-mt-28 space-y-4 md:space-y-6">
         {!selectedGenre ? (

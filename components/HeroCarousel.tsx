@@ -8,8 +8,9 @@ import HeroCarouselBackground from './HeroCarouselBackground';
 import HeroCarouselContent from './HeroCarouselContent';
 import { Movie, TMDBResponse } from '../types';
 import { REQUESTS, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream, getExternalIds } from '../services/api';
+import { getMovieImages, prefetchStream, getExternalIds, getMovieVideos } from '../services/api';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
+import { HeroEngine, HeroPackage } from '../services/HeroEngine';
 
 interface HeroCarouselProps {
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
@@ -17,10 +18,12 @@ interface HeroCarouselProps {
   fetchUrl?: string;
   seekTime?: number; // Command to seek
   heroMovie?: Movie; // Optional: Override with explicit movie (e.g. Cloud Series)
+  genreId?: number; // Optional: Genre filter
+  pageType?: 'home' | 'movie' | 'tv' | 'new_popular';
 }
 
-const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie }) => {
-  const { getVideoState, updateVideoState } = useGlobalContext();
+const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie, genreId, pageType: explicitPageType }) => {
+  const { getVideoState, updateVideoState, setHeroVideoState, heroVideoState, activeVideoId, setActiveVideoId } = useGlobalContext();
   const networkQuality = useNetworkQuality();
   const [movie, setMovie] = useState<Movie | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -33,89 +36,109 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [hasVideoEnded, setHasVideoEnded] = useState(false);
   const [replayCount, setReplayCount] = useState(0); // Forces fresh YouTube mount on replay
-  const { isMuted, setIsMuted, playerRef } = useYouTubePlayer(false);
-  const [videoDimensions, setVideoDimensions] = useState<{ width: string | number, height: string | number }>({ width: '120%', height: '120%' });
+  const { isMuted, setIsMuted, playerRef } = useYouTubePlayer(true); // Must start muted to bypass browser autoplay blocks.
+  const [videoDimensions, setVideoDimensions] = useState<{ width: string | number, height: string | number }>({ width: '140%', height: '140%' });
 
-  // playerRef handled by hook
+  // Refs
   const videoTimerRef = useRef<any>(null);
   const fadeIntervalRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null); // Shared ref for resize and intersection observer
 
-  // Daily Consistent Selection - same movie all day, changes at midnight
-  const getDailyIndex = (results: Movie[], pageType: string): number => {
-    const seed = new Date().toDateString() + "_" + pageType;
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-      hash |= 0; // Convert to 32bit integer
-    }
-    return Math.abs(hash) % results.length;
-  };
+  // 1. Tab Visibility Tracking
+  const [isTabVisible, setIsTabVisible] = useState(true);
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsTabVisible(document.visibilityState === 'visible');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
-  // Derive page type from fetchUrl
-  const getPageType = (url: string): string => {
-    if (url.includes('tv')) return 'tv';
-    if (url.includes('movie')) return 'movie';
-    return 'home';
-  };
+  // 2. Viewport Tracking (Intersection Observer)
+  const [isOutOfView, setIsOutOfView] = useState(false);
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsOutOfView(!entry.isIntersecting);
+      },
+      { threshold: 0.40 } // Pause as soon as 65% is off-screen
+    );
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // --- Magic System: Hero Selection is now handled by HeroEngine service ---
 
   // Fetch One Movie (Daily Consistent) OR Use Provided Hero Movie
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-
-      // 1. Explicit Override (Cloud Library)
-      if (heroMovie) {
-        setMovie(heroMovie);
-        setLoading(false);
-        return;
+    const applyHeroPackage = (pkg: HeroPackage) => {
+      setMovie(pkg.movie);
+      if (pkg.logoUrl) setLogoUrl(pkg.logoUrl);
+      if (pkg.videoId) {
+        setTrailerQueue([pkg.videoId]);
+        setHeroVideoState({ movie: pkg.movie, videoId: pkg.videoId, movieId: pkg.movie.id });
       }
+      setLoading(false);
+    };
 
-      // 2. Fetch from TMDB
-      try {
-        const url = fetchUrl || REQUESTS.fetchNetflixOriginals;
-        const request = await axios.get<TMDBResponse>(url);
-        const validResults = (request?.data?.results || []).filter(m => m.backdrop_path);
+    const getHeroPageType = (url: string): string => {
+      if (explicitPageType) return explicitPageType;
+      if (url.includes('tv')) return 'tv';
+      if (url.includes('movie')) return 'movie';
+      return 'home';
+    };
 
-        if (validResults.length > 0) {
-          const pageType = getPageType(url);
-          const dailyIndex = getDailyIndex(validResults, pageType);
-          let selectedMovie = validResults[dailyIndex];
+    const getCacheKey = (url: string, gid?: number): string => {
+      const type = getHeroPageType(url);
+      return gid ? `${type}_${gid}` : type;
+    };
 
-          // Fetch full details for IMDb ID in the background (Non-blocking)
-          if (!selectedMovie.imdb_id) {
-            const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-            getExternalIds(selectedMovie.id, mediaType).then(externalIds => {
-              if (externalIds?.imdb_id) {
-                setMovie(prev => prev?.id === selectedMovie.id ? { ...prev, imdb_id: externalIds.imdb_id } : prev);
-              }
-            }).catch(() => {});
-          }
-
-          setMovie(selectedMovie);
-
-          // Prefetch stream (user likely to click play)
-          const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-          const releaseDate = selectedMovie.release_date || selectedMovie.first_air_date;
-          const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
-          
-          prefetchStream(
-            selectedMovie.title || selectedMovie.name || '',
-            year,
-            String(selectedMovie.id),
-            mediaType,
-            1,
-            1,
-            selectedMovie.imdb_id
-          );
-        }
-        setLoading(false);
-      } catch (error) {
-        console.error("Failed to fetch hero content", error);
-        setLoading(false);
+    const loadHero = async () => {
+      const pageType = getHeroPageType(fetchUrl || '');
+      const cacheKey = getCacheKey(fetchUrl || '', genreId);
+      const cached = HeroEngine.getCachedHero(cacheKey);
+      
+      if (cached) {
+        applyHeroPackage(cached);
+      } else {
+        const pkg = await HeroEngine.getHero(pageType, fetchUrl, genreId);
+        if (pkg) applyHeroPackage(pkg);
+        else setLoading(false);
       }
+    };
+
+    loadHero();
+    const unsubscribe = HeroEngine.subscribe((type, pkg) => {
+      const currentPageType = getHeroPageType(fetchUrl || '');
+      if (type === currentPageType) {
+        // If it's a genre-specific wait, check if the pkg matches the genreId
+        applyHeroPackage(pkg);
+      }
+    });
+
+    return () => {
+        unsubscribe();
+    };
+  }, [fetchUrl, heroMovie, genreId]);
+
+  // Handle trailer playback timer
+  useEffect(() => {
+    if (trailerQueue.length > 0) {
+      if (videoTimerRef.current) clearTimeout(videoTimerRef.current);
+      setShowVideo(false);
+      setIsVideoReady(false);
+      setHasVideoEnded(false);
+      
+      const delay = networkQuality.isSlowNetwork ? 2000 : 1000;
+      videoTimerRef.current = setTimeout(() => {
+        setShowVideo(true);
+      }, delay);
     }
-    fetchData();
-  }, [fetchUrl, heroMovie]);
+    return () => { if (videoTimerRef.current) clearTimeout(videoTimerRef.current); };
+  }, [trailerQueue, networkQuality]);
 
   // Audio Fading Logic
   const fadeAudioIn = () => {
@@ -167,20 +190,19 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
             if (callback) callback();
           }
         } catch (e) { clearInterval(fadeIntervalRef.current); if (callback) callback(); }
-      }, 50);
+      }, 35);
     } catch (e) { if (callback) callback(); }
   };
 
   // Handle Resize for "Cover" Effect (No Black Bars)
   useEffect(() => {
     const handleResize = () => {
-      const container = document.getElementById('hero-container');
-      if (container) {
-        const { clientWidth, clientHeight } = container;
+      if (containerRef.current) {
+        const { clientWidth, clientHeight } = containerRef.current;
         const targetAspect = 16 / 9; // YouTube aspect ratio
         const containerAspect = clientWidth / clientHeight;
 
-        const ZOOM_FACTOR = 1.5; // Aggressive zoom to crop YouTube UI (logos/titles) off-screen
+        const ZOOM_FACTOR = 1.9; // Extreme zoom to crop YouTube UI off-screen
 
         if (containerAspect > targetAspect) {
           // Container is wider than video (Panoramic) -> Match Width, Crop Vertical
@@ -200,139 +222,49 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     };
   }, []);
 
-  // Scroll Listener
-  const [isOutOfView, setIsOutOfView] = useState(false);
-
+  // Universal Sync: Listen to global player activity, scrolling, and tabs
+  const currentHeroVideoId = movie ? String(movie.id) : null;
   useEffect(() => {
-    const handleScroll = () => {
-      const scrolled = window.scrollY > 400;
-      setIsOutOfView(scrolled);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Re-detect hover after alt-tab (focus/visibility change)
-  useEffect(() => {
-    const heroContainer = document.getElementById('hero-container');
-
-    const recheckHover = () => {
-      if (!heroContainer) return;
-      const rect = heroContainer.getBoundingClientRect();
-      const mouseX = (window as any).__lastMouseX ?? -1;
-      const mouseY = (window as any).__lastMouseY ?? -1;
-      const isMouseInside = mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom;
-      setIsHovered(isMouseInside);
-    };
-
-    const trackMouse = (e: MouseEvent) => {
-      (window as any).__lastMouseX = e.clientX;
-      (window as any).__lastMouseY = e.clientY;
-    };
-
-    const handleFocus = () => recheckHover();
-    window.addEventListener('mousemove', trackMouse);
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      window.removeEventListener('mousemove', trackMouse);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []);
-
-  // Cinematic: Window Visibility Pause (Netflix Logic)
-  useEffect(() => {
-      const handleVisibility = () => {
-          if (document.visibilityState === 'hidden' && playerRef.current) {
-              playerRef.current.pauseVideo?.();
-          } else if (document.visibilityState === 'visible' && !isOutOfView && isHovered && playerRef.current) {
-              playerRef.current.playVideo?.();
-          }
-      };
-      document.addEventListener('visibilitychange', handleVisibility);
-      return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [isOutOfView, isHovered]);
-
-  // Handle Play/Pause
-  useEffect(() => {
+    const isSharedConflict = activeVideoId && activeVideoId !== currentHeroVideoId;
+    
     if (playerRef.current && isVideoReady && showVideo) {
-      const shouldPlay = !isOutOfView && isHovered;
+      // It should play if: it's on screen AND no other video is playing AND the tab is active
+      const shouldPlay = !isOutOfView && !isSharedConflict && isTabVisible;
+      
       if (shouldPlay) {
         try {
-          if (playerRef.current.playVideo) playerRef.current.playVideo();
-          else playerRef.current.play();
+          if (typeof playerRef.current?.playVideo === 'function') playerRef.current.playVideo();
           if (!isMuted) fadeAudioIn();
         } catch (e) { }
       } else {
-        if (!isMuted) {
-          fadeAudioOut(() => {
-            try {
-              if (playerRef.current.pauseVideo) playerRef.current.pauseVideo();
-              else playerRef.current.pause();
-            } catch (e) { }
-          });
-        } else {
-          try {
-            if (playerRef.current.pauseVideo) playerRef.current.pauseVideo();
-            else playerRef.current.pause();
-          } catch (e) { }
-        }
+        // FULL PAUSE
+        try {
+          if (!isMuted) {
+            // If sound is on, smooth fade out before hitting pause
+            fadeAudioOut(() => {
+              if (typeof playerRef.current?.pauseVideo === 'function') playerRef.current.pauseVideo();
+            });
+          } else {
+            // If already muted, just pause instantly
+            if (typeof playerRef.current?.pauseVideo === 'function') playerRef.current.pauseVideo();
+          }
+        } catch (e) { }
       }
     }
-  }, [isOutOfView, isVideoReady, showVideo, isHovered, isMuted]);
+  }, [isOutOfView, isVideoReady, showVideo, isMuted, activeVideoId, currentHeroVideoId, isTabVisible]);
 
   // Handle Seek
   useEffect(() => {
     if (seekTime && seekTime > 0 && playerRef.current) {
       try {
-        if (playerRef.current.seekTo) playerRef.current.seekTo(seekTime, true);
+        if (typeof playerRef.current?.seekTo === 'function') playerRef.current.seekTo(seekTime, true);
         else playerRef.current.currentTime = seekTime;
-        if (playerRef.current.playVideo) playerRef.current.playVideo();
-        else playerRef.current.play();
+        
+        if (typeof playerRef.current?.playVideo === 'function') playerRef.current.playVideo();
+        else playerRef.current.play?.();
       } catch (e) { }
     }
   }, [seekTime]);
-
-  // Handle Assets
-  useEffect(() => {
-    if (!movie) return;
-    setLogoUrl(null);
-    setShowVideo(false);
-    setIsVideoReady(false);
-    setTrailerQueue([]);
-    clearTimeout(videoTimerRef.current);
-    const fetchAssets = async () => {
-      try {
-        const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-        try {
-          const imageData = await getMovieImages(movie.id, mediaType);
-          if (imageData?.logos) {
-            const logo = imageData.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
-            if (logo) setLogoUrl(`https://image.tmdb.org/t/p/${LOGO_SIZE}${logo.file_path}`);
-          }
-        } catch (e) {}
-        videoTimerRef.current = setTimeout(async () => {
-          if (window.scrollY < 400) {
-            const title = movie.title || movie.name;
-            if (title) {
-              const releaseDate = movie.release_date || movie.first_air_date;
-              const year = releaseDate ? releaseDate.split('-')[0] : undefined;
-              console.log('[HeroCarousel] Searching trailers for:', title, year, movie.imdb_id);
-              const keys = await searchTrailersWithFallback({ title, year, type: mediaType }, 5);
-              console.log('[HeroCarousel] Trailer keys found:', keys);
-              if (keys?.length > 0) {
-                setTrailerQueue(keys);
-                setShowVideo(true);
-              } else {
-                console.warn('[HeroCarousel] No trailer keys found. Content will stay static.');
-              }
-            }
-          }
-        }, 1000);
-      } catch (e) {}
-    };
-    fetchAssets();
-    return () => clearTimeout(videoTimerRef.current);
-  }, [movie]);
 
   if (loading) return (
     <div className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full bg-[#141414] overflow-hidden">
@@ -343,7 +275,10 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   if (!movie) return null;
 
   return (
-    <div id="hero-container" className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full overflow-hidden group bg-black"
+    <div 
+      id="hero-container" 
+      ref={containerRef} 
+      className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full overflow-hidden group bg-black"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={(e) => {
         if (e.clientY < 60 || e.clientX > window.innerWidth - 20) return;
@@ -362,21 +297,31 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       <HeroCarouselContent
         movie={movie} logoUrl={logoUrl} isVideoReady={isVideoReady} onPlay={onPlay}
         onSelect={(m, _, videoId) => {
-          const actualTime = playerRef.current?.getCurrentTime?.() || 0;
+          const actualTime = typeof playerRef.current?.getCurrentTime === 'function' ? playerRef.current.getCurrentTime() : 0;
           if (videoId) updateVideoState(m.id, actualTime, videoId);
           onSelect(m, actualTime, videoId);
         }}
         trailerVideoId={trailerQueue[0]} hasVideoEnded={hasVideoEnded}
       />
       <div className="absolute right-0 bottom-[34%] flex items-center gap-3 z-30 pointer-events-auto">
-        {showVideo && isVideoReady && !hasVideoEnded && (
-          <button onClick={() => setIsMuted(!isMuted)} className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/70 rounded-full flex items-center justify-center bg-transparent hover:bg-white/10 transition group">
-            {isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
-          </button>
-        )}
-        {hasVideoEnded && (
-          <button onClick={() => { setHasVideoEnded(false); setReplayCount(prev => prev + 1); setShowVideo(true); }} className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/70 rounded-full flex items-center justify-center bg-transparent hover:bg-white/10 transition group">
-            <ArrowCounterClockwise size={20} className="text-white" />
+        {showVideo && isVideoReady && (
+          <button 
+            onClick={() => {
+              if (hasVideoEnded) {
+                setHasVideoEnded(false);
+                setReplayCount(prev => prev + 1);
+                setShowVideo(true);
+              } else {
+                setIsMuted(!isMuted);
+              }
+            }} 
+            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-lg group mr-4"
+          >
+            {hasVideoEnded ? (
+              <ArrowCounterClockwise size={20} className="text-white" />
+            ) : (
+              isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />
+            )}
           </button>
         )}
         <div className="bg-gray-500/40 border-l-[3px] border-gray-300 py-1.5 px-3 md:px-5 min-w-[60px] md:min-w-[90px] flex items-center justify-start">

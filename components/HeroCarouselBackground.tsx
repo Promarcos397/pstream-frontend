@@ -46,7 +46,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                 else playerRef.current.unMute();
             } catch (e) {}
         }
-    }, [isMuted]);
+    }, [isMuted, playerRef.current]);
 
     return (
         <>
@@ -54,7 +54,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out z-0 ${showVideo && isVideoReady ? "opacity-0" : "opacity-100"}`}>
                 <img
                     src={`${IMG_PATH}${movie.backdrop_path}`}
-                    className={`w-full h-full object-cover ${['series', 'comic', 'manga', 'local'].includes(movie.media_type || '') ? 'object-[50%_30%]' : 'object-center'}`}
+                    className={`w-full h-full object-cover backdrop-pop ${['series', 'comic', 'manga', 'local'].includes(movie.media_type || '') ? 'object-[50%_15%]' : 'object-[50%_15%]'}`}
                     alt="backdrop"
                 />
             </div>
@@ -66,7 +66,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
             >
                 {showVideo && trailerQueue.length > 0 && (
                     <div
-                        className="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none z-0 overflow-hidden"
+                        className="absolute top-[-25%] left-1/2 -translate-x-1/2 pointer-events-none z-0 overflow-hidden"
                         style={{ width: videoDimensions.width, height: videoDimensions.height }}
                     >
                         <YouTube
@@ -76,33 +76,36 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                             onReady={(e) => {
                                 playerRef.current = e.target;
                                 
-                                // Apply settings
+                                // Sync sound state with global profile to avoid "Ghost Mutes"
                                 if (isMuted) e.target.mute();
                                 else e.target.unMute();
 
-                                // Cinematic: Force Highest Quality
-                                if (typeof e.target.setPlaybackQuality === 'function') {
-                                    e.target.setPlaybackQuality('hd1080');
-                                }
-                                
                                 // Sync check: Resume from last known position (Bidirectional Sync)
                                 const syncTime = onSyncCheck?.(trailerQueue[0]);
                                 if (syncTime && syncTime > 0) {
                                   e.target.seekTo(syncTime, true);
                                 }
 
+                                // FORCE START with Retry logic
+                                const playWithRetry = () => {
+                                    try {
+                                        if (e.target.playVideo) e.target.playVideo();
+                                        if (typeof e.target.setPlaybackQuality === 'function') {
+                                            e.target.setPlaybackQuality(youtubeQuality);
+                                        }
+                                    } catch (err) {
+                                        setTimeout(playWithRetry, 500);
+                                    }
+                                };
+                                playWithRetry();
                                 setIsVideoReady(true);
                             }}
-                            onEnd={(e) => {
-                                // Netflix logic: Loop trailer or trigger onVideoEnd
+                            onEnd={() => {
+                                // Philosophy: No auto-looping. Give user back their room or a choice to Replay.
                                 if (onVideoEnd) onVideoEnd();
-                                else {
-                                  e.target.seekTo(0);
-                                  e.target.playVideo();
-                                }
                             }}
-                            onError={(e) => {
-                                console.warn("[HeroCarousel] Video error, trying next...", e);
+                            onError={() => {
+                                console.warn("[HeroCarousel] Trailer error. Rolling back to static.");
                                 setTrailerQueue(prev => {
                                     const next = prev.slice(1);
                                     if (next.length === 0) setShowVideo(false);
@@ -114,15 +117,18 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                 height: '100%',
                                 playerVars: {
                                     autoplay: 1,
+                                    mute: isMuted ? 1 : 0, // Critical for autoplay to work
                                     modestbranding: 1,
                                     rel: 0,
                                     controls: 0,
-                                    iv_load_policy: 3, // Disable annotations
+                                    iv_load_policy: 3, 
                                     cc_load_policy: 0,
                                     disablekb: 1,
                                     fs: 0,
-                                    loop: 1,
-                                    playlist: trailerQueue[0],
+                                    loop: 0, // No auto-looping in the manifest
+                                    origin: window.location.origin,
+                                    widget_referrer: window.location.origin,
+                                    vq: youtubeQuality,
                                 }
                             }}
                         />
@@ -133,7 +139,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
             {/* Netflix-style gradients */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent z-10 pointer-events-none" />
             <div className="absolute inset-0 z-10 pointer-events-none" style={{
-                background: 'linear-gradient(to top, #141414 0%, #14141499 15%, #14141433 30%, transparent 50%)'
+                background: 'linear-gradient(to top, #141414 0%, #14141499 8%, #14141433 22% ,transparent 30%)'
             }} />
         </>
     );

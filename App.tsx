@@ -7,6 +7,7 @@ import { useGlobalContext } from './context/GlobalContext';
 import { prefetchStream } from './services/api';
 import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
+import { HeroEngine } from './services/HeroEngine';
 
 
 // Components
@@ -46,6 +47,11 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // React Router Scroll Restoration
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [location.pathname]);
+
   // Prefetch last played on mount
   useEffect(() => {
     try {
@@ -57,6 +63,9 @@ const App: React.FC = () => {
         }
       }
     } catch (e) { }
+    
+    // Warm up the Hero Engines for all pages instantly
+    HeroEngine.prepareAllHeroes();
   }, []);
 
   // Update page title based on route
@@ -170,15 +179,17 @@ const App: React.FC = () => {
   }
 
   const mainContent = (
-    <Routes>
-      <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
-      <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-      <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
-      <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} />} />
-      <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/settings/*" element={<SettingsPage />} />
-    </Routes>
+    <div key={location.pathname}>
+      <Routes>
+        <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
+        <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
+        <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} />} />
+        <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/settings/*" element={<SettingsPage />} />
+      </Routes>
+    </div>
   );
 
   return (

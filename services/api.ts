@@ -31,26 +31,72 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// --- Intelligent Caching & Deduplication Layer ---
+const imageCache: Map<string, any> = new Map();
+const videoCache: Map<string, any> = new Map();
+const pendingImageRequests: Map<string, Promise<any>> = new Map();
+const pendingVideoRequests: Map<string, Promise<any>> = new Map();
+
 export const getMovieVideos = async (id: number | string, type: 'movie' | 'tv') => {
-  try {
-    const response = await api.get<VideoResponse>(`/${type}/${id}/videos`);
-    return response.data.results;
-  } catch (error) {
-    console.error(`Error fetching videos for ${type} ${id}:`, error);
-    return [];
-  }
+  const cacheKey = `${type}_${id}`;
+  
+  // 1. Return from memory cache if hits
+  if (videoCache.has(cacheKey)) return videoCache.get(cacheKey);
+  
+  // 2. Return pending promise if a request is already in flight for this ID
+  if (pendingVideoRequests.has(cacheKey)) return pendingVideoRequests.get(cacheKey);
+
+  const request = (async () => {
+    try {
+      const response = await api.get<VideoResponse>(`/${type}/${id}/videos`);
+      const results = response.data.results;
+      videoCache.set(cacheKey, results);
+      return results;
+    } catch (error) {
+      console.error(`Error fetching videos for ${type} ${id}:`, error);
+      return [];
+    } finally {
+      pendingVideoRequests.delete(cacheKey);
+    }
+  })();
+
+  pendingVideoRequests.set(cacheKey, request);
+  return request;
 };
 
 export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') => {
-  try {
-    const response = await api.get(`/${type}/${id}/images`, {
-      params: { include_image_language: 'en,null' }
-    });
-    return response.data;
-  } catch (error) {
-    console.error(`Error fetching images for ${type} ${id}:`, error);
+  const cacheKey = `${type}_${id}`;
+
+  // 1. Return from memory cache if hits
+  if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
+
+  // 2. Deduplicate: Use pending promise if already fetching
+  if (pendingImageRequests.has(cacheKey)) return pendingImageRequests.get(cacheKey);
+
+  const request = (async () => {
+    let retries = 2;
+    while (retries >= 0) {
+      try {
+        const response = await api.get(`/${type}/${id}/images`, {
+          params: { include_image_language: 'en,null' }
+        });
+        const results = response.data;
+        imageCache.set(cacheKey, results);
+        return results;
+      } catch (error) {
+        if (retries === 0) {
+          console.error(`Error fetching images for ${type} ${id} (Final):`, error);
+          return null;
+        }
+        retries--;
+        await new Promise(r => setTimeout(r, 500)); // Wait 500ms before retry
+      }
+    }
     return null;
-  }
+  })();
+
+  pendingImageRequests.set(cacheKey, request);
+  return request;
 };
 
 export const getMovieCredits = async (id: number | string, type: 'movie' | 'tv') => {
@@ -192,7 +238,7 @@ export const getStream = async (title: string, type: 'movie' | 'tv', year?: numb
       episode: episode.toString(),
       imdbId: imdbId || ''
     });
-    
+
     console.log(`[GigaEngine] Requesting stream (Giga Backend)...`);
     const response = await axios.get(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`);
     return response.data;
@@ -212,7 +258,7 @@ export const prefetchStream = async (title: string, year: number | undefined, tm
     try {
       console.log(`[Prefetch] Warming cache for: ${title} (${imdbId || 'no-imdb'})`);
       const result = await getStream(title, type, year, season, episode, tmdbId, imdbId);
-      
+
       if (result && result.success && result.sources?.length > 0) {
         streamCache.set({ title, type, year, season, episode, tmdbId }, {
           sources: result.sources,
@@ -225,25 +271,6 @@ export const prefetchStream = async (title: string, year: number | undefined, tm
       // Ignore prefetch errors
     }
   }, 1000);
-};
-
-export const predictStream = async (type: 'movie' | 'tv', tmdbId: string, season: number = 1, episode: number = 1, imdbId?: string) => {
-  try {
-    const params = new URLSearchParams({
-      tmdbId: tmdbId || '',
-      type,
-      season: season.toString(),
-      episode: episode.toString(),
-      imdbId: imdbId || ''
-    });
-    
-    // Fire and forget a very fast HEAD request to the backend
-    const response = await axios.get(`${GIGA_BACKEND_URL}/api/predict_stream?${params.toString()}`);
-    return response.data;
-  } catch (error) {
-    // Fails silently if prediction fails
-    return { available: false };
-  }
 };
 
 export const getReleaseDates = async (id: number | string, type: 'movie' | 'tv') => {

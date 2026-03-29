@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useGlobalContext } from '../context/GlobalContext';
 
 interface UseYouTubePlayerReturn {
     isPlayingTrailer: boolean;
@@ -12,32 +13,33 @@ interface UseYouTubePlayerReturn {
 }
 
 export const useYouTubePlayer = (initialMuted = false): UseYouTubePlayerReturn => {
+    const { globalMute, setGlobalMute } = useGlobalContext();
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
-    const [isMuted, setIsMuted] = useState(initialMuted);
     const [trailerUrl, setTrailerUrl] = useState("");
     const playerRef = useRef<any>(null);
 
+    // Sync physical YouTube player with global mute state
     useEffect(() => {
         if (playerRef.current && typeof playerRef.current.mute === 'function') {
             try {
-                if (isMuted) playerRef.current.mute();
+                if (globalMute) playerRef.current.mute();
                 else playerRef.current.unMute();
             } catch (e) {
                 console.warn("[useYouTubePlayer] Failed to sync mute state:", e);
             }
         }
-    }, [isMuted]);
+    }, [globalMute]);
 
     const handleMuteToggle = useCallback((e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setIsMuted(prev => !prev);
-    }, []);
+        setGlobalMute(!globalMute);
+    }, [globalMute, setGlobalMute]);
 
     return {
         isPlayingTrailer,
         setIsPlayingTrailer,
-        isMuted,
-        setIsMuted,
+        isMuted: globalMute,
+        setIsMuted: setGlobalMute,
         trailerUrl,
         setTrailerUrl,
         playerRef,

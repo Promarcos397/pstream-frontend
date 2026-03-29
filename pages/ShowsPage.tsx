@@ -4,7 +4,8 @@ import { REQUESTS } from '../constants';
 import { Movie } from '../types';
 import HeroCarousel from '../components/HeroCarousel';
 import Row from '../components/Row';
-import CharacterRow from '../components/CharacterRow';
+import TopTenRow from '../components/TopTenRow';
+import { useDynamicManifest } from '../hooks/useDynamicManifest';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
 import { useGlobalContext } from '../context/GlobalContext';
 
@@ -34,6 +35,7 @@ interface PageProps {
 const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay }) => {
     const { t } = useTranslation();
     const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
+    const rows = useDynamicManifest('tv', selectedGenre?.id);
 
     return (
         <div className="relative">
@@ -48,31 +50,32 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay }) => {
             </div>
 
             <HeroCarousel
-                key="shows"
+                key={`shows-${selectedGenre?.id || 'all'}`}
                 fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV}
                 onSelect={onSelectMovie}
                 onPlay={onPlay}
+                genreId={selectedGenre?.id}
             />
             <main className="relative z-10 pb-12 -mt-12 sm:-mt-20 md:-mt-28 space-y-4 md:space-y-6">
-                {!selectedGenre ? (
-                    // 1. No Genre Selected -> Netflix generic themed rows
-                    <>
-                        <Row title={t('rows.boredomBusters', { defaultValue: 'Bingeworthy Picks' })} fetchUrl={REQUESTS.fetchBoredomBustersTV} onSelect={onSelectMovie} onPlay={onPlay} />
-                        <Row title={t('rows.usSeries', { defaultValue: 'US Series' })} fetchUrl={REQUESTS.fetchUSSeries} onSelect={onSelectMovie} onPlay={onPlay} />
-                        <Row title={t('rows.familiarFavorites', { defaultValue: 'Familiar Favourite Series' })} fetchUrl={REQUESTS.fetchFamiliarFavoritesTV} onSelect={onSelectMovie} onPlay={onPlay} />
-                        <Row title={t('rows.excitingSeries', { defaultValue: 'Exciting Series' })} fetchUrl={REQUESTS.fetchExcitingSeriesTV} onSelect={onSelectMovie} onPlay={onPlay} />
-                        <Row title={t('rows.weThinkYoullLove', { defaultValue: "We think you'll love these" })} fetchUrl={REQUESTS.fetchLoveTheseTV} onSelect={onSelectMovie} onPlay={onPlay} />
-                        <Row title={t('rows.netflixOriginals', { defaultValue: 'Netflix Originals' })} fetchUrl={REQUESTS.fetchNetflixOriginals} onSelect={onSelectMovie} onPlay={onPlay} />
-                    </>
-                ) : (
-                    // 2. Genre Selected -> Specific to that genre
-                    <>
-                        <Row title={t('rows.genreSeries', { genre: t(`genres.${selectedGenre.id}`, { defaultValue: selectedGenre.name }), defaultValue: `${selectedGenre.name} Series` })} fetchUrl={REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc')} onSelect={onSelectMovie} onPlay={onPlay} />
-                        <Row title={t('rows.trendingGenre', { genre: t(`genres.${selectedGenre.id}`, { defaultValue: selectedGenre.name }), defaultValue: `Trending ${selectedGenre.name}` })} fetchUrl={REQUESTS.fetchByGenre('tv', selectedGenre.id, 'vote_count.desc')} onSelect={onSelectMovie} onPlay={onPlay} />
-                        <Row title={t('rows.criticallyAcclaimedGenre', { genre: t(`genres.${selectedGenre.id}`, { defaultValue: selectedGenre.name }), defaultValue: `Critically Acclaimed ${selectedGenre.name}` })} fetchUrl={REQUESTS.fetchByGenre('tv', selectedGenre.id, 'vote_average.desc')} onSelect={onSelectMovie} onPlay={onPlay} />
-                        <Row title={t('rows.latestReleases', { genre: t(`genres.${selectedGenre.id}`, { defaultValue: selectedGenre.name }), defaultValue: `Latest ${selectedGenre.name} Releases` })} fetchUrl={REQUESTS.fetchByGenre('tv', selectedGenre.id, 'first_air_date.desc')} onSelect={onSelectMovie} onPlay={onPlay} />
-                    </>
-                )}
+                {rows.map(row => (
+                    row.type === 'top10' ? (
+                        <TopTenRow
+                            key={row.key}
+                            title={row.title}
+                            fetchUrl={row.fetchUrl}
+                            onSelect={onSelectMovie}
+                        />
+                    ) : (
+                        <Row
+                            key={row.key}
+                            title={row.title}
+                            fetchUrl={row.fetchUrl}
+                            data={row.data}
+                            onSelect={onSelectMovie}
+                            onPlay={onPlay}
+                        />
+                    )
+                ))}
             </main>
         </div>
     );

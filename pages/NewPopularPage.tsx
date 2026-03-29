@@ -4,8 +4,8 @@ import { REQUESTS } from '../constants';
 import { Movie } from '../types';
 import Row from '../components/Row';
 import TopTenRow from '../components/TopTenRow';
-
 import { useGlobalContext } from '../context/GlobalContext';
+import { useDynamicManifest } from '../hooks/useDynamicManifest';
 
 interface PageProps {
   onSelectMovie: (movie: Movie) => void;
@@ -102,6 +102,8 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie }) => {
     fetchComics();
   }, []);
 
+  const rows = useDynamicManifest('new_popular'); // Use dedicated massive layout for New & Popular
+
   return (
     <div className="min-h-screen bg-[#141414]">
       {/* Spacer for fixed Navbar */}
@@ -114,8 +116,15 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie }) => {
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white drop-shadow-md">{t('nav.newPopular')}</h1>
         </div>
 
-        <Row title={t('rows.newOnNetflix')} fetchUrl={REQUESTS.fetchNetflixOriginals} onSelect={onSelectMovie} />
-        <TopTenRow title={t('rows.top10TV')} fetchUrl={REQUESTS.fetchTrendingTV} onSelect={onSelectMovie} />
+        {/* Dynamic Rows with Comics integration */}
+        {rows.slice(0, 3).map(row => (
+           row.type === 'top10' ? (
+             <TopTenRow key={row.key} title={row.title} fetchUrl={row.fetchUrl} onSelect={onSelectMovie} />
+           ) : (
+             <Row key={row.key} title={row.title} fetchUrl={row.fetchUrl} data={row.data} onSelect={onSelectMovie} />
+           )
+        ))}
+
         {topComics.length > 0 && (
           <TopTenRow
             title="Top 10 Comics Today"
@@ -123,9 +132,14 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie }) => {
             onSelect={onSelectMovie}
           />
         )}
-        <TopTenRow title={t('rows.top10Movies')} fetchUrl={REQUESTS.fetchTrendingMovies} onSelect={onSelectMovie} />
-        <Row title={t('rows.worthWait')} fetchUrl={REQUESTS.fetchUpcoming} onSelect={onSelectMovie} />
-        <Row title={t('rows.comingSoon')} fetchUrl={REQUESTS.fetchActionMovies} onSelect={onSelectMovie} />
+
+        {rows.slice(3).map(row => (
+           row.type === 'top10' ? (
+             <TopTenRow key={row.key} title={row.title} fetchUrl={row.fetchUrl} onSelect={onSelectMovie} />
+           ) : (
+             <Row key={row.key} title={row.title} fetchUrl={row.fetchUrl} data={row.data} onSelect={onSelectMovie} />
+           )
+        ))}
       </main>
     </div>
   );

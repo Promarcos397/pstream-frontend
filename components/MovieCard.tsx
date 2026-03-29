@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, CaretDownIcon, BookOpenIcon } from '@phosphor-icons/react';
+import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, CaretDownIcon, BookOpenIcon, TicketIcon } from '@phosphor-icons/react';
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer';
+import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import YouTube from 'react-youtube';
 import { useGlobalContext } from '../context/GlobalContext';
 import axios from 'axios';
 import { GENRES, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream, getExternalIds } from '../services/api';
+import { getMovieImages, prefetchStream, getExternalIds, getMovieVideos, getMovieDetails } from '../services/api';
 import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 
@@ -107,16 +108,20 @@ const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; ge
 
 const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false }) => {
   const { t } = useTranslation();
-  const { myList, toggleList, rateMovie, getMovieRating, getVideoState, updateVideoState, getEpisodeProgress, getLastWatchedEpisode, top10TV, top10Movies } = useGlobalContext();
+  const { myList, toggleList, rateMovie, getMovieRating, getVideoState, updateVideoState, getEpisodeProgress, getLastWatchedEpisode, top10TV, top10Movies, activeVideoId, setActiveVideoId } = useGlobalContext();
   const [isHovered, setIsHovered] = useState(false);
-  const { trailerUrl, setTrailerUrl, isMuted, setIsMuted, playerRef } = useYouTubePlayer();
+  const [isPrimed, setIsPrimed] = useState(false); // Immediate visual feedback
+  const { trailerUrl, setTrailerUrl, isMuted, setIsMuted, playerRef, handleMuteToggle } = useYouTubePlayer();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
+  const isCinemaOnly = useIsInTheaters(movie);
 
   // 'center' | 'left' | 'right' - determines expansion direction
   const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
 
   const isAdded = myList.find(m => m.id === movie.id);
   const timerRef = useRef<any>(null);
+  const leaveTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // --- Dynamic Badge Logic (strict thresholds to reduce clutter) ---
@@ -160,8 +165,32 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   const badge = getBadgeInfo();
 
-  // Fetch Logo on mount
+  const [isVisible, setIsVisible] = useState(false);
+
+  // Intersection Observer for Lazy Logo Fetching
   useEffect(() => {
+    if (!cardRef.current) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Adaptive Logo Engine
+  const [logoDim, setLogoDim] = useState<{ ratio: number; isSquare: boolean }>({ ratio: 1.5, isSquare: false });
+  const handleLogoLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    const ratio = naturalWidth / naturalHeight;
+    setLogoDim({ ratio, isSquare: ratio < 1.35 });
+  };
+
+  // Fetch Logo only when visible
+  useEffect(() => {
+    if (!isVisible) return;
     let isMounted = true;
     const fetchLogo = async () => {
       try {
@@ -181,12 +210,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
     fetchLogo();
     return () => { isMounted = false; };
-  }, [movie.id, movie.media_type, movie.title]);
+  }, [isVisible, movie.id, movie.media_type, movie.title]);
 
   // Prefetch stream on hover
   const handleMouseEnter = (e: React.MouseEvent) => {
-    // Prevent hover effect on touch devices
     if (!window.matchMedia('(hover: hover)').matches) return;
+
+    const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+    const dateStr = movie.release_date || movie.first_air_date;
+    const yearString = dateStr ? dateStr.split('-')[0] : '';
 
     // Determine screen position for smart popup alignment
     let currentPos: 'center' | 'left' | 'right' = 'center';
@@ -194,72 +226,86 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       const rect = cardRef.current.getBoundingClientRect();
       const popupWidth = window.innerWidth > 1024 ? 300 : 260;
       const expansionBuffer = (popupWidth * 1.05 - rect.width) / 2;
-      
+
       if (rect.left < expansionBuffer) currentPos = 'left';
       else if (window.innerWidth - rect.right < expansionBuffer) currentPos = 'right';
       setHoverPosition(currentPos);
     }
 
-    // Predictive Fetching: Start searching for the trailer IMMEDIATELY on hover (no dwell wait)
-    const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-    const releaseDate = movie.release_date || movie.first_air_date;
-    const yearString = releaseDate ? releaseDate.split('-')[0] : undefined;
-    
-    // We don't set the trailerUrl yet (that's for dwell), but we warm the cache and pre-search
-    if (!trailerUrl && !isBook) {
-      searchTrailersWithFallback({ 
-        title: movie.title || movie.name || '', 
-        year: yearString,
-        type: mediaType 
-      }).then(keys => {
-        if (keys && keys.length > 0) {
-          // Store locally if we haven't already
-          (window as any)[`trailer_${movie.id}`] = keys[0];
-        }
-      });
+    // 1. INSTANT PRE-FETCH: Use YouTube Search as PRIMARY, TMDB as fallback
+    if (!trailerUrl && !isBook && movie.id) {
+      const queryTitle = `${movie.title || movie.name} official trailer`;
+
+      // Step A: Do the live YouTube search first
+      searchTrailersWithFallback({ title: queryTitle, year: yearString, type: mediaType })
+        .then(keys => {
+          if (keys && keys.length > 0) {
+            setTrailerUrl(keys[0]); // Success! We found the live top result.
+          } else {
+            // Step B: If the search fails, fallback to TMDB
+            getMovieVideos(movie.id, mediaType).then(videos => {
+              const tmdbTrailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
+              if (tmdbTrailer) {
+                setTrailerUrl(tmdbTrailer.key);
+              }
+            }).catch(() => { });
+          }
+        }).catch(() => {
+          // Safety catch: fallback to TMDB if search throws an error
+          getMovieVideos(movie.id, mediaType).then(videos => {
+            const tmdbTrailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
+            if (tmdbTrailer) {
+              setTrailerUrl(tmdbTrailer.key);
+            }
+          }).catch(() => { });
+        });
     }
 
-    // Set timer for hover effect (Visual expansion triggers after dwell)
+    // Immediate visual priming
+    setIsPrimed(true);
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+
+    // 2. VISUAL DELAY: Wait 600ms before expanding and playing
     timerRef.current = setTimeout(() => {
       setIsHovered(true);
 
-      // Request stream prefetch when user dwells on the card
-      const year = yearString ? parseInt(yearString) : undefined;
-      
-      // Check predictive search result first
-      const predictedKey = (window as any)[`trailer_${movie.id}`];
-      if (predictedKey) setTrailerUrl(predictedKey);
+      // Claim the global stage IMMEDIATELY using the Movie ID
+      setActiveVideoId(String(movie.id));
 
+      const year = yearString ? parseInt(yearString) : undefined;
       if (year) {
-        prefetchStream(
-          movie.title || movie.name || '',
-          year,
-          String(movie.id),
-          mediaType,
-          1,
-          1
-        );
+        prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
       }
-    }, 600); // Dwell time
+    }, 600);
   };
 
   const handleMouseLeave = () => {
+    setIsPrimed(false);
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    
-    // Save state before closing if player exists
-    if (isHovered && playerRef.current && trailerUrl) {
-      const currentTime = playerRef.current.getCurrentTime();
-      updateVideoState(movie.id, currentTime, trailerUrl);
-    }
 
-    setIsHovered(false);
-    setTrailerUrl(null);
-    setIsMuted(true);
+    leaveTimerRef.current = setTimeout(() => {
+      if (isHovered && playerRef.current && trailerUrl) {
+        try {
+          // Safely check if the function exists before calling it
+          const currentTime = playerRef.current?.getCurrentTime?.() || 0;
+          updateVideoState(movie.id, currentTime, trailerUrl);
+        } catch (e) {
+          // Ignore YouTube API readiness errors
+        }
+      }
+
+      setIsHovered(false);
+      setTrailerUrl(null);
+      // setIsMuted(true); // Left commented out to prevent global mute ghosting
+      setActiveVideoId(null); // Release global claim
+    }, 160);
   };
-
 
   const getGenreNames = () => {
     if (!movie.genre_ids) return [];
@@ -279,19 +325,26 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   // Handler that saves state to context before opening modal
   const handleOpenModal = () => {
-    const currentTime = playerRef.current?.getCurrentTime() || 0;
+    const currentTime = playerRef.current?.getCurrentTime?.() || 0;
     const finalTrailerUrl = trailerUrl || getVideoState(movie.id)?.videoId;
-    
+
+    // Pass card coordinates for Spring Effect
+    const rect = cardRef.current?.getBoundingClientRect();
+    const coordinates = rect ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : undefined;
+
     if (finalTrailerUrl) {
       updateVideoState(movie.id, currentTime, finalTrailerUrl);
     }
     onSelect(movie, currentTime, finalTrailerUrl);
+
+    // Store coordinates in window for modal to pick up
+    (window as any).__last_card_rect = coordinates;
   };
 
   const handleDirectPlay = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onPlay) {
-      const currentTime = playerRef.current?.getCurrentTime() || 0;
+      const currentTime = playerRef.current?.getCurrentTime?.() || 0;
       if (trailerUrl) {
         updateVideoState(movie.id, currentTime, trailerUrl);
       }
@@ -303,28 +356,32 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   const isBook = ['series', 'comic', 'manga', 'local'].includes(movie.media_type || '');
 
-  // Pre-calculate Image Source safe for Comics
   const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
     ? (movie.backdrop_path || movie.poster_path)
-    : `https://image.tmdb.org/t/p/w500${movie.backdrop_path || movie.poster_path}`;
+    : `https://image.tmdb.org/t/p/w780${movie.backdrop_path || movie.poster_path}`;
+
+  const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
+    ? movie.poster_path
+    : `https://image.tmdb.org/t/p/w780${movie.poster_path}`;
 
   return (
     <div
       ref={cardRef}
-      className={`relative z-10 
+      className={`relative z-10 group/card transition-all duration-300
+        ${isPrimed ? 'scale-[1.05] z-50 ring-1 ring-white/20' : 'scale-100'}
         ${isGrid
-          ? 'w-full aspect-video cursor-pointer hover:z-50'
-          : 'flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.32] cursor-pointer hover:z-[100]'
+          ? 'w-full aspect-video cursor-pointer'
+          : 'flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.32] cursor-pointer'
         }`}
+      style={{ transformOrigin: 'center center' }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={() => onSelect(movie)}
     >
-      <div className="w-full h-full relative rounded-sm overflow-hidden">
-        {/* Base Image */}
+      <div className="w-full h-full relative rounded-sm overflow-hidden movie-card-glow">
         <img
-          src={imageSrc}
-          className={`w-full h-full object-cover ${isBook ? 'object-[50%_30%]' : 'object-center'}`}
+          src={isGrid ? posterSrc : imageSrc}
+          className={`w-full h-full object-cover rounded-sm backdrop-pop ${isBook && !isGrid ? 'object-[50%_30%]' : 'object-center'}`}
           alt={movie.name || movie.title}
           loading="lazy"
         />
@@ -332,9 +389,14 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         {/* Base Title Overlay */}
         {!isHovered && (
           <>
-            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex items-end justify-center pb-2 px-2 opacity-100 transition-opacity duration-300">
+            <div className="absolute inset-x-0 bottom-0 min-h-[40%] bg-gradient-to-t from-black/50 via-black/10 to-transparent flex items-end justify-center pb-3 px-3 opacity-100 transition-opacity duration-300">
               {logoUrl ? (
-                <img src={logoUrl} alt={movie.title || movie.name} className="h-full max-h-5 w-auto object-contain drop-shadow-md" />
+                <img
+                  src={logoUrl}
+                  alt={movie.title || movie.name}
+                  onLoad={handleLogoLoad}
+                  className={`w-auto object-contain drop-shadow-2xl transition-all duration-300 ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
+                />
               ) : (
                 <h3 className={`text-white font-leaner text-center tracking-wide leading-tight drop-shadow-md line-clamp-3 mb-2 w-full px-1 ${isBook ? 'text-2xl' : 'text-xl'}`}>
                   {movie.title || movie.name}
@@ -349,14 +411,13 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       </div>
 
       {/* Progress Bar underneath the poster */}
-      {/* Progress Bar underneath the poster */}
       {!isHovered && <ProgressIndicator movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />}
 
       {/* Hover Popup - Active on all views */}
       {isHovered && (
-        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] animate-netflix-zoom-${hoverPosition} ${posClasses.wrapper}`}>
+        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-[800ms] ease-out animate-netflix-zoom-${hoverPosition} ${posClasses.wrapper}`}>
           <div
-            className={`w-[220px] md:w-[240px] lg:w-[280px] bg-[#141414] rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.8),0_10px_20px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] ring-1 ring-zinc-700/50 ${posClasses.inner}`}
+            className={`w-[210px] md:w-[230px] lg:w-[265px] bg-[#141414] rounded-md movie-card-glow overflow-hidden transition-all duration-[800ms] ease-out ring-1 ring-zinc-700/50 ${posClasses.inner}`}
             onClick={(e) => e.stopPropagation()} // Prevent click from bubbling to base card
           >
             {/* Media Container */}
@@ -379,7 +440,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         rel: 0,
                         iv_load_policy: 3,
                         cc_load_policy: 0,
-                        // No start offset - seamless playback
+                        vq: 'hd1080', // Force HD
                       }
                     }}
                     onReady={(e) => {
@@ -397,7 +458,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       }
                     }}
                     onEnd={(e) => {
-                      // Seamless loop from start
                       e.target.seekTo(0);
                       e.target.playVideo();
                     }}
@@ -407,7 +467,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               ) : (
                 <img
                   src={imageSrc}
-                  className={`w-full h-full object-cover ${isBook ? 'object-[50%_30%]' : 'object-center'}`}
+                  className={`w-full h-full object-cover backdrop-pop ${isBook ? 'object-[50%_30%]' : 'object-center'}`}
                   alt="preview"
                 />
               )}
@@ -415,18 +475,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               {/* Mute Button - Hide for books */}
               {trailerUrl && !isBook && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
-                  className="absolute bottom-4 right-4 w-8 h-8 rounded-full border border-white/30 bg-black/50 hover:bg-white/10 flex items-center justify-center transition"
+                  onClick={(e) => { e.stopPropagation(); handleMuteToggle(e); }}
+                  className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                 >
-                  {isMuted ? <SpeakerSlashIcon size={12} className="text-white" /> : <SpeakerHighIcon size={12} className="text-white" />}
+                  {isMuted ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />}
                 </button>
               )}
 
-              <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#181818] to-transparent z-10" />
+              <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#181818] to-transparent z-10 pointer-events-none" />
 
               <div className="absolute bottom-3 left-4 right-12 pointer-events-none z-20">
-                {logoUrl ? (
-                  <img src={logoUrl} alt="title logo" className="h-8 md:h-10 w-auto object-contain origin-bottom-left drop-shadow-md" />
+                {logoUrl && !imgFailed ? (
+                  <img
+                    src={logoUrl}
+                    alt={movie.title || movie.name}
+                    className={`w-auto object-contain origin-bottom-left drop-shadow-2xl transition-all duration-300 ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                    onError={() => setImgFailed(true)}
+                  />
                 ) : (
                   <h4 className="text-white font-leaner text-4xl line-clamp-2 drop-shadow-md tracking-wide text-center mb-2 leading-none">{movie.title || movie.name}</h4>
                 )}
@@ -438,14 +503,24 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               {/* Action Buttons Row */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  {/* Play/Read Button */}
-                  <button
-                    onClick={handleDirectPlay}
-                    className="bg-white text-black rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95"
-                    title={isBook ? "Read Now" : "Play"}
-                  >
-                    {isBook ? <BookOpenIcon size={18} weight="fill" /> : <PlayIcon size={22} weight="fill" className="ml-0.5" />}
-                  </button>
+                  {/* Play/Read/Theater Button */}
+                  {isCinemaOnly && !isBook ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
+                      className="bg-[#6d6d6e] text-white rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95"
+                      title="In Theaters"
+                    >
+                      <TicketIcon size={18} weight="bold" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleDirectPlay}
+                      className="bg-white text-black rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95"
+                      title={isBook ? "Read Now" : "Play"}
+                    >
+                      {isBook ? <BookOpenIcon size={18} weight="fill" /> : <PlayIcon size={22} weight="fill" className="ml-0.5" />}
+                    </button>
+                  )}
                   {/* Add to List */}
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleList(movie); }}

@@ -59,34 +59,29 @@ function buildSearchQueries(options: SearchOptions): string[] {
 
     // TV shows use different search patterns
     if (type === 'tv') {
-        // Most specific: Title + Year + "TV series trailer"
+        // Most specific: Title + Year + Studio + "Official 4K"
+        if (year && company) {
+            queries.push(`${title} ${year} ${company} official 4k trailer`);
+            queries.push(`${title} ${year} ${company} trailer`);
+        }
         if (year) {
-            queries.push(`${title} ${year} TV series official trailer`);
+            queries.push(`${title} ${year} tv series official trailer`);
         }
-        // With company
-        if (company) {
-            queries.push(`${title} ${company} official trailer`);
-        }
-        // Standard TV patterns
-        queries.push(`${title} TV series official trailer`);
+        queries.push(`${title} official trailer 4k`);
+        queries.push(`${title} tv show trailer`);
         queries.push(`${title} series trailer`);
-        queries.push(`${title} official trailer`);
     } else {
         // Movies
-        // Most specific: Title + Year + Company
+        // Most specific: Title + Year + Company + "Official 4K"
         if (year && company) {
-            queries.push(`${title} ${year} ${company} official trailer`);
+            queries.push(`${title} ${year} ${company} official 4k trailer`);
+            queries.push(`${title} ${year} ${company} movie trailer`);
         }
-        // With year
         if (year) {
-            queries.push(`${title} ${year} official trailer`);
+            queries.push(`${title} ${year} official trailer 4k`);
+            queries.push(`${title} ${year} movie trailer`);
         }
-        // With company
-        if (company) {
-            queries.push(`${title} ${company} movie trailer`);
-        }
-        // Standard
-        queries.push(`${title} official trailer`);
+        queries.push(`${title} official trailer 4k`);
         queries.push(`${title} movie trailer`);
     }
 
