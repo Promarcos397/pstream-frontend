@@ -40,7 +40,18 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const { getVideoState, setActiveVideoId } = useGlobalContext();
 
     const [resumeContext, setResumeContext] = useState<{ season: number; episode: number } | null>(null);
-
+// Add this near the top of InfoModal.tsx
+    useEffect(() => {
+        if (movie) {
+            // Claim the stage when the modal opens
+            setActiveVideoId(`modal-${movie.id}`);
+        }
+        
+        // Clear the stage when the modal closes, letting the Hero resume!
+        return () => {
+            setActiveVideoId(null);
+        };
+    }, [movie, setActiveVideoId]);
     // Determines media type safely
     const mediaType = movie
         ? (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv'

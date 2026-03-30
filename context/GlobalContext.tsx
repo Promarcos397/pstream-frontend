@@ -66,7 +66,7 @@ interface GlobalContextType {
   setHeroVideoState: (state: Partial<GlobalContextType['heroVideoState']>) => void;
   // Universal Player Synchronizer
   activeVideoId: string | null;
-  setActiveVideoId: (id: string | null) => void;
+  setActiveVideoId: React.Dispatch<React.SetStateAction<string | null>>;
   // Universal Mute State
   globalMute: boolean;
   setGlobalMute: (mute: boolean) => void;

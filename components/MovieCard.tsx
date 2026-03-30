@@ -302,9 +302,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
       setIsHovered(false);
       setTrailerUrl(null);
-      // setIsMuted(true); // Left commented out to prevent global mute ghosting
-      setActiveVideoId(null); // Release global claim
+      // ONLY release the claim if this specific card still owns it. 
+      // If the InfoModal opened, it will have stolen the claim, so we leave it alone!
+      setActiveVideoId(prev => prev === String(movie.id) ? null : prev);
     }, 160);
+      // setIsMuted(true); // Left commented out to prevent global mute ghosting
   };
 
   const getGenreNames = () => {
@@ -457,6 +459,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         e.target.seekTo(savedState.time, true);
                       }
                     }}
+                    onError={(e) => { console.warn("YouTube blocked playback:", e);setTrailerUrl(null); // Instantly hides the broken video and falls back to the poster image
+}}
                     onEnd={(e) => {
                       e.target.seekTo(0);
                       e.target.playVideo();

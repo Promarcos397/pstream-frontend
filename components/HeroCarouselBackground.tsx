@@ -75,7 +75,6 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                             className="w-full h-full"
                             onReady={(e) => {
                                 playerRef.current = e.target;
-                                
                                 // Sync sound state with global profile to avoid "Ghost Mutes"
                                 if (isMuted) e.target.mute();
                                 else e.target.unMute();
@@ -110,6 +109,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                     const next = prev.slice(1);
                                     if (next.length === 0) setShowVideo(false);
                                     return next;
+                            
                                 });
                             }}
                             opts={{
@@ -117,7 +117,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                 height: '100%',
                                 playerVars: {
                                     autoplay: 1,
-                                    mute: isMuted ? 1 : 0, // Critical for autoplay to work
+                                    mute: 1, // <--- Hardcode to 1. Your useEffect will handle the live toggling!
                                     modestbranding: 1,
                                     rel: 0,
                                     controls: 0,

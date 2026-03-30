@@ -61,9 +61,10 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setIsOutOfView(!entry.isIntersecting);
+        // Pause instantly as soon as 15% of the hero is scrolled past
+        setIsOutOfView(entry.intersectionRatio < 0.85); 
       },
-      { threshold: 0.40 } // Pause as soon as 65% is off-screen
+      { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] } 
     );
 
     observer.observe(containerRef.current);
