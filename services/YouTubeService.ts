@@ -2,15 +2,21 @@ import axios from 'axios';
 
 // YouTube API keys with rotation
 const YOUTUBE_API_KEYS = [
-    'AIzaSyB-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 1
-    'AIzaSyC-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 2
-    'AIzaSyD-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 3
-    'AIzaSyE-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 4
-    'AIzaSyF-x8D-D9h9z-8D-D9h9z-8D-D9h9z-8D', // Key 5
+    'AIzaSyAPYK_Miisu65B_rzwUH8FoI83AVgmXA50',
+    'AIzaSyDUfzBoybcjWFUkA7jqVV1UP45jOWz4L1g',
+    'AIzaSyCCNJoPIJVB7r2AOIFn0C-UELpvZrK9AM4',
+    'AIzaSyD8URfM0IqZDT4dgl9dpLfQcnJ42q4_XCs',
+    'AIzaSyBJHthTDYf9lot4KvH9NONo_lcUBF9SbUY',
 ];
 
 let currentKeyIndex = 0;
 let failedKeys = new Set<number>(); // Track keys that have failed this session
+
+// Session cache: title → videoIds. Prevents re-searching the same title.
+const resultCache = new Map<string, string[]>();
+
+// In-flight dedup: if two hovers for the same title fire at once, only one API call is made.
+const inFlight = new Map<string, Promise<string[]>>();
 
 const YOUTUBE_SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search';
 
@@ -93,6 +99,7 @@ function buildSearchQueries(options: SearchOptions): string[] {
  */
 async function executeSearch(query: string, maxResults: number): Promise<string[]> {
     const key = YOUTUBE_API_KEYS[currentKeyIndex];
+    if (!key) return [];
 
     try {
         const response = await axios.get(YOUTUBE_SEARCH_URL, {
@@ -123,30 +130,48 @@ async function executeSearch(query: string, maxResults: number): Promise<string[
 }
 
 /**
- * Smart search with fallback queries
+ * Smart search with fallback queries + session cache + in-flight dedup
  */
 export const searchTrailersWithFallback = async (
     options: SearchOptions,
     maxResults: number = 5
 ): Promise<string[]> => {
-    const queries = buildSearchQueries(options);
+    const cacheKey = `${options.title}::${options.year || ''}::${options.type || ''}`;
 
-    for (const query of queries) {
-        try {
-            console.log('[YouTubeService] Trying:', query);
-            const results = await executeSearch(query, maxResults);
-
-            if (results.length > 0) {
-                console.log('[YouTubeService] Found', results.length, 'trailers with query:', query);
-                return results;
-            }
-        } catch (error: any) {
-            console.error('[YouTubeService] Query failed:', query, error.message);
-        }
+    // Cache hit — zero quota cost, instant result
+    if (resultCache.has(cacheKey)) {
+        return resultCache.get(cacheKey)!;
     }
 
-    console.warn('[YouTubeService] No trailers found for:', options.title);
-    return [];
+    // In-flight dedup — if the same title is already being searched, share that promise
+    if (inFlight.has(cacheKey)) {
+        return inFlight.get(cacheKey)!;
+    }
+
+    const searchPromise = (async () => {
+        const queries = buildSearchQueries(options);
+
+        for (const query of queries) {
+            try {
+                const results = await executeSearch(query, maxResults);
+                if (results.length > 0) {
+                    resultCache.set(cacheKey, results);
+                    return results;
+                }
+            } catch (error: any) {
+                console.error('[YouTubeService] Query failed:', query, error.message);
+            }
+        }
+
+        // Cache the empty result too — don't retry titles that have no trailers
+        resultCache.set(cacheKey, []);
+        return [];
+    })();
+
+    inFlight.set(cacheKey, searchPromise);
+    const result = await searchPromise;
+    inFlight.delete(cacheKey);
+    return result;
 };
 
 /**

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import logo from '../assets/pstream-logo.png';
 import landingBg from '../assets/landing-bg.png';
+import * as bip39 from 'bip39';
 
 const LoginPage: React.FC = () => {
     const { login, syncStatus, user, updateSettings } = useGlobalContext();
@@ -34,11 +35,24 @@ const LoginPage: React.FC = () => {
             return;
         }
 
-        const result = await login(phrase, displayName.trim());
+        // Frontend BIP39 validation — rejects random/invalid words before hitting the backend
+        const isSignUp = view === 'savekey';
+        if (!isSignUp) {
+            const words = phrase.split(/\s+/);
+            if (words.length !== 12) {
+                setError('Recovery phrase must be exactly 12 words.');
+                return;
+            }
+            if (!bip39.validateMnemonic(phrase)) {
+                setError('Invalid recovery phrase. Please check the words and try again.');
+                return;
+            }
+        }
+        const result = await login(phrase, displayName.trim(), isSignUp);
         if (!result.success) {
             setError(result.error || t('auth.invalidKey', { defaultValue: 'Login failed' }));
         } else {
-            if (formRef.current) {
+            if (isSignUp && formRef.current) {
                 const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
                 formRef.current.dispatchEvent(submitEvent);
             }
@@ -112,9 +126,12 @@ const LoginPage: React.FC = () => {
                 </div>
             </header>
 
-            <form ref={formRef} className="hidden" method="POST" action="/#login-success">
-                <input type="text" name="username" value="pstream-user" readOnly autoComplete="username" />
-                <input type="password" name="password" value={mnemonic} readOnly autoComplete="current-password" />
+            {/* Hidden credential form — only submitted during sign-up via ref.dispatchEvent.
+                Username must be set from displayName so the browser saves the right name.
+                We do NOT dispatch/submit this on sign-in so the browser never prompts to save. */}
+            <form ref={formRef} className="hidden" method="POST" action="/#login-success" autoComplete="on">
+                <input type="text" name="username" value={displayName || ''} readOnly autoComplete="username" />
+                <input type="password" name="password" value={mnemonic} readOnly autoComplete="new-password" />
                 <button type="submit">Save</button>
             </form>
 
@@ -201,11 +218,16 @@ const LoginPage: React.FC = () => {
                         <form onSubmit={handleLogin} className="space-y-6">
                             <div className="space-y-4">
                                 <div className="relative group">
+                                    {/* Hidden username field for password managers to contextually recognize the sign in */}
+                                    <input type="text" name="username" value={displayName} onChange={() => {}} autoComplete="username" style={{display: 'none'}} />
                                     <textarea
+                                        name="password"
+                                        id="password"
                                         value={mnemonic}
                                         onChange={(e) => setMnemonic(e.target.value)}
                                         className="w-full h-32 bg-[#333] border-b-2 border-transparent text-white rounded px-4 py-4 text-sm focus:outline-none focus:bg-[#444] focus:border-red-600 transition-all resize-none placeholder:text-white/30"
-                                        placeholder={t('auth.mnemonicPlaceholderLarge', { defaultValue: 'Recovery Phrase or Mnemonic...' })}
+                                        placeholder={t('auth.mnemonicPlaceholderLarge')}
+                                        autoComplete="current-password"
                                         autoFocus
                                     />
                                     <div onClick={() => setShowInfo(!showInfo)} className="absolute right-3 bottom-3 text-white/20 hover:text-white/60 cursor-pointer">

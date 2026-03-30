@@ -218,12 +218,22 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
     const navigate = useNavigate();
     const { t } = useTranslation();
     const { user } = useGlobalContext();
-    const [displayName, setDisplayName] = useState(settings.displayName || '');
+    const [displayName, setDisplayName] = useState(settings.displayName || user?.display_name || '');
     const [imgFailed, setImgFailed] = useState(false);
     const avatarSrc = imgFailed ? FALLBACK_AVATAR : (settings.avatarUrl || DEFAULT_AVATAR);
 
-    const handleSaveName = () => {
-        updateSettings({ displayName: displayName.trim() || undefined });
+    const handleSaveName = async () => {
+        const trimmed = displayName.trim();
+        updateSettings({ displayName: trimmed || undefined });
+        // Also push display_name to the Supabase profiles row so it persists
+        if (trimmed) {
+            try {
+                const { AuthService } = await import('../services/AuthService');
+                await AuthService.syncProfile({ display_name: trimmed } as any);
+            } catch (e) {
+                console.warn('[ProfileEdit] Could not sync display_name to Supabase:', e);
+            }
+        }
     };
 
     return (

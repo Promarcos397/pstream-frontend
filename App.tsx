@@ -47,9 +47,9 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // React Router Scroll Restoration
+  // React Router Scroll Restoration — single scroll-to-top on route change
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [location.pathname]);
 
   // Prefetch last played on mount
@@ -96,12 +96,6 @@ const App: React.FC = () => {
   const [infoInitialTime, setInfoInitialTime] = useState(0);
   const [infoVideoId, setInfoVideoId] = useState<string | undefined>(undefined);
 
-  // Scroll to top on route change
-  useEffect(() => {
-    if (!location.pathname.startsWith('/watch')) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [location.pathname]);
 
   const handleSelectMovie = (movie: Movie, time?: number, videoId?: string) => {
     setInfoInitialTime(time || 0);
@@ -179,7 +173,7 @@ const App: React.FC = () => {
   }
 
   const mainContent = (
-    <div key={location.pathname}>
+    <div>
       <Routes>
         <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
         <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
@@ -193,7 +187,7 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className={`${selectedMovie ? 'overflow-hidden h-screen' : ''}`}>
+    <div>
       {isSettings ? (
         mainContent
       ) : (

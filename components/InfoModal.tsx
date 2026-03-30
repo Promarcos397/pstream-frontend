@@ -10,6 +10,7 @@ import InfoModalEpisodes from './InfoModalEpisodes';
 import InfoModalRecommendations from './InfoModalRecommendations';
 import { useMovieData } from '../hooks/useMovieData';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
+import { NetworkPriority } from '../services/NetworkPriority';
 
 interface InfoModalProps {
     movie: Movie | null;
@@ -20,7 +21,10 @@ interface InfoModalProps {
 }
 
 const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, onPlay, trailerId }) => {
-    const { myList, toggleList, updateVideoState, heroVideoState } = useGlobalContext();
+    const { 
+        myList, toggleList, updateVideoState, heroVideoState, 
+        globalMute, setGlobalMute, getVideoState, setActiveVideoId 
+    } = useGlobalContext();
     const { t } = useTranslation();
     const { detailedMovie, cast, recommendations, logoUrl, isLoading } = useMovieData(movie);
     const [imgFailed, setImgFailed] = useState(false);
@@ -28,7 +32,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const [trailerQueue, setTrailerQueue] = useState<string[]>([]);
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
-    const [isMuted, setIsMuted] = useState(false);
+    const isMuted = globalMute;
+    const setIsMuted = setGlobalMute;
 
     // Episode / Season State
     const [episodes, setEpisodes] = useState<Episode[]>([]);
@@ -37,18 +42,37 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const playerRef = useRef<any>(null);
     const modalRef = useRef<HTMLDivElement>(null);
-    const { getVideoState, setActiveVideoId } = useGlobalContext();
+
 
     const [resumeContext, setResumeContext] = useState<{ season: number; episode: number } | null>(null);
-// Add this near the top of InfoModal.tsx
+    // Lock body scroll when modal is open, restore exactly on close
     useEffect(() => {
-        if (movie) {
-            // Claim the stage when the modal opens
-            setActiveVideoId(`modal-${movie.id}`);
-        }
-        
-        // Clear the stage when the modal closes, letting the Hero resume!
+        if (!movie) return;
+
+        // Save the current scroll position before locking
+        const scrollY = window.scrollY;
+
+        // Lock body in place using fixed positioning (prevents scroll-to-top jump)
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.overflowY = 'scroll'; // keep scrollbar space to prevent layout shift
+
+        // Claim the stage when the modal opens
+        setActiveVideoId(`modal-${movie.id}`);
+
         return () => {
+            // Restore body scroll lock
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.overflowY = '';
+            // Restore scroll position exactly where user was
+            window.scrollTo({ top: scrollY, behavior: 'instant' as ScrollBehavior });
+
+            // Clear the stage when the modal closes, letting the Hero resume
             setActiveVideoId(null);
         };
     }, [movie, setActiveVideoId]);
@@ -269,10 +293,21 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             if (isMuted) e.target.mute();
                                             else e.target.unMute();
 
-                                            // Cinematic: Force Highest Quality
-                                            if (typeof e.target.setPlaybackQuality === 'function') {
-                                                e.target.setPlaybackQuality('hd1080');
-                                            }
+                                            // Force highest available quality
+                                            const forceHD = () => {
+                                                try {
+                                                    const levels = e.target.getAvailableQualityLevels?.() || [];
+                                                    const best = ['hd2160','hd1440','hd1080','hd720'].find(q => levels.includes(q)) || 'hd1080';
+                                                    e.target.setPlaybackQuality(best);
+                                                } catch (_) {}
+                                            };
+                                            forceHD();
+
+                                            // Re-force if YouTube auto-downgrades quality
+                                            e.target.addEventListener?.('onPlaybackQualityChange', forceHD);
+
+                                            // Tell the network manager: video is now active
+                                            NetworkPriority.setVideoActive(true);
 
                                             // Resume logic
                                             if (initialTime > 0) {

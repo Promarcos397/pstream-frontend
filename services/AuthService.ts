@@ -9,7 +9,7 @@ if (typeof window !== 'undefined' && !window.Buffer) {
 }
 
 const metaEnv = (import.meta as any).env;
-const API_BASE = metaEnv?.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin);
+const API_BASE = metaEnv?.VITE_GIGA_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:7860' : window.location.origin);
 
 export interface UserProfile {
   public_key: string;
@@ -45,7 +45,7 @@ export class AuthService {
   /**
    * Performs the Login Handshake
    */
-  static async login(mnemonic: string, displayName?: string): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
+  static async login(mnemonic: string, displayName?: string, isSignUp?: boolean): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
     try {
       const keypair = await this.deriveKeypair(mnemonic);
       const publicKey = Buffer.from(keypair.publicKey).toString('base64');
@@ -68,7 +68,8 @@ export class AuthService {
         publicKey,
         signature: signatureBase64,
         challenge,
-        displayName // NEW: Pass the name we collected!
+        displayName,
+        isSignUp
       });
 
       if (verifyRes.data.success) {

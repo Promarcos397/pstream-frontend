@@ -8,6 +8,7 @@
 @font-face {
   font-family: 'Leaner Bold';
   src: url('./assets/fonts/LeanerBold.otf') format('opentype');
+  font-display: swap;
 }
 
 @font-face {
@@ -15,6 +16,7 @@
   src: url('./assets/fonts/Harmonia Sans W01 Regular.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -22,6 +24,7 @@
   src: url('./assets/fonts/Harmonia Sans W01 Bold.ttf') format('truetype');
   font-weight: bold;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -29,6 +32,7 @@
   src: url('./assets/fonts/Harmonia Sans Mono W01 Bold.ttf') format('truetype');
   font-weight: bold;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -36,6 +40,7 @@
   src: url('./assets/fonts/Harmonia Sans W06 Condensed.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -43,6 +48,7 @@
   src: url('./assets/fonts/Harmonia Sans W06 Black Italic.ttf') format('truetype');
   font-weight: 900;
   font-style: italic;
+  font-display: swap;
 }
 
 .font-leaner {
@@ -61,19 +67,42 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  body {
-    @apply font-harmonia antialiased;
-    background-color: #141414;
-    color: white;
-    overscroll-behavior-y: none;
-  }
-}
-
 html {
   scroll-behavior: smooth;
   scrollbar-width: auto;
   scrollbar-color: #4e4e4e #141414;
+  -webkit-tap-highlight-color: transparent; /* Fix blue highlight on mobile */
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+body {
+  @apply font-harmonia antialiased;
+  background-color: #141414;
+  color: white;
+  overscroll-behavior-y: none; /* Prevent elastic bouncing on mobile */
+  user-select: none; /* Prevent accidental text selection while navigating */
+  -webkit-user-select: none;
+}
+
+/* Allow selection in inputs */
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Momentum scrolling for touch devices */
+.overflow-x-auto, .overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Better touch targets for buttons */
+button, [role="button"] {
+  touch-action: manipulation;
 }
 
 .text-shadow-minimal {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, CaretDownIcon, BookOpenIcon, TicketIcon } from '@phosphor-icons/react';
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
+import { useNavigate } from 'react-router-dom';
 import YouTube from 'react-youtube';
 import { useGlobalContext } from '../context/GlobalContext';
 import axios from 'axios';
@@ -10,6 +11,7 @@ import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages, prefetchStream, getExternalIds, getMovieVideos, getMovieDetails } from '../services/api';
 import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
+import { NetworkPriority } from '../services/NetworkPriority';
 
 interface MovieCardProps {
   movie: Movie;
@@ -66,6 +68,9 @@ const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; ge
   useEffect(() => {
     const fetchProgress = async () => {
       try {
+        // Skip background fetch if video is actively playing — don't compete for bandwidth
+        if (NetworkPriority.isVideoActive()) return;
+
         // Fallback to local storage logic instantly for UI snap
         let localProgress = 0;
         const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv');
@@ -80,9 +85,9 @@ const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; ge
         setProgress(localProgress);
 
         // Then asynchronously ask the server for the precise cross-device watch percentage
-        // (Assuming userId "user" profile ID for demo purposes)
         try {
-          const res = await axios.get(`http://localhost:4000/api/profiles/default/progress/${movie.id}`);
+          const apiBase = (import.meta as any).env?.VITE_GIGA_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:7860' : window.location.origin);
+          const res = await axios.get(`${apiBase}/api/profiles/default/progress/${movie.id}`);
           if (res.data && res.data.length > 0) {
             const p = res.data[0];
             if (p.duration > 0) {
@@ -108,10 +113,19 @@ const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; ge
 
 const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false }) => {
   const { t } = useTranslation();
-  const { myList, toggleList, rateMovie, getMovieRating, getVideoState, updateVideoState, getEpisodeProgress, getLastWatchedEpisode, top10TV, top10Movies, activeVideoId, setActiveVideoId } = useGlobalContext();
+  const navigate = useNavigate();
+  const { 
+    myList, toggleList, rateMovie, getMovieRating, getVideoState, 
+    updateVideoState, getEpisodeProgress, getLastWatchedEpisode, 
+    top10TV, top10Movies, activeVideoId, setActiveVideoId,
+    globalMute, setGlobalMute
+  } = useGlobalContext();
   const [isHovered, setIsHovered] = useState(false);
   const [isPrimed, setIsPrimed] = useState(false); // Immediate visual feedback
-  const { trailerUrl, setTrailerUrl, isMuted, setIsMuted, playerRef, handleMuteToggle } = useYouTubePlayer();
+  const { trailerUrl, setTrailerUrl, playerRef, handleMuteToggle } = useYouTubePlayer();
+  // We use our local context destructured vars to avoid any stale closures
+  const isMuted = globalMute;
+  const setIsMuted = setGlobalMute;
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
@@ -326,7 +340,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const posClasses = getPositionClasses();
 
   // Handler that saves state to context before opening modal
-  const handleOpenModal = () => {
+  const handleOpenModal = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const currentTime = playerRef.current?.getCurrentTime?.() || 0;
     const finalTrailerUrl = trailerUrl || getVideoState(movie.id)?.videoId;
 
@@ -345,14 +363,16 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   const handleDirectPlay = (e: React.MouseEvent) => {
     e.stopPropagation();
+    const currentTime = playerRef.current?.getCurrentTime?.() || 0;
+    if (trailerUrl) {
+      updateVideoState(movie.id, currentTime, trailerUrl);
+    }
+    
     if (onPlay) {
-      const currentTime = playerRef.current?.getCurrentTime?.() || 0;
-      if (trailerUrl) {
-        updateVideoState(movie.id, currentTime, trailerUrl);
-      }
       onPlay(movie);
     } else {
-      handleOpenModal();
+      const type = movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie';
+      navigate(`/watch/${type}/${movie.id}`);
     }
   };
 
@@ -378,7 +398,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       style={{ transformOrigin: 'center center' }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onClick={() => onSelect(movie)}
+      onClick={(e) => { e.preventDefault(); handleOpenModal(e); }}
     >
       <div className="w-full h-full relative rounded-sm overflow-hidden movie-card-glow">
         <img
@@ -528,7 +548,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   {/* Add to List */}
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
-                    className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-white hover:border-white transition"
+                    className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-white hover:border-white hover:scale-110 transition-all duration-200"
                     title="Add to My List"
                   >
                     {isAdded ? <CheckIcon size={16} weight="bold" /> : <PlusIcon size={16} weight="bold" />}
@@ -536,7 +556,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   {/* Rate / Thumbs Up */}
                   <button
                     onClick={(e) => { e.stopPropagation(); rateMovie(movie, 'like'); }}
-                    className={`border-2 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center transition active:scale-95 ${getMovieRating(movie.id) === 'like' ? 'bg-white text-black border-white' : 'bg-[#2a2a2a]/80 text-white border-gray-500 hover:border-white'}`}
+                    className={`border-2 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center transition-all duration-200 hover:scale-110 ${getMovieRating(movie.id) === 'like' ? 'bg-white text-black border-white' : 'bg-[#2a2a2a]/80 text-white border-gray-500 hover:border-white'}`}
                     title="Rate"
                   >
                     <ThumbsUpIcon size={16} weight={getMovieRating(movie.id) === 'like' ? "fill" : "bold"} />
@@ -546,7 +566,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 {/* More Info - Chevron Down */}
                 <button
                   onClick={handleOpenModal}
-                  className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:border-white transition text-white"
+                  className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
                   title="More Info"
                 >
                   <CaretDownIcon size={18} weight="bold" />

@@ -11,6 +11,7 @@ import { convertSubtitlesToObjectUrl } from '../utils/captions';
 import { streamCache } from '../utils/streamCache';
 import { useTouchGestures } from '../hooks/useTouchGestures';
 import { SubtitleService } from '../services/SubtitleService';
+import { NetworkPriority } from '../services/NetworkPriority';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -145,6 +146,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (mediaType !== 'tv' || !currentSeasonEpisodes.length) return null;
         return currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode);
     }, [mediaType, currentSeasonEpisodes, currentEpisode]);
+    
+    // Manage Network Priority
+    useEffect(() => {
+        NetworkPriority.setVideoActive(true);
+        return () => NetworkPriority.setVideoActive(false);
+    }, []);
+
 
     // --- Fetch Stream using Puppeteer ---
     // Definitions for title and release date
@@ -909,6 +917,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }
                 }}
                 playsInline
+                onContextMenu={(e) => e.preventDefault()}
             >
                 {subtitleObjectUrl && (
                     <track
@@ -924,28 +933,37 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
             {/* Loading Overlay */}
             {isBuffering && (
-                <div className="absolute inset-0 z-30 transition-opacity duration-500">
+                <div className={`absolute z-30 transition-opacity duration-500 pointer-events-none ${streamUrl ? 'bottom-28 right-12' : 'inset-0'}`}>
                     {/* Blurred Backdrop - Only show during initial stream finding phase */}
                     {!streamUrl && (
-                        <div 
-                            className="absolute inset-0 bg-cover bg-center brightness-[0.3] scale-110"
-                            style={{ 
-                                backgroundImage: `url(https://image.tmdb.org/t/p/original${movie.backdrop_path || movie.poster_path})`,
-                                filter: 'blur(20px)'
-                            }}
-                        />
-                    )}
-                    
-                    {/* Content */}
-                    <div className="relative h-full flex items-center justify-center">
-                        <div className="text-center">
-                            <div className="relative inline-block">
-                                <div className="w-16 h-16 border-4 border-white/10 rounded-full" />
-                                <div className="absolute top-0 left-0 w-16 h-16 border-4 border-[#E50914] border-t-transparent rounded-full animate-spin" />
+                        <>
+                            <div 
+                                className="absolute inset-0 bg-cover bg-center brightness-[0.3] scale-110"
+                                style={{ 
+                                    backgroundImage: `url(https://image.tmdb.org/t/p/original${movie.backdrop_path || movie.poster_path})`,
+                                    filter: 'blur(20px)'
+                                }}
+                            />
+                            
+                            <div className="relative h-screen w-screen flex items-center justify-center">
+                                <div className="text-center">
+                                    <div className="relative inline-block">
+                                        <div className="w-16 h-16 border-4 border-white/10 rounded-full" />
+                                        <div className="absolute top-0 left-0 w-16 h-16 border-4 border-[#E50914] border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                    <p className="mt-6 text-white text-lg font-medium tracking-wide drop-shadow-lg">{loadingMessage}</p>
+                                </div>
                             </div>
-                            {!streamUrl && <p className="mt-6 text-white text-lg font-medium tracking-wide drop-shadow-lg">{loadingMessage}</p>}
+                        </>
+                    )}
+
+                    {/* Minimal Buffering Spinner During Playback */}
+                    {streamUrl && (
+                        <div className="relative inline-block opacity-70">
+                            <div className="w-10 h-10 border-4 border-white/10 rounded-full" />
+                            <div className="absolute top-0 left-0 w-10 h-10 border-4 border-[#E50914] border-t-transparent rounded-full animate-spin" />
                         </div>
-                    </div>
+                    )}
                 </div>
             )}
 

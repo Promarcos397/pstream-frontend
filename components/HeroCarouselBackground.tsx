@@ -139,7 +139,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
             {/* Netflix-style gradients */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent z-10 pointer-events-none" />
             <div className="absolute inset-0 z-10 pointer-events-none" style={{
-                background: 'linear-gradient(to top, #141414 0%, #14141499 8%, #14141433 22% ,transparent 30%)'
+                background: 'linear-gradient(to top, #141414 0%, #14141480 14%, #14141433 26%, transparent 40%)'
             }} />
         </>
     );

@@ -11,6 +11,7 @@ import { REQUESTS, LOGO_SIZE } from '../constants';
 import { getMovieImages, prefetchStream, getExternalIds, getMovieVideos } from '../services/api';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
+import { NetworkPriority } from '../services/NetworkPriority';
 
 interface HeroCarouselProps {
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
@@ -54,21 +55,45 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // 2. Viewport Tracking (Intersection Observer)
+  // 2. Viewport Tracking — scroll-based with rAF for buttery smooth response
   const [isOutOfView, setIsOutOfView] = useState(false);
   useEffect(() => {
-    if (!containerRef.current) return;
+    let rafId: number;
+    let lastState = false;
 
+    const check = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const heroHeight = rect.height;
+      // Pause once more than 30% of the hero has scrolled above the viewport top
+      const visiblePx = Math.min(rect.bottom, heroHeight) - Math.max(rect.top, 0);
+      const visibleFraction = Math.max(0, visiblePx / heroHeight);
+      const outOfView = visibleFraction < 0.55; // pause when less than 55% visible
+      if (outOfView !== lastState) {
+        lastState = outOfView;
+        setIsOutOfView(outOfView);
+      }
+    };
+
+    const onScroll = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(check);
+    };
+
+    // Also use an IntersectionObserver as a fallback safety net
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        // Pause instantly as soon as 15% of the hero is scrolled past
-        setIsOutOfView(entry.intersectionRatio < 0.85); 
-      },
-      { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] } 
+      ([entry]) => { if (entry.intersectionRatio < 0.4) setIsOutOfView(true); },
+      { threshold: [0.4] }
     );
+    if (containerRef.current) observer.observe(containerRef.current);
 
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    check(); // run once on mount
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, []);
 
   // --- Magic System: Hero Selection is now handled by HeroEngine service ---
@@ -236,10 +261,12 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         try {
           if (typeof playerRef.current?.playVideo === 'function') playerRef.current.playVideo();
           if (!isMuted) fadeAudioIn();
+          NetworkPriority.setVideoActive(true);
         } catch (e) { }
       } else {
         // FULL PAUSE
         try {
+          NetworkPriority.setVideoActive(false);
           if (!isMuted) {
             // If sound is on, smooth fade out before hitting pause
             fadeAudioOut(() => {

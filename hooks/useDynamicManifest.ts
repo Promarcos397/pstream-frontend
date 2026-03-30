@@ -65,7 +65,20 @@ export const useDynamicManifest = (pageType: 'home' | 'movie' | 'tv' | 'new_popu
     }
 
     if (myList.length > 0) {
-      manifest.push({ key: 'my-list', title: t('rows.myList', { defaultValue: 'My List' }), data: myList });
+      // Filter My List by page type so TV page shows TV, movies page shows movies
+      let filteredList = myList;
+      if (pageType === 'tv') {
+        filteredList = myList.filter(m => m.media_type === 'tv' || (!m.media_type && !m.title));
+      } else if (pageType === 'movie') {
+        filteredList = myList.filter(m => m.media_type === 'movie' || (!m.media_type && !!m.title));
+      }
+      // Further filter by selected genre
+      if (selectedGenreId) {
+        filteredList = filteredList.filter(m => m.genre_ids?.includes(selectedGenreId));
+      }
+      if (filteredList.length > 0) {
+        manifest.push({ key: 'my-list', title: t('rows.myList', { defaultValue: 'My List' }), data: filteredList });
+      }
     }
 
     // 2. === THE "MOMENTUM" POUCH (New & Popular Specific) ===

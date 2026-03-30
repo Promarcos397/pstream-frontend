@@ -51,7 +51,7 @@ interface GlobalContextType {
   getLikedMovies: () => LikedEntry[];
   // Auth system
   user: UserProfile | null;
-  login: (mnemonic: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
+  login: (mnemonic: string, displayName?: string, isSignUp?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   deleteAccountData: () => Promise<boolean>;
   importProfileData: (data: any) => Promise<boolean>;
@@ -128,13 +128,21 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Universal Mute State
   const [globalMute, setGlobalMuteState] = useState<boolean>(() => {
-    const saved = Cookies.get('pstream-mute-state');
-    return saved === 'flase'; // Default is false (unmuted)
+    const saved = Cookies.get('muted_profile');
+    return saved === 'true'; // Default is false (unmuted)
   });
 
   const setGlobalMute = useCallback((mute: boolean) => {
     setGlobalMuteState(mute);
-    Cookies.set('pstream-mute-state', String(mute), { expires: 365 });
+    
+    // Calculate seconds until midnight for the "daily reset" logic
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const msUntilMidnight = midnight.getTime() - now.getTime();
+    const daysToMidnight = msUntilMidnight / (1000 * 60 * 60 * 24);
+
+    // Set cookie that explicitly expires at midnight tonight
+    Cookies.set('muted_profile', String(mute), { expires: daysToMidnight });
   }, []);
 
   // Video Sync State (Persisted) - Stores movie progress
@@ -386,7 +394,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     localStorage.removeItem('pstream-liked');
   }, []);
 
-  const login = async (mnemonic: string, displayName?: string) => {
+  const login = async (mnemonic: string, displayName?: string, isSignUp?: boolean) => {
     setSyncStatus('syncing');
 
     // Capture current local state (Guest data) for potential migration
@@ -399,7 +407,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       likedMovies: { ...likedMovies }
     };
 
-    const result = await AuthService.login(mnemonic, displayName);
+    const result = await AuthService.login(mnemonic, displayName, isSignUp);
     if (result.success && result.profile) {
       const cloudProfile = result.profile;
 
