@@ -233,11 +233,18 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 onClick={(e) => e.stopPropagation()}
             >
                 <button
-                    onClick={handleClose}
-                    className="absolute top-4 right-4 z-[60] bg-[#181818]/60 backdrop-blur-md p-1.5 rounded-full hover:bg-[#2a2a2a] transition flex items-center justify-center border border-white/10 hover:border-white/40 shadow-xl"
-                >
-                    <XIcon size={24} className="text-white" />
-                </button>
+    type="button" // 1. CRITICAL: Tells the browser "Do NOT refresh the page!"
+    onClick={(e) => {
+        e.preventDefault();   // 2. Stops any default browser actions
+        e.stopPropagation();  // 3. Stops the click from "falling through" to the background
+        
+        // If your onClose function expects a time, pass it here. Otherwise, just onClose()
+        onClose(); 
+    }}
+    className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#181818] flex items-center justify-center border-2 border-transparent hover:border-white transition z-50 cursor-pointer"
+>
+    <XIcon size={24} className="text-white" />
+</button>
 
                 {/* --- Hero Section - Video Background --- */}
                 <div className="relative h-[250px] sm:h-[350px] md:h-[480px] w-full bg-black group overflow-hidden">

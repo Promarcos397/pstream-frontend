@@ -678,7 +678,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     if (activePanel !== 'none') {
                         setActivePanel('none');
                     } else {
-                        onClose();
+                        onClose && onClose();
                     }
                     break;
             }
@@ -853,6 +853,36 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 </button>
             </div>
 
+            {/* Server Switcher (Only visible for embeds) */}
+            {isEmbed && allSources.length > 1 && (
+                <div className={`absolute top-10 right-6 z-50 transition-opacity duration-300 ${showUI ? 'opacity-100' : 'opacity-0'}`}>
+                    <div className="bg-black/80 backdrop-blur-md rounded-lg p-2 flex gap-2 border border-white/10 shadow-2xl">
+                        <span className="text-white/50 text-xs uppercase tracking-wider font-bold self-center px-2">Servers</span>
+                        {allSources.map((src, idx) => (
+                            <button
+                                key={idx}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCurrentSourceIndex(idx);
+                                    setStreamUrl(src.url);
+                                    setLoadingMessage(`Loading ${src.serverName || src.name || `Server ${idx + 1}`}...`);
+                                    setIsBuffering(true);
+                                    // Iframes don't report when they finish loading reliably, so we fake it after 1.5s
+                                    setTimeout(() => setIsBuffering(false), 1500);
+                                }}
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                                    currentSourceIndex === idx 
+                                    ? 'bg-[#E50914] text-white shadow-[0_0_10px_rgba(229,9,20,0.5)]' 
+                                    : 'bg-white/10 text-white hover:bg-white/20'
+                                }`}
+                            >
+                                {src.serverName || src.name || `Server ${idx + 1}`}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Native Video Element or Embedded Iframe */}
             {isEmbed ? (
                 <iframe
@@ -861,7 +891,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     style={{ zIndex: 25, backgroundColor: 'black' }}
                     allowFullScreen
                     allow="autoplay; fullscreen"
-                    sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+                    // Sandbox tag completely removed to prevent blocking 3rd party providers
                 />
             ) : (
                 <video
@@ -982,7 +1012,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             }
                         }
                     }}
-                    onClose={onClose}
+                    onClose={onClose || (() => window.history.back())}
                     onToggleFullscreen={toggleFullscreen}
                     onSettingsClick={() => setActivePanel(activePanel === 'quality' ? 'none' : 'quality')}
                     onSubtitlesClick={() => setActivePanel(activePanel === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
