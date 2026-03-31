@@ -323,6 +323,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     setCurrentCaption(finalSub.url);
                 }
             }
+
+            if (isEmbedFallback) {
+                // Iframes don't report load accurately, stop the infinite loading spinner
+                setTimeout(() => setIsBuffering(false), 1500);
+            }
         };
 
         fetchStream();
@@ -566,7 +571,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 if (mediaType === 'tv') {
                     updateEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode, video.currentTime, video.duration);
                     // Also save for InfoModal resume compatibility
-                    localStorage.setItem(`kinemora-last-watched-${movie.id}`, JSON.stringify({
+                    localStorage.setItem(`pstream-last-watched-${movie.id}`, JSON.stringify({
                         season: playingSeasonNumber,
                         episode: currentEpisode
                     }));
