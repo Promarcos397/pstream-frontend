@@ -406,17 +406,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 video.play().catch(err => console.warn('Autoplay blocked:', err));
             });
         } else if (Hls.isSupported()) {
-            const hls = new Hls({
-                xhrSetup: (xhr, url) => {
-                    // Set referer header if available
-                    if (streamReferer) {
-                        xhr.setRequestHeader('Referer', streamReferer);
-                    }
-                }
-            });
-
+            const hls = new Hls();
             hlsRef.current = hls;
-
             hls.loadSource(streamUrl);
             hls.attachMedia(video);
 

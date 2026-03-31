@@ -114,8 +114,8 @@ export class AuthService {
       await axios.post(`${API_BASE}/api/sync`, { updates }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-    } catch (e) {
-      console.error('[AuthService] Sync error:', e);
+    } catch (e: any) {
+      console.error('[AuthService] Sync error details:', e.response?.data || e.message);
     }
   }
 
