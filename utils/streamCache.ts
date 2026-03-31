@@ -22,7 +22,7 @@ interface CacheKey {
     tmdbId?: string;
 }
 
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL_MS = 2.5 * 60 * 1000; // 2.5 min — VidLink tokens expire fast
 const MAX_CACHE_SIZE = 20;
 
 class StreamCache {

@@ -59,6 +59,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [isStreamM3U8, setIsStreamM3U8] = useState<boolean>(true);
     const [isEmbed, setIsEmbed] = useState<boolean>(false);
+    const [alternativeSources, setAlternativeSources] = useState<any[]>([]);
+    const [retryCount, setRetryCount] = useState(0); // bumped on 403 to force re-fetch
     const [error, setError] = useState<string | null>(null);
 
     // TV Show state - PLAYBACK state
@@ -246,7 +248,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     imdbId || ''
                 );
 
-                if (result.success && result.sources && result.sources.length > 0) {
+                if (result?.success && result.sources && result.sources.length > 0) {
                     console.log(`[VideoPlayer] Stream found from ${result.provider}:`, result.sources);
 
                     let osSubs: any[] = [];
@@ -264,6 +266,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     });
 
                     applyStreamResult(result.sources, combinedSubs, result.referer);
+                    setAlternativeSources(result.alternativeSources || []);
 
                     // Prefetch next episodes in background (TV only)
                     if (mediaType === 'tv' && currentSeasonEpisodes.length > 0) {
@@ -354,7 +357,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 hlsRef.current = null;
             }
         };
-    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
+    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode, retryCount]);
 
     // --- Native Subtitle Loading Effect ---
     useEffect(() => {
@@ -484,21 +487,34 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 if (data.fatal) {
                     console.error('[VideoPlayer] HLS fatal error:', data);
 
-                    // Invisible Mirror-Switching
+                    // On 403 manifest load error: cached token likely expired — bust cache and refetch
+                    if (data.details === 'manifestLoadError' && (data as any)?.response?.code === 403) {
+                        const releaseYear = formattedDate ? parseInt(formattedDate.split('-')[0]) : undefined;
+                        streamCache.remove({
+                            title, type: (mediaType === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie',
+                            year: releaseYear, season: playingSeasonNumber, episode: currentEpisode,
+                            tmdbId: String(movie.id || '')
+                        });
+                        hls.destroy();
+                        setIsBuffering(true);
+                        setLoadingMessage('Token expired — refreshing stream...');
+                        setRetryCount(c => c + 1); // triggers fetchStream useEffect
+                        return;
+                    }
+
+                    // Invisible Mirror-Switching (within same provider result)
                     if (currentSourceIndex < allSources.length - 1) {
                         const nextIndex = currentSourceIndex + 1;
                         const nextSource = allSources[nextIndex];
                         setCurrentSourceIndex(nextIndex);
                         setLoadingMessage(`Switching to mirror ${nextIndex + 1}...`);
-                        const nextIsEmbed = !!nextSource.isEmbed;
-                        setIsEmbed(nextIsEmbed);
+                        setIsEmbed(!!nextSource.isEmbed);
                         let nextUrl = nextSource.url;
-                        if (!nextIsEmbed) {
+                        if (!nextSource.isEmbed) {
                             nextUrl = nextSource.isM3U8
                                 ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`
                                 : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`;
                         }
-
                         setStreamUrl(nextUrl);
                         setIsStreamM3U8(!!nextSource.isM3U8);
                         return;
@@ -895,76 +911,34 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 </button>
             </div>
 
-            {/* Server Switcher (Only visible for embeds) */}
-            {isEmbed && allSources.length > 1 && (
-                <div className={`absolute top-10 right-6 z-50 transition-opacity duration-300 ${showUI ? 'opacity-100' : 'opacity-0'}`}>
-                    <div className="bg-black/80 backdrop-blur-md rounded-lg p-2 flex gap-2 border border-white/10 shadow-2xl">
-                        <span className="text-white/50 text-xs uppercase tracking-wider font-bold self-center px-2">Servers</span>
-                        {allSources.map((src, idx) => (
-                            <button
-                                key={idx}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setCurrentSourceIndex(idx);
-                                    setStreamUrl(src.url);
-                                    setLoadingMessage(`Loading ${src.serverName || src.name || `Server ${idx + 1}`}...`);
-                                    setIsBuffering(true);
-                                    // Iframes don't report when they finish loading reliably, so we fake it after 1.5s
-                                    setTimeout(() => setIsBuffering(false), 1500);
-                                }}
-                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${currentSourceIndex === idx
-                                        ? 'bg-[#E50914] text-white shadow-[0_0_10px_rgba(229,9,20,0.5)]'
-                                        : 'bg-white/10 text-white hover:bg-white/20'
-                                    }`}
-                            >
-                                {src.serverName || src.name || `Server ${idx + 1}`}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Native Video Element or Embedded Iframe */}
-            {isEmbed ? (
-                <iframe
-                    key={`embed-${streamUrl}`}
-                    src={streamUrl || undefined}
-                    className="absolute inset-0 w-full h-full border-none pointer-events-auto"
-                    style={{ zIndex: 25, backgroundColor: 'black' }}
-                    allowFullScreen
-                    allow="autoplay; fullscreen; picture-in-picture"
-                    sandbox="allow-forms allow-scripts allow-pointer-lock allow-same-origin allow-presentation"
-                    loading="lazy"
-                />
-            ) : (
-                <video
-                    ref={videoRef}
-                    className="absolute inset-0 w-full h-full object-contain bg-black"
-                    onTimeUpdate={handleTimeUpdate}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                    onWaiting={() => setIsBuffering(true)}
-                    onPlaying={() => setIsBuffering(false)}
-                    onEnded={() => {
-                        if (mediaType === 'tv' && currentEpisode < currentSeasonEpisodes.length) {
-                            const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
-                            if (nextEp) handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
-                        }
-                    }}
-                    playsInline
-                    onContextMenu={(e) => e.preventDefault()}
-                >
-                    {subtitleObjectUrl && (
-                        <track
-                            kind="subtitles"
-                            label="Captions"
-                            srcLang={captions.find(c => c.url === currentCaption)?.lang || 'en'}
-                            src={subtitleObjectUrl}
-                            default
-                        />
-                    )}
-                </video>
-            )}
+            {/* Native Video Element */}
+            <video
+                ref={videoRef}
+                className="absolute inset-0 w-full h-full object-contain bg-black"
+                onTimeUpdate={handleTimeUpdate}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onWaiting={() => setIsBuffering(true)}
+                onPlaying={() => setIsBuffering(false)}
+                onEnded={() => {
+                    if (mediaType === 'tv' && currentEpisode < currentSeasonEpisodes.length) {
+                        const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
+                        if (nextEp) handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
+                    }
+                }}
+                playsInline
+                onContextMenu={(e) => e.preventDefault()}
+            >
+                {subtitleObjectUrl && (
+                    <track
+                        kind="subtitles"
+                        label="Captions"
+                        srcLang={captions.find(c => c.url === currentCaption)?.lang || 'en'}
+                        src={subtitleObjectUrl}
+                        default
+                    />
+                )}
+            </video>
 
             {/* Loading Overlay */}
             {isBuffering && (
@@ -1007,13 +981,34 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-30">
                     <div className="text-center max-w-md">
                         <p className="text-red-500 text-xl mb-4">Stream Error</p>
-                        <p className="text-white/60">{error}</p>
-                        <button
-                            onClick={onClose}
-                            className="mt-6 px-6 py-2 bg-red-600 hover:bg-red-700 rounded"
-                        >
-                            Go Back
-                        </button>
+                        <p className="text-white/60 mb-6">{error}</p>
+                        <div className="flex items-center justify-center gap-4">
+                            {alternativeSources.length > 0 && (
+                                <button
+                                    onClick={() => {
+                                        const next = alternativeSources[0];
+                                        setAlternativeSources(prev => prev.slice(1));
+                                        setError(null);
+                                        setIsBuffering(true);
+                                        const referer = next.referer || '';
+                                        const url = next.isM3U8
+                                            ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(next.url)}&referer=${encodeURIComponent(referer)}`
+                                            : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(next.url)}&referer=${encodeURIComponent(referer)}`;
+                                        setStreamUrl(url);
+                                        setIsStreamM3U8(!!next.isM3U8);
+                                    }}
+                                    className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded border border-white/20 transition"
+                                >
+                                    Try Next Source
+                                </button>
+                            )}
+                            <button
+                                onClick={onClose}
+                                className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded transition"
+                            >
+                                Go Back
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
