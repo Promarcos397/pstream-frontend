@@ -115,7 +115,7 @@ const LoginPage: React.FC = () => {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,black_80%)] opacity-60" />
             </div>
 
-            <header className="relative z-[90] px-6 py-4 md:px-14 md:py-4 lg:px-16 lg:py-4">
+            <header className="relative z-[90] px-6 md:px-14 lg:px-16 pt-[calc(1rem+env(safe-area-inset-top))] pb-4">
                 <div className="flex items-center justify-between">
                     <img 
                         src={logo} 
@@ -135,22 +135,22 @@ const LoginPage: React.FC = () => {
                 <button type="submit">Save</button>
             </form>
 
-            <main className="relative z-10 flex-grow flex items-center justify-center px-6 py-20">
+            <main className="relative z-10 flex-grow flex items-center justify-center px-6 py-12 md:py-20 lg:py-24">
                 {view === 'landing' && (
-                    <div className="max-w-4xl w-full text-center space-y-12 animate-fadeIn">
+                    <div className="max-w-4xl w-full text-center space-y-8 md:space-y-12 animate-fadeIn">
                         <div className="space-y-4">
-                            <h1 className="text-4xl md:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-2xl">
+                            <h1 className="text-3xl sm:text-4xl md:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-2xl">
                                 {t('auth.landingTitle', { defaultValue: 'Unlimited films, series and more' })}
                             </h1>
-                            <p className="text-xl md:text-2xl text-white font-medium max-w-2xl mx-auto">
+                            <p className="text-lg md:text-2xl text-white font-medium max-w-2xl mx-auto">
                                 {t('auth.readyToWatch', { defaultValue: 'Ready to watch? Create an account or sign in to restore your collection.' })}
                             </p>
                         </div>
 
-                        <div className="flex flex-col items-center gap-4 pt-8">
+                        <div className="flex flex-col items-center gap-4 pt-4 md:pt-8">
                             <button
                                 onClick={handleStartCreation}
-                                className="w-full md:w-[460px] h-16 md:h-20 bg-[#e50914] text-white text-2xl md:text-3xl font-bold rounded flex items-center justify-center gap-3 hover:bg-[#f40612] transition-all shadow-2xl hover:scale-[1.02] active:scale-95 group"
+                                className="w-full md:w-[460px] h-14 md:h-20 bg-[#e50914] text-white text-xl md:text-3xl font-bold rounded flex items-center justify-center gap-3 hover:bg-[#f40612] transition-all shadow-2xl hover:scale-[1.02] active:scale-95 group"
                             >
                                 {t('auth.getStarted', { defaultValue: 'Get Started' })}
                                 <CaretRightIcon size={28} weight="bold" className="group-hover:translate-x-1 transition-transform" />
@@ -158,7 +158,7 @@ const LoginPage: React.FC = () => {
                             
                             <button
                                 onClick={() => changeView('signin')}
-                                className="w-full md:w-[460px] h-12 text-white/60 hover:text-white text-lg font-bold transition-colors uppercase tracking-widest"
+                                className="w-full md:w-[460px] h-12 text-white/60 hover:text-white text-base md:text-lg font-bold transition-colors uppercase tracking-widest"
                             >
                                 {t('auth.alreadyHaveKey', { defaultValue: 'Already have a recovery key?' })}
                             </button>
@@ -167,9 +167,9 @@ const LoginPage: React.FC = () => {
                 )}
 
                 {view === 'create-name' && (
-                    <div className="max-w-[450px] w-full bg-black/75 p-10 md:p-16 rounded border border-white/10 backdrop-blur-md shadow-2xl animate-fadeIn">
+                    <div className="max-w-[450px] w-full bg-black/75 p-8 md:p-16 rounded border border-white/10 backdrop-blur-md shadow-2xl animate-fadeIn">
                         <div className="mb-8">
-                            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
+                            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">
                                 {t('auth.createTitle', { defaultValue: 'Create Account' })}
                             </h1>
                             <p className="text-white/50 text-sm">
@@ -185,7 +185,6 @@ const LoginPage: React.FC = () => {
                                     onChange={(e) => setDisplayName(e.target.value)}
                                     placeholder={t('settings.profileName', { defaultValue: 'Profile name' })}
                                     className="w-full h-14 bg-[#333] border-b-2 border-transparent text-white rounded px-4 py-4 text-base focus:outline-none focus:bg-[#444] focus:border-red-600 transition-all placeholder:text-white/30"
-                                    autoFocus
                                 />
                                 {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
                             </div>
@@ -207,9 +206,9 @@ const LoginPage: React.FC = () => {
                 )}
 
                 {view === 'signin' && (
-                    <div className="max-w-[450px] w-full bg-black/75 p-10 md:p-16 rounded border border-white/5 backdrop-blur-md shadow-2xl animate-fadeIn">
+                    <div className="max-w-[450px] w-full bg-black/75 p-8 md:p-16 rounded border border-white/5 backdrop-blur-md shadow-2xl animate-fadeIn">
                         <div className="mb-8">
-                            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">{t('auth.signIn')}</h1>
+                            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">{t('auth.signIn')}</h1>
                             <p className="text-white/40 text-sm">
                                 {t('auth.signInSubtitle', { defaultValue: 'Enter your 12-word recovery phrase to restore your account.' })}
                             </p>
@@ -228,7 +227,6 @@ const LoginPage: React.FC = () => {
                                         className="w-full h-32 bg-[#333] border-b-2 border-transparent text-white rounded px-4 py-4 text-sm focus:outline-none focus:bg-[#444] focus:border-red-600 transition-all resize-none placeholder:text-white/30"
                                         placeholder={t('auth.mnemonicPlaceholderLarge')}
                                         autoComplete="current-password"
-                                        autoFocus
                                     />
                                     <div onClick={() => setShowInfo(!showInfo)} className="absolute right-3 bottom-3 text-white/20 hover:text-white/60 cursor-pointer">
                                         <InfoIcon size={18} />

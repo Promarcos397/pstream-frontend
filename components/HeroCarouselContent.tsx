@@ -45,12 +45,12 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 
     return (
         <div className={`absolute top-0 left-0 w-full h-full flex flex-col justify-end z-20 
-          pl-6 md:pl-14 lg:pl-16 pr-4 md:pr-12 pointer-events-none pb-[18%] sm:pb-[16%] md:pb-[14%]`}
+          pl-[calc(1.5rem+env(safe-area-inset-left))] md:pl-14 lg:pl-16 pr-4 md:pr-12 pointer-events-none pb-[22%] sm:pb-[18%] md:pb-[14%]`}
         >
-            <div className="max-w-[90%] sm:max-w-lg md:max-w-xl lg:max-w-2xl space-y-3 md:space-y-4 pointer-events-auto">
+            <div className="max-w-[95%] sm:max-w-lg md:max-w-xl lg:max-w-2xl space-y-4 md:space-y-4 pointer-events-auto">
 
                 {/* Logo/Title - Anchored lower, scales down after delay */}
-                <div className={`h-14 sm:h-20 md:h-28 flex items-end mb-4 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.65] origin-bottom-left translate-y-6' : ''}`}>
+                <div className={`h-12 sm:h-20 md:h-28 flex items-end mb-3 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.6] sm:scale-[0.65] origin-bottom-left translate-y-8 md:translate-y-6' : ''}`}>
                     {logoUrl && !imgFailed ? (
                         <img 
                             src={logoUrl} 
@@ -59,49 +59,49 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                             onError={() => setImgFailed(true)}
                         />
                     ) : (
-                        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black font-leaner drop-shadow-xl leading-none text-white tracking-wide">
+                        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black font-leaner drop-shadow-xl leading-none text-white tracking-wide uppercase">
                             {movie?.name || movie?.title || ''}
                         </h1>
                     )}
                 </div>
 
                 {/* Description - Hides after 7 seconds of video play */}
-                <div className={`transition-all duration-700 overflow-hidden ${!showDescription && isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-5 md:mb-6'}`}>
+                <div className={`transition-all duration-700 overflow-hidden ${!showDescription && isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-4 md:mb-6'}`}>
                     <p
-                        className={`text-[13px] md:text-[15px] font-medium text-white line-clamp-2 md:line-clamp-3 drop-shadow-lg leading-snug max-w-lg transition-all duration-700 ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
+                        className={`text-[12px] sm:text-[13px] md:text-[15px] font-medium text-white/90 line-clamp-2 md:line-clamp-3 drop-shadow-lg leading-relaxed max-w-[90%] sm:max-w-lg transition-all duration-700 ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
                     >
                         {movie?.overview}
                     </p>
                 </div>
 
                 {/* Netflix-style CTA Buttons */}
-                <div className={`flex items-center gap-2 transition-transform duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'translate-y-2' : ''}`}>
+                <div className={`flex items-center flex-wrap gap-2 md:gap-3 transition-transform duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'translate-y-4 md:translate-y-2' : ''}`}>
                     {isCinemaOnly ? (
                         <button
                             onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 md:px-8 h-[42px] md:h-[48px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-colors text-[15px] md:text-[17px] gap-2.5 blur-[0.2px]"
+                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 sm:px-8 h-[40px] md:h-[48px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-colors text-[14px] md:text-[17px] gap-2 md:gap-2.5 blur-[0.2px] active:scale-95"
                         >
-                            <TicketIcon weight="bold" className="text-xl md:text-2xl" />
-                            {t('hero.inTheaters', { defaultValue: 'In Theaters' })}
+                            <TicketIcon weight="bold" className="text-lg md:text-2xl" />
+                            <span className="whitespace-nowrap">{t('hero.inTheaters', { defaultValue: 'In Theaters' })}</span>
                         </button>
                     ) : (
                         <button
                             onClick={() => onPlay(movie)}
-                            className="flex items-center justify-center bg-white text-black px-5 md:px-8 h-[42px] md:h-[48px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[15px] md:text-[17px] gap-2"
+                            className="flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[40px] md:h-[48px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[14px] md:text-[17px] gap-2 active:scale-95"
                         >
-                            <svg viewBox="0 0 24 24" className="w-[20px] h-[20px] md:w-6 md:h-6 fill-black">
+                            <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] md:w-6 md:h-6 fill-black">
                                 <polygon points="6,3 20,12 6,21" />
                             </svg>
-                            {t('hero.play')}
+                            <span>{t('hero.play')}</span>
                         </button>
                     )}
                     
                     <button
                         onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                        className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-6 md:px-9 h-[42px] md:h-[48px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[15px] md:text-[17px] gap-2.5 pointer-events-auto blur-[0.2px]"
+                        className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 sm:px-9 h-[40px] md:h-[48px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[14px] md:text-[17px] gap-2 md:gap-2.5 pointer-events-auto blur-[0.2px] active:scale-95"
                     >
-                        <InfoIcon weight="bold" className="text-xl md:text-2xl" />
-                        {t('hero.moreInfo')}
+                        <InfoIcon weight="bold" className="text-lg md:text-2xl" />
+                        <span className="whitespace-nowrap">{t('hero.moreInfo')}</span>
                     </button>
                 </div>
             </div>

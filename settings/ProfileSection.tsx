@@ -23,58 +23,47 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ settings }) => {
     const profileName = settings.displayName || user?.display_name || (user ? user.public_key.slice(0, 12) + '...' : 'Guest');
 
     return (
-        <div style={{ color: '#111' }}>
+        <div className="text-gray-900 animate-fadeIn space-y-6">
 
             {/* Profile card — clickable row like Netflix */}
-            <div style={{
-                border: '1px solid #e5e5e5', borderRadius: 4, overflow: 'hidden',
-                marginBottom: 24,
-            }}>
+            <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm transition-all hover:shadow-md hover:border-gray-300">
                 <button
                     onClick={() => navigate('/settings/profile/edit')}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 16,
-                        width: '100%', padding: '16px 20px',
-                        background: 'transparent', border: 'none', cursor: 'pointer',
-                        textAlign: 'left',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fafafa'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    className="flex items-center gap-5 w-full p-6 text-left transition-colors hover:bg-gray-50 active:scale-[0.99]"
                 >
                     {/* Avatar */}
-                    <div style={{
-                        width: 48, height: 48, minWidth: 48,
-                        borderRadius: 4, overflow: 'hidden', backgroundColor: '#ddd',
-                    }}>
+                    <div className="w-14 h-14 md:w-16 md:h-16 rounded-md overflow-hidden bg-gray-200 shrink-0 shadow-inner border border-gray-100">
                         <img
                             src={avatarSrc} alt=""
-                            style={{ width: 48, height: 48, objectFit: 'cover', display: 'block' }}
+                            className="w-full h-full object-cover block"
                             onError={() => setImgFailed(true)}
                         />
                     </div>
 
                     {/* Name + badge */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: 15, fontWeight: 600, color: '#111', display: 'block' }}>
+                    <div className="flex-1 min-width-0">
+                        <span className="text-lg md:text-xl font-bold text-gray-900 block truncate">
                             {profileName}
                         </span>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[12px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                {t('settings.activeProfile', { defaultValue: 'Active' })}
+                            </span>
+                        </div>
                     </div>
 
                     {/* "Your profile" badge */}
-                    <span style={{
-                        fontSize: 12, fontWeight: 500, color: '#525252',
-                        border: '1px solid #d4d4d4', borderRadius: 3,
-                        padding: '3px 10px', whiteSpace: 'nowrap',
-                    }}>
-                        {t('settings.yourProfile', { defaultValue: 'Your profile' })}
-                    </span>
-
-                    <CaretRightIcon size={18} style={{ color: '#d4d4d4', flexShrink: 0 }} />
+                    <div className="hidden sm:flex items-center gap-3">
+                        <span className="text-xs font-bold text-gray-500 border border-gray-300 rounded-sm px-3 py-1.5 uppercase tracking-wide whitespace-nowrap">
+                            {t('settings.yourProfile', { defaultValue: 'Your profile' })}
+                        </span>
+                        <CaretRightIcon size={20} className="text-gray-300 group-hover:text-gray-600 transition-colors" weight="bold" />
+                    </div>
                 </button>
             </div>
 
             {/* Info text */}
-            <p style={{ fontSize: 14, color: '#737373', lineHeight: 1.6 }}>
+            <p className="text-sm text-gray-500 leading-relaxed font-medium px-1">
                 {t('settings.profileInfo', { defaultValue: 'Customize your profile icon and display name. Your settings and watch history are tied to your identity.' })}
             </p>
         </div>

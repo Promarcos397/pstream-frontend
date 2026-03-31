@@ -36,7 +36,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
   }, [results, isLoading, mode]);
 
   return (
-    <div className="pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen">
+    <div className="pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen">
       <div className="flex items-center justify-between mb-8">
         <div className="text-gray-500 text-sm">
           {t('search.explore')} <span className="text-white">"{query}"</span>

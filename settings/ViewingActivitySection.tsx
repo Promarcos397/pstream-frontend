@@ -1,7 +1,6 @@
 import React from 'react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useTranslation } from 'react-i18next';
-import { CaretRightIcon } from '@phosphor-icons/react';
 import { TMDB_IMAGE_BASE } from '../constants';
 
 const ViewingActivitySection: React.FC = () => {
@@ -10,25 +9,21 @@ const ViewingActivitySection: React.FC = () => {
     const hasActivity = continueWatching.length > 0 || myList.length > 0;
 
     return (
-        <div style={{ color: '#111' }}>
+        <div className="text-gray-900 animate-fadeIn">
 
-            <div style={{ marginBottom: 40 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#111', marginBottom: 24 }}>
+            <div className="mb-12">
+                <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-6">
                     {t('settings.viewingHistoryTitle', { defaultValue: 'Viewing Activity' })}
                 </h3>
                 
                 {!hasActivity ? (
-                    <div style={{ textAlign: 'center', padding: '60px 0', border: '1px dashed #d4d4d4', borderRadius: 4 }}>
-                         <p style={{ fontSize: 15, color: '#737373' }}>
+                    <div className="text-center py-20 border-2 border-dashed border-gray-200 rounded-lg">
+                         <p className="text-base text-gray-400">
                              {t('settings.viewingHistoryEmpty', { defaultValue: 'You haven\'t watched anything yet.' })}
                          </p>
                     </div>
                 ) : (
-                    <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', 
-                        gap: 20 
-                    }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                         {continueWatching.map((movie, idx) => {
                             const state = getVideoState(movie.id);
                             const progress = state && state.duration ? (state.time / state.duration) * 100 : 0;
@@ -36,35 +31,26 @@ const ViewingActivitySection: React.FC = () => {
                             return (
                                 <div 
                                     key={`history-grid-${movie.id}-${idx}`}
-                                    style={{ cursor: 'pointer', transition: 'transform 0.2s ease' }}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                    className="group cursor-pointer transition-all duration-300 hover:scale-[1.02]"
                                 >
-                                    <div style={{ 
-                                        position: 'relative', 
-                                        aspectRatio: '16/9', 
-                                        borderRadius: 4, 
-                                        overflow: 'hidden', 
-                                        backgroundColor: '#111',
-                                        marginBottom: 10
-                                    }}>
+                                    <div className="relative aspect-video rounded-md overflow-hidden bg-gray-900 mb-3 shadow-sm border border-gray-100">
                                         <img
                                             src={`${TMDB_IMAGE_BASE}/w300${movie.backdrop_path || movie.poster_path}`}
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
                                             alt=""
                                         />
                                         {/* Progress Bar Overlay */}
                                         {progress > 0 && (
-                                            <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 3, backgroundColor: 'rgba(255,255,255,0.3)' }}>
-                                                <div style={{ width: `${progress}%`, height: '100%', backgroundColor: '#e50914' }} />
+                                            <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20">
+                                                <div className="h-full bg-red-600 shadow-[0_0_8px_rgba(220,38,38,1)]" style={{ width: `${progress}%` }} />
                                             </div>
                                         )}
-                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.2)', opacity: 0, transition: 'opacity 0.2s' }} />
+                                        <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </div>
-                                    <h4 style={{ fontSize: 14, fontWeight: 700, color: '#333', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <h4 className="text-sm font-bold text-gray-900 mb-0.5 truncate pr-2">
                                         {movie.title || movie.name}
                                     </h4>
-                                    <div style={{ fontSize: 12, color: '#737373' }}>
+                                    <div className="text-xs text-gray-500 font-medium">
                                         {movie.release_date || movie.first_air_date ? new Date(movie.release_date || movie.first_air_date).getFullYear() : ''}
                                         {movie.media_type === 'tv' ? ` · ${t('common.series')}` : ` · ${t('common.movie')}`}
                                     </div>
@@ -77,24 +63,24 @@ const ViewingActivitySection: React.FC = () => {
 
             {/* My List */}
             {myList.length > 0 && (
-                <>
-                    <div style={{ height: 1, backgroundColor: '#f0f0f0', marginBottom: 24 }} />
-                    <div>
-                        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 16 }}>{t('nav.myList')}</h3>
-                        {myList.slice(0, 5).map((movie, idx) => (
+                <div className="mt-12 space-y-4">
+                    <div className="h-px bg-gray-100 mb-8" />
+                    <h3 className="text-base font-bold text-gray-900 ml-1">{t('nav.myList')}</h3>
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                        {myList.slice(0, 10).map((movie, idx) => (
                             <div
                                 key={`list-${movie.id}-${idx}`}
-                                style={{
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                    padding: '10px 0',
-                                    borderBottom: idx < Math.min(myList.length, 5) - 1 ? '1px solid #f5f5f5' : 'none',
-                                }}
+                                className={`flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors
+                                    ${idx < Math.min(myList.length, 10) - 1 ? 'border-b border-gray-100' : ''}`}
                             >
-                                <span style={{ fontSize: 14, fontWeight: 500, color: '#111' }}>{movie.title || movie.name}</span>
+                                <span className="text-sm font-semibold text-gray-800">{movie.title || movie.name}</span>
+                                <div className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+                                    {movie.media_type === 'tv' ? t('common.series') : t('common.movie')}
+                                </div>
                             </div>
                         ))}
                     </div>
-                </>
+                </div>
             )}
         </div>
     );

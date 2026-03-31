@@ -79,8 +79,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     onSeek,
     volume,
     onVolumeChange,
-    audioBoost = 1,
-    onBoostChange,
     onToggleMute,
     onTimelineSeek,
     onNextEpisode,
@@ -92,7 +90,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     onShareClick,
     onEpisodesClick,
     onEpisodesHover,
-    onMenuClose,
     isMenuOpen,
     showUI
 }) => {
@@ -223,6 +220,21 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 <span>{formatTime(duration)}</span>
             </div>
 
+            {/* Centered Title - Positioned at top for mobile, bottom for desktop */}
+            {isMobile ? (
+                <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none text-center w-full px-12">
+                    <span className="text-sm sm:text-base text-white/90 font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide line-clamp-1 uppercase">
+                        {title}
+                    </span>
+                </div>
+            ) : (
+                <div className="absolute left-1/2 transform -translate-x-1/2 z-0 pointer-events-none text-center w-full flex justify-center px-4">
+                    <span className="text-base md:text-2xl text-white select-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[40vw] md:max-w-[60vw] block font-medium">
+                        {title}
+                    </span>
+                </div>
+            )}
+
             <div className="relative flex items-center justify-between">
                 <div className="flex items-center space-x-3 md:space-x-6 z-10">
                     <button onClick={(e) => { e.stopPropagation(); onPlayPause(); }} className="text-gray-300 hover:text-white transition transform active:scale-95">
@@ -261,13 +273,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             </div>
                         </div>
                     )}
-                </div>
-
-                {/* Centered Title */}
-                <div className="absolute left-1/2 transform -translate-x-1/2 z-0 pointer-events-none text-center w-full flex justify-center px-4">
-                    <span className="text-base md:text-2xl text-white select-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[40vw] md:max-w-[60vw] block font-medium">
-                        {title}
-                    </span>
                 </div>
 
                 <div className="flex items-center space-x-3 md:space-x-6 z-10">
@@ -321,7 +326,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         </button>
                     )}
 
-                    <button onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }} className="text-gray-300 hover:text-white transition transform active:scale-95">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }} 
+                        className="text-gray-300 hover:text-white transition transform active:scale-95 p-1 -m-1"
+                    >
                         <CornersOutIcon size={iconSize} weight="bold" />
                     </button>
                 </div>

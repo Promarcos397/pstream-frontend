@@ -12,8 +12,8 @@ const PlaybackSection: React.FC<PlaybackSectionProps> = ({ settings, updateSetti
     const { t } = useTranslation();
 
     return (
-        <div style={{ color: '#111' }}>
-            <div style={{ marginBottom: 24 }}>
+        <div className="text-gray-900 space-y-6 animate-fadeIn">
+            <div>
                 <SettingsToggle
                     label={t('playback.autoplayPreviews')}
                     subLabel={t('playback.autoplayPreviewsDesc')}
@@ -23,9 +23,9 @@ const PlaybackSection: React.FC<PlaybackSectionProps> = ({ settings, updateSetti
                 />
             </div>
 
-            <div style={{ height: 1, backgroundColor: '#f0f0f0', marginBottom: 24 }} />
+            <div className="h-px bg-gray-100" />
 
-            <div style={{ marginBottom: 24 }}>
+            <div>
                 <SettingsToggle
                     label={t('playback.autoplayNext')}
                     subLabel={t('playback.autoplayNextDesc')}
@@ -35,9 +35,9 @@ const PlaybackSection: React.FC<PlaybackSectionProps> = ({ settings, updateSetti
                 />
             </div>
 
-            <div style={{ height: 1, backgroundColor: '#f0f0f0', marginBottom: 24 }} />
+            <div className="h-px bg-gray-100" />
 
-            <p style={{ fontSize: 14, color: '#737373', lineHeight: 1.6 }}>
+            <p className="text-sm text-gray-500 leading-relaxed max-w-lg">
                 {t('playback.dataNote')}
             </p>
         </div>

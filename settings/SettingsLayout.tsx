@@ -13,7 +13,6 @@ import AccountSection from './AccountSection';
 import ViewingActivitySection from './ViewingActivitySection';
 import PrivacySection from './PrivacySection';
 import ProfileTransferSection from './ProfileTransferSection';
-import ProfileSection from './ProfileSection';
 import { AppSettings } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -57,24 +56,28 @@ const SafeImage: React.FC<{ src?: string; alt?: string; style?: React.CSSPropert
 const Avatar: React.FC<{ src?: string; size?: number; className?: string; onClick?: () => void }> = ({ src, size = 36, className = '', onClick }) => {
     return (
         <div
-            className={`rounded overflow-hidden shrink-0 ${className}`}
-            style={{ width: size, height: size, minWidth: size, backgroundColor: '#ddd', cursor: onClick ? 'pointer' : undefined }}
+            className={`rounded overflow-hidden shrink-0 transition-transform active:scale-95 ${className} ${onClick ? 'cursor-pointer' : ''}`}
+            style={{ width: size, height: size, minWidth: size, backgroundColor: '#ddd' }}
             onClick={onClick}
         >
             <SafeImage
                 src={src}
-                style={{ width: size, height: size, objectFit: 'cover', display: 'block' }}
+                className="w-full h-full object-cover block"
+                style={{ width: size, height: size }}
             />
         </div>
     );
 };
+
+import { useIsMobile } from '../hooks/useIsMobile';
 
 /* ── Main Settings Layout ──────────────────────────────────── */
 const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSettings, continueWatching }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const { settings: globalSettings, user } = useGlobalContext();
+    const { user } = useGlobalContext();
+    const isMobile = useIsMobile(1024); // Threshold for sidebar-like layout vs mobile stack
 
     // Parse the current view from URL
     const pathParts = location.pathname.replace(/\/$/, '').split('/');
@@ -101,8 +104,6 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
     const handleBack = () => {
         if (currentView === 'overview') {
             navigate('/');
-        } else if (currentView === 'profile-edit' || currentView === 'profile-avatar') {
-            navigate('/settings/overview');
         } else {
             navigate('/settings/overview');
         }
@@ -158,51 +159,53 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
     };
 
     return (
-        <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#fff', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif' }}>
+        <div className="relative min-h-screen bg-white flex flex-col font-inter">
 
             {/* ── Header ────────────────────────────────── */}
-            <header style={{
-                height: 64, borderBottom: '1px solid #e5e5e5',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0 40px', backgroundColor: '#fff', position: 'sticky', top: 0, zIndex: 100
-            }}>
-                <div onClick={() => navigate('/')} style={{ cursor: 'pointer', height: 32, display: 'flex', alignItems: 'center' }}>
+            <header className="h-16 border-b border-gray-100 flex items-center justify-between px-6 md:px-10 lg:px-16 bg-white sticky top-0 z-[100] pt-safe">
+                <div onClick={() => navigate('/')} className="cursor-pointer h-8 flex items-center">
                     <img 
                         src="/assets/pstream-logo.png" 
                         alt="P-STREAM" 
-                        style={{ height: '32px', width: 'auto' }} 
+                        className="h-6 md:h-8 w-auto"
                         onError={(e) => { (e.target as any).style.display = 'none'; }}
                     />
                 </div>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => navigate('/settings')}>
-                    <Avatar src={settings.avatarUrl} size={32} />
+                <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/settings')}>
+                    <Avatar src={settings.avatarUrl} size={30} />
                 </div>
             </header>
 
             {/* ── Main Content Area (Centered) ────────────────── */}
-            <main style={{
-                width: '100%', maxWidth: 950, margin: '0 auto',
-                padding: '40px 24px 80px', display: 'flex', gap: 32
-            }}>
+            <main className={`w-full max-w-[1100px] mx-auto px-6 lg:px-12 py-8 md:py-12 flex flex-col lg:flex-row gap-8 lg:gap-16`}>
                 
                 {/* Back Arrow Column */}
-                <div style={{ paddingTop: 6, flexShrink: 0 }}>
+                <div className="flex-shrink-0 lg:pt-1.5 flex items-center lg:items-start animate-slideInLeft">
                     <button 
                         onClick={handleBack}
-                        style={{ background: 'none', border: 'none', color: '#111', cursor: 'pointer', padding: 0 }}
+                        className="p-2 lg:p-0 -ml-2 lg:ml-0 bg-transparent border-none text-gray-900 cursor-pointer hover:scale-110 active:scale-95 transition-transform"
                     >
-                        <ArrowLeftIcon size={26} weight="bold" />
+                        <ArrowLeftIcon size={28} weight="bold" />
                     </button>
+                    {isMobile && currentView !== 'overview' && (
+                        <h2 className="ml-2 text-lg md:text-xl font-bold text-gray-900 truncate max-w-[250px]">
+                            {title}
+                        </h2>
+                    )}
                 </div>
 
                 {/* Content Column */}
-                <div style={{ flex: 1, maxWidth: 800 }}>
-                    <h1 style={{ fontSize: 32, fontWeight: 900, color: '#111', letterSpacing: '-0.5px', marginBottom: 32 }}>
-                        {title}
-                    </h1>
+                <div className="flex-1 w-full lg:max-w-[750px]">
+                    {!isMobile && (
+                        <h1 className="text-3xl md:text-3xl font-black text-gray-900 tracking-tight mb-8">
+                            {title}
+                        </h1>
+                    )}
 
-                    {renderContent()}
+                    <div className="animate-fadeIn">
+                        {renderContent()}
+                    </div>
                 </div>
             </main>
         </div>
@@ -225,7 +228,6 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
     const handleSaveName = async () => {
         const trimmed = displayName.trim();
         updateSettings({ displayName: trimmed || undefined });
-        // Also push display_name to the Supabase profiles row so it persists
         if (trimmed) {
             try {
                 const { AuthService } = await import('../services/AuthService');
@@ -237,91 +239,59 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
     };
 
     return (
-        <div style={{ color: '#111', maxWidth: 640 }}>
+        <div className="text-gray-900 max-w-[640px] w-full animate-fadeIn">
             {/* Avatar + Name row */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 28, marginBottom: 40, marginTop: 20 }}>
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 sm:gap-7 mb-10 mt-5">
                 {/* Clickable avatar */}
                 <div
-                    style={{ position: 'relative', cursor: 'pointer', width: 120, height: 120, borderRadius: 6, overflow: 'hidden', backgroundColor: '#ddd', flexShrink: 0 }}
+                    className="relative cursor-pointer w-[120px] h-[120px] rounded-md overflow-hidden bg-gray-200 shrink-0 shadow-sm group hover:ring-4 hover:ring-gray-100 transition-all active:scale-95"
                     onClick={() => navigate('/settings/profile/avatar')}
                 >
                     <img
                         src={avatarSrc} alt=""
-                        style={{ width: 120, height: 120, objectFit: 'cover', display: 'block' }}
+                        className="w-full h-full object-cover block"
                         onError={() => setImgFailed(true)}
                     />
                     {/* Pencil overlay */}
-                    <div style={{
-                        position: 'absolute', bottom: 8, left: 8,
-                        width: 28, height: 28, borderRadius: '50%',
-                        backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <PencilSimpleIcon size={14} weight="bold" style={{ color: '#fff' }} />
+                    <div className="absolute bottom-2 left-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <PencilSimpleIcon size={14} weight="bold" className="text-white" />
                     </div>
                 </div>
 
                 {/* Name input - Labeled Box Style */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    <div style={{
-                        border: '1px solid #a3a3a3',
-                        borderRadius: 2,
-                        padding: '6px 14px 8px',
-                        transition: 'box-shadow 0.2s ease',
-                        backgroundColor: '#fff',
-                    }}
-                    onFocus={(e) => { e.currentTarget.style.boxShadow = '0 0 0 2px #111'; }}
-                    onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
-                    >
-                        <label style={{ display: 'block', fontSize: 11, color: '#737373', marginBottom: 2, fontWeight: 500 }}>
+                <div className="flex-1 w-full flex flex-col gap-4">
+                    <div className="border border-gray-400 rounded-sm px-3.5 pt-1.5 pb-2 transition-shadow duration-200 bg-white focus-within:ring-2 focus-within:ring-black">
+                        <label className="block text-[11px] text-gray-500 mb-0.5 font-medium">
                             {t('settings.profileName', { defaultValue: 'Profile name' })}
                         </label>
                         <input
                             type="text"
                             value={displayName}
-                            autoFocus
                             onChange={(e) => setDisplayName(e.target.value)}
                             onBlur={handleSaveName}
                             placeholder={t('settings.enterName', { defaultValue: 'Enter your name' })}
-                            style={{
-                                width: '100%', padding: 0,
-                                border: 'none',
-                                fontSize: 15, fontWeight: 500, color: '#111', outline: 'none',
-                                backgroundColor: 'transparent',
-                            }}
+                            className="w-full p-0 border-none text-[15px] md:text-[16px] font-medium text-gray-900 outline-none bg-transparent"
                         />
                     </div>
-                    <p style={{ fontSize: 13, color: '#737373', marginTop: -4 }}>
+                    <p className="text-[13px] text-gray-500 leading-relaxed max-w-md">
                         {t('settings.nameVisibilityDesc', { defaultValue: 'This name will be shown on all your profiles and shared watch lists.' })}
                     </p>
                 </div>
             </div>
 
-            <div style={{ height: 1, backgroundColor: '#e5e5e5', marginBottom: 40 }} />
+            <div className="h-px bg-gray-200 mb-10 w-full" />
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: 16 }}>
+            <div className="flex flex-col sm:flex-row gap-4">
                 <button
                     onClick={() => { handleSaveName(); navigate('/settings/overview'); }}
-                    style={{
-                        padding: '12px 48px',
-                        backgroundColor: '#111', color: '#fff',
-                        border: 'none', borderRadius: 2,
-                        fontSize: 16, fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: 'background-color 0.2s',
-                    }}
+                    className="px-12 py-3 bg-[#111] text-white border-none rounded-sm text-base font-bold cursor-pointer hover:bg-black transition-colors active:scale-95"
                 >
                     {t('common.save', { defaultValue: 'Save' })}
                 </button>
                 <button
                     onClick={() => navigate('/settings/overview')}
-                    style={{
-                        padding: '12px 48px',
-                        backgroundColor: 'transparent', color: '#525252',
-                        border: '1px solid #d4d4d4', borderRadius: 2,
-                        fontSize: 16, fontWeight: 700,
-                        cursor: 'pointer',
-                    }}
+                    className="px-12 py-3 bg-transparent text-gray-600 border border-gray-300 rounded-sm text-base font-bold cursor-pointer hover:bg-gray-50 transition-colors active:scale-95"
                 >
                     {t('common.cancel', { defaultValue: 'Cancel' })}
                 </button>
@@ -333,14 +303,9 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
 /* ═══════════════════════════════════════════════════════════════
    AVATAR PICKER PAGE — Horizontal scrollable rows by category
    ═══════════════════════════════════════════════════════════════ */
-import { CaretRightIcon } from '@phosphor-icons/react';
-
 const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: Partial<AppSettings>) => void }> = ({ settings, updateSettings }) => {
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const { settings: globalSettings, user } = useGlobalContext();
-
-    const profileName = settings.displayName || globalSettings.displayName || user?.display_name || user?.public_key?.slice(0, 12) || '';
 
     const handleSelectAvatar = (url: string) => {
         updateSettings({ avatarUrl: url });
@@ -348,22 +313,18 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
     };
 
     return (
-        <div style={{ color: '#111', maxWidth: 1100 }}>
+        <div className="text-gray-900 max-w-[1100px] w-full animate-fadeIn pb-20">
             {/* Current avatar — "History" row */}
             {settings.avatarUrl && (
-                <div style={{ marginBottom: 48 }}>
-                    <h3 style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 16 }}>
+                <div className="mb-12">
+                    <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 px-1">
                         {t('settings.history', { defaultValue: 'History' })}
                     </h3>
-                    <div style={{ display: 'flex', gap: 16 }}>
+                    <div className="px-1">
                         <div 
-                            style={{
-                                width: 114, height: 114, borderRadius: 4, overflow: 'hidden',
-                                border: '3px solid #111', backgroundColor: '#ddd',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            }}
+                            className="w-[114px] h-[114px] rounded-md overflow-hidden border-[3px] border-gray-900 bg-gray-200 shadow-md"
                         >
-                            <SafeImage src={settings.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            <SafeImage src={settings.avatarUrl} className="w-full h-full object-cover block" />
                         </div>
                     </div>
                 </div>
@@ -371,23 +332,16 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
 
             {/* Category rows */}
             {AVATAR_CATEGORIES.map((category) => (
-                <div key={category.id} style={{ marginBottom: 48, position: 'relative' }}>
-                    <h3 style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 16 }}>
+                <div key={category.id} className="mb-12 relative group/row">
+                    <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 px-1">
                         {category.name}
                     </h3>
                     
                     {/* Horizontal scroll container */}
-                    <div style={{ position: 'relative' }}>
+                    <div className="relative">
                         <div 
-                            className="hide-scrollbar"
-                            style={{
-                                display: 'flex', gap: 16, overflowX: 'auto',
-                                padding: '4px 0 12px',
-                                scrollBehavior: 'smooth',
-                                // Hide scrollbar for consistency with reference
-                                scrollbarWidth: 'none',
-                                msOverflowStyle: 'none',
-                            }}
+                            className="flex gap-4 overflow-x-auto py-1 px-1 scroll-smooth hide-scrollbar -webkit-overflow-scrolling-touch"
+                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                         >
                             {category.avatars.map((avatar) => {
                                 const isSelected = settings.avatarUrl === avatar.url;
@@ -396,45 +350,20 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
                                         key={avatar.url}
                                         onClick={() => handleSelectAvatar(avatar.url)}
                                         title={avatar.name}
-                                        style={{
-                                            width: 114, height: 114, minWidth: 114,
-                                            borderRadius: 4, overflow: 'hidden',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s ease-in-out',
-                                            backgroundColor: '#ddd',
-                                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                                            outline: isSelected ? '3px solid #111' : '3px solid transparent',
-                                            outlineOffset: 2,
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isSelected) {
-                                                e.currentTarget.style.transform = 'scale(1.05)';
-                                                e.currentTarget.style.outlineColor = '#e5e5e5';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isSelected) {
-                                                e.currentTarget.style.transform = 'scale(1)';
-                                                e.currentTarget.style.outlineColor = 'transparent';
-                                            }
-                                        }}
+                                        className={`w-[114px] h-[114px] min-w-[114px] rounded-md overflow-hidden cursor-pointer transition-all duration-300 bg-gray-200 shadow-sm
+                                            ${isSelected ? 'ring-4 ring-gray-900 scale-[0.98]' : 'hover:scale-[1.05]'}`}
                                     >
                                         <SafeImage
                                             src={avatar.url} alt={avatar.name}
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                            className="w-full h-full object-cover block"
                                         />
                                     </div>
                                 );
                             })}
                         </div>
                         
-                        {/* Right fade indicator (Netflix style) */}
-                        <div style={{
-                            position: 'absolute', right: 0, top: 0, bottom: 12, width: 60,
-                            background: 'linear-gradient(to left, rgba(255,255,255,0.9), transparent)',
-                            pointerEvents: 'none',
-                            borderRadius: '0 4px 4px 0',
-                        }} />
+                        {/* Right fade indicator - hidden on scroll if possible but simple CSS fade works best */}
+                        <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-white/90 to-transparent pointer-events-none rounded-r-md hidden sm:block" />
                     </div>
                 </div>
             ))}

@@ -3,7 +3,6 @@ import { AppSettings } from '../types';
 import SubtitleSettings from './SubtitleSettings';
 import SubtitlePreview from './SubtitlePreview';
 import { IMG_PATH } from '../constants';
-
 import landingBg from '../assets/landing-bg.png';
 
 interface SubtitleSectionProps {
@@ -18,23 +17,26 @@ const SubtitleSection: React.FC<SubtitleSectionProps> = ({ settings, updateSetti
         : landingBg;
 
     return (
-        <div style={{ color: '#111' }}>
+        <div className="text-gray-900 animate-fadeIn space-y-8 pb-10">
 
             {/* Live Preview */}
-            <div style={{ marginBottom: 32 }}>
-                <div style={{
-                    height: 220, width: '100%',
-                    backgroundColor: '#000', position: 'relative',
-                    borderRadius: 4, overflow: 'hidden', border: '1px solid #e5e5e5',
-                }}>
+            <div className="relative">
+                <div className="h-[220px] md:h-[280px] w-full bg-black relative rounded-md overflow-hidden border border-gray-100 shadow-lg">
                     <SubtitlePreview settings={settings} backdropUrl={previewBackdrop} />
+                </div>
+                <div className="mt-4 flex items-center justify-center">
+                    <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">
+                        Live Appearance Preview
+                    </span>
                 </div>
             </div>
 
-            <div style={{ height: 1, backgroundColor: '#f0f0f0', marginBottom: 32 }} />
+            <div className="h-px bg-gray-100" />
 
             {/* Controls */}
-            <SubtitleSettings settings={settings} updateSettings={updateSettings} />
+            <div className="bg-white">
+                <SubtitleSettings settings={settings} updateSettings={updateSettings} />
+            </div>
         </div>
     );
 };

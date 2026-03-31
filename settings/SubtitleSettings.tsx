@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AppSettings } from '../types';
-import { SettingsToggle, SettingsSlider, SettingsSelectGroup } from '../ui/SettingsUI';
+import { SettingsToggle, SettingsSlider } from '../ui/SettingsUI';
+import { CaretDownIcon } from '@phosphor-icons/react';
 
 interface SubtitleSettingsProps {
     settings: AppSettings;
@@ -12,52 +13,38 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
     const { t } = useTranslation();
 
     // Helper to render the custom select group with boxy style
-    const BoxySelect = (props: { label: string; selectedId: string; options: any[]; onChange: (val: any) => void }) => (
-        <div style={{ marginBottom: 24 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 10 }}>
-                {props.label}
+    const BoxySelect = ({ label, selectedId, options, onChange }: { label: string; selectedId: string; options: any[]; onChange: (val: any) => void }) => (
+        <div className="space-y-2.5">
+            <label className="block text-[13px] font-bold text-gray-900 uppercase tracking-wider">
+                {label}
             </label>
-            <div style={{ position: 'relative' }}>
+            <div className="relative group">
                 <select
-                    value={props.selectedId}
-                    onChange={(e) => props.onChange(e.target.value)}
-                    style={{
-                        width: '100%',
-                        padding: '12px 14px',
-                        fontSize: 14,
-                        backgroundColor: '#fff',
-                        color: '#111',
-                        border: '1px solid #d4d4d4',
-                        borderRadius: 2,
-                        appearance: 'none',
-                        cursor: 'pointer',
-                        outline: 'none',
-                    }}
+                    value={selectedId}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="w-full px-4 py-3 text-sm bg-white text-gray-900 border border-gray-300 rounded-sm appearance-none cursor-pointer focus:ring-2 focus:ring-black focus:border-black transition-all outline-none"
                 >
-                    {props.options.map((opt) => (
+                    {options.map((opt) => (
                         <option key={opt.id} value={opt.id}>{opt.label}</option>
                     ))}
                 </select>
-                <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#737373' }}>
-                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-                        <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-gray-600 transition-colors">
+                    <CaretDownIcon size={18} weight="bold" />
                 </div>
             </div>
         </div>
     );
 
     return (
-        <div style={{ color: '#111' }}>
+        <div className="text-gray-900 space-y-10">
             
             {/* Show Subtitles Toggle */}
-            <div style={{ 
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                paddingBottom: 24, borderBottom: '1px solid #f0f0f0', marginBottom: 32 
-            }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: '#111' }}>{t('subtitles.show')}</span>
-                    <span style={{ fontSize: 13, color: '#737373' }}>{t('settings.subtitleAppearanceSub', { defaultValue: 'Enable or disable subtitles' })}</span>
+            <div className="flex items-center justify-between py-6 border-b border-gray-100">
+                <div className="flex flex-col gap-1 pr-4">
+                    <span className="text-base md:text-lg font-bold text-gray-900">{t('subtitles.show')}</span>
+                    <span className="text-xs md:text-sm text-gray-500 font-medium">
+                        {t('settings.subtitleAppearanceSub', { defaultValue: 'Enable or disable subtitles' })}
+                    </span>
                 </div>
                 <SettingsToggle
                     label=""
@@ -67,17 +54,10 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                 />
             </div>
 
-            <div style={{ 
-                opacity: settings.showSubtitles ? 1 : 0.4, 
-                pointerEvents: settings.showSubtitles ? 'auto' : 'none',
-                transition: 'all 0.3s ease'
-            }}>
+            <div className={`space-y-10 transition-all duration-300 ${settings.showSubtitles ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
                 
-                {/* 1. Typography Grid */}
-                <div style={{ 
-                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                    gap: '24px 32px', marginBottom: 40 
-                }}>
+                {/* Typography Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 lg:gap-8">
                     <BoxySelect
                         label={t('subtitles.fontFamily')}
                         selectedId={settings.subtitleFontFamily}
@@ -135,14 +115,16 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                     />
                 </div>
 
-                {/* 2. Window / Background Section */}
-                <div style={{ height: 1, backgroundColor: '#f0f0f0', marginBottom: 32 }} />
+                <div className="h-px bg-gray-100" />
                 
-                <div style={{ marginBottom: 32 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111' }}>{t('subtitles.windowBackground')}</h3>
-                            <span style={{ fontSize: 13, color: '#737373' }}>{t('subtitles.windowBackgroundDesc', { defaultValue: 'Add a shaded box behind subtitles for better contrast' })}</span>
+                {/* Window / Background Section */}
+                <div className="space-y-8 pb-4">
+                    <div className="flex items-center justify-between group">
+                        <div className="flex flex-col gap-1 pr-4">
+                            <h3 className="text-base md:text-lg font-bold text-gray-900">{t('subtitles.windowBackground')}</h3>
+                            <span className="text-xs md:text-sm text-gray-500 font-medium">
+                                {t('subtitles.windowBackgroundDesc', { defaultValue: 'Add a shaded box behind subtitles for better contrast' })}
+                            </span>
                         </div>
                         <SettingsToggle
                             label=""
@@ -153,8 +135,8 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                     </div>
 
                     {settings.subtitleBackground === 'box' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px' }}>
-                            <div style={{ padding: '0 4px' }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 p-6 bg-gray-50 rounded-lg animate-slideIn">
+                            <div className="px-1">
                                 <SettingsSlider
                                     label={t('subtitles.opacity')}
                                     value={settings.subtitleOpacity}
@@ -163,7 +145,7 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                                     darkTheme={false}
                                 />
                             </div>
-                            <div style={{ padding: '0 4px' }}>
+                            <div className="px-1">
                                 <SettingsSlider
                                     label={t('subtitles.blur')}
                                     value={settings.subtitleBlur}

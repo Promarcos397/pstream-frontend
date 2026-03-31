@@ -67,72 +67,61 @@ const ProfileTransferSection: React.FC = () => {
     };
 
     return (
-        <div style={{ color: '#111' }}>
+        <div className="text-gray-900 animate-fadeIn space-y-10">
             {/* Profile card */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32 }}>
-                <div style={{ width: 56, height: 56, minWidth: 56, borderRadius: 4, overflow: 'hidden', backgroundColor: '#ddd' }}>
+            <div className="flex items-center gap-6 bg-gray-50 border border-gray-100 p-6 rounded-lg shadow-sm">
+                <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0 border-2 border-white shadow-sm">
                     <img
                         src={avatarSrc} alt=""
-                        width={56} height={56}
-                        style={{ width: 56, height: 56, objectFit: 'cover', display: 'block' }}
+                        className="w-full h-full object-cover block"
                         onError={() => setImgFailed(true)}
                     />
                 </div>
                 <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: '#111' }}>
+                    <h3 className="text-xl font-bold text-gray-900 leading-tight">
                         {profileName}
                     </h3>
-                    <p style={{ fontSize: 14, color: '#737373', marginTop: 4 }}>{t('settings.profileTransfer')}</p>
+                    <p className="text-sm text-gray-500 mt-1 font-medium">{t('settings.profileTransfer')}</p>
                 </div>
             </div>
 
-            <div style={{ height: 1, backgroundColor: '#f0f0f0', marginBottom: 24 }} />
+            <div className="h-px bg-gray-100" />
 
             {/* Description */}
-            <div style={{ marginBottom: 32 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 16 }}>{t('settings.transferHeader')}</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <CheckCircleIcon size={18} style={{ color: '#16a34a', flexShrink: 0, marginTop: 2 }} />
-                        <p style={{ fontSize: 14, color: '#525252', lineHeight: 1.6 }}>{t('settings.transferFeature1')}</p>
+            <div className="space-y-6">
+                <h3 className="text-lg font-bold text-gray-900">{t('settings.transferHeader')}</h3>
+                <div className="space-y-4">
+                    <div className="flex items-start gap-4">
+                        <CheckCircleIcon size={22} className="text-green-600 shrink-0 mt-0.5" weight="fill" />
+                        <p className="text-[15px] text-gray-600 leading-relaxed font-medium">{t('settings.transferFeature1')}</p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <CheckCircleIcon size={18} style={{ color: '#16a34a', flexShrink: 0, marginTop: 2 }} />
-                        <p style={{ fontSize: 14, color: '#525252', lineHeight: 1.6 }}>{t('settings.transferFeature2')}</p>
+                    <div className="flex items-start gap-4">
+                        <CheckCircleIcon size={22} className="text-green-600 shrink-0 mt-0.5" weight="fill" />
+                        <p className="text-[15px] text-gray-600 leading-relaxed font-medium">{t('settings.transferFeature2')}</p>
                     </div>
                 </div>
             </div>
 
-            <div style={{ height: 1, backgroundColor: '#f0f0f0', marginBottom: 24 }} />
+            <div className="h-px bg-gray-100" />
 
             {/* Actions */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+            <div className="flex flex-col sm:flex-row gap-4">
                 <button
                     onClick={handleDownloadBackup}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        backgroundColor: '#e50914', color: '#fff',
-                        padding: '10px 24px', borderRadius: 4,
-                        fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer',
-                    }}
+                    className="flex-1 flex items-center justify-center gap-3 bg-black text-white px-8 py-3.5 rounded-sm font-bold text-base hover:bg-gray-800 active:scale-95 transition-all shadow-sm"
                 >
-                    <DownloadSimpleIcon size={18} />
-                    {t('settings.transferButton', { defaultValue: 'Export Profile' })}
+                    <DownloadSimpleIcon size={20} weight="bold" />
+                    <span>{t('settings.transferButton', { defaultValue: 'Export Profile' })}</span>
                 </button>
 
                 <button
                     onClick={handleImportClick}
                     disabled={importing}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        backgroundColor: '#fff', color: '#111',
-                        padding: '10px 24px', borderRadius: 4,
-                        fontWeight: 700, fontSize: 14, border: '1px solid #d1d5db', cursor: 'pointer',
-                        opacity: importing ? 0.6 : 1
-                    }}
+                    className={`flex-1 flex items-center justify-center gap-3 px-8 py-3.5 rounded-sm font-bold text-base border border-gray-300 transition-all active:scale-95
+                        ${importing ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'}`}
                 >
-                    <UploadSimpleIcon size={18} />
-                    {importing ? 'Importing...' : t('settings.importButton', { defaultValue: 'Import Profile' })}
+                    <UploadSimpleIcon size={20} weight="bold" />
+                    <span>{importing ? 'Importing...' : t('settings.importButton', { defaultValue: 'Import Profile' })}</span>
                 </button>
 
                 <input 
@@ -140,11 +129,11 @@ const ProfileTransferSection: React.FC = () => {
                     ref={fileInputRef} 
                     onChange={handleFileChange} 
                     accept=".json" 
-                    style={{ display: 'none' }} 
+                    className="hidden" 
                 />
             </div>
             
-            <p style={{ fontSize: 12, color: '#a3a3a3', marginTop: 16, lineHeight: 1.5 }}>
+            <p className="text-[13px] text-gray-400 leading-relaxed max-w-lg italic font-medium px-1">
                 {t('settings.transferDesc')}
             </p>
         </div>

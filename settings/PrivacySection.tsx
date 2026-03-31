@@ -19,51 +19,58 @@ const PrivacySection: React.FC = () => {
 
     if (deleted) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: '#111' }}>
-                <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{t('privacy.dataWiped')}</h2>
-                <p style={{ fontSize: 14, color: '#737373' }}>{t('common.loading')}</p>
+            <div className="flex flex-col items-center justify-center py-20 text-center animate-fadeIn">
+                <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-6">
+                    <TrashIcon size={32} className="text-green-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">{t('privacy.dataWiped')}</h2>
+                <p className="text-sm text-gray-500">{t('common.loading')}</p>
             </div>
         );
     }
 
     return (
-        <div style={{ color: '#111' }}>
-            <div style={{ marginBottom: 24 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 8 }}>{t('settings.deleteDataTitle')}</h3>
-                <p style={{ fontSize: 14, color: '#737373', lineHeight: 1.6 }}>
+        <div className="text-gray-900 animate-fadeIn space-y-8">
+            <section>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{t('settings.deleteDataTitle')}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed max-w-lg">
                     {t('settings.deleteDataDesc')}
                 </p>
-            </div>
+            </section>
 
-            <div style={{ height: 1, backgroundColor: '#f0f0f0', marginBottom: 24 }} />
+            <div className="h-px bg-gray-100 w-full" />
 
             {!confirming ? (
                 <button
                     onClick={() => setConfirming(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#e50914', fontWeight: 700, fontSize: 14, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    className="group flex items-center gap-3 text-red-600 font-bold text-[15px] p-2 -ml-2 rounded-md hover:bg-red-50 active:scale-95 transition-all"
                 >
-                    <TrashIcon size={18} />
+                    <TrashIcon size={20} weight="bold" />
                     <span>{t('settings.deleteDataButton')}</span>
                 </button>
             ) : (
-                <div>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, backgroundColor: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 4, padding: 16, marginBottom: 16 }}>
-                        <WarningCircleIcon size={20} style={{ color: '#ef4444', flexShrink: 0, marginTop: 2 }} />
-                        <p style={{ fontSize: 14, color: '#b91c1c', fontWeight: 500 }}>
-                            {t('settings.deleteDataConfirm')}
-                        </p>
+                <div className="space-y-6 animate-slideIn">
+                    <div className="flex items-start gap-4 bg-red-50 border border-red-200 rounded-lg p-5">
+                        <WarningCircleIcon size={24} className="text-red-600 shrink-0 mt-0.5" weight="fill" />
+                        <div>
+                            <h4 className="text-red-900 font-bold text-[15px] mb-1">{t('common.warning', { defaultValue: 'Warning' })}</h4>
+                            <p className="text-sm text-red-700 font-medium leading-relaxed">
+                                {t('settings.deleteDataConfirm')}
+                            </p>
+                        </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 12 }}>
+                    
+                    <div className="flex flex-col sm:flex-row gap-4 pt-2">
                         <button
                             onClick={handleDelete}
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, backgroundColor: '#dc2626', color: '#fff', padding: '10px 20px', borderRadius: 4, fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer' }}
+                            className="flex items-center justify-center gap-2 px-8 py-3 bg-red-600 text-white rounded-sm font-bold text-base hover:bg-red-700 active:scale-95 transition-all shadow-sm"
                         >
-                            <TrashIcon size={16} />
-                            {t('privacy.confirmDeleteAction')}
+                            <TrashIcon size={20} weight="bold" />
+                            <span>{t('privacy.confirmDeleteAction')}</span>
                         </button>
                         <button
                             onClick={() => setConfirming(false)}
-                            style={{ padding: '10px 20px', backgroundColor: '#fff', border: '1px solid #d4d4d4', color: '#525252', borderRadius: 4, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+                            className="px-8 py-3 bg-white text-gray-600 border border-gray-300 rounded-sm font-bold text-base hover:bg-gray-50 active:scale-95 transition-all"
                         >
                             {t('common.cancel')}
                         </button>

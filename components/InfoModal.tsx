@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, TicketIcon } from '@phosphor-icons/react';
+import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, TicketIcon, ClockIcon } from '@phosphor-icons/react';
 import YouTube from 'react-youtube';
 import { Movie, Episode } from '../types';
 import { IMG_PATH } from '../constants';
@@ -252,6 +252,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     // threshold: 30s for movies, 0s for episodes
     const hasResumeMovie = mediaType === 'movie' && savedMovieState && savedMovieState.time > 30;
     const hasResumeTV = mediaType === 'tv' && lastEp;
+    const isResuming = hasResumeMovie || hasResumeTV;
 
     const handlePlayClick = () => {
         if (mediaType === 'tv') {
@@ -396,9 +397,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             ) : (
                                 <button
                                     onClick={handlePlayClick}
-                                    className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition"
+                                    className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons"
                                 >
-                                    <PlayIcon size={24} weight="fill" className="mr-2" />
+                                    {isResuming ? (
+                                        <ClockIcon size={24} weight="bold" className="mr-2" />
+                                    ) : (
+                                        <PlayIcon size={24} weight="fill" className="mr-2" />
+                                    )}
                                     {hasResumeTV ? t('modal.resume', { season: lastEp.season, episode: lastEp.episode }) : 
                                      hasResumeMovie ? t('rows.continueWatching') : 
                                      t('hero.play')}

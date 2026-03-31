@@ -9,30 +9,25 @@ interface SettingsMenuProps {
     onNavigate: (view: SettingsView) => void;
 }
 
-/* Tiny gray user silhouette for broken images */
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23bbb'/%3E%3Cellipse cx='50' cy='85' rx='28' ry='22' fill='%23bbb'/%3E%3C/svg%3E";
 
-/* ── Small avatar component with bulletproof sizing ──── */
 const Avatar: React.FC<{ src?: string; size?: number }> = ({ src, size = 44 }) => {
     const [failed, setFailed] = useState(false);
     return (
         <div
-            className="rounded overflow-hidden shrink-0"
-            style={{ width: size, height: size, minWidth: size, minHeight: size, backgroundColor: '#ddd' }}
+            className="rounded-md overflow-hidden shrink-0 border border-gray-100 shadow-sm"
+            style={{ width: size, height: size, minWidth: size, minHeight: size, backgroundColor: '#f1f5f9' }}
         >
             <img
                 src={failed ? FALLBACK_AVATAR : (src || FALLBACK_AVATAR)}
                 alt=""
-                width={size}
-                height={size}
-                style={{ width: size, height: size, objectFit: 'cover', display: 'block' }}
+                className="w-full h-full object-cover block"
                 onError={() => setFailed(true)}
             />
         </div>
     );
 };
 
-/* ── Reusable menu row ─────────────────────────────────────── */
 const MenuRow: React.FC<{
     icon: React.ReactNode;
     label: string;
@@ -41,44 +36,45 @@ const MenuRow: React.FC<{
 }> = ({ icon, label, sub, onClick }) => (
     <button
         onClick={onClick}
-        className="w-full flex items-center gap-5 px-5 py-[18px] text-left hover:bg-gray-50 active:bg-gray-100 transition-colors group"
+        className="w-full flex items-center gap-5 px-5 py-5 text-left hover:bg-gray-50 active:bg-gray-100 transition-all group outline-none focus:bg-gray-50"
     >
-        <span className="text-gray-400 shrink-0">{icon}</span>
+        <span className="text-gray-400 group-hover:text-black transition-colors shrink-0">{icon}</span>
         <div className="flex-1 min-w-0">
-            <span className="block text-[15px] font-bold leading-snug" style={{ color: '#111' }}>{label}</span>
-            <span className="block text-[13px] leading-snug mt-0.5 truncate" style={{ color: '#737373' }}>{sub}</span>
+            <span className="block text-[15px] font-bold text-gray-900 group-hover:translate-x-0.5 transition-transform">{label}</span>
+            <span className="block text-[13px] text-gray-500 mt-0.5 truncate font-medium">{sub}</span>
         </div>
-        <CaretRightIcon size={16} className="text-gray-300 shrink-0 group-hover:text-gray-500 transition-colors" />
+        <CaretRightIcon size={16} className="text-gray-300 shrink-0 group-hover:text-gray-600 group-hover:translate-x-1 transition-all" weight="bold" />
     </button>
 );
 
-/* ── Main Menu ─────────────────────────────────────────────── */
 const SettingsMenu: React.FC<SettingsMenuProps> = ({ onNavigate }) => {
     const { t } = useTranslation();
     const { settings } = useGlobalContext();
 
     return (
-        <div className="space-y-8 animate-fadeIn">
+        <div className="space-y-10 animate-fadeIn h-full pb-20">
 
             {/* ── Account card ──────────────────────────── */}
-            <div className="rounded-lg overflow-hidden" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden transform transition-all hover:shadow-md hover:border-gray-300">
                 <button
                     onClick={() => onNavigate('account')}
-                    className="w-full flex items-center gap-5 p-5 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors group"
+                    className="w-full flex items-center gap-5 p-6 text-left transition-colors hover:bg-gray-50 group active:scale-[0.99]"
                 >
-                    <Avatar src={settings.avatarUrl} size={44} />
+                    <Avatar src={settings.avatarUrl} size={52} />
                     <div className="flex-1">
-                        <span className="block text-[15px] font-bold" style={{ color: '#111' }}>{t('settings.manageAccount')}</span>
-                        <span className="block text-[13px] mt-0.5" style={{ color: '#737373' }}>{t('settings.account')}</span>
+                        <span className="block text-base font-bold text-gray-900">{t('settings.manageAccount')}</span>
+                        <span className="block text-[13px] text-gray-500 mt-1 font-medium">{t('settings.account')}</span>
                     </div>
-                    <CaretRightIcon size={16} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+                    <CaretRightIcon size={18} className="text-gray-300 group-hover:text-gray-600 transition-colors" weight="bold" />
                 </button>
             </div>
 
-            {/* ── Preferences card ──────────────────────── */}
+            {/* ── Preferences Section ───────────────────── */}
             <div>
-                <h2 className="mb-3 ml-1" style={{ fontSize: '13px', fontWeight: 500, color: '#737373' }}>{t('settings.preferences')}</h2>
-                <div className="rounded-lg overflow-hidden divide-y" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderColor: '#e5e5e5' }}>
+                <h2 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1">
+                    {t('settings.preferences')}
+                </h2>
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden divide-y divide-gray-100">
                     <MenuRow
                         icon={<TranslateIcon size={24} />}
                         label={t('settings.languages')}

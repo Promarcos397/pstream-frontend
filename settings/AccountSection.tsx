@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
     SignOutIcon, KeyIcon, TranslateIcon, SubtitlesIcon,
-    PlayCircleIcon, ClockIcon, CaretRightIcon, UserCircleIcon
+    PlayCircleIcon, ClockIcon, CaretRightIcon
 } from '@phosphor-icons/react';
 import { DEFAULT_AVATAR } from '../constants';
 
@@ -16,17 +16,13 @@ const AccountSection: React.FC = () => {
     // Guest view: Simple sign-in prompt
     if (!user) {
         return (
-            <div style={{
-                border: '1px solid #d1d5db', borderRadius: 8, padding: '40px 24px',
-                backgroundColor: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-            }}>
-                <p style={{ fontSize: 16, color: '#374151', marginBottom: 24, maxWidth: 350, lineHeight: 1.5 }}>
+            <div className="border border-gray-300 rounded-lg p-10 md:p-14 bg-white flex flex-col items-center text-center shadow-sm">
+                <p className="text-base md:text-lg text-gray-700 mb-6 max-w-sm leading-relaxed">
                     {t('auth.signInPrompt', { defaultValue: 'Sign in to save your history, list, and preferences across all devices.' })}
                 </p>
                 <button
                     onClick={() => navigate('/login')}
-                    style={{ backgroundColor: '#111', color: '#fff', padding: '12px 40px', borderRadius: 2, fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer' }}
+                    className="bg-[#111] text-white px-10 py-3 rounded-sm font-bold text-base hover:bg-black transition-colors active:scale-95"
                 >
                     {t('nav.signIn')}
                 </button>
@@ -47,39 +43,34 @@ const AccountSection: React.FC = () => {
         <React.Fragment>
             <div
                 onClick={onClick}
-                style={{
-                    display: 'flex', alignItems: 'center', padding: '20px',
-                    cursor: 'pointer', transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                className="flex items-center p-5 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors group"
             >
-                <div style={{ width: 52, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                <div className="w-14 shrink-0 flex items-center">
                     {icon}
                 </div>
-                <div style={{ flex: 1, paddingRight: 16 }}>
-                    <div style={{ fontSize: 17, fontWeight: 700, color: '#111' }}>{title}</div>
-                    {subtitle && <div style={{ fontSize: 14, color: '#6b7280', marginTop: 2 }}>{subtitle}</div>}
+                <div className="flex-1 pr-4 min-w-0">
+                    <div className="text-[16px] md:text-[17px] font-bold text-gray-900 truncate">{title}</div>
+                    {subtitle && <div className="text-[13px] md:text-14px text-gray-500 mt-0.5 truncate">{subtitle}</div>}
                 </div>
-                <CaretRightIcon size={20} weight="bold" style={{ color: '#9ca3af' }} />
+                <CaretRightIcon size={20} weight="bold" className="text-gray-300 group-hover:text-gray-500 transition-colors" />
             </div>
-            {!isLast && <div style={{ padding: '0 20px' }}><div style={{ height: 1, backgroundColor: '#e5e7eb' }} /></div>}
+            {!isLast && <div className="px-5"><div className="h-px bg-gray-100" /></div>}
         </React.Fragment>
     );
 
     return (
-        <div style={{ paddingBottom: 40 }}>
+        <div className="pb-10 space-y-10 animate-fadeIn">
 
             {/* Section 1: Profile Information */}
-            <div style={{ border: '1px solid #d1d5db', borderRadius: 8, backgroundColor: '#fff', marginBottom: 40, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div className="border border-gray-200 rounded-lg bg-white overflow-hidden shadow-sm">
                 <SettingsRow
-                    icon={<img src={avatarSrc} style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }} alt="" />}
+                    icon={<img src={avatarSrc} className="w-10 h-10 rounded-md object-cover ring-1 ring-black/5" alt="" />}
                     title={profileName}
                     subtitle={t('settings.editPersonalContact', { defaultValue: 'Edit personal and contact information' })}
                     onClick={() => navigate('/settings/profile/edit')}
                 />
                 <SettingsRow
-                    icon={<KeyIcon size={26} weight="regular" style={{ color: '#333' }} />}
+                    icon={<KeyIcon size={26} className="text-gray-800" />}
                     title={t('settings.recoveryKeyAndPhrase', { defaultValue: 'Security & Recovery' })}
                     subtitle={t('settings.manageKeyPhrase', { defaultValue: 'View your 12-word recovery phrase' })}
                     onClick={() => navigate('/settings/transfer')}
@@ -88,49 +79,53 @@ const AccountSection: React.FC = () => {
             </div>
 
             {/* Section 2: Preferences */}
-            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#111', marginBottom: 16 }}>
-                {t('settings.preferences', { defaultValue: 'Preferences' })}
-            </h2>
-            <div style={{ border: '1px solid #d1d5db', borderRadius: 8, backgroundColor: '#fff', marginBottom: 40, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <SettingsRow
-                    icon={<TranslateIcon size={26} weight="regular" style={{ color: '#333' }} />}
-                    title={t('settings.languages', { defaultValue: 'Languages' })}
-                    subtitle="English, Español"
-                    onClick={() => navigate('/settings/language')}
-                />
-                <SettingsRow
-                    icon={<SubtitlesIcon size={26} weight="regular" style={{ color: '#333' }} />}
-                    title={t('settings.subtitleAppearance', { defaultValue: 'Subtitle appearance' })}
-                    subtitle={t('settings.customizeLookSubtitles', { defaultValue: 'Customize the way subtitles look' })}
-                    onClick={() => navigate('/settings/subtitle')}
-                />
-                <SettingsRow
-                    icon={<PlayCircleIcon size={26} weight="regular" style={{ color: '#333' }} />}
-                    title={t('settings.playbackSettings', { defaultValue: 'Playback settings' })}
-                    subtitle={t('settings.configureAutoplayQuality', { defaultValue: 'Configure autoplay, audio and video quality' })}
-                    onClick={() => navigate('/settings/playback')}
-                    isLast={true}
-                />
+            <div className="space-y-4">
+                <h2 className="text-[14px] md:text-[15px] font-bold text-gray-500 uppercase tracking-wider ml-1">
+                    {t('settings.preferences', { defaultValue: 'Preferences' })}
+                </h2>
+                <div className="border border-gray-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                    <SettingsRow
+                        icon={<TranslateIcon size={26} className="text-gray-800" />}
+                        title={t('settings.languages', { defaultValue: 'Languages' })}
+                        subtitle="English, Español"
+                        onClick={() => navigate('/settings/language')}
+                    />
+                    <SettingsRow
+                        icon={<SubtitlesIcon size={26} className="text-gray-800" />}
+                        title={t('settings.subtitleAppearance', { defaultValue: 'Subtitle appearance' })}
+                        subtitle={t('settings.customizeLookSubtitles', { defaultValue: 'Customize the way subtitles look' })}
+                        onClick={() => navigate('/settings/subtitle')}
+                    />
+                    <SettingsRow
+                        icon={<PlayCircleIcon size={26} className="text-gray-800" />}
+                        title={t('settings.playbackSettings', { defaultValue: 'Playback settings' })}
+                        subtitle={t('settings.configureAutoplayQuality', { defaultValue: 'Configure autoplay, audio and video quality' })}
+                        onClick={() => navigate('/settings/playback')}
+                        isLast={true}
+                    />
+                </div>
             </div>
 
             {/* Section 3: History & Activity */}
-            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#111', marginBottom: 16 }}>
-                {t('settings.experience', { defaultValue: 'Experience' })}
-            </h2>
-            <div style={{ border: '1px solid #d1d5db', borderRadius: 8, backgroundColor: '#fff', marginBottom: 40, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <SettingsRow
-                    icon={<ClockIcon size={26} weight="regular" style={{ color: '#333' }} />}
-                    title={t('settings.viewingActivity', { defaultValue: 'Viewing activity' })}
-                    subtitle={t('settings.manageHistoryRatings', { defaultValue: 'Manage viewing history and ratings' })}
-                    onClick={() => navigate('/settings/activity')}
-                    isLast={true}
-                />
+            <div className="space-y-4">
+                <h2 className="text-[14px] md:text-[15px] font-bold text-gray-500 uppercase tracking-wider ml-1">
+                    {t('settings.experience', { defaultValue: 'Experience' })}
+                </h2>
+                <div className="border border-gray-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                    <SettingsRow
+                        icon={<ClockIcon size={26} className="text-gray-800" />}
+                        title={t('settings.viewingActivity', { defaultValue: 'Viewing activity' })}
+                        subtitle={t('settings.manageHistoryRatings', { defaultValue: 'Manage viewing history and ratings' })}
+                        onClick={() => navigate('/settings/activity')}
+                        isLast={true}
+                    />
+                </div>
             </div>
 
             {/* Section 4: Auth Management */}
-            <div style={{ border: '1px solid #d1d5db', borderRadius: 8, backgroundColor: '#fff', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div className="border border-gray-200 rounded-lg bg-white overflow-hidden shadow-sm">
                 <SettingsRow
-                    icon={<SignOutIcon size={26} weight="regular" style={{ color: '#333' }} />}
+                    icon={<SignOutIcon size={26} className="text-red-600" />}
                     title={t('nav.signOut')}
                     onClick={() => { logout(); navigate('/'); }}
                     isLast={true}
