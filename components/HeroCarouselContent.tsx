@@ -79,17 +79,17 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     {isCinemaOnly ? (
                         <button
                             onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 md:px-6 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-colors text-sm md:text-[15px] gap-2 blur-[0.3px]"
+                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 md:px-8 h-[42px] md:h-[48px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-colors text-[15px] md:text-[17px] gap-2.5 blur-[0.2px]"
                         >
-                            <TicketIcon weight="bold" className="text-lg md:text-xl" />
+                            <TicketIcon weight="bold" className="text-xl md:text-2xl" />
                             {t('hero.inTheaters', { defaultValue: 'In Theaters' })}
                         </button>
                     ) : (
                         <button
                             onClick={() => onPlay(movie)}
-                            className="flex items-center justify-center bg-white text-black px-4 md:px-6 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-white/80 transition-colors text-sm md:text-[15px] gap-1.5"
+                            className="flex items-center justify-center bg-white text-black px-5 md:px-8 h-[42px] md:h-[48px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[15px] md:text-[17px] gap-2"
                         >
-                            <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] md:w-5 md:h-5 fill-black">
+                            <svg viewBox="0 0 24 24" className="w-[20px] h-[20px] md:w-6 md:h-6 fill-black">
                                 <polygon points="6,3 20,12 6,21" />
                             </svg>
                             {t('hero.play')}
@@ -98,9 +98,9 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     
                     <button
                         onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                        className="flex items-center justify-center glass text-white px-5 md:px-7 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-white/10 transition-all duration-300 text-sm md:text-[15px] gap-2 pointer-events-auto"
+                        className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-6 md:px-9 h-[42px] md:h-[48px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[15px] md:text-[17px] gap-2.5 pointer-events-auto blur-[0.2px]"
                     >
-                        <InfoIcon weight="bold" className="text-lg md:text-xl" />
+                        <InfoIcon weight="bold" className="text-xl md:text-2xl" />
                         {t('hero.moreInfo')}
                     </button>
                 </div>
