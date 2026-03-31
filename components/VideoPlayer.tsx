@@ -49,7 +49,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [duration, setDuration] = useState(0);
     const [progress, setProgress] = useState(0);
     const [volume, setVolume] = useState(1);
-    const [audioBoost, setAudioBoost] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
     const [showUI, setShowUI] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -97,6 +96,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         visible: false
     });
 
+    const handleAbsoluteSeek = useCallback((time: number) => {
+        const video = videoRef.current;
+        if (video) {
+            video.currentTime = time;
+        }
+    }, []);
+
+    const handleRelativeSeek = useCallback((amount: number) => {
+        const video = videoRef.current;
+        if (video) {
+            const newTime = video.currentTime + amount;
+            video.currentTime = Math.max(0, Math.min(video.duration || 0, newTime));
+        }
+    }, []);
+
     // Touch gesture handlers
     const showSkipIndicator = useCallback((direction: 'left' | 'right') => {
         setSkipIndicator({ direction, visible: true });
@@ -104,20 +118,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, []);
 
     const handleSkipBack = useCallback(() => {
-        const video = videoRef.current;
-        if (video) {
-            video.currentTime = Math.max(0, video.currentTime - 10);
-            showSkipIndicator('left');
-        }
-    }, [showSkipIndicator]);
+        handleRelativeSeek(-10);
+        showSkipIndicator('left');
+    }, [handleRelativeSeek, showSkipIndicator]);
 
     const handleSkipForward = useCallback(() => {
-        const video = videoRef.current;
-        if (video) {
-            video.currentTime = Math.min(video.duration, video.currentTime + 10);
-            showSkipIndicator('right');
-        }
-    }, [showSkipIndicator]);
+        handleRelativeSeek(10);
+        showSkipIndicator('right');
+    }, [handleRelativeSeek, showSkipIndicator]);
 
     // Wire up touch gestures
     useTouchGestures(containerRef as React.RefObject<HTMLElement>, {
@@ -552,11 +560,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const now = Date.now();
             const currentProgress = (video.currentTime / video.duration) * 100;
 
-            // Auto-trigger next episode at 99.5% (Smart Autoplay)
-            if (mediaType === 'tv' && settings.autoplayNextEpisode && currentProgress >= 99.5) {
+            // Auto-trigger next episode at 99.85% (Smart Autoplay - less aggressive)
+            if (mediaType === 'tv' && settings.autoplayNextEpisode && currentProgress >= 99.85) {
                 const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
                 if (nextEp) {
-                    console.log('[VideoPlayer] 🍿 Autoplay: 99.5% reached, switching to next episode...');
+                    console.log('[VideoPlayer] 🍿 Autoplay: 99.85% reached, switching to next episode...');
                     handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
                     return; // Stop further updates for this episode
                 }
@@ -598,12 +606,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, []);
 
-    const handleSeek = useCallback((time: number) => {
-        const video = videoRef.current;
-        if (video) {
-            video.currentTime = time;
-        }
-    }, []);
+
 
     const handleVolumeChange = useCallback((newVolume: number) => {
         const video = videoRef.current;
@@ -614,13 +617,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, []);
 
-    const handleBoostChange = useCallback((newBoost: number) => {
-        setAudioBoost(newBoost);
-        const electron = (window as any).electron;
-        if (electron?.audio?.setBoost) {
-            electron.audio.setBoost(newBoost);
-        }
-    }, []);
+
 
     const toggleMute = useCallback(() => {
         const video = videoRef.current;
@@ -672,11 +669,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     break;
                 case 'arrowleft':
                     e.preventDefault();
-                    handleSeek(currentTime - 10);
+                    handleRelativeSeek(-10);
                     break;
                 case 'arrowright':
                     e.preventDefault();
-                    handleSeek(currentTime + 10);
+                    handleRelativeSeek(10);
                     break;
                 case 'arrowup':
                     e.preventDefault();
@@ -704,7 +701,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [togglePlay, handleSeek, handleVolumeChange, toggleMute, toggleFullscreen, currentTime, volume, activePanel, onClose]);
+    }, [togglePlay, handleAbsoluteSeek, handleRelativeSeek, handleVolumeChange, toggleMute, toggleFullscreen, currentTime, volume, activePanel, onClose]);
 
     // Episode navigation - SELECT = actually play
     const handleEpisodeSelect = useCallback((ep: Episode, overrideSeasonNumber?: number, overrideSeasonEpisodes?: Episode[]) => {
@@ -1024,7 +1021,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         seasonList.includes(playingSeasonNumber + 1)
                     )}
                     onPlayPause={togglePlay}
-                    onSeek={handleSeek}
+                    onSeek={handleRelativeSeek}
                     volume={volume}
                     onVolumeChange={handleVolumeChange}
                     onToggleMute={toggleMute}
