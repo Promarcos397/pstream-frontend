@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MagnifyingGlassIcon, XIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
+import { searchMovies } from '../services/api';
 
 interface SearchBarProps {
   searchQuery: string;
@@ -22,15 +23,27 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery }) =>
 
   // Click outside to collapse
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        if (!searchQuery) {
-          setIsActive(false);
+    const handleClickOutside = (event: MouseEvent) => {
+        if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+            if (!searchQuery) {
+                setIsActive(false);
+            }
         }
-      }
-    }
+    };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [searchQuery]);
+
+  // Pre-fetching search results as user types (debounce: 500ms)
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 3) return;
+
+    const timer = setTimeout(() => {
+      console.log(`[Search-Prefetch] Warming cache for query: ${searchQuery}`);
+      searchMovies(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [searchQuery]);
 
   const handleClear = (e: React.MouseEvent) => {

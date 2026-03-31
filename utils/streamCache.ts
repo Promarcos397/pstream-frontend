@@ -130,17 +130,20 @@ class StreamCache {
                 continue;
             }
 
-            this.prefetchQueue.add(cacheKey);
-
-            this.fetchAndCache(api, key).finally(() => {
-                this.prefetchQueue.delete(cacheKey);
-            });
+            this.prefetch(api, key);
         }
     }
 
-    private async fetchAndCache(api: any, key: CacheKey): Promise<void> {
+    /**
+     * Start a pre-fetch for a specific media item.
+     */
+    async prefetch(api: any, key: CacheKey): Promise<void> {
+        const cacheKey = this.generateKey(key);
+        if (this.cache.has(cacheKey) || this.prefetchQueue.has(cacheKey)) return;
+
+        this.prefetchQueue.add(cacheKey);
         try {
-            console.log(`[StreamCache] Prefetching S${key.season}E${key.episode}...`);
+            console.log(`[StreamCache] Prefetching ${cacheKey}...`);
 
             const result = await api.getStream(
                 key.title,
@@ -157,10 +160,12 @@ class StreamCache {
                     subtitles: result.subtitles || [],
                     provider: result.provider || 'unknown'
                 });
-                console.log(`[StreamCache] ✅ Prefetched S${key.season}E${key.episode}`);
+                console.log(`[StreamCache] ✅ Prefetched ${cacheKey}`);
             }
         } catch (err) {
-            console.warn(`[StreamCache] Prefetch failed for S${key.season}E${key.episode}:`, err);
+            console.warn(`[StreamCache] Prefetch failed for ${cacheKey}:`, err);
+        } finally {
+            this.prefetchQueue.delete(cacheKey);
         }
     }
 

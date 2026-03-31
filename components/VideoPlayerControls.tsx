@@ -13,7 +13,8 @@ import {
     SubtitlesIcon,
     SubtitlesSlashIcon,
     CardsThreeIcon,
-    ShareNetworkIcon
+    ShareNetworkIcon,
+    TelevisionIcon
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -50,6 +51,8 @@ interface VideoPlayerControlsProps {
     onMenuClose?: () => void;
     isMenuOpen?: boolean;
     showUI: boolean;
+    onTogglePiP?: () => void;
+    isPiP?: boolean;
 }
 
 // Format time as MM:SS or HH:MM:SS
@@ -91,7 +94,9 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     onEpisodesClick,
     onEpisodesHover,
     isMenuOpen,
-    showUI
+    showUI,
+    onTogglePiP,
+    isPiP
 }) => {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
@@ -323,6 +328,15 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             className={`text-gray-300 hover:text-white transition transform active:scale-95 ${isMenuOpen ? 'text-white' : ''}`}
                         >
                             <CardsThreeIcon size={iconSize} weight="bold" />
+                        </button>
+                    )}
+                    {onTogglePiP && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onTogglePiP(); }}
+                            className={`text-gray-300 hover:text-white transition transform active:scale-95 ${isPiP ? 'text-white' : ''}`}
+                            title="Picture in Picture"
+                        >
+                            <TelevisionIcon size={iconSize} weight={isPiP ? 'fill' : 'bold'} />
                         </button>
                     )}
 

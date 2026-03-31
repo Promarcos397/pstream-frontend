@@ -5,12 +5,14 @@ import YouTube from 'react-youtube';
 import { Movie, Episode } from '../types';
 import { IMG_PATH } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
-import { fetchTrailers, getSeasonDetails, prefetchStream } from '../services/api';
+import { getSeasonDetails, getMovieDetails, getStream, prefetchStream, fetchTrailers } from '../services/api';
 import InfoModalEpisodes from './InfoModalEpisodes';
 import InfoModalRecommendations from './InfoModalRecommendations';
 import { useMovieData } from '../hooks/useMovieData';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { NetworkPriority } from '../services/NetworkPriority';
+import { streamCache } from '../utils/streamCache';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface InfoModalProps {
     movie: Movie | null;
@@ -150,6 +152,19 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         }
                     }
                 } catch (e) { console.warn("Failed to load resume context", e); }
+            }
+
+            // 3. Pre-fetch Stream Data for faster start
+            if (movie) {
+                const year = (movie.release_date || movie.first_air_date || '').split('-')[0];
+                if (type === 'movie') {
+                    streamCache.prefetch({ getStream }, { title: movie.title || movie.name, type: 'movie', tmdbId: String(movie.id), year: year ? parseInt(year) : undefined });
+                } else if (type === 'tv') {
+                    const lastWatched = getLastWatchedEpisode(movie.id);
+                    const s = lastWatched?.season || 1;
+                    const e = lastWatched?.episode || 1;
+                    streamCache.prefetch({ getStream }, { title: movie.name || movie.title, type: 'tv', season: s, episode: e, tmdbId: String(movie.id), year: year ? parseInt(year) : undefined });
+                }
             }
 
             // 3. Load Video (Prioritize Local Sync, then Hero Sync, then Prop, then Fetch)

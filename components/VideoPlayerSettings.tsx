@@ -1,21 +1,9 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { Episode } from '../types';
-import { ArrowLeftIcon, CaretDownIcon, PlayCircleIcon, CheckIcon, CaretRightIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, CaretDownIcon, PlayCircleIcon, CheckIcon, CaretRightIcon, XIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
-import { prefetchStream } from '../services/api';
-import { useTitle } from '../context/TitleContext';
-
-interface PopupPanelProps {
-    title: string;
-    onBack?: () => void;
-    onClose: () => void;
-    children: React.ReactNode;
-    headerContent?: React.ReactNode;
-}
-
 import { useIsMobile } from '../hooks/useIsMobile';
-import { XIcon } from '@phosphor-icons/react';
 
 interface PopupPanelProps {
     title: string;
@@ -32,24 +20,25 @@ const MinimalPanel: React.FC<{
 }> = ({ onClose, onHover, children }) => {
     const isMobile = useIsMobile();
     return (
-        <div
-            className={`${isMobile 
-                ? 'fixed inset-0 w-full h-full' 
-                : 'absolute bottom-24 right-4 w-auto min-w-[750px] max-w-[950px] max-h-[60vh] rounded'} 
-                bg-[#1a1a1a] z-[120] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn`}
-            onMouseEnter={!isMobile ? onHover : undefined}
-            onMouseLeave={!isMobile ? onClose : undefined}
-        >
-            {isMobile && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-0 pointer-events-none">
+            <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={onClose} />
+            <div
+                className={`${isMobile 
+                    ? 'relative w-full max-w-[500px] max-h-[80vh] rounded-xl' 
+                    : 'absolute bottom-24 right-4 w-auto min-w-[700px] max-w-[800px] max-h-[45vh] rounded'} 
+                    bg-[#1a1a1a] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn pointer-events-auto border border-white/10`}
+                onMouseEnter={!isMobile ? onHover : undefined}
+                onMouseLeave={!isMobile ? onClose : undefined}
+            >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#141414]">
-                    <span className="text-white text-xl font-bold uppercase tracking-widest font-leaner">Settings</span>
-                    <button onClick={onClose} className="p-2 text-white/70 hover:text-white">
+                    <span className="text-white text-base md:text-xl font-bold uppercase tracking-widest font-leaner">Settings</span>
+                    <button onClick={onClose} className="p-2 -mr-2 text-white/70 hover:text-white transition-colors">
                         <XIcon size={24} weight="bold" />
                     </button>
                 </div>
-            )}
-            <div className="flex-1 overflow-y-auto scrollbar-none">
-                {children}
+                <div className="flex-1 overflow-y-auto scrollbar-none">
+                    {children}
+                </div>
             </div>
         </div>
     );
@@ -63,9 +52,9 @@ const SubtitleMenu: React.FC<{
 }> = ({ captions, currentCaption, onSubtitleChange, onClose }) => {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
-    const [activeLangGroup, setActiveLangGroup] = React.useState<string | null>(null);
+    const [activeLangGroup, setActiveLangGroup] = useState<string | null>(null);
 
-    const groupedCaptions = React.useMemo(() => {
+    const groupedCaptions = useMemo(() => {
         const groups: Record<string, typeof captions> = {};
 
         captions.forEach(cap => {
@@ -208,8 +197,8 @@ const EpisodeExplorer: React.FC<{
     const { t } = useTranslation();
     const isMobile = useIsMobile();
     const { getEpisodeProgress } = useGlobalContext();
-    const [previewSeason, setPreviewSeason] = React.useState(selectedSeason);
-    const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
+    const [previewSeason, setPreviewSeason] = useState(selectedSeason);
+    const [expandedEpisodeId, setExpandedEpisodeId] = useState<number | null>(null);
     const episodesContainerRef = useRef<HTMLDivElement>(null);
     const currentEpisodeRef = useRef<HTMLDivElement>(null);
 
@@ -255,22 +244,22 @@ const EpisodeExplorer: React.FC<{
     };
 
     return (
-        <div
-            className={`${isMobile 
-                ? 'fixed inset-0 w-full h-full' 
-                : 'absolute bottom-24 right-2 w-auto min-w-[750px] max-w-[1000px] min-h-[50vh] max-h-[80vh] rounded'} 
-                bg-[#1a1a1a] z-[120] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn text-white`}
-            onMouseEnter={!isMobile ? onPanelHover : undefined}
-            onMouseLeave={!isMobile ? (onClose || (() => setActivePanel('none'))) : undefined}
-        >
-            {isMobile && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-0 pointer-events-none">
+            <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={onClose || (() => setActivePanel('none'))} />
+            <div
+                className={`${isMobile 
+                    ? 'relative w-full max-w-[800px] max-h-[85vh] rounded-xl' 
+                    : 'absolute bottom-24 right-2 w-auto min-w-[650px] max-w-[750px] min-h-[40vh] max-h-[70vh] rounded'} 
+                    bg-[#1a1a1a] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn text-white pointer-events-auto border border-white/10`}
+                onMouseEnter={!isMobile ? onPanelHover : undefined}
+                onMouseLeave={!isMobile ? (onClose || (() => setActivePanel('none'))) : undefined}
+            >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#141414]">
-                    <span className="text-white text-xl font-bold uppercase tracking-widest font-leaner">Episodes</span>
-                    <button onClick={onClose || (() => setActivePanel('none'))} className="p-2 text-white/70 hover:text-white">
+                    <span className="text-white text-base md:text-xl font-bold uppercase tracking-widest font-leaner">Episodes</span>
+                    <button onClick={onClose || (() => setActivePanel('none'))} className="p-2 -mr-2 text-white/70 hover:text-white transition-colors">
                         <XIcon size={24} weight="bold" />
                     </button>
                 </div>
-            )}
 
             {activePanel === 'seasons' && (
                 <div className="flex flex-col py-2 overflow-y-auto max-h-[90vh] md:max-h-[60vh]">
@@ -315,16 +304,6 @@ const EpisodeExplorer: React.FC<{
                                     key={ep.id}
                                     ref={isPlaying ? currentEpisodeRef : null}
                                     className={`px-4 transition ${isExpanded ? 'bg-black/40 pb-6 pt-4' : 'py-4 hover:bg-white/5'} ${isPlaying ? 'border-l-4 border-[#E50914]' : ''}`}
-                                    onMouseEnter={() => {
-                                        // SMART PRE-FETCH: If they hover, they might click.
-                                        if (typeof showId === 'string' || typeof showId === 'number') {
-                                            const storageKey = `prefetched_explorer_${showId}_S${selectedSeason}E${ep.episode_number}`;
-                                            if (!(window as any)[storageKey]) {
-                                               prefetchStream(showTitle || '', undefined, String(showId), 'tv', selectedSeason, ep.episode_number);
-                                               (window as any)[storageKey] = true;
-                                            }
-                                        }
-                                    }}
                                 >
                                     <div
                                         className="flex items-center cursor-pointer group"
@@ -409,6 +388,7 @@ const EpisodeExplorer: React.FC<{
                     </div>
                 </div>
             )}
+            </div>
         </div>
     );
 };
@@ -477,39 +457,40 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = ({
             )}
 
             {activePanel === 'quality' && (
-                <div
-                    className={`${isMobile 
-                        ? 'fixed inset-0 w-full h-full' 
-                        : 'absolute bottom-24 right-4 w-auto min-w-[750px] max-w-[950px] max-h-[60vh] rounded'} 
-                        bg-[#1a1a1a] z-[120] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn`}
-                    onMouseEnter={!isMobile ? onPanelHover : undefined}
-                    onMouseLeave={!isMobile ? handleMouseLeave : undefined}
-                >
-                    {isMobile && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-0 pointer-events-none">
+                    <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={handleMouseLeave} />
+                    <div
+                        className={`${isMobile 
+                            ? 'relative w-full max-w-[500px] max-h-[80vh] rounded-xl' 
+                            : 'absolute bottom-24 right-4 w-auto min-w-[700px] max-w-[800px] max-h-[50vh] rounded'} 
+                            bg-[#1a1a1a] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn pointer-events-auto border border-white/10`}
+                        onMouseEnter={!isMobile ? onPanelHover : undefined}
+                        onMouseLeave={!isMobile ? handleMouseLeave : undefined}
+                    >
                         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#141414]">
-                            <span className="text-white text-xl font-bold uppercase tracking-widest font-leaner">Quality</span>
-                            <button onClick={handleMouseLeave} className="p-2 text-white/70 hover:text-white">
+                            <span className="text-white text-base md:text-xl font-bold uppercase tracking-widest font-leaner">Quality</span>
+                            <button onClick={handleMouseLeave} className="p-2 -mr-2 text-white/70 hover:text-white transition-colors">
                                 <XIcon size={24} weight="bold" />
                             </button>
                         </div>
-                    )}
-                    <div className="flex-1 overflow-y-auto scrollbar-none p-2">
-                        <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
-                            <button
-                                onClick={() => { onQualityChange(-1); isMobile && handleMouseLeave(); }}
-                                className={`p-5 md:p-4 text-center rounded bg-[#222] hover:bg-[#333] transition ${currentQuality === -1 ? 'border-2 border-[#E50914] text-white font-bold' : 'text-white/60'}`}
-                            >
-                                Auto
-                            </button>
-                            {qualities.map((q, i) => (
+                        <div className="flex-1 overflow-y-auto scrollbar-none p-4 md:p-2">
+                            <div className={`grid ${isMobile ? 'grid-cols-2' : 'grid-cols-2'} gap-3`}>
                                 <button
-                                    key={i}
-                                    onClick={() => { onQualityChange(q.level); isMobile && handleMouseLeave(); }}
-                                    className={`p-5 md:p-4 text-center rounded bg-[#222] hover:bg-[#333] transition ${currentQuality === q.level ? 'border-2 border-[#E50914] text-white font-bold' : 'text-white/60'}`}
+                                    onClick={() => { onQualityChange(-1); isMobile && handleMouseLeave(); }}
+                                    className={`p-4 text-center rounded bg-[#222] hover:bg-[#333] transition ${currentQuality === -1 ? 'border-2 border-[#E50914] text-white font-bold' : 'text-white/60'}`}
                                 >
-                                    {q.height}p {q.height >= 1080 && 'HD'}
+                                    Auto
                                 </button>
-                            ))}
+                                {qualities.map((q, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => { onQualityChange(q.level); isMobile && handleMouseLeave(); }}
+                                        className={`p-4 text-center rounded bg-[#222] hover:bg-[#333] transition ${currentQuality === q.level ? 'border-2 border-[#E50914] text-white font-bold' : 'text-white/60'}`}
+                                    >
+                                        {q.height}p {q.height >= 1080 && 'HD'}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>

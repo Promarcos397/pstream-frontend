@@ -227,21 +227,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const toggleList = useCallback((movie: Movie) => {
     setMyList(prev => {
       const exists = prev.find(m => m.id === movie.id);
-      const next = exists ? prev.filter(m => m.id !== movie.id) : [...prev, movie];
-      
-      // BACKGROUND PRE-FETCH: When adding to list, assume high probability of watching soon
-      if (!exists) {
-        const yearStr = (movie.release_date || movie.first_air_date)?.substring(0, 4);
-        const year = yearStr ? parseInt(yearStr) : undefined;
-        const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-        
-        // Staggered to avoid network congestion
-        setTimeout(() => {
-          prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType);
-        }, 500);
-      }
-      
-      return next;
+      return exists ? prev.filter(m => m.id !== movie.id) : [...prev, movie];
     });
   }, []);
 
@@ -304,17 +290,6 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         delete next[key];
         return next;
       }
-      
-      // BACKGROUND PRE-FETCH: If 'liked' or 'loved', definitely pre-warm the engine
-      if (rating === 'like' || rating === 'love') {
-        const yearStr = (movie.release_date || movie.first_air_date)?.substring(0, 4);
-        const year = yearStr ? parseInt(yearStr) : undefined;
-        const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-        
-        // Higher priority than list addition
-        prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType);
-      }
-      
       return { ...prev, [key]: { movie, rating } };
     });
   }, []);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Movie, Episode } from '../types';
-import { getSeasonDetails, getMovieDetails, getStream, getExternalIds, prefetchStream } from '../services/api';
+import { getSeasonDetails, getMovieDetails, getStream, getExternalIds } from '../services/api';
 import Hls from 'hls.js';
 import ISO6391 from 'iso-639-1';
 
@@ -12,6 +12,7 @@ import { streamCache } from '../utils/streamCache';
 import { useTouchGestures } from '../hooks/useTouchGestures';
 import { SubtitleService } from '../services/SubtitleService';
 import { NetworkPriority } from '../services/NetworkPriority';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -41,6 +42,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const hlsRef = useRef<Hls | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const isMobile = useIsMobile();
 
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -139,7 +141,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 video.paused ? video.play() : video.pause();
             }
         },
-        onSingleTap: () => setShowUI(prev => !prev),
+        onSingleTap: () => {
+            if (showUI) {
+                setShowUI(false);
+                if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+            } else {
+                resetInactivityTimer(true);
+            }
+        },
         onSwipeLeft: (distance) => {
             const video = videoRef.current;
             if (video) {
@@ -603,22 +612,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 }
             }
 
-            // PRE-FETCH NEXT EPISODE at 95%
-            if (mediaType === 'tv' && currentProgress >= 95) {
-                const nextEpNum = currentEpisode + 1;
-                const cacheCheckKey = `prefetched_${movie.id}_S${playingSeasonNumber}E${nextEpNum}`;
-                if (!(window as any)[cacheCheckKey]) {
-                    const nextEp = currentSeasonEpisodes.find(e => e.episode_number === nextEpNum);
-                    if (nextEp) {
-                        const yearStr = (movie.release_date || movie.first_air_date)?.substring(0, 4);
-                        const year = yearStr ? parseInt(yearStr) : undefined;
-                        console.log(`[VideoPlayer] 🚀 95% reached. Pre-fetching S${playingSeasonNumber}E${nextEpNum}...`);
-                        prefetchStream(movie.name || movie.title || '', year, String(movie.id), 'tv', playingSeasonNumber, nextEpNum);
-                        (window as any)[cacheCheckKey] = true;
-                    }
-                }
-            }
-
             if (now - lastSaveRef.current > 2000) {
                 lastSaveRef.current = now;
 
@@ -688,15 +681,47 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, []);
 
     // --- Inactivity Timer ---
-    const resetInactivityTimer = useCallback(() => {
-        setShowUI(true);
+    const resetInactivityTimer = useCallback((forceShow = true) => {
+        if (forceShow) setShowUI(true);
         if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        const timeout = isMobile ? 5000 : 3000;
         inactivityTimerRef.current = setTimeout(() => {
             if (activePanel === 'none' && !isPanelHovered) {
                 setShowUI(false);
             }
-        }, 3000);
-    }, [activePanel, isPanelHovered]);
+        }, timeout);
+    }, [activePanel, isPanelHovered, isMobile]);
+
+    // --- Picture in Picture ---
+    const [isPiP, setIsPiP] = useState(false);
+    const togglePiP = async () => {
+        const video = videoRef.current;
+        if (!video) return;
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+                setIsPiP(false);
+            } else {
+                await video.requestPictureInPicture();
+                setIsPiP(true);
+            }
+        } catch (err) {
+            console.error('[VideoPlayer] PiP failed:', err);
+        }
+    };
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        const handlePiPEnter = () => setIsPiP(true);
+        const handlePiPExit = () => setIsPiP(false);
+        video.addEventListener('enterpictureinpicture', handlePiPEnter);
+        video.addEventListener('leavepictureinpicture', handlePiPExit);
+        return () => {
+            video.removeEventListener('enterpictureinpicture', handlePiPEnter);
+            video.removeEventListener('leavepictureinpicture', handlePiPExit);
+        };
+    }, []);
 
     useEffect(() => {
         resetInactivityTimer();
@@ -901,7 +926,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         <div
             ref={containerRef}
             className={`fixed inset-0 z-[100] bg-black font-['Consolas'] text-white overflow-hidden select-none ${showUI ? '' : 'cursor-none'}`}
-            onMouseMove={resetInactivityTimer}
+            onMouseMove={() => !isMobile && resetInactivityTimer(true)}
+            onTouchStart={() => isMobile && resetInactivityTimer(true)}
             onClick={(e) => {
                 // If clicking directly on the container (not a child element like settings panel)
                 if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.video-player-main-area')) {
@@ -1081,6 +1107,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }}
                     onClose={onClose || (() => window.history.back())}
                     onToggleFullscreen={toggleFullscreen}
+                    onTogglePiP={togglePiP}
+                    isPiP={isPiP}
                     onSettingsClick={() => setActivePanel(activePanel === 'quality' ? 'none' : 'quality')}
                     onSubtitlesClick={() => setActivePanel(activePanel === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
                     onSubtitlesHover={() => setIsPanelHovered(true)}
