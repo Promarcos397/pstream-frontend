@@ -557,7 +557,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
                 if (nextEp) {
                     console.log('[VideoPlayer] 🍿 Autoplay: 99.5% reached, switching to next episode...');
-                    handleEpisodeSelect(nextEp);
+                    handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
                     return; // Stop further updates for this episode
                 }
             }
@@ -707,7 +707,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, [togglePlay, handleSeek, handleVolumeChange, toggleMute, toggleFullscreen, currentTime, volume, activePanel, onClose]);
 
     // Episode navigation - SELECT = actually play
-    const handleEpisodeSelect = useCallback((ep: Episode) => {
+    const handleEpisodeSelect = useCallback((ep: Episode, overrideSeasonNumber?: number, overrideSeasonEpisodes?: Episode[]) => {
         // Reset state for new episode
         setStreamUrl(null);
         setIsBuffering(true);
@@ -715,16 +715,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setCaptions([]);
         setError(null);
 
+        const targetSeason = overrideSeasonNumber || ep.season_number || exploredSeasonNumber;
+        const targetEpisodes = overrideSeasonEpisodes || 
+           ((targetSeason === exploredSeasonNumber && exploredSeasonEpisodes.length > 0) 
+               ? exploredSeasonEpisodes 
+               : currentSeasonEpisodes);
+
         // Update PLAYBACK state - this triggers stream fetch useEffect
-        setPlayingSeasonNumber(exploredSeasonNumber);
-        setCurrentSeasonEpisodes(exploredSeasonEpisodes);
+        setPlayingSeasonNumber(targetSeason);
+        setCurrentSeasonEpisodes(targetEpisodes);
         setCurrentEpisode(ep.episode_number);
         setActivePanel('none');
 
         // Update URL for deep linking without page reload
-        const newUrl = `/watch/tv/${movie.id}?season=${exploredSeasonNumber}&episode=${ep.episode_number}`;
+        const newUrl = `/watch/tv/${movie.id}?season=${targetSeason}&episode=${ep.episode_number}`;
         window.history.replaceState(null, '', newUrl);
-    }, [exploredSeasonNumber, exploredSeasonEpisodes, movie.id]);
+    }, [exploredSeasonNumber, exploredSeasonEpisodes, currentSeasonEpisodes, movie.id]);
 
     const handleShare = useCallback(() => {
         const type = mediaType === 'tv' ? 'tv' : 'movie';
@@ -933,7 +939,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     onEnded={() => {
                         if (mediaType === 'tv' && currentEpisode < currentSeasonEpisodes.length) {
                             const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
-                            if (nextEp) handleEpisodeSelect(nextEp);
+                            if (nextEp) handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
                         }
                     }}
                     playsInline
@@ -1031,7 +1037,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     onNextEpisode={() => {
                         const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
                         if (nextEp) {
-                            handleEpisodeSelect(nextEp);
+                            handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
                         } else {
                             // Try next season
                             const nextSeason = playingSeasonNumber + 1;
@@ -1039,12 +1045,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 // Fetch first episode of next season
                                 getSeasonDetails(String(movie.id), nextSeason).then(seasonData => {
                                     if (seasonData?.episodes?.length > 0) {
-                                        const firstEp = seasonData.episodes[0].episode_number;
-                                        setPlayingSeasonNumber(nextSeason);
-                                        setCurrentSeasonEpisodes(seasonData.episodes);
-                                        setCurrentEpisode(firstEp);
-                                        // Update URL for deep linking
-                                        window.history.replaceState(null, '', `/watch/tv/${movie.id}?season=${nextSeason}&episode=${firstEp}`);
+                                        const firstEp = seasonData.episodes[0];
+                                        handleEpisodeSelect(firstEp, nextSeason, seasonData.episodes);
                                     }
                                 });
                             }
