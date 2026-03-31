@@ -308,9 +308,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
             let finalUrl = hlsSource.url;
             if (!isEmbedFallback) {
-                finalUrl = hlsSource.isM3U8
-                    ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`
-                    : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`;
+                // If the backend pre-fetched the manifest (IP-signed token fix), use Blob URL
+                if (hlsSource.directManifest) {
+                    const blob = new Blob([hlsSource.directManifest], { type: 'application/vnd.apple.mpegurl' });
+                    finalUrl = URL.createObjectURL(blob);
+                    console.log(`[VideoPlayer] 🧠 Using pre-fetched manifest Blob URL (IP-signed token fix)`);
+                } else {
+                    finalUrl = hlsSource.isM3U8
+                        ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`
+                        : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`;
+                }
             }
 
             console.log(`[VideoPlayer] Selected source (${hlsSource.isM3U8 ? 'M3U8' : 'Video'}):`, finalUrl);
