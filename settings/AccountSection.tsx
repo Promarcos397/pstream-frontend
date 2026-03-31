@@ -2,9 +2,9 @@ import React from 'react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { 
-    SignOutIcon, KeyIcon, TranslateIcon, SubtitlesIcon, 
-    PlayCircleIcon, ClockIcon, CaretRightIcon, UserCircleIcon 
+import {
+    SignOutIcon, KeyIcon, TranslateIcon, SubtitlesIcon,
+    PlayCircleIcon, ClockIcon, CaretRightIcon, UserCircleIcon
 } from '@phosphor-icons/react';
 import { DEFAULT_AVATAR } from '../constants';
 
@@ -16,13 +16,13 @@ const AccountSection: React.FC = () => {
     // Guest view: Simple sign-in prompt
     if (!user) {
         return (
-            <div style={{ 
-                border: '1px solid #d1d5db', borderRadius: 8, padding: '40px 24px', 
+            <div style={{
+                border: '1px solid #d1d5db', borderRadius: 8, padding: '40px 24px',
                 backgroundColor: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
             }}>
                 <p style={{ fontSize: 16, color: '#374151', marginBottom: 24, maxWidth: 350, lineHeight: 1.5 }}>
-                    {t('auth.guestModeDesc', { defaultValue: 'You are currently in guest mode. Sign in to save your history, list and preferences across devices.' })}
+                    {t('auth.signInPrompt', { defaultValue: 'Sign in to save your history, list, and preferences across all devices.' })}
                 </p>
                 <button
                     onClick={() => navigate('/login')}
@@ -35,20 +35,20 @@ const AccountSection: React.FC = () => {
     }
 
     const avatarSrc = settings.avatarUrl || DEFAULT_AVATAR;
-    const profileName = settings.displayName || user.public_key.slice(0, 12);
+    const profileName = settings.displayName || user.display_name || user.public_key.slice(0, 12);
 
-    const SettingsRow: React.FC<{ 
-        icon: React.ReactNode; 
-        title: string; 
-        subtitle?: string; 
+    const SettingsRow: React.FC<{
+        icon: React.ReactNode;
+        title: string;
+        subtitle?: string;
         onClick: () => void;
         isLast?: boolean;
     }> = ({ icon, title, subtitle, onClick, isLast }) => (
         <React.Fragment>
-            <div 
+            <div
                 onClick={onClick}
-                style={{ 
-                    display: 'flex', alignItems: 'center', padding: '20px', 
+                style={{
+                    display: 'flex', alignItems: 'center', padding: '20px',
                     cursor: 'pointer', transition: 'background-color 0.2s'
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
@@ -69,16 +69,16 @@ const AccountSection: React.FC = () => {
 
     return (
         <div style={{ paddingBottom: 40 }}>
-            
+
             {/* Section 1: Profile Information */}
             <div style={{ border: '1px solid #d1d5db', borderRadius: 8, backgroundColor: '#fff', marginBottom: 40, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <SettingsRow 
+                <SettingsRow
                     icon={<img src={avatarSrc} style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }} alt="" />}
                     title={profileName}
                     subtitle={t('settings.editPersonalContact', { defaultValue: 'Edit personal and contact information' })}
                     onClick={() => navigate('/settings/profile/edit')}
                 />
-                <SettingsRow 
+                <SettingsRow
                     icon={<KeyIcon size={26} weight="regular" style={{ color: '#333' }} />}
                     title={t('settings.recoveryKeyAndPhrase', { defaultValue: 'Security & Recovery' })}
                     subtitle={t('settings.manageKeyPhrase', { defaultValue: 'View your 12-word recovery phrase' })}
@@ -92,19 +92,19 @@ const AccountSection: React.FC = () => {
                 {t('settings.preferences', { defaultValue: 'Preferences' })}
             </h2>
             <div style={{ border: '1px solid #d1d5db', borderRadius: 8, backgroundColor: '#fff', marginBottom: 40, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <SettingsRow 
+                <SettingsRow
                     icon={<TranslateIcon size={26} weight="regular" style={{ color: '#333' }} />}
                     title={t('settings.languages', { defaultValue: 'Languages' })}
                     subtitle="English, Español"
                     onClick={() => navigate('/settings/language')}
                 />
-                <SettingsRow 
+                <SettingsRow
                     icon={<SubtitlesIcon size={26} weight="regular" style={{ color: '#333' }} />}
                     title={t('settings.subtitleAppearance', { defaultValue: 'Subtitle appearance' })}
                     subtitle={t('settings.customizeLookSubtitles', { defaultValue: 'Customize the way subtitles look' })}
                     onClick={() => navigate('/settings/subtitle')}
                 />
-                <SettingsRow 
+                <SettingsRow
                     icon={<PlayCircleIcon size={26} weight="regular" style={{ color: '#333' }} />}
                     title={t('settings.playbackSettings', { defaultValue: 'Playback settings' })}
                     subtitle={t('settings.configureAutoplayQuality', { defaultValue: 'Configure autoplay, audio and video quality' })}
@@ -118,7 +118,7 @@ const AccountSection: React.FC = () => {
                 {t('settings.experience', { defaultValue: 'Experience' })}
             </h2>
             <div style={{ border: '1px solid #d1d5db', borderRadius: 8, backgroundColor: '#fff', marginBottom: 40, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <SettingsRow 
+                <SettingsRow
                     icon={<ClockIcon size={26} weight="regular" style={{ color: '#333' }} />}
                     title={t('settings.viewingActivity', { defaultValue: 'Viewing activity' })}
                     subtitle={t('settings.manageHistoryRatings', { defaultValue: 'Manage viewing history and ratings' })}
@@ -129,7 +129,7 @@ const AccountSection: React.FC = () => {
 
             {/* Section 4: Auth Management */}
             <div style={{ border: '1px solid #d1d5db', borderRadius: 8, backgroundColor: '#fff', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <SettingsRow 
+                <SettingsRow
                     icon={<SignOutIcon size={26} weight="regular" style={{ color: '#333' }} />}
                     title={t('nav.signOut')}
                     onClick={() => { logout(); navigate('/'); }}

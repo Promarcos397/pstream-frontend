@@ -338,9 +338,9 @@ import { CaretRightIcon } from '@phosphor-icons/react';
 const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: Partial<AppSettings>) => void }> = ({ settings, updateSettings }) => {
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const { settings: globalSettings } = useGlobalContext();
+    const { settings: globalSettings, user } = useGlobalContext();
 
-    const profileName = globalSettings.displayName || 'Guest';
+    const profileName = settings.displayName || globalSettings.displayName || user?.display_name || user?.public_key?.slice(0, 12) || '';
 
     const handleSelectAvatar = (url: string) => {
         updateSettings({ avatarUrl: url });

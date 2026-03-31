@@ -4,6 +4,8 @@ import SubtitleSettings from './SubtitleSettings';
 import SubtitlePreview from './SubtitlePreview';
 import { IMG_PATH } from '../constants';
 
+import landingBg from '../assets/landing-bg.png';
+
 interface SubtitleSectionProps {
     settings: AppSettings;
     updateSettings: (s: Partial<AppSettings>) => void;
@@ -13,7 +15,7 @@ interface SubtitleSectionProps {
 const SubtitleSection: React.FC<SubtitleSectionProps> = ({ settings, updateSettings, continueWatching }) => {
     const previewBackdrop = continueWatching && continueWatching.length > 0
         ? `${IMG_PATH}${continueWatching[0].backdrop_path}`
-        : "https://image.tmdb.org/t/p/original/mDeUmPeRp1tN2bY8n4Jp1Mv6i8H.jpg";
+        : landingBg;
 
     return (
         <div style={{ color: '#111' }}>

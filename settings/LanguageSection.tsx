@@ -18,8 +18,6 @@ const LanguageSection: React.FC<LanguageSectionProps> = ({ settings, updateSetti
 
     const handleSave = () => {
         updateSettings({ displayLanguage: pendingDisplay, subtitleLanguage: pendingSubtitle });
-        // Small delay before reload to let context update if needed
-        setTimeout(() => window.location.reload(), 100);
     };
 
     return (

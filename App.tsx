@@ -31,7 +31,7 @@ const App: React.FC = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { setPageTitle } = useTitle();
-  const { updateVideoState } = useGlobalContext();
+  const { updateVideoState, getLastWatchedEpisode } = useGlobalContext();
   const { t } = useTranslation();
 
   // Inject navigate into window for non-React context access
@@ -115,10 +115,27 @@ const App: React.FC = () => {
   };
 
   const handlePlay = (movie: Movie, season?: number, episode?: number) => {
+    let finalSeason = season;
+    let finalEpisode = episode;
+
     const type = movie.media_type || (movie.title ? 'movie' : 'tv');
+
+    if (type === 'tv' && !finalSeason && !finalEpisode) {
+      const lastWatched = getLastWatchedEpisode(movie.id);
+      if (lastWatched) {
+        finalSeason = lastWatched.season;
+        finalEpisode = lastWatched.episode;
+        console.log(`[App] 🍿 Resuming last-watched S${finalSeason}E${finalEpisode} for ${movie.name}`);
+      } else {
+        // Default to S1E1
+        finalSeason = 1;
+        finalEpisode = 1;
+      }
+    }
+
     let url = `/watch/${type}/${movie.id}`;
-    if (season && episode) {
-      url += `?season=${season}&episode=${episode}`;
+    if (finalSeason && finalEpisode) {
+      url += `?season=${finalSeason}&episode=${finalEpisode}`;
     }
 
     const releaseDate = movie.release_date || movie.first_air_date;
@@ -129,8 +146,8 @@ const App: React.FC = () => {
       title: movie.title || movie.name,
       type,
       year,
-      season: season || 1,
-      episode: episode || 1,
+      season: finalSeason || 1,
+      episode: finalEpisode || 1,
       timestamp: Date.now()
     };
     

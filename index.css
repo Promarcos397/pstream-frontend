@@ -202,7 +202,6 @@ body {
   animation: netflixZoomRight 0.45s cubic-bezier(0.33, 1, 0.68, 1) forwards;
 }
 
-/* Premium Visual Polish */
 .backdrop-pop {
   filter: saturate(1.18) contrast(1.08) brightness(1.05);
   transition: filter 0.5s ease;
@@ -229,5 +228,27 @@ body {
 
 .cubic-bezier-spring {
   transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Premium Netflix Red Glow */
+.netflix-red-glow {
+  box-shadow: 0 0 20px rgba(229, 9, 20, 0.4);
+}
+
+.netflix-gradient-red {
+  background: linear-gradient(180deg, #E50914 0%, #B81D24 100%);
+}
+
+.glass {
+  background: rgba(20, 20, 20, 0.7);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.text-gradient-red {
+  background: linear-gradient(to right, #E50914, #ff5f6d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 

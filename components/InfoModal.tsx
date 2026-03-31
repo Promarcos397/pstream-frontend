@@ -137,7 +137,21 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
             const type = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
-            // 2. Load Video (Prioritize Local Sync, then Hero Sync, then Prop, then Fetch)
+            // 2. Load Resume Context for TV Shows
+            if (type === 'tv') {
+                try {
+                    const saved = localStorage.getItem(`pstream-last-watched-${movie.id}`);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.season && parsed.episode) {
+                            setResumeContext(parsed);
+                            setSelectedSeason(parsed.season);
+                        }
+                    }
+                } catch (e) { console.warn("Failed to load resume context", e); }
+            }
+
+            // 3. Load Video (Prioritize Local Sync, then Hero Sync, then Prop, then Fetch)
             const savedState = movie ? getVideoState(movie.id) : null;
 
             if (savedState?.videoId) {

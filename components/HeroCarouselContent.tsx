@@ -98,7 +98,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     
                     <button
                         onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                        className="flex items-center justify-center bg-[#6d6d6e]/60 text-white px-5 md:px-7 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/40 backdrop-blur-sm transition-colors text-sm md:text-[15px] gap-2"
+                        className="flex items-center justify-center glass text-white px-5 md:px-7 h-[36px] md:h-[42px] rounded-[4px] font-semibold hover:bg-white/10 transition-all duration-300 text-sm md:text-[15px] gap-2 pointer-events-auto"
                     >
                         <InfoIcon weight="bold" className="text-lg md:text-xl" />
                         {t('hero.moreInfo')}

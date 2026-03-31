@@ -69,9 +69,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [seasonList, setSeasonList] = useState<number[]>([]);
     const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState<Episode[]>([]);
 
-    // TV Show state - EXPLORATION state (for browsing without triggering playback)
-    const [exploredSeasonNumber, setExploredSeasonNumber] = useState(season);
     const [exploredSeasonEpisodes, setExploredSeasonEpisodes] = useState<Episode[]>([]);
+    const [exploredSeasonNumber, setExploredSeasonNumber] = useState(season);
+
+    // Sync Props to State (Allows external navigation to update player)
+    useEffect(() => {
+        if (season !== playingSeasonNumber) setPlayingSeasonNumber(season);
+        if (episode !== currentEpisode) setCurrentEpisode(episode);
+    }, [season, episode]);
 
     // Settings Panel - use correct panel types
     const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality'>('none');
@@ -146,7 +151,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (mediaType !== 'tv' || !currentSeasonEpisodes.length) return null;
         return currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode);
     }, [mediaType, currentSeasonEpisodes, currentEpisode]);
-    
+
     // Manage Network Priority
     useEffect(() => {
         NetworkPriority.setVideoActive(true);
@@ -185,7 +190,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             if (cached && cached.sources && cached.sources.length > 0) {
                 // INSTANT PATH: If cached within last 5 minutes, trust it immediately
                 const isVeryRecent = (Date.now() - (cached as any).cachedAt) < 5 * 60 * 1000;
-                
+
                 if (isVeryRecent) {
                     console.log(`[VideoPlayer] ⚡ Extremely recent cache found. Instant play.`);
                     applyStreamResult(cached.sources, cached.subtitles);
@@ -194,7 +199,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
                 setLoadingMessage('Optimizing cached stream...');
                 console.log(`[VideoPlayer] ⚡ Found cached stream. Applying S${playingSeasonNumber}E${currentEpisode}...`);
-                
+
                 // Directly apply cached result for now (browser fetch(HEAD) is brittle with CORS)
                 applyStreamResult(cached.sources, cached.subtitles);
                 return;
@@ -274,7 +279,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const applyStreamResult = (sources: any[], subtitles: any[], globalReferer?: string | null) => {
             setAllSources(sources);
             setCurrentSourceIndex(0);
-            
+
             // Find HLS source (m3u8) or fallback to first
             const hlsSource = sources[0];
             const isEmbedFallback = !!hlsSource.isEmbed;
@@ -285,7 +290,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
             let finalUrl = hlsSource.url;
             if (!isEmbedFallback) {
-                finalUrl = hlsSource.isM3U8 
+                finalUrl = hlsSource.isM3U8
                     ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`
                     : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`;
             }
@@ -310,8 +315,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
                 const preferredLang = settings.subtitleLanguage?.toLowerCase() || 'en';
                 const matchingSub = mappedCaptions.find((s: any) => s.lang.includes(preferredLang) || s.label.toLowerCase().includes(preferredLang));
-                if (matchingSub && settings.showSubtitles) {
-                    setCurrentCaption(matchingSub.url);
+                const fallbackSub = mappedCaptions.find((s: any) => s.lang === 'en' || s.label.toLowerCase().includes('english'));
+
+                const finalSub = matchingSub || fallbackSub || mappedCaptions[0];
+                if (finalSub && settings.showSubtitles) {
+                    console.log(`[VideoPlayer] 🌐 Selecting subtitle: ${finalSub.label} (${finalSub.lang})`);
+                    setCurrentCaption(finalSub.url);
                 }
             }
         };
@@ -389,7 +398,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!streamUrl || !videoRef.current || isEmbed) {
             // For embeds, we stop buffering immediately because the iframe handles its own loading.
             if (isEmbed && isBuffering) {
-                setTimeout(() => setIsBuffering(false), 500); 
+                setTimeout(() => setIsBuffering(false), 500);
             }
             return;
         }
@@ -465,11 +474,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         setIsEmbed(nextIsEmbed);
                         let nextUrl = nextSource.url;
                         if (!nextIsEmbed) {
-                            nextUrl = nextSource.isM3U8 
+                            nextUrl = nextSource.isM3U8
                                 ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`
                                 : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`;
                         }
-                        
+
                         setStreamUrl(nextUrl);
                         setIsStreamM3U8(!!nextSource.isM3U8);
                         return;
@@ -537,7 +546,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (video.duration > 0) {
             const now = Date.now();
             const currentProgress = (video.currentTime / video.duration) * 100;
-            
+
             // Auto-trigger next episode at 99.5% (Smart Autoplay)
             if (mediaType === 'tv' && settings.autoplayNextEpisode && currentProgress >= 99.5) {
                 const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
@@ -548,7 +557,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 }
             }
 
-            if (now - lastSaveRef.current > 5000) {
+            if (now - lastSaveRef.current > 2000) {
                 lastSaveRef.current = now;
 
                 // Add to Continue Watching
@@ -694,23 +703,28 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     // Episode navigation - SELECT = actually play
     const handleEpisodeSelect = useCallback((ep: Episode) => {
-        // Update PLAYBACK state - this triggers stream fetch
+        // Reset state for new episode
+        setStreamUrl(null);
+        setIsBuffering(true);
+        setLoadingMessage(`Preparing ${ep.name}...`);
+        setCaptions([]);
+        setError(null);
+
+        // Update PLAYBACK state - this triggers stream fetch useEffect
         setPlayingSeasonNumber(exploredSeasonNumber);
         setCurrentSeasonEpisodes(exploredSeasonEpisodes);
         setCurrentEpisode(ep.episode_number);
         setActivePanel('none');
 
-        // Update URL for deep linking (so refresh maintains episode)
-        if (mediaType === 'tv') {
-            const newUrl = `/watch/tv/${movie.id}?season=${exploredSeasonNumber}&episode=${ep.episode_number}`;
-            window.history.replaceState(null, '', newUrl);
-        }
-    }, [exploredSeasonNumber, exploredSeasonEpisodes, mediaType, movie.id]);
+        // Update URL for deep linking without page reload
+        const newUrl = `/watch/tv/${movie.id}?season=${exploredSeasonNumber}&episode=${ep.episode_number}`;
+        window.history.replaceState(null, '', newUrl);
+    }, [exploredSeasonNumber, exploredSeasonEpisodes, movie.id]);
 
     const handleShare = useCallback(() => {
         const type = mediaType === 'tv' ? 'tv' : 'movie';
         const url = `${window.location.protocol}//${window.location.host}/watch/${type}/${movie.id}${mediaType === 'tv' ? `?season=${playingSeasonNumber}&episode=${currentEpisode}` : ''}`;
-        
+
         navigator.clipboard.writeText(url).then(() => {
             // Provide visual feedback via the loading message (temporary 2s toast)
             const oldMessage = loadingMessage;
@@ -721,9 +735,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         });
     }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, loadingMessage]);
 
+    const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
+
     // Season EXPLORATION - just browse, don't trigger playback
     const handleSeasonExplore = useCallback(async (s: number) => {
         setExploredSeasonNumber(s);
+        setIsLoadingEpisodes(true);
+        setExploredSeasonEpisodes([]); // Clear stale data
         try {
             const seasonData = await getSeasonDetails(String(movie.id), s);
             if (seasonData?.episodes) {
@@ -731,6 +749,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         } catch (error) {
             console.error('[VideoPlayer] Error fetching season for exploration:', error);
+        } finally {
+            setIsLoadingEpisodes(false);
         }
     }, [movie.id]);
 
@@ -790,7 +810,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // --- Subtitle Dynamic Style Injection ---
     const subtitleStyles = useMemo(() => {
         const { subtitleSize, subtitleColor, subtitleFontFamily, subtitleOpacity, subtitleEdgeStyle, subtitleBackground, subtitleWindowColor } = settings;
-        
+
         let fontSize = '24px';
         if (subtitleSize === 'tiny') fontSize = '16px';
         if (subtitleSize === 'small') fontSize = '20px';
@@ -844,9 +864,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             {/* Back Button */}
             <div className={`absolute top-10 left-6 z-50 transition-opacity duration-300 ${showUI ? 'opacity-100' : 'opacity-0'}`}>
                 <button
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
-                        if (onClose) onClose(); 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onClose) onClose();
                         else if ((window as any).reactNavigate) (window as any).reactNavigate(-1);
                         else window.history.back();
                     }}
@@ -874,11 +894,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                     // Iframes don't report when they finish loading reliably, so we fake it after 1.5s
                                     setTimeout(() => setIsBuffering(false), 1500);
                                 }}
-                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                                    currentSourceIndex === idx 
-                                    ? 'bg-[#E50914] text-white shadow-[0_0_10px_rgba(229,9,20,0.5)]' 
-                                    : 'bg-white/10 text-white hover:bg-white/20'
-                                }`}
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${currentSourceIndex === idx
+                                        ? 'bg-[#E50914] text-white shadow-[0_0_10px_rgba(229,9,20,0.5)]'
+                                        : 'bg-white/10 text-white hover:bg-white/20'
+                                    }`}
                             >
                                 {src.serverName || src.name || `Server ${idx + 1}`}
                             </button>
@@ -895,35 +914,35 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     style={{ zIndex: 25, backgroundColor: 'black' }}
                     allowFullScreen
                     allow="autoplay; fullscreen"
-                    // Sandbox tag completely removed to prevent blocking 3rd party providers
+                // Sandbox tag completely removed to prevent blocking 3rd party providers
                 />
             ) : (
                 <video
                     ref={videoRef}
-                className="absolute inset-0 w-full h-full object-contain bg-black"
-                onTimeUpdate={handleTimeUpdate}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onWaiting={() => setIsBuffering(true)}
-                onPlaying={() => setIsBuffering(false)}
-                onEnded={() => {
-                    if (mediaType === 'tv' && currentEpisode < currentSeasonEpisodes.length) {
-                        const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
-                        if (nextEp) handleEpisodeSelect(nextEp);
-                    }
-                }}
-                playsInline
-                onContextMenu={(e) => e.preventDefault()}
-            >
-                {subtitleObjectUrl && (
-                    <track
-                        kind="subtitles"
-                        label="Captions"
-                        srcLang={captions.find(c => c.url === currentCaption)?.lang || 'en'}
-                        src={subtitleObjectUrl}
-                        default
-                    />
-                )}
+                    className="absolute inset-0 w-full h-full object-contain bg-black"
+                    onTimeUpdate={handleTimeUpdate}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onWaiting={() => setIsBuffering(true)}
+                    onPlaying={() => setIsBuffering(false)}
+                    onEnded={() => {
+                        if (mediaType === 'tv' && currentEpisode < currentSeasonEpisodes.length) {
+                            const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
+                            if (nextEp) handleEpisodeSelect(nextEp);
+                        }
+                    }}
+                    playsInline
+                    onContextMenu={(e) => e.preventDefault()}
+                >
+                    {subtitleObjectUrl && (
+                        <track
+                            kind="subtitles"
+                            label="Captions"
+                            srcLang={captions.find(c => c.url === currentCaption)?.lang || 'en'}
+                            src={subtitleObjectUrl}
+                            default
+                        />
+                    )}
                 </video>
             )}
 
@@ -933,14 +952,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     {/* Blurred Backdrop - Only show during initial stream finding phase */}
                     {!streamUrl && (
                         <>
-                            <div 
+                            <div
                                 className="absolute inset-0 bg-cover bg-center brightness-[0.3] scale-110"
-                                style={{ 
+                                style={{
                                     backgroundImage: `url(https://image.tmdb.org/t/p/original${movie.backdrop_path || movie.poster_path})`,
                                     filter: 'blur(20px)'
                                 }}
                             />
-                            
+
                             <div className="relative h-screen w-screen flex items-center justify-center">
                                 <div className="text-center">
                                     <div className="relative inline-block">
