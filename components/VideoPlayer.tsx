@@ -271,26 +271,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
 
         // Helper to apply stream result (used by both cached and fresh fetches)
-        const applyStreamResult = (sources: any[], subtitles: any[], referer?: string | null) => {
+        const applyStreamResult = (sources: any[], subtitles: any[], globalReferer?: string | null) => {
             setAllSources(sources);
             setCurrentSourceIndex(0);
+            
             // Find HLS source (m3u8) or fallback to first
             const hlsSource = sources[0];
             const isEmbedFallback = !!hlsSource.isEmbed;
             setIsEmbed(isEmbedFallback);
 
+            // Use the source-specific referer if available, otherwise use the global one passed by the resolver
+            const activeReferer = hlsSource.referer || globalReferer || '';
+
             let finalUrl = hlsSource.url;
             if (!isEmbedFallback) {
                 finalUrl = hlsSource.isM3U8 
-                    ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(referer || '')}`
-                    : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(referer || '')}`;
+                    ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`
+                    : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`;
             }
 
-            console.log('[VideoPlayer] Selected source:', finalUrl);
+            console.log(`[VideoPlayer] Selected source (${hlsSource.isM3U8 ? 'M3U8' : 'Video'}):`, finalUrl);
+            if (activeReferer) console.log(`[VideoPlayer] Using Referer:`, activeReferer);
 
             setStreamUrl(finalUrl);
             setIsStreamM3U8(!!hlsSource.isM3U8);
-            setStreamReferer(referer || null);
+            setStreamReferer(activeReferer || null);
             setLoadingMessage('Loading video...');
 
             // Handle subtitles if present
