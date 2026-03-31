@@ -160,11 +160,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode);
     }, [mediaType, currentSeasonEpisodes, currentEpisode]);
 
-    // Manage Network Priority
+    // Manage Network Priority and Kill Background Hero Videos
+    const { setActiveVideoId } = useGlobalContext();
     useEffect(() => {
+        // Stop any background Hero videos immediately
+        setActiveVideoId('playing-movie-mode');
         NetworkPriority.setVideoActive(true);
-        return () => NetworkPriority.setVideoActive(false);
-    }, []);
+        
+        return () => {
+             setActiveVideoId(null);
+             NetworkPriority.setVideoActive(false);
+        };
+    }, [setActiveVideoId]);
 
 
     // --- Fetch Stream using Puppeteer ---
@@ -549,11 +556,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const lastSaveRef = useRef<number>(0);
     const handleTimeUpdate = useCallback(() => {
         const video = videoRef.current;
-        if (!video) return;
+        if (!video || !video.src) return; // Robust check against 'src of null' during mid-switch
+        
+        // Ensure duration is valid before proceeding
+        if (isNaN(video.duration) || video.duration === 0) return;
 
         setCurrentTime(video.currentTime);
-        setDuration(video.duration || 0);
-        setProgress(video.duration > 0 ? (video.currentTime / video.duration) * 100 : 0);
+        setDuration(video.duration);
+        setProgress((video.currentTime / video.duration) * 100);
 
         // Save progress & history every 5 seconds
         if (video.duration > 0) {
@@ -917,12 +927,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             {/* Native Video Element or Embedded Iframe */}
             {isEmbed ? (
                 <iframe
+                    key={`embed-${streamUrl}`}
                     src={streamUrl || undefined}
                     className="absolute inset-0 w-full h-full border-none pointer-events-auto"
                     style={{ zIndex: 25, backgroundColor: 'black' }}
                     allowFullScreen
-                    allow="autoplay; fullscreen"
-                // Sandbox tag completely removed to prevent blocking 3rd party providers
+                    allow="autoplay; fullscreen; picture-in-picture"
+                    sandbox="allow-forms allow-scripts allow-pointer-lock allow-same-origin allow-presentation"
+                    loading="lazy"
                 />
             ) : (
                 <video
