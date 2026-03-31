@@ -236,7 +236,9 @@ export const getStream = async (title: string, type: 'movie' | 'tv', year?: numb
       type,
       season: season.toString(),
       episode: episode.toString(),
-      imdbId: imdbId || ''
+      imdbId: imdbId || '',
+      title: title || '',
+      year: year ? year.toString() : ''
     });
 
     console.log(`[GigaEngine] Requesting stream (Giga Backend)...`);

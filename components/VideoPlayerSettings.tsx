@@ -315,7 +315,10 @@ const EpisodeExplorer: React.FC<{
                                                     className="relative group cursor-pointer flex-shrink-0"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onEpisodeSelect(ep);
+                                                        // Stamp season_number explicitly - TMDB objects don't always have it
+                                                        const epWithSeason = { ...ep, season_number: selectedSeason };
+                                                        onEpisodeSelect(epWithSeason);
+                                                        setActivePanel('none');
                                                     }}
                                                 >
                                                     <img
