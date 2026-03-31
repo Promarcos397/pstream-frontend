@@ -1,49 +1,66 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Episode } from '../types';
 import { ArrowLeftIcon, CaretDownIcon, PlayCircleIcon, CheckIcon, CaretRightIcon, XIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-interface PopupPanelProps {
+// ─── Shared: compact panel wrapper ────────────────────────────────────────────
+// On mobile: slides up from the bottom as a sheet (max 55vh).
+// On desktop: small floating overlay anchored above the controls.
+const PanelShell: React.FC<{
     title: string;
-    onBack?: () => void;
-    onClose: () => void;
-    children: React.ReactNode;
-    headerContent?: React.ReactNode;
-}
-
-const MinimalPanel: React.FC<{
     onClose: () => void;
     onHover?: () => void;
+    onLeave?: () => void;
     children: React.ReactNode;
-}> = ({ onClose, onHover, children }) => {
+    /** Override desktop positioning class */
+    desktopClass?: string;
+}> = ({ title, onClose, onHover, onLeave, children, desktopClass }) => {
     const isMobile = useIsMobile();
-    return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-0 pointer-events-none">
-            <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={onClose} />
+
+    if (isMobile) {
+        return (
+            // Backdrop
             <div
-                className={`${isMobile 
-                    ? 'relative w-full max-w-[500px] max-h-[80vh] rounded-xl' 
-                    : 'absolute bottom-24 right-4 w-auto min-w-[700px] max-w-[800px] max-h-[45vh] rounded'} 
-                    bg-[#1a1a1a] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn pointer-events-auto border border-white/10`}
-                onMouseEnter={!isMobile ? onHover : undefined}
-                onMouseLeave={!isMobile ? onClose : undefined}
+                className="fixed inset-0 z-[120] flex flex-col justify-end"
+                onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             >
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#141414]">
-                    <span className="text-white text-base md:text-xl font-bold uppercase tracking-widest font-leaner">Settings</span>
-                    <button onClick={onClose} className="p-2 -mr-2 text-white/70 hover:text-white transition-colors">
-                        <XIcon size={24} weight="bold" />
-                    </button>
-                </div>
-                <div className="flex-1 overflow-y-auto scrollbar-none">
-                    {children}
+                {/* Sheet */}
+                <div
+                    className="bg-[#1c1c1c] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden animate-slideIn"
+                    style={{ maxHeight: '58vh' }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 flex-shrink-0">
+                        <span className="text-white text-base font-bold uppercase tracking-widest">{title}</span>
+                        <button
+                            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+                            className="p-2 -mr-2 text-white/70 active:text-white rounded-full active:bg-white/10"
+                        >
+                            <XIcon size={22} weight="bold" />
+                        </button>
+                    </div>
+                    <div className="overflow-y-auto flex-1 scrollbar-none">{children}</div>
                 </div>
             </div>
+        );
+    }
+
+    // Desktop: floating panel above controls
+    return (
+        <div
+            className={`absolute z-[120] bg-[#1a1a1a] rounded shadow-2xl flex flex-col overflow-hidden animate-fadeIn font-['Consolas'] ${desktopClass || 'bottom-24 right-4 w-[340px] max-h-[50vh]'}`}
+            onMouseEnter={onHover}
+            onMouseLeave={onLeave}
+        >
+            <div className="overflow-y-auto flex-1 scrollbar-none">{children}</div>
         </div>
     );
 };
 
+// ─── Subtitle / Audio menu ─────────────────────────────────────────────────
 const SubtitleMenu: React.FC<{
     captions: Array<{ id: string; label: string; url: string; lang: string }>;
     currentCaption: string | null;
@@ -52,125 +69,77 @@ const SubtitleMenu: React.FC<{
 }> = ({ captions, currentCaption, onSubtitleChange, onClose }) => {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
-    const [activeLangGroup, setActiveLangGroup] = useState<string | null>(null);
+    const [activeLangGroup, setActiveLangGroup] = React.useState<string | null>(null);
 
-    const groupedCaptions = useMemo(() => {
+    const groupedCaptions = React.useMemo(() => {
         const groups: Record<string, typeof captions> = {};
-
         captions.forEach(cap => {
             const langKey = cap.lang || cap.label;
             if (!groups[langKey]) groups[langKey] = [];
             groups[langKey].push(cap);
         });
-
         return Object.entries(groups).sort(([keyA, capsA], [keyB, capsB]) => {
-            const labelA = capsA[0].label.toLowerCase();
-            const labelB = capsB[0].label.toLowerCase();
-            const aIsEnglish = keyA === 'en' || labelA.includes('english');
-            const bIsEnglish = keyB === 'en' || labelB.includes('english');
-
+            const aIsEnglish = keyA === 'en' || capsA[0].label.toLowerCase().includes('english');
+            const bIsEnglish = keyB === 'en' || capsB[0].label.toLowerCase().includes('english');
             if (aIsEnglish && !bIsEnglish) return -1;
             if (!aIsEnglish && bIsEnglish) return 1;
-            return labelA.localeCompare(labelB);
+            return capsA[0].label.toLowerCase().localeCompare(capsB[0].label.toLowerCase());
         });
     }, [captions]);
+
+    const rowCls = `flex items-center px-4 ${isMobile ? 'py-4' : 'py-2.5'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition rounded select-none`;
 
     if (activeLangGroup) {
         const groupTuple = groupedCaptions.find(([key]) => key === activeLangGroup);
         const groupCaps = groupTuple ? groupTuple[1] : [];
-        const langName = groupCaps.length > 0 ? groupCaps[0].label : activeLangGroup;
+        const langName = groupCaps[0]?.label ?? activeLangGroup;
 
         return (
-            <div className="flex flex-col w-full py-2">
-                <div
-                    onClick={() => setActiveLangGroup(null)}
-                    className="flex items-center px-4 py-3 cursor-pointer hover:bg-white/5 transition border-b border-white/10 mb-2"
-                >
-                    <ArrowLeftIcon size={20} weight="bold" className="text-white mr-3" />
-                    <span className="text-white text-lg font-bold">
-                        {langName}
-                    </span>
+            <div className="flex flex-col w-full py-1">
+                <div onClick={() => setActiveLangGroup(null)} className={`${rowCls} border-b border-white/10 mb-1`}>
+                    <ArrowLeftIcon size={18} weight="bold" className="text-white mr-3 flex-shrink-0" />
+                    <span className="text-white font-bold">{langName}</span>
                 </div>
-
-                <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-x-2 px-2 pb-3 overflow-y-auto max-h-[70vh] md:max-h-[35vh] scrollbar-none`}>
-                    {groupCaps.map((cap, index) => {
-                        const displayLabel = groupCaps.length > 1 ? `${cap.label} (Track ${index + 1})` : cap.label;
-
-                        return (
-                            <div
-                                key={cap.id}
-                                onClick={() => {
-                                    onSubtitleChange(cap.url);
-                                    setActiveLangGroup(null);
-                                    onClose();
-                                }}
-                                className="flex items-center px-3 py-3 md:py-2 cursor-pointer hover:bg-white/5 transition rounded"
-                            >
-                                <div className="w-5 mr-3 md:mr-2 flex justify-center">
-                                    {currentCaption === cap.url && <CheckIcon size={16} weight="bold" className="text-white" />}
-                                </div>
-                                <span className={`text-lg truncate ${currentCaption === cap.url ? 'text-white font-bold' : 'text-white/60'}`} title={displayLabel}>
-                                    {displayLabel}
-                                </span>
+                {groupCaps.map((cap, index) => {
+                    const displayLabel = groupCaps.length > 1 ? `${cap.label} (Track ${index + 1})` : cap.label;
+                    return (
+                        <div key={cap.id} className={rowCls} onClick={() => { onSubtitleChange(cap.url); setActiveLangGroup(null); onClose(); }}>
+                            <div className="w-5 mr-3 flex-shrink-0 flex justify-center">
+                                {currentCaption === cap.url && <CheckIcon size={14} weight="bold" className="text-white" />}
                             </div>
-                        );
-                    })}
-                </div>
+                            <span className={`text-sm truncate ${currentCaption === cap.url ? 'text-white font-bold' : 'text-white/60'}`}>{displayLabel}</span>
+                        </div>
+                    );
+                })}
             </div>
         );
     }
 
     return (
-        <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-x-2 py-3 px-2`}>
-            <div
-                onClick={() => {
-                    onSubtitleChange(null);
-                    onClose();
-                }}
-                className="flex items-center px-3 py-3 md:py-2 cursor-pointer hover:bg-white/5 transition rounded"
-            >
-                <div className="w-5 mr-3 md:mr-2 flex justify-center">
-                    {currentCaption === null && <CheckIcon size={16} weight="bold" className="text-white" />}
+        <div className="flex flex-col py-1">
+            {/* Off */}
+            <div className={rowCls} onClick={() => { onSubtitleChange(null); onClose(); }}>
+                <div className="w-5 mr-3 flex-shrink-0 flex justify-center">
+                    {currentCaption === null && <CheckIcon size={14} weight="bold" className="text-white" />}
                 </div>
-                <span className={`text-lg ${currentCaption === null ? 'text-white font-bold' : 'text-white/60'}`}>
-                    {t('player.off')}
-                </span>
+                <span className={`text-sm ${currentCaption === null ? 'text-white font-bold' : 'text-white/60'}`}>{t('player.off')}</span>
             </div>
 
             {groupedCaptions.map(([langKey, caps]) => {
                 const isMulti = caps.length > 1;
                 const hasActiveChild = caps.some(c => c.url === currentCaption);
-
                 return (
-                    <div
-                        key={langKey}
-                        onClick={() => {
-                            if (isMulti) {
-                                setActiveLangGroup(langKey);
-                            } else {
-                                onSubtitleChange(caps[0].url);
-                                onClose();
-                            }
-                        }}
-                        className="flex items-center justify-between px-3 py-3 md:py-2 cursor-pointer hover:bg-white/5 transition rounded group"
-                    >
+                    <div key={langKey} className={`${rowCls} justify-between`} onClick={() => {
+                        if (isMulti) { setActiveLangGroup(langKey); }
+                        else { onSubtitleChange(caps[0].url); onClose(); }
+                    }}>
                         <div className="flex items-center overflow-hidden">
-                            <div className="w-5 mr-3 md:mr-2 flex-shrink-0 flex justify-center">
-                                {hasActiveChild && <CheckIcon size={16} weight="bold" className="text-white" />}
+                            <div className="w-5 mr-3 flex-shrink-0 flex justify-center">
+                                {hasActiveChild && <CheckIcon size={14} weight="bold" className="text-white" />}
                             </div>
-                            <span className={`text-lg truncate ${hasActiveChild ? 'text-white font-bold' : 'text-white/60'}`}>
-                                {caps[0].label}
-                            </span>
+                            <span className={`text-sm truncate ${hasActiveChild ? 'text-white font-bold' : 'text-white/60'}`}>{caps[0].label}</span>
                         </div>
-
-                        {isMulti && (
-                            <div className="flex items-center ml-2">
-                                <span className="text-xs text-white/30 mr-2 opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                    {caps.length}
-                                </span>
-                                <CaretRightIcon size={16} weight="bold" className="text-white/40 md:group-hover:text-white transition-colors" />
-                            </div>
-                        )}
+                        {isMulti && <CaretRightIcon size={14} weight="bold" className="text-white/40 ml-2 flex-shrink-0" />}
                     </div>
                 );
             })}
@@ -178,6 +147,40 @@ const SubtitleMenu: React.FC<{
     );
 };
 
+// ─── Quality menu ──────────────────────────────────────────────────────────
+const QualityMenu: React.FC<{
+    qualities: Array<{ height: number; bitrate: number; level: number }>;
+    currentQuality: number;
+    onQualityChange: (level: number) => void;
+    onClose: () => void;
+}> = ({ qualities, currentQuality, onQualityChange, onClose }) => {
+    const isMobile = useIsMobile();
+    const rowCls = `flex items-center justify-between px-4 ${isMobile ? 'py-4' : 'py-2.5'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition rounded select-none`;
+
+    const handleSelect = (level: number) => {
+        onQualityChange(level);
+        onClose();
+    };
+
+    return (
+        <div className="flex flex-col py-1">
+            <div className={rowCls} onClick={() => handleSelect(-1)}>
+                <span className={`text-sm ${currentQuality === -1 ? 'text-white font-bold' : 'text-white/60'}`}>Auto</span>
+                {currentQuality === -1 && <CheckIcon size={14} weight="bold" className="text-white" />}
+            </div>
+            {qualities.map((q, i) => (
+                <div key={i} className={rowCls} onClick={() => handleSelect(q.level)}>
+                    <span className={`text-sm ${currentQuality === q.level ? 'text-white font-bold' : 'text-white/60'}`}>
+                        {q.height}p {q.height >= 1080 ? 'HD' : ''}
+                    </span>
+                    {currentQuality === q.level && <CheckIcon size={14} weight="bold" className="text-white" />}
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// ─── Episode explorer ──────────────────────────────────────────────────────
 const EpisodeExplorer: React.FC<{
     seasonList: number[];
     currentSeasonEpisodes: Episode[];
@@ -197,29 +200,36 @@ const EpisodeExplorer: React.FC<{
     const { t } = useTranslation();
     const isMobile = useIsMobile();
     const { getEpisodeProgress } = useGlobalContext();
-    const [previewSeason, setPreviewSeason] = useState(selectedSeason);
-    const [expandedEpisodeId, setExpandedEpisodeId] = useState<number | null>(null);
+    const [previewSeason, setPreviewSeason] = React.useState(selectedSeason);
+    const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
     const episodesContainerRef = useRef<HTMLDivElement>(null);
     const currentEpisodeRef = useRef<HTMLDivElement>(null);
 
-    const formatTime = (seconds: number): string => {
+    const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    React.useEffect(() => {
-        setPreviewSeason(selectedSeason);
-    }, [selectedSeason, activePanel]);
+    React.useEffect(() => { setPreviewSeason(selectedSeason); }, [selectedSeason, activePanel]);
 
     React.useEffect(() => {
         if (playingSeason === selectedSeason) {
             const playingEp = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode);
-            if (playingEp) {
-                setExpandedEpisodeId(playingEp.id);
-            }
+            if (playingEp) setExpandedEpisodeId(playingEp.id);
         }
     }, [selectedSeason, playingSeason, currentEpisode, currentSeasonEpisodes]);
+
+    useEffect(() => {
+        if (activePanel === 'episodes' && currentEpisodeRef.current && episodesContainerRef.current) {
+            setTimeout(() => currentEpisodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+        }
+    }, [activePanel, currentEpisode]);
+
+    const getEpisodeProgressPercent = (season: number, epNumber: number): number => {
+        const progress = getEpisodeProgress(showId, season, epNumber);
+        return progress && progress.duration > 0 ? Math.min((progress.time / progress.duration) * 100, 100) : 0;
+    };
 
     const handleSeasonClick = (s: number) => {
         setPreviewSeason(s);
@@ -227,157 +237,100 @@ const EpisodeExplorer: React.FC<{
         setActivePanel('episodes');
     };
 
-    useEffect(() => {
-        if (activePanel === 'episodes' && currentEpisodeRef.current && episodesContainerRef.current) {
-            setTimeout(() => {
-                currentEpisodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 100);
-        }
-    }, [activePanel, currentEpisode]);
+    const closePanel = onClose || (() => setActivePanel('none'));
 
-    const getEpisodeProgressPercent = (season: number, epNumber: number): number => {
-        const progress = getEpisodeProgress(showId, season, epNumber);
-        if (progress && progress.duration > 0) {
-            return Math.min((progress.time / progress.duration) * 100, 100);
-        }
-        return 0;
-    };
+    const rowCls = `flex items-center px-4 ${isMobile ? 'py-4' : 'py-3'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition select-none`;
 
-    return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-0 pointer-events-none">
-            <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={onClose || (() => setActivePanel('none'))} />
-            <div
-                className={`${isMobile 
-                    ? 'relative w-full max-w-[800px] max-h-[85vh] rounded-xl' 
-                    : 'absolute bottom-24 right-2 w-auto min-w-[650px] max-w-[750px] min-h-[40vh] max-h-[70vh] rounded'} 
-                    bg-[#1a1a1a] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn text-white pointer-events-auto border border-white/10`}
-                onMouseEnter={!isMobile ? onPanelHover : undefined}
-                onMouseLeave={!isMobile ? (onClose || (() => setActivePanel('none'))) : undefined}
-            >
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#141414]">
-                    <span className="text-white text-base md:text-xl font-bold uppercase tracking-widest font-leaner">Episodes</span>
-                    <button onClick={onClose || (() => setActivePanel('none'))} className="p-2 -mr-2 text-white/70 hover:text-white transition-colors">
-                        <XIcon size={24} weight="bold" />
-                    </button>
-                </div>
-
+    const innerContent = (
+        <>
             {activePanel === 'seasons' && (
-                <div className="flex flex-col py-2 overflow-y-auto max-h-[90vh] md:max-h-[60vh]">
+                <div className="flex flex-col py-1">
                     {!isMobile && showTitle && (
-                        <div className="px-4 py-4 border-b border-white/20">
-                            <span className="text-white text-xl">{showTitle}</span>
-                        </div>
+                        <div className="px-4 py-3 border-b border-white/10 text-white text-sm font-bold opacity-60">{showTitle}</div>
                     )}
                     {seasonList.map(s => (
-                        <div
-                            key={s}
-                            onClick={() => handleSeasonClick(s)}
-                            className={`flex items-center px-4 py-5 cursor-pointer hover:bg-white/5 transition ${selectedSeason === s ? 'border-l-[3px] border-white/60 bg-white/5' : ''}`}
-                        >
-                            <div className="w-6 mr-3 flex justify-center">
-                                {selectedSeason === s && <CheckIcon size={16} weight="bold" className="text-white" />}
+                        <div key={s} onClick={() => handleSeasonClick(s)} className={`${rowCls} ${selectedSeason === s ? 'border-l-2 border-white/50 bg-white/5' : ''}`}>
+                            <div className="w-5 mr-3 flex-shrink-0 flex justify-center">
+                                {selectedSeason === s && <CheckIcon size={14} weight="bold" className="text-white" />}
                             </div>
-                            <span className={`text-lg font-['Consolas'] ${selectedSeason === s ? 'text-white font-bold' : 'text-white/60'}`}>
+                            <span className={`text-sm ${selectedSeason === s ? 'text-white font-bold' : 'text-white/60'}`}>
                                 {t('player.season')} {s}
                             </span>
                         </div>
                     ))}
                 </div>
             )}
+
             {activePanel === 'episodes' && (
                 <div className="flex flex-col h-full">
-                    <div
-                        className="flex items-center px-4 py-4 border-b border-white/10 cursor-pointer hover:bg-white/5 transition"
-                        onClick={() => setActivePanel('seasons')}
-                    >
-                        <ArrowLeftIcon size={24} weight="bold" className="text-white mr-4" />
-                        <span className="text-white text-xl font-['Consolas'] font-bold">{t('player.season')} {previewSeason}</span>
+                    <div onClick={() => setActivePanel('seasons')} className={`${rowCls} border-b border-white/10 flex-shrink-0`}>
+                        <ArrowLeftIcon size={18} weight="bold" className="text-white mr-3 flex-shrink-0" />
+                        <span className="text-white font-bold text-sm">{t('player.season')} {previewSeason}</span>
                     </div>
 
-                    <div ref={episodesContainerRef} className="flex flex-col py-2 flex-1 overflow-y-auto scrollbar-none">
+                    <div ref={episodesContainerRef} className="flex flex-col py-1 overflow-y-auto flex-1 scrollbar-none">
                         {currentSeasonEpisodes.map(ep => {
                             const isPlaying = currentEpisode === ep.episode_number && playingSeason === selectedSeason;
                             const isExpanded = expandedEpisodeId === ep.id;
+                            const progress = getEpisodeProgress(showId, selectedSeason, ep.episode_number);
 
                             return (
                                 <div
                                     key={ep.id}
                                     ref={isPlaying ? currentEpisodeRef : null}
-                                    className={`px-4 transition ${isExpanded ? 'bg-black/40 pb-6 pt-4' : 'py-4 hover:bg-white/5'} ${isPlaying ? 'border-l-4 border-[#E50914]' : ''}`}
+                                    className={`transition ${isPlaying ? 'border-l-2 border-[#E50914]' : ''}`}
                                 >
                                     <div
-                                        className="flex items-center cursor-pointer group"
+                                        className={`flex items-center px-4 ${isMobile ? 'py-4' : 'py-3'} cursor-pointer hover:bg-white/5 active:bg-white/10 select-none`}
                                         onClick={() => {
-                                            const newExpanded = isExpanded ? null : ep.id;
-                                            setExpandedEpisodeId(newExpanded);
-                                            if (newExpanded && onEpisodeExpand) {
-                                                onEpisodeExpand(selectedSeason, ep.episode_number);
-                                            }
+                                            const newExp = isExpanded ? null : ep.id;
+                                            setExpandedEpisodeId(newExp);
+                                            if (newExp && onEpisodeExpand) onEpisodeExpand(selectedSeason, ep.episode_number);
                                         }}
                                     >
-                                        <span className={`w-8 text-lg font-['Consolas'] ${isPlaying ? 'text-white font-bold' : 'text-white/70'}`}>
-                                            {ep.episode_number}
-                                        </span>
-                                        <span className={`flex-1 text-lg font-['Consolas'] ${isPlaying ? 'text-white font-bold' : 'text-white/90'}`}>
-                                            {ep.name}
-                                        </span>
-                                        {(() => {
-                                            const progress = getEpisodeProgress(showId, selectedSeason, ep.episode_number);
-                                            if (progress && progress.time > 10 && progress.time < (progress.duration - 30)) {
-                                                return (
-                                                    <span className="hidden md:inline text-xs text-white/50 mr-3">
-                                                        Resume {formatTime(progress.time)}
-                                                    </span>
-                                                );
-                                            }
-                                            return null;
-                                        })()}
-                                        <CaretDownIcon
-                                            size={20}
-                                            className={`text-white/50 transition-transform duration-300 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}
-                                        />
+                                        <span className={`w-7 text-sm flex-shrink-0 ${isPlaying ? 'text-white font-bold' : 'text-white/50'}`}>{ep.episode_number}</span>
+                                        <span className={`flex-1 text-sm ${isPlaying ? 'text-white font-bold' : 'text-white/90'} truncate mr-2`}>{ep.name}</span>
+                                        {progress && progress.time > 10 && (
+                                            <span className="text-[10px] text-white/40 mr-2 flex-shrink-0 hidden sm:inline">
+                                                {formatTime(progress.time)}
+                                            </span>
+                                        )}
+                                        <CaretDownIcon size={16} className={`text-white/40 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                     </div>
 
                                     {isExpanded && (
-                                        <div className={`flex flex-col md:flex-row mt-4 gap-4 md:gap-5 ml-2 animate-fadeIn`}>
+                                        <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-3 px-4 pb-4 mt-1 animate-fadeIn`}>
                                             {ep.still_path && (
                                                 <div
-                                                    className="relative group cursor-pointer flex-shrink-0"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const epWithSeason = { ...ep, season_number: selectedSeason };
-                                                        onEpisodeSelect(epWithSeason);
-                                                        setActivePanel('none');
-                                                    }}
+                                                    className="relative flex-shrink-0 cursor-pointer group"
+                                                    style={{ width: isMobile ? '100%' : '160px' }}
+                                                    onClick={(e) => { e.stopPropagation(); onEpisodeSelect({ ...ep, season_number: selectedSeason }); setActivePanel('none'); }}
                                                 >
                                                     <img
                                                         src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
                                                         alt={ep.name}
-                                                        className="w-full md:w-60 h-auto md:h-36 object-cover shadow-lg rounded border border-white/10"
+                                                        className="w-full h-auto rounded object-cover"
+                                                        style={{ aspectRatio: '16/9' }}
                                                     />
-                                                    <div className="absolute inset-0 bg-black/40 md:group-hover:bg-black/20 flex items-center justify-center transition-all">
-                                                        <PlayCircleIcon size={isMobile ? 64 : 48} weight="fill" className="text-white drop-shadow-lg transform active:scale-110 md:group-hover:scale-110 transition-transform" />
+                                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded group-hover:bg-black/20 transition">
+                                                        <PlayCircleIcon size={36} weight="fill" className="text-white drop-shadow-lg" />
                                                     </div>
-
                                                     {getEpisodeProgressPercent(selectedSeason, ep.episode_number) > 0 && (
-                                                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-                                                            <div
-                                                                className="h-full bg-[#E50914]"
-                                                                style={{ width: `${getEpisodeProgressPercent(selectedSeason, ep.episode_number)}%` }}
-                                                            />
+                                                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 rounded-b">
+                                                            <div className="h-full bg-[#E50914] rounded-b" style={{ width: `${getEpisodeProgressPercent(selectedSeason, ep.episode_number)}%` }} />
                                                         </div>
                                                     )}
                                                 </div>
                                             )}
-
-                                            <div className="flex flex-col flex-1">
-                                                <p className="text-sm md:text-base text-gray-300 line-clamp-4 leading-relaxed overflow-hidden text-ellipsis mb-2">
-                                                    {ep.overview || t('player.noDescription')}
-                                                </p>
-                                                {isMobile && getEpisodeProgress(showId, selectedSeason, ep.episode_number) && (
-                                                    <span className="text-xs text-white/40 mt-1">
-                                                        Resume at {formatTime(getEpisodeProgress(showId, selectedSeason, ep.episode_number)!.time)}
-                                                    </span>
+                                            <div className="flex flex-col flex-1 justify-center">
+                                                <p className="text-xs text-white/60 line-clamp-4 leading-relaxed">{ep.overview || t('player.noDescription')}</p>
+                                                {!ep.still_path && (
+                                                    <button
+                                                        className="mt-2 text-xs text-white border border-white/20 rounded px-3 py-1.5 hover:bg-white/10 transition self-start active:scale-95"
+                                                        onClick={(e) => { e.stopPropagation(); onEpisodeSelect({ ...ep, season_number: selectedSeason }); setActivePanel('none'); }}
+                                                    >
+                                                        Play
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -388,11 +341,50 @@ const EpisodeExplorer: React.FC<{
                     </div>
                 </div>
             )}
+        </>
+    );
+
+    if (isMobile) {
+        return (
+            <div
+                className="fixed inset-0 z-[120] flex flex-col justify-end"
+                onClick={(e) => { if (e.target === e.currentTarget) closePanel(); }}
+            >
+                <div
+                    className="bg-[#1c1c1c] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden animate-slideIn"
+                    style={{ maxHeight: '60vh' }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 flex-shrink-0">
+                        <span className="text-white text-base font-bold uppercase tracking-widest">
+                            {activePanel === 'seasons' ? 'Seasons' : `Season ${previewSeason}`}
+                        </span>
+                        <button
+                            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); closePanel(); }}
+                            className="p-2 -mr-2 text-white/70 active:text-white rounded-full active:bg-white/10"
+                        >
+                            <XIcon size={22} weight="bold" />
+                        </button>
+                    </div>
+                    <div className="overflow-y-auto flex-1 scrollbar-none text-white">{innerContent}</div>
+                </div>
             </div>
+        );
+    }
+
+    // Desktop
+    return (
+        <div
+            className="absolute bottom-24 right-2 w-[340px] max-h-[60vh] bg-[#1a1a1a] rounded shadow-2xl z-[120] flex flex-col overflow-hidden animate-fadeIn font-['Consolas'] text-white"
+            onMouseEnter={onPanelHover}
+            onMouseLeave={closePanel}
+        >
+            {innerContent}
         </div>
     );
 };
 
+// ─── Main export ───────────────────────────────────────────────────────────
 interface VideoPlayerSettingsProps {
     activePanel: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality';
     setActivePanel: (panel: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality') => void;
@@ -417,83 +409,52 @@ interface VideoPlayerSettingsProps {
 }
 
 const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = ({
-    activePanel,
-    setActivePanel,
-    seasonList,
-    currentSeasonEpisodes,
-    selectedSeason,
-    currentEpisode,
-    playingSeason,
-    showId,
-    onSeasonSelect,
-    onEpisodeSelect,
-    onEpisodeExpand,
-    qualities,
-    currentQuality,
-    onQualityChange,
-    captions,
-    currentCaption,
-    onSubtitleChange,
-    showTitle,
-    onPanelHover,
-    onStartHide
+    activePanel, setActivePanel,
+    seasonList, currentSeasonEpisodes, selectedSeason, currentEpisode, playingSeason, showId,
+    onSeasonSelect, onEpisodeSelect, onEpisodeExpand,
+    qualities, currentQuality, onQualityChange,
+    captions, currentCaption, onSubtitleChange,
+    showTitle, onPanelHover, onStartHide
 }) => {
-    const isMobile = useIsMobile();
     if (activePanel === 'none') return null;
 
-    const handleMouseLeave = onStartHide || (() => setActivePanel('none'));
+    const closePanel = () => setActivePanel('none');
+    const handleLeave = onStartHide || closePanel;
 
     return (
         <>
             {activePanel === 'audioSubtitles' && (
-                <MinimalPanel onClose={handleMouseLeave} onHover={onPanelHover}>
+                <PanelShell
+                    title="Subtitles"
+                    onClose={closePanel}
+                    onHover={onPanelHover}
+                    onLeave={handleLeave}
+                    desktopClass="bottom-24 right-4 w-[320px] max-h-[50vh]"
+                >
                     <SubtitleMenu
                         captions={captions}
                         currentCaption={currentCaption}
                         onSubtitleChange={onSubtitleChange}
-                        onClose={handleMouseLeave}
+                        onClose={closePanel}
                     />
-                </MinimalPanel>
+                </PanelShell>
             )}
 
             {activePanel === 'quality' && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-0 pointer-events-none">
-                    <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={handleMouseLeave} />
-                    <div
-                        className={`${isMobile 
-                            ? 'relative w-full max-w-[500px] max-h-[80vh] rounded-xl' 
-                            : 'absolute bottom-24 right-4 w-auto min-w-[700px] max-w-[800px] max-h-[50vh] rounded'} 
-                            bg-[#1a1a1a] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn pointer-events-auto border border-white/10`}
-                        onMouseEnter={!isMobile ? onPanelHover : undefined}
-                        onMouseLeave={!isMobile ? handleMouseLeave : undefined}
-                    >
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#141414]">
-                            <span className="text-white text-base md:text-xl font-bold uppercase tracking-widest font-leaner">Quality</span>
-                            <button onClick={handleMouseLeave} className="p-2 -mr-2 text-white/70 hover:text-white transition-colors">
-                                <XIcon size={24} weight="bold" />
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto scrollbar-none p-4 md:p-2">
-                            <div className={`grid ${isMobile ? 'grid-cols-2' : 'grid-cols-2'} gap-3`}>
-                                <button
-                                    onClick={() => { onQualityChange(-1); isMobile && handleMouseLeave(); }}
-                                    className={`p-4 text-center rounded bg-[#222] hover:bg-[#333] transition ${currentQuality === -1 ? 'border-2 border-[#E50914] text-white font-bold' : 'text-white/60'}`}
-                                >
-                                    Auto
-                                </button>
-                                {qualities.map((q, i) => (
-                                    <button
-                                        key={i}
-                                        onClick={() => { onQualityChange(q.level); isMobile && handleMouseLeave(); }}
-                                        className={`p-4 text-center rounded bg-[#222] hover:bg-[#333] transition ${currentQuality === q.level ? 'border-2 border-[#E50914] text-white font-bold' : 'text-white/60'}`}
-                                    >
-                                        {q.height}p {q.height >= 1080 && 'HD'}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <PanelShell
+                    title="Quality"
+                    onClose={closePanel}
+                    onHover={onPanelHover}
+                    onLeave={handleLeave}
+                    desktopClass="bottom-24 right-4 w-[220px] max-h-[50vh]"
+                >
+                    <QualityMenu
+                        qualities={qualities}
+                        currentQuality={currentQuality}
+                        onQualityChange={onQualityChange}
+                        onClose={closePanel}
+                    />
+                </PanelShell>
             )}
 
             {(activePanel === 'seasons' || activePanel === 'episodes') && (
@@ -511,7 +472,7 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = ({
                     setActivePanel={setActivePanel}
                     showTitle={showTitle}
                     onPanelHover={onPanelHover}
-                    onClose={handleMouseLeave}
+                    onClose={handleLeave}
                 />
             )}
         </>

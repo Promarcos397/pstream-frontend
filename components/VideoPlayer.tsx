@@ -10,9 +10,9 @@ import { useTitle } from '../context/TitleContext';
 import { convertSubtitlesToObjectUrl } from '../utils/captions';
 import { streamCache } from '../utils/streamCache';
 import { useTouchGestures } from '../hooks/useTouchGestures';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
 import { NetworkPriority } from '../services/NetworkPriority';
-import { useIsMobile } from '../hooks/useIsMobile';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -42,7 +42,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const hlsRef = useRef<Hls | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const isMobile = useIsMobile();
 
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -141,14 +140,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 video.paused ? video.play() : video.pause();
             }
         },
-        onSingleTap: () => {
-            if (showUI) {
-                setShowUI(false);
-                if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-            } else {
-                resetInactivityTimer(true);
-            }
-        },
+        onSingleTap: () => setShowUI(prev => !prev),
         onSwipeLeft: (distance) => {
             const video = videoRef.current;
             if (video) {
@@ -479,6 +471,35 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     console.log('[VideoPlayer] Quality levels:', levels.map(l => `${l.height}p`));
                 }
 
+                // Auto-select preferred audio track — prevents foreign language dubs
+                // VidZee/VidLink streams often include multiple audio renditions
+                if (hls.audioTracks && hls.audioTracks.length > 0) {
+                    const preferredLang = (settings.subtitleLanguage || 'en').toLowerCase().slice(0, 2);
+
+                    // Find track matching preferred language first
+                    let bestTrack = hls.audioTracks.findIndex(t => {
+                        const lang = (t.lang || '').toLowerCase().slice(0, 2);
+                        const name = (t.name || '').toLowerCase();
+                        return lang === preferredLang || (preferredLang === 'en' && (name.includes('english') || name === 'en'));
+                    });
+
+                    // Fall back to any English track
+                    if (bestTrack < 0) {
+                        bestTrack = hls.audioTracks.findIndex(t =>
+                            (t.lang || '').toLowerCase().startsWith('en') ||
+                            (t.name || '').toLowerCase().includes('english')
+                        );
+                    }
+
+                    if (bestTrack >= 0 && bestTrack !== hls.audioTrack) {
+                        hls.audioTrack = bestTrack;
+                    }
+
+                    console.log(`[VideoPlayer] 🎵 Audio tracks: ${hls.audioTracks.map((t, i) =>
+                        `${i === hls.audioTrack ? '✓' : ' '}${t.name}(${t.lang})`
+                    ).join(' | ')}`);
+                }
+
                 // Resume from saved position
                 if (mediaType === 'tv') {
                     const saved = getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode);
@@ -681,47 +702,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, []);
 
     // --- Inactivity Timer ---
-    const resetInactivityTimer = useCallback((forceShow = true) => {
-        if (forceShow) setShowUI(true);
+    const isMobilePlayer = useIsMobile();
+    const resetInactivityTimer = useCallback(() => {
+        setShowUI(true);
         if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-        const timeout = isMobile ? 5000 : 3000;
+        // Mobile: 5s so controls don't vanish immediately after a tap
+        const hideDelay = isMobilePlayer ? 5000 : 3000;
         inactivityTimerRef.current = setTimeout(() => {
             if (activePanel === 'none' && !isPanelHovered) {
                 setShowUI(false);
             }
-        }, timeout);
-    }, [activePanel, isPanelHovered, isMobile]);
-
-    // --- Picture in Picture ---
-    const [isPiP, setIsPiP] = useState(false);
-    const togglePiP = async () => {
-        const video = videoRef.current;
-        if (!video) return;
-        try {
-            if (document.pictureInPictureElement) {
-                await document.exitPictureInPicture();
-                setIsPiP(false);
-            } else {
-                await video.requestPictureInPicture();
-                setIsPiP(true);
-            }
-        } catch (err) {
-            console.error('[VideoPlayer] PiP failed:', err);
-        }
-    };
-
-    useEffect(() => {
-        const video = videoRef.current;
-        if (!video) return;
-        const handlePiPEnter = () => setIsPiP(true);
-        const handlePiPExit = () => setIsPiP(false);
-        video.addEventListener('enterpictureinpicture', handlePiPEnter);
-        video.addEventListener('leavepictureinpicture', handlePiPExit);
-        return () => {
-            video.removeEventListener('enterpictureinpicture', handlePiPEnter);
-            video.removeEventListener('leavepictureinpicture', handlePiPExit);
-        };
-    }, []);
+        }, hideDelay);
+    }, [activePanel, isPanelHovered, isMobilePlayer]);
 
     useEffect(() => {
         resetInactivityTimer();
@@ -926,8 +918,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         <div
             ref={containerRef}
             className={`fixed inset-0 z-[100] bg-black font-['Consolas'] text-white overflow-hidden select-none ${showUI ? '' : 'cursor-none'}`}
-            onMouseMove={() => !isMobile && resetInactivityTimer(true)}
-            onTouchStart={() => isMobile && resetInactivityTimer(true)}
+            onMouseMove={resetInactivityTimer}
             onClick={(e) => {
                 // If clicking directly on the container (not a child element like settings panel)
                 if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.video-player-main-area')) {
@@ -1107,8 +1098,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }}
                     onClose={onClose || (() => window.history.back())}
                     onToggleFullscreen={toggleFullscreen}
-                    onTogglePiP={togglePiP}
-                    isPiP={isPiP}
                     onSettingsClick={() => setActivePanel(activePanel === 'quality' ? 'none' : 'quality')}
                     onSubtitlesClick={() => setActivePanel(activePanel === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
                     onSubtitlesHover={() => setIsPanelHovered(true)}
