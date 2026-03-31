@@ -3,6 +3,8 @@ import { Episode } from '../types';
 import { ArrowLeftIcon, CaretDownIcon, PlayCircleIcon, CheckIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
+import { prefetchStream } from '../services/api';
+import { useTitle } from '../context/TitleContext';
 
 interface PopupPanelProps {
     title: string;
@@ -33,7 +35,7 @@ const MinimalPanel: React.FC<{
         <div
             className={`${isMobile 
                 ? 'fixed inset-0 w-full h-full' 
-                : 'absolute bottom-24 right-4 w-auto min-w-[700px] max-w-[800px] max-h-[45vh] rounded'} 
+                : 'absolute bottom-24 right-4 w-auto min-w-[750px] max-w-[950px] max-h-[60vh] rounded'} 
                 bg-[#1a1a1a] z-[120] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn`}
             onMouseEnter={!isMobile ? onHover : undefined}
             onMouseLeave={!isMobile ? onClose : undefined}
@@ -256,7 +258,7 @@ const EpisodeExplorer: React.FC<{
         <div
             className={`${isMobile 
                 ? 'fixed inset-0 w-full h-full' 
-                : 'absolute bottom-24 right-2 w-auto min-w-[650px] max-w-[750px] min-h-[40vh] max-h-[70vh] rounded'} 
+                : 'absolute bottom-24 right-2 w-auto min-w-[750px] max-w-[1000px] min-h-[50vh] max-h-[80vh] rounded'} 
                 bg-[#1a1a1a] z-[120] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn text-white`}
             onMouseEnter={!isMobile ? onPanelHover : undefined}
             onMouseLeave={!isMobile ? (onClose || (() => setActivePanel('none'))) : undefined}
@@ -313,6 +315,16 @@ const EpisodeExplorer: React.FC<{
                                     key={ep.id}
                                     ref={isPlaying ? currentEpisodeRef : null}
                                     className={`px-4 transition ${isExpanded ? 'bg-black/40 pb-6 pt-4' : 'py-4 hover:bg-white/5'} ${isPlaying ? 'border-l-4 border-[#E50914]' : ''}`}
+                                    onMouseEnter={() => {
+                                        // SMART PRE-FETCH: If they hover, they might click.
+                                        if (typeof showId === 'string' || typeof showId === 'number') {
+                                            const storageKey = `prefetched_explorer_${showId}_S${selectedSeason}E${ep.episode_number}`;
+                                            if (!(window as any)[storageKey]) {
+                                               prefetchStream(showTitle || '', undefined, String(showId), 'tv', selectedSeason, ep.episode_number);
+                                               (window as any)[storageKey] = true;
+                                            }
+                                        }
+                                    }}
                                 >
                                     <div
                                         className="flex items-center cursor-pointer group"
@@ -468,7 +480,7 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = ({
                 <div
                     className={`${isMobile 
                         ? 'fixed inset-0 w-full h-full' 
-                        : 'absolute bottom-24 right-4 w-auto min-w-[700px] max-w-[800px] max-h-[50vh] rounded'} 
+                        : 'absolute bottom-24 right-4 w-auto min-w-[750px] max-w-[950px] max-h-[60vh] rounded'} 
                         bg-[#1a1a1a] z-[120] flex flex-col font-['Consolas'] shadow-2xl overflow-hidden animate-fadeIn`}
                     onMouseEnter={!isMobile ? onPanelHover : undefined}
                     onMouseLeave={!isMobile ? handleMouseLeave : undefined}

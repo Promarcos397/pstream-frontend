@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Movie, Episode } from '../types';
-import { getSeasonDetails, getMovieDetails, getStream, getExternalIds } from '../services/api';
+import { getSeasonDetails, getMovieDetails, getStream, getExternalIds, prefetchStream } from '../services/api';
 import Hls from 'hls.js';
 import ISO6391 from 'iso-639-1';
 
@@ -600,6 +600,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     console.log('[VideoPlayer] 🍿 Autoplay: 99.85% reached, switching to next episode...');
                     handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
                     return; // Stop further updates for this episode
+                }
+            }
+
+            // PRE-FETCH NEXT EPISODE at 95%
+            if (mediaType === 'tv' && currentProgress >= 95) {
+                const nextEpNum = currentEpisode + 1;
+                const cacheCheckKey = `prefetched_${movie.id}_S${playingSeasonNumber}E${nextEpNum}`;
+                if (!(window as any)[cacheCheckKey]) {
+                    const nextEp = currentSeasonEpisodes.find(e => e.episode_number === nextEpNum);
+                    if (nextEp) {
+                        const yearStr = (movie.release_date || movie.first_air_date)?.substring(0, 4);
+                        const year = yearStr ? parseInt(yearStr) : undefined;
+                        console.log(`[VideoPlayer] 🚀 95% reached. Pre-fetching S${playingSeasonNumber}E${nextEpNum}...`);
+                        prefetchStream(movie.name || movie.title || '', year, String(movie.id), 'tv', playingSeasonNumber, nextEpNum);
+                        (window as any)[cacheCheckKey] = true;
+                    }
                 }
             }
 
