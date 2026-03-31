@@ -23,7 +23,8 @@ interface InfoModalProps {
 const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, onPlay, trailerId }) => {
     const { 
         myList, toggleList, updateVideoState, heroVideoState, 
-        globalMute, setGlobalMute, getVideoState, setActiveVideoId 
+        globalMute, setGlobalMute, getVideoState, setActiveVideoId,
+        getLastWatchedEpisode
     } = useGlobalContext();
     const { t } = useTranslation();
     const { detailedMovie, cast, recommendations, logoUrl, isLoading } = useMovieData(movie);
@@ -245,9 +246,18 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         handleClose();
     };
 
+    const savedMovieState = getVideoState(movie.id);
+    const lastEp = mediaType === 'tv' ? getLastWatchedEpisode(movie.id) : null;
+    
+    // threshold: 30s for movies, 0s for episodes
+    const hasResumeMovie = mediaType === 'movie' && savedMovieState && savedMovieState.time > 30;
+    const hasResumeTV = mediaType === 'tv' && lastEp;
+
     const handlePlayClick = () => {
         if (mediaType === 'tv') {
-            if (resumeContext) {
+            if (lastEp) {
+                onPlay(activeMovie, lastEp.season, lastEp.episode);
+            } else if (resumeContext) {
                 onPlay(activeMovie, resumeContext.season, resumeContext.episode);
             } else {
                 onPlay(activeMovie, 1, 1);
@@ -389,7 +399,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                     className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition"
                                 >
                                     <PlayIcon size={24} weight="fill" className="mr-2" />
-                                    {resumeContext && mediaType === 'tv' ? t('modal.resume', { season: resumeContext.season, episode: resumeContext.episode }) : t('hero.play')}
+                                    {hasResumeTV ? t('modal.resume', { season: lastEp.season, episode: lastEp.episode }) : 
+                                     hasResumeMovie ? t('rows.continueWatching') : 
+                                     t('hero.play')}
                                 </button>
                             )}
                             <button
