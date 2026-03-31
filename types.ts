@@ -89,6 +89,7 @@ export interface AppSettings {
   subtitleLanguage: string; // Preferred subtitle language (e.g., 'en', 'es', 'fr')
   avatarUrl?: string;       // Custom profile avatar path
   displayName?: string;     // Custom profile display name
+  isKidsMode?: boolean;     // Account-wide kids mode
 }
 
 // Streaming types

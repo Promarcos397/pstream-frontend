@@ -345,7 +345,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       e.preventDefault();
       e.stopPropagation();
     }
-    const currentTime = playerRef.current?.getCurrentTime?.() || 0;
+    const currentTime = playerRef.current && typeof playerRef.current.getCurrentTime === 'function' 
+      ? playerRef.current.getCurrentTime() 
+      : 0;
+    
     const finalTrailerUrl = trailerUrl || getVideoState(movie.id)?.videoId;
 
     // Pass card coordinates for Spring Effect
@@ -479,8 +482,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         e.target.seekTo(savedState.time, true);
                       }
                     }}
-                    onError={(e) => { console.warn("YouTube blocked playback:", e);setTrailerUrl(null); // Instantly hides the broken video and falls back to the poster image
-}}
+                    onError={(e) => { 
+                      console.warn("YouTube blocked playback:", e);
+                      setTrailerUrl(""); // Reset to empty string, matching state type
+                    }}
                     onEnd={(e) => {
                       e.target.seekTo(0);
                       e.target.playVideo();
