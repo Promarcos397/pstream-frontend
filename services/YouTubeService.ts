@@ -1,19 +1,46 @@
 import axios from 'axios';
 
-// YouTube API keys with rotation
-const YOUTUBE_API_KEYS = [
-    'AIzaSyAPYK_Miisu65B_rzwUH8FoI83AVgmXA50',
-    'AIzaSyDUfzBoybcjWFUkA7jqVV1UP45jOWz4L1g',
-    'AIzaSyCCNJoPIJVB7r2AOIFn0C-UELpvZrK9AM4',
-    'AIzaSyD8URfM0IqZDT4dgl9dpLfQcnJ42q4_XCs',
-    'AIzaSyBJHthTDYf9lot4KvH9NONo_lcUBF9SbUY',
-];
+// Parse YouTube API keys from environment variables to avoid hardcoding
+const YOUTUBE_API_KEYS: string[] = (import.meta.env.VITE_YOUTUBE_API_KEYS || '').split(',').filter(Boolean);
+
+// Fallback keys if env is empty (legacy safety)
+if (YOUTUBE_API_KEYS.length === 0) {
+    YOUTUBE_API_KEYS.push('AIzaSyAPYK_Miisu65B_rzwUH8FoI83AVgmXA50');
+}
+
+// Global throttle to prevent spamming Google APIs too hard
+let lastSearchTime = 0;
+const GLOBAL_SEARCH_THROTTLE_MS = 500; 
+
+function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 let currentKeyIndex = 0;
 let failedKeys = new Set<number>(); // Track keys that have failed this session
 
-// Session cache: title → videoIds. Prevents re-searching the same title.
-const resultCache = new Map<string, string[]>();
+const CACHE_KEY = 'pstream-youtube-cache';
+
+// Shared instance to handle the memory data
+const loadInitialCache = (): [string, string[]][] => {
+    try {
+        const saved = localStorage.getItem(CACHE_KEY);
+        if (saved) {
+            const data = JSON.parse(saved);
+            return Object.entries(data) as [string, string[]][];
+        }
+    } catch (e) { console.error('[YouTubeService] Cache load failed', e); }
+    return [];
+};
+
+const resultCache = new Map<string, string[]>(loadInitialCache());
+
+function saveCache() {
+    try {
+        const obj = Object.fromEntries(resultCache.entries());
+        localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
+    } catch (e) { }
+}
 
 // In-flight dedup: if two hovers for the same title fire at once, only one API call is made.
 const inFlight = new Map<string, Promise<string[]>>();
@@ -60,38 +87,17 @@ interface SearchOptions {
  * More specific queries first, fallback to simpler ones
  */
 function buildSearchQueries(options: SearchOptions): string[] {
-    const { title, year, company, type } = options;
-    const queries: string[] = [];
+    const { title, year, company } = options;
+    
+    // USER REQUEST: [Production company name + media title + release year + official trailer]
+    // Consolidate into a single, high-precision query to save maximum API quota.
+    const queryParts = [];
+    if (company) queryParts.push(company);
+    queryParts.push(title);
+    if (year) queryParts.push(year);
+    queryParts.push('official trailer');
 
-    // TV shows use different search patterns
-    if (type === 'tv') {
-        // Most specific: Title + Year + Studio + "Official 4K"
-        if (year && company) {
-            queries.push(`${title} ${year} ${company} official 4k trailer`);
-            queries.push(`${title} ${year} ${company} trailer`);
-        }
-        if (year) {
-            queries.push(`${title} ${year} tv series official trailer`);
-        }
-        queries.push(`${title} official trailer 4k`);
-        queries.push(`${title} tv show trailer`);
-        queries.push(`${title} series trailer`);
-    } else {
-        // Movies
-        // Most specific: Title + Year + Company + "Official 4K"
-        if (year && company) {
-            queries.push(`${title} ${year} ${company} official 4k trailer`);
-            queries.push(`${title} ${year} ${company} movie trailer`);
-        }
-        if (year) {
-            queries.push(`${title} ${year} official trailer 4k`);
-            queries.push(`${title} ${year} movie trailer`);
-        }
-        queries.push(`${title} official trailer 4k`);
-        queries.push(`${title} movie trailer`);
-    }
-
-    return queries;
+    return [queryParts.join(' ')];
 }
 
 /**
@@ -149,13 +155,24 @@ export const searchTrailersWithFallback = async (
     }
 
     const searchPromise = (async () => {
+        // APPLY GLOBAL SEARCH THROTTLE
+        // If many cards/heroes trigger at once, they queue up here
+        const now = Date.now();
+        const timeSinceLast = now - lastSearchTime;
+        if (timeSinceLast < GLOBAL_SEARCH_THROTTLE_MS) {
+            await sleep(GLOBAL_SEARCH_THROTTLE_MS - timeSinceLast);
+        }
+        lastSearchTime = Date.now();
+
         const queries = buildSearchQueries(options);
 
         for (const query of queries) {
             try {
+                // Execute search with immediate key-rotation retry logic
                 const results = await executeSearch(query, maxResults);
                 if (results.length > 0) {
                     resultCache.set(cacheKey, results);
+                    saveCache(); // Persist to storage
                     return results;
                 }
             } catch (error: any) {
@@ -165,6 +182,7 @@ export const searchTrailersWithFallback = async (
 
         // Cache the empty result too — don't retry titles that have no trailers
         resultCache.set(cacheKey, []);
+        saveCache();
         return [];
     })();
 

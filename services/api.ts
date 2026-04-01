@@ -188,31 +188,27 @@ export const fetchData = async (url: string) => {
  */
 export const fetchTrailers = async (id: number | string, type: 'movie' | 'tv'): Promise<string[]> => {
   try {
-    const videos = await getMovieVideos(id, type);
+    const details = await getMovieDetails(id, type);
+    if (!details) return [];
 
-    if (!videos || videos.length === 0) return [];
+    const title = details.title || details.name || '';
+    const releaseDate = details.release_date || details.first_air_date;
+    const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : undefined;
+    const company = details.production_companies?.[0]?.name;
 
-    // Filter for YouTube videos only
-    const youtubeVideos = videos.filter(v => v.site === "YouTube");
+    // We dynamically import the YouTube service to avoid circular dependency
+    // if api.ts is imported inside YouTubeService.
+    const { searchTrailersWithFallback } = await import('./YouTubeService');
+    
+    // User requested custom precision query on all surfaces
+    const customTrailers = await searchTrailersWithFallback({
+      title,
+      year,
+      company,
+      type
+    }, 1);
 
-    if (youtubeVideos.length === 0) return [];
-
-    // Sort by priority
-    const typePriority: { [key: string]: number } = {
-      "Trailer": 1,
-      "Teaser": 2,
-      "Clip": 3,
-      "Featurette": 4
-    };
-
-    const sortedVideos = youtubeVideos.sort((a, b) => {
-      const priorityA = typePriority[a.type] || 99;
-      const priorityB = typePriority[b.type] || 99;
-      return priorityA - priorityB;
-    });
-
-    return sortedVideos.map(v => v.key);
-
+    return customTrailers;
   } catch (error) {
     console.error("Error in fetchTrailers:", error);
     return [];

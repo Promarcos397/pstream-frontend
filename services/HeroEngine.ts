@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
-import { getMovieVideos, getMovieImages, getExternalIds, prefetchStream } from './api';
+import { getMovieVideos, getMovieImages, getExternalIds, prefetchStream, getMovieDetails } from './api';
 import { searchTrailersWithFallback } from './YouTubeService';
 
 /**
@@ -76,28 +76,36 @@ class HeroEngineService {
       const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
       // --- Magic Omni-Fetch ---
-      const [videos, images, externals] = await Promise.all([
+      const [videos, images, externals, details] = await Promise.all([
         getMovieVideos(selectedMovie.id, mediaType),
         getMovieImages(selectedMovie.id, mediaType),
-        getExternalIds(selectedMovie.id, mediaType)
+        getExternalIds(selectedMovie.id, mediaType),
+        getMovieDetails(selectedMovie.id, mediaType) 
       ]);
 
-      const videoId = videos.find(v => v.site === 'YouTube' && ['Trailer', 'Teaser', 'Clip'].includes(v.type))?.key;
       const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
       const logoUrl = logo ? `https://image.tmdb.org/t/p/w500${logo.file_path}` : undefined;
       
       const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
-      
-      let finalVideoId = videoId;
-      if (!finalVideoId) {
-        const releaseDate = movieWithExtras.release_date || movieWithExtras.first_air_date;
-        const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : undefined;
-        const searchKeys = await searchTrailersWithFallback({
-          title: movieWithExtras.title || movieWithExtras.name || '',
-          year,
-          type: mediaType
-        });
-        if (searchKeys.length > 0) finalVideoId = searchKeys[0];
+
+      // USER REQUEST: Ignore TMDB's generic trailers and fetch a precision custom one: 
+      // [Production company name + media title + release year + official trailer]
+      const title = movieWithExtras.title || movieWithExtras.name || '';
+      const releaseDate = movieWithExtras.release_date || movieWithExtras.first_air_date;
+      const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : undefined;
+      const company = details?.production_companies?.[0]?.name;
+
+      let finalVideoId: string | undefined = undefined;
+      try {
+          const customTrailers = await searchTrailersWithFallback({
+              title,
+              year,
+              company,
+              type: mediaType
+          }, 1);
+          finalVideoId = customTrailers[0];
+      } catch (e) {
+          console.warn(`[HeroEngine] Custom trailer search failed for ${title}`, e);
       }
 
       const heroPackage: HeroPackage = {

@@ -259,13 +259,32 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       
       if (shouldPlay) {
         try {
-          if (typeof playerRef.current?.playVideo === 'function') playerRef.current.playVideo();
+          if (typeof playerRef.current?.playVideo === 'function') {
+            // SYNC CHECK ON WAKE: Jump to latest time recorded in context (from Card or Modal)
+            const latestState = movie ? getVideoState(movie.id) : null;
+            if (latestState && latestState.time > 0 && typeof playerRef.current?.getCurrentTime === 'function') {
+              const diff = Math.abs(playerRef.current.getCurrentTime() - latestState.time);
+              if (diff > 2) { // Only seek if significantly out of sync
+                playerRef.current.seekTo(latestState.time, true);
+              }
+            }
+
+            playerRef.current.playVideo();
+          }
           if (!isMuted) fadeAudioIn();
           NetworkPriority.setVideoActive(true);
         } catch (e) { }
       } else {
-        // FULL PAUSE
+        // FULL PAUSE - Save current time before stopping so Cards/Modal can grab it
         try {
+          if (movie && typeof playerRef.current?.getCurrentTime === 'function') {
+             const currentTime = playerRef.current.getCurrentTime();
+             const videoId = trailerQueue[0];
+             if (currentTime > 0 && videoId) {
+               updateVideoState(movie.id, currentTime, videoId);
+             }
+          }
+
           NetworkPriority.setVideoActive(false);
           if (!isMuted) {
             // If sound is on, smooth fade out before hitting pause

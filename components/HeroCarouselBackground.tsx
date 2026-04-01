@@ -99,6 +99,18 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                 playWithRetry();
                                 setIsVideoReady(true);
                             }}
+                            onStateChange={(e) => {
+                                // Save playback time whenever player pauses or stays steady 
+                                try {
+                                    const time = e.target.getCurrentTime();
+                                    const videoId = trailerQueue[0];
+                                    if (time > 0 && videoId) {
+                                      // Using onSyncCheck's presence to determine we should save back
+                                      // We wrap it in a custom check in the parent too
+                                      (window as any).__last_hero_time = time;
+                                    }
+                                } catch (err) {}
+                            }}
                             onEnd={() => {
                                 // Philosophy: No auto-looping. Give user back their room or a choice to Replay.
                                 if (onVideoEnd) onVideoEnd();

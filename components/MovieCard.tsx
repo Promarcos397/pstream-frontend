@@ -8,7 +8,7 @@ import YouTube from 'react-youtube';
 import { useGlobalContext } from '../context/GlobalContext';
 import axios from 'axios';
 import { GENRES, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream, getExternalIds, getMovieVideos, getMovieDetails } from '../services/api';
+import { getMovieImages, prefetchStream, getExternalIds, getMovieVideos, getMovieDetails, fetchTrailers } from '../services/api';
 import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { NetworkPriority } from '../services/NetworkPriority';
@@ -246,33 +246,22 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       setHoverPosition(currentPos);
     }
 
-    // 1. INSTANT PRE-FETCH: Use YouTube Search as PRIMARY, TMDB as fallback
+    // 1. INSTANT PRE-FETCH: Shared Precision Trailer Logic
     if (!trailerUrl && !isBook && movie.id) {
-      const queryTitle = `${movie.title || movie.name} official trailer`;
-
-      // Step A: Do the live YouTube search first
-      searchTrailersWithFallback({ title: queryTitle, year: yearString, type: mediaType })
-        .then(keys => {
+      // First, check if we already have it in the global state (found by a previous hover)
+      const savedVideoId = getVideoState(movie.id)?.videoId;
+      if (savedVideoId) {
+        setTrailerUrl(savedVideoId);
+      } else {
+        fetchTrailers(movie.id, mediaType).then(keys => {
           if (keys && keys.length > 0) {
-            setTrailerUrl(keys[0]); // Success! We found the live top result.
-          } else {
-            // Step B: If the search fails, fallback to TMDB
-            getMovieVideos(movie.id, mediaType).then(videos => {
-              const tmdbTrailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
-              if (tmdbTrailer) {
-                setTrailerUrl(tmdbTrailer.key);
-              }
-            }).catch(() => { });
+            const firstKey = keys[0];
+            setTrailerUrl(firstKey);
+            // Save to context immediately so InfoModal can grab it without waiting
+            updateVideoState(movie.id, 0, firstKey);
           }
-        }).catch(() => {
-          // Safety catch: fallback to TMDB if search throws an error
-          getMovieVideos(movie.id, mediaType).then(videos => {
-            const tmdbTrailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
-            if (tmdbTrailer) {
-              setTrailerUrl(tmdbTrailer.key);
-            }
-          }).catch(() => { });
-        });
+        }).catch(() => {});
+      }
     }
 
     // Immediate visual priming

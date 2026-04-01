@@ -113,55 +113,16 @@ class StreamCache {
         totalEpisodes: number,
         tmdbId?: string
     ): Promise<void> {
-        const episodesToPrefetch: Array<{ season: number; episode: number }> = [];
-
-        for (let i = 1; i <= 2; i++) {
-            const nextEp = currentEpisode + i;
-            if (nextEp <= totalEpisodes) {
-                episodesToPrefetch.push({ season: currentSeason, episode: nextEp });
-            }
-        }
-
-        for (const { season, episode } of episodesToPrefetch) {
-            const key: CacheKey = { title, type: 'tv', year, season, episode, tmdbId };
-            const cacheKey = this.generateKey(key);
-
-            if (this.cache.has(cacheKey) || this.prefetchQueue.has(cacheKey)) {
-                continue;
-            }
-
-            this.prefetchQueue.add(cacheKey);
-
-            this.fetchAndCache(api, key).finally(() => {
-                this.prefetchQueue.delete(cacheKey);
-            });
-        }
+        // PREFETCH DISABLED
+        // Direct stream tokens (like VidLink) expire within minutes. Pre-fetching 
+        // the next episode at the START of the current 45-minute episode guarantees 
+        // the cached token will be expired by the time the user watches it, causing a 403.
+        // It's much faster and safer to just resolve it real-time when they click "Next".
+        return;
     }
 
     private async fetchAndCache(api: any, key: CacheKey): Promise<void> {
-        try {
-            console.log(`[StreamCache] Prefetching S${key.season}E${key.episode}...`);
-
-            const result = await api.getStream(
-                key.title,
-                key.type,
-                key.year,
-                key.season,
-                key.episode,
-                key.tmdbId
-            );
-
-            if (result.success && result.sources?.length > 0) {
-                this.set(key, {
-                    sources: result.sources,
-                    subtitles: result.subtitles || [],
-                    provider: result.provider || 'unknown'
-                });
-                console.log(`[StreamCache] ✅ Prefetched S${key.season}E${key.episode}`);
-            }
-        } catch (err) {
-            console.warn(`[StreamCache] Prefetch failed for S${key.season}E${key.episode}:`, err);
-        }
+        return;
     }
 
     clear(): void {
