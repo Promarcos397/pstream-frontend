@@ -88,6 +88,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [captions, setCaptions] = useState<{ id: string; label: string; url: string; lang: string }[]>([]);
     const [currentCaption, setCurrentCaption] = useState<string | null>(null);
     const [subtitleObjectUrl, setSubtitleObjectUrl] = useState<string | null>(null);
+    const [currentCueText, setCurrentCueText] = useState<string>('');
 
     // Quality levels from HLS
     const [qualityLevels, setQualityLevels] = useState<{ height: number; bitrate: number; level: number }[]>([]);
@@ -182,7 +183,52 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const title = movie.title || movie.name || '';
     const formattedDate = movie.release_date || movie.first_air_date || '';
 
-    // --- Fetch Stream using Consumet API with Smart Caching ---
+    // --- Subtitle Track Event Syncing ---
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        const onCueChange = (e: any) => {
+            const track = e.target as TextTrack;
+            const activeCues = track.activeCues;
+            if (activeCues && activeCues.length > 0) {
+                const parts: string[] = [];
+                for (let i = 0; i < activeCues.length; i++) {
+                    const cue = activeCues[i] as VTTCue;
+                    // Clean HTML tags and strip double spacing
+                    parts.push(cue.text.replace(/<[^>]*>/g, '').replace(/\r?\n/g, ' '));
+                }
+                setCurrentCueText(parts.join(' '));
+            } else {
+                setCurrentCueText('');
+            }
+        };
+
+        // Find the subtitle track and attach
+        const checkTracks = () => {
+            const tracks = video.textTracks;
+            for (let i = 0; i < tracks.length; i++) {
+                if (tracks[i].kind === 'subtitles') {
+                    tracks[i].oncuechange = onCueChange;
+                    tracks[i].mode = 'hidden'; // Hide native browser rendering to use our custom overlay
+                }
+            }
+        };
+
+        checkTracks();
+        const observer = new MutationObserver(checkTracks);
+        observer.observe(video, { childList: true });
+
+        return () => {
+            observer.disconnect();
+            const tracks = video.textTracks;
+            for (let i = 0; i < tracks.length; i++) {
+                tracks[i].oncuechange = null;
+            }
+        };
+    }, [subtitleObjectUrl]);
+
+    // Handle initial stream and subtitles logic
     useEffect(() => {
         const fetchStream = async () => {
             setIsBuffering(true);
@@ -881,38 +927,54 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return () => setPageTitle('Home'); // Reset on unmount
     }, [setPageTitle, movie, mediaType, playingSeasonNumber, currentEpisode, activeEpisodeData]);
 
-    // --- Subtitle Dynamic Style Injection ---
-    const subtitleStyles = useMemo(() => {
-        const { subtitleSize, subtitleColor, subtitleFontFamily, subtitleOpacity, subtitleEdgeStyle, subtitleBackground, subtitleWindowColor } = settings;
+    // --- Subtitle Dynamic Style Mapping ---
+    const cueStyles = useMemo(() => {
+        const { subtitleSize, subtitleColor, subtitleFontFamily, subtitleOpacity, subtitleEdgeStyle, subtitleBackground, subtitleWindowColor, subtitleBlur } = settings;
 
         let fontSize = '24px';
         if (subtitleSize === 'tiny') fontSize = '16px';
         if (subtitleSize === 'small') fontSize = '20px';
-        if (subtitleSize === 'medium') fontSize = '32px';
-        if (subtitleSize === 'large') fontSize = '48px';
-        if (subtitleSize === 'huge') fontSize = '64px';
+        if (subtitleSize === 'medium') fontSize = '28px'; // Slightly smaller for better screen real estate
+        if (subtitleSize === 'large') fontSize = '42px';
+        if (subtitleSize === 'huge') fontSize = '58px';
 
         let edge = 'none';
-        if (subtitleEdgeStyle === 'drop-shadow') edge = '2px 2px 4px rgba(0,0,0,0.8)';
+        if (subtitleEdgeStyle === 'drop-shadow') edge = '0 2px 4px rgba(0,0,0,0.8)';
         if (subtitleEdgeStyle === 'outline') edge = '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
-        if (subtitleEdgeStyle === 'raised') edge = '0 1px 0 #ccc, 0 2px 0 #c9c9c9, 0 3px 0 #bbb, 0 4px 0 #b9b9b9, 0 5px 0 #aaa, 0 6px 1px rgba(0,0,0,.1), 0 0 5px rgba(0,0,0,.1), 0 1px 3px rgba(0,0,0,.3), 0 3px 5px rgba(0,0,0,.2), 0 5px 10px rgba(0,0,0,.25), 0 10px 10px rgba(0,0,0,.2), 0 20px 20px rgba(0,0,0,.15)';
+        if (subtitleEdgeStyle === 'raised') edge = '0 1px 0 #ccc, 0 2px 0 #c9c9c9, 0 3px 0 #bbb, 0 8px 1px rgba(0,0,0,0.3)';
+        if (subtitleEdgeStyle === 'depressed') edge = '1px 1px 0 #fff, -1px -1px 0 #000';
 
         let bgColor = 'transparent';
         if (subtitleBackground === 'box') {
-            bgColor = subtitleWindowColor === 'black' ? `rgba(0,0,0,${subtitleOpacity / 100})` : `rgba(0,0,255,${subtitleOpacity / 100})`;
+            const opacity = (subtitleOpacity || 80) / 100;
+            bgColor = `rgba(0,0,0,${opacity})`;
         }
 
-        return `
-            video::cue {
-                background-color: ${bgColor};
-                color: ${subtitleColor};
-                font-family: ${subtitleFontFamily};
-                font-size: ${fontSize};
-                text-shadow: ${edge};
-                font-weight: bold;
-            }
-        `;
+        // Font Family Mapping
+        const fallbacks = ', "Inter", sans-serif';
+        let fontFamily = 'Inter, sans-serif';
+        if (subtitleFontFamily === 'monospace') fontFamily = '"Consolas", "Monaco", monospace';
+        if (subtitleFontFamily === 'typewriter') fontFamily = '"Courier New", Courier, monospace';
+        if (subtitleFontFamily === 'cursive') fontFamily = '"Comic Sans MS", "Apple Chancery", cursive';
+        if (subtitleFontFamily === 'casual') fontFamily = '"Ubuntu Medium", "Segoe UI", sans-serif';
+        if (subtitleFontFamily === 'small-caps') fontFamily = 'sans-serif; font-variant: small-caps';
+
+        return {
+            fontSize,
+            color: subtitleColor || 'white',
+            fontFamily,
+            textShadow: edge,
+            backgroundColor: bgColor,
+            backdropFilter: subtitleBackground === 'box' && subtitleBlur ? `blur(${subtitleBlur}px)` : 'none',
+            padding: subtitleBackground === 'box' ? '0.2em 0.5em' : '0',
+            borderRadius: '4px'
+        };
     }, [settings]);
+
+    const subtitleStyles = useMemo(() => {
+        // Keeps native cues hidden to prevent double-display
+        return `video::cue { visibility: hidden !important; opacity: 0 !important; }`;
+    }, []);
 
     return (
         <div
@@ -1049,6 +1111,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 Go Back
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Subtitle Overlay */}
+            {settings.showSubtitles && currentCueText && (
+                <div 
+                    className={`absolute bottom-24 left-0 right-0 z-40 flex justify-center items-center px-10 pointer-events-none transition-all duration-300 ${showUI ? 'mb-16' : 'mb-0'}`}
+                >
+                    <div 
+                        className="text-center font-bold leading-normal animate-fadeIn"
+                        style={{
+                            ...cueStyles,
+                            maxWidth: '85%',
+                            transition: 'margin-bottom 0.3s ease'
+                        }}
+                    >
+                        {currentCueText}
                     </div>
                 </div>
             )}
