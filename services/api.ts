@@ -250,29 +250,15 @@ export const getStream = async (title: string, type: 'movie' | 'tv', year?: numb
   }
 };
 
-// Prefetch stream (fire and forget, populates streamCache)
-// Prefetch stream (fire and forget, populates streamCache)
+// PREFETCH DISABLED: 
+// Pre-fetching resolves the direct M3U8 URL and saves it in streamCache.
+// However, providers like VidLink and VidZee use highly volatile, time-sensitive tokens.
+// If we prefetch the stream 3 minutes before the user actually clicks 'Play', the token
+// will have already expired, throwing a 403 Forbidden error and forcing a re-fetch anyway.
+// Since the backend now uses `fastRace` (resolving in < 1 second), prefetching is unnecessary.
 export const prefetchStream = async (title: string, year: number | undefined, tmdbId: string, type: 'movie' | 'tv', season: number = 1, episode: number = 1, imdbId?: string) => {
-  const cacheKey = { title, type, year, season, episode, tmdbId };
-  if (streamCache.get(cacheKey)) return;
-
-  setTimeout(async () => {
-    try {
-      console.log(`[Prefetch] Warming cache for: ${title} (${imdbId || 'no-imdb'})`);
-      const result = await getStream(title, type, year, season, episode, tmdbId, imdbId);
-
-      if (result && result.success && result.sources?.length > 0) {
-        streamCache.set({ title, type, year, season, episode, tmdbId }, {
-          sources: result.sources,
-          subtitles: result.subtitles || [],
-          provider: result.provider || 'prefetched'
-        });
-        console.log(`[Prefetch] ✅ Cache warmed for: ${title}`);
-      }
-    } catch (e) {
-      // Ignore prefetch errors
-    }
-  }, 1000);
+  // no-op to prevent 403 cache poisoning
+  return;
 };
 
 export const getReleaseDates = async (id: number | string, type: 'movie' | 'tv') => {
