@@ -154,21 +154,26 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
             // 3. Load Video (Prioritize Local Sync, then Hero Sync, then Prop, then Fetch)
             const savedState = movie ? getVideoState(movie.id) : null;
+            let finalTrailerId = trailerId || savedState?.videoId;
 
-            if (savedState?.videoId) {
-                setTrailerQueue([savedState.videoId]);
+            // Check if Hero currently owns this movie to sync directly from Hero's trailer
+            if (!finalTrailerId && heroVideoState.movieId && String(heroVideoState.movieId) === String(movie.id)) {
+                finalTrailerId = heroVideoState.videoId;
+            }
+
+            if (finalTrailerId) {
+                setTrailerQueue([finalTrailerId]);
                 setIsPlayingTrailer(true);
-            } else if (heroVideoState.movieId && String(heroVideoState.movieId) === String(movie.id)) {
-                if (heroVideoState.videoId) setTrailerQueue([heroVideoState.videoId]);
-                setIsPlayingTrailer(true);
-            } else if (trailerId) {
-                setTrailerQueue([trailerId]);
-                setIsPlayingTrailer(true);
+                // Also update local state so subsequent opens remember this ID
+                if (movie.id && !savedState?.videoId) {
+                    updateVideoState(movie.id, 0, finalTrailerId);
+                }
             } else {
                 fetchTrailers(movie.id, type).then(keys => {
                     if (keys && keys.length > 0) {
                         setTrailerQueue(keys);
                         setIsPlayingTrailer(true);
+                        updateVideoState(movie.id, 0, keys[0]);
                     }
                 });
             }

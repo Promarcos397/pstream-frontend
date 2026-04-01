@@ -105,34 +105,64 @@ function buildSearchQueries(options: SearchOptions): string[] {
  */
 async function executeSearch(query: string, maxResults: number): Promise<string[]> {
     const key = YOUTUBE_API_KEYS[currentKeyIndex];
-    if (!key) return [];
+    
+    // If we have a key, try official API first
+    if (key) {
+        try {
+            const response = await axios.get(YOUTUBE_SEARCH_URL, {
+                params: {
+                    part: 'snippet',
+                    q: query,
+                    key: key,
+                    type: 'video',
+                    maxResults: maxResults,
+                    relevanceLanguage: 'en',
+                    videoEmbeddable: 'true'
+                }
+            });
 
-    try {
-        const response = await axios.get(YOUTUBE_SEARCH_URL, {
-            params: {
-                part: 'snippet',
-                q: query,
-                key: key,
-                type: 'video',
-                maxResults: maxResults,
-                relevanceLanguage: 'en',
-                videoEmbeddable: 'true'
+            if (response.data.items && response.data.items.length > 0) {
+                return response.data.items.map((item: any) => item.id.videoId);
             }
-        });
-
-        if (response.data.items && response.data.items.length > 0) {
-            return response.data.items.map((item: any) => item.id.videoId);
-        }
-        return [];
-    } catch (error: any) {
-        if (error.response?.status === 403) {
-            console.warn('[YouTubeService] Key', currentKeyIndex, 'rate limited, rotating...');
-            if (rotateKey()) {
-                return executeSearch(query, maxResults); // Retry with new key
+        } catch (error: any) {
+            const status = error.response?.status;
+            const reason = error.response?.data?.error?.message || error.message;
+            
+            if (status === 403 || status === 429) {
+                console.warn(`[YouTubeService] Key ${currentKeyIndex} failed (${status}): ${reason}. Rotating...`);
+                if (rotateKey()) {
+                    return executeSearch(query, maxResults); // Retry next key
+                }
+            } else {
+                console.error(`[YouTubeService] API Error: ${reason}`);
             }
         }
-        throw error;
     }
+
+    // FALLBACK: NO-API SCRAPER (Bypass Quoter/403)
+    // Uses the Giga Backend proxy to fetch public YT search page and regex out first video ID.
+    try {
+        console.log(`[YouTubeService] 🚀 Using No-API Scraper Fallback for: ${query}`);
+        const GIGA_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
+        const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%3D%3D`;
+        
+        const proxyUrl = `${GIGA_URL}/proxy/video?url=${encodeURIComponent(searchUrl)}`;
+        const response = await axios.get(proxyUrl, { responseType: 'text' });
+        
+        const html = response.data;
+        // Search for "videoId":"..." pattern in YT initial data
+        const matches = [...html.matchAll(/"videoId":"([^"]{11})"/g)];
+        if (matches.length > 0) {
+            // Uniq ID set
+            const ids = [...new Set(matches.map(m => m[1]))].slice(0, maxResults);
+            console.log(`[YouTubeService] ✅ Scraper found ${ids.length} videos`);
+            return ids;
+        }
+    } catch (e: any) {
+        console.error(`[YouTubeService] Scraper fallback failed: ${e.message}`);
+    }
+
+    return [];
 }
 
 /**
