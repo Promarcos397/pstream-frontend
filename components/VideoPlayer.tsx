@@ -228,7 +228,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             try {
                 // Fetch Legacy OpenSubtitles (bypass 5-request limit) in parallel with stream
                 const openSubPromise = settings.showSubtitles
-                    ? SubtitleService.getOpenSubtitles(String(movie.id), playingSeasonNumber, currentEpisode).catch(() => [])
+                    ? SubtitleService.getOpenSubtitles(String(movie.id), mediaType === 'tv' ? 'tv' : 'movie', playingSeasonNumber, currentEpisode).catch(() => [])
                     : Promise.resolve([]);
 
                 let imdbId = movie.imdb_id;

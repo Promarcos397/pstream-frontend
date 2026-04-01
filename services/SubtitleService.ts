@@ -42,14 +42,14 @@ function labelToLanguageCode(label: string): string {
 }
 
 export const SubtitleService = {
-    getOpenSubtitles: async (tmdbId: string, season?: number, episode?: number): Promise<SubtitleTrack[]> => {
+    getOpenSubtitles: async (tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<SubtitleTrack[]> => {
         try {
             if (!tmdbId) return [];
 
             const cleanId = tmdbId.replace('tt', '');
 
             // Note: The legacy OpenSubtitles REST API requires IMDB IDs to ensure perfect episode matching
-            const extIds = await getExternalIds(cleanId, season ? 'tv' : 'movie');
+            const extIds = await getExternalIds(cleanId, type);
             if (!extIds?.imdb_id) {
                 console.warn('[SubtitleService] Missing IMDB ID for legacy OpenSubtitles search.');
                 return [];
@@ -59,7 +59,7 @@ export const SubtitleService = {
 
             // Use the unrestricted legacy API endpoint
             let url = `https://rest.opensubtitles.org/search/`;
-            if (season && episode) {
+            if (type === 'tv' && season && episode) {
                 url += `episode-${episode}/imdbid-${imdbId}/season-${season}`;
             } else {
                 url += `imdbid-${imdbId}`;
