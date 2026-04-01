@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { HashRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { GlobalProvider } from './context/GlobalContext';
 import { TitleProvider } from './context/TitleContext';
@@ -18,9 +18,9 @@ root.render(
   <TitleProvider>
     <GlobalProvider>
       <ErrorBoundary>
-        <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <App />
-        </HashRouter>
+        </BrowserRouter>
       </ErrorBoundary>
     </GlobalProvider>
   </TitleProvider>

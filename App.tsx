@@ -13,7 +13,7 @@ import { HeroEngine } from './services/HeroEngine';
 // Components
 import Layout from './components/Layout';
 import InfoModal from './components/InfoModal';
-import WatchPage from './pages/WatchPage';
+import WatchPage from './pages/CinemaPage';
 // Pages
 import HomePage from './pages/HomePage';
 import ShowsPage from './pages/ShowsPage';

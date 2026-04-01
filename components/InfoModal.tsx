@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, TicketIcon, ClockIcon } from '@phosphor-icons/react';
 import YouTube from 'react-youtube';
@@ -399,21 +400,29 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                     <TicketIcon size={24} weight="bold" className="mr-2" />
                                     {t('hero.inTheaters', { defaultValue: 'In Theaters' })}
                                 </div>
-                            ) : (
-                                <button
-                                    onClick={handlePlayClick}
-                                    className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons"
-                                >
-                                    {isResuming ? (
-                                        <ClockIcon size={24} weight="bold" className="mr-2" />
-                                    ) : (
-                                        <PlayIcon size={24} weight="fill" className="mr-2" />
-                                    )}
-                                    {hasResumeTV ? t('modal.resume', { season: lastEp.season, episode: lastEp.episode }) : 
-                                     hasResumeMovie ? t('rows.continueWatching') : 
-                                     t('hero.play')}
-                                </button>
-                            )}
+                            ) : (() => {
+                                const type = (activeMovie.media_type || (activeMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+                                let watchUrl = `/watch/${type}/${activeMovie.id}`;
+                                if (type === 'tv' && lastEp) {
+                                    watchUrl += `?season=${lastEp.season}&episode=${lastEp.episode}`;
+                                }
+                                
+                                return (
+                                    <Link
+                                        to={watchUrl}
+                                        className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons no-underline"
+                                    >
+                                        {isResuming ? (
+                                            <ClockIcon size={24} weight="bold" className="mr-2" />
+                                        ) : (
+                                            <PlayIcon size={24} weight="fill" className="mr-2" />
+                                        )}
+                                        {hasResumeTV ? t('modal.resume', { season: lastEp.season, episode: lastEp.episode }) : 
+                                         hasResumeMovie ? t('rows.continueWatching') : 
+                                         t('hero.play')}
+                                    </Link>
+                                );
+                            })()}
                             <button
                                 onClick={() => toggleList(activeMovie)}
                                 className="border-2 border-gray-500 bg-[#2a2a2a]/60 text-gray-300 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center hover:border-white hover:text-white transition"

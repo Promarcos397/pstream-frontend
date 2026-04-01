@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { InfoIcon, TicketIcon, PlayCircle } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
@@ -85,15 +86,15 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                             <span className="whitespace-nowrap">{t('hero.inTheaters', { defaultValue: 'In Theaters' })}</span>
                         </button>
                     ) : (
-                        <button
-                            onClick={() => onPlay(movie)}
-                            className="flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[40px] md:h-[48px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[14px] md:text-[17px] gap-2 active:scale-95"
+                        <Link
+                            to={`/watch/${movie?.media_type === 'tv' || (!movie?.media_type && !movie?.title) ? 'tv' : 'movie'}/${movie?.id}`}
+                            className="flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[40px] md:h-[48px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[14px] md:text-[17px] gap-2 active:scale-95 shadow-lg"
                         >
                             <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] md:w-6 md:h-6 fill-black">
                                 <polygon points="6,3 20,12 6,21" />
                             </svg>
                             <span>{t('hero.play')}</span>
-                        </button>
+                        </Link>
                     )}
                     
                     <button

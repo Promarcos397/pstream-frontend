@@ -5,7 +5,7 @@ import { getMovieDetails } from '../services/api';
 import { useTitle } from '../context/TitleContext';
 import { Movie } from '../types';
 
-const WatchPage: React.FC = () => {
+const CinemaPage: React.FC = () => {
     const { type, id } = useParams<{ type: string; id: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -130,4 +130,4 @@ const WatchPage: React.FC = () => {
     );
 };
 
-export default WatchPage;
+export default CinemaPage;

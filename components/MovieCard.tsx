@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, CaretDownIcon, BookOpenIcon, TicketIcon } from '@phosphor-icons/react';
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import YouTube from 'react-youtube';
 import { useGlobalContext } from '../context/GlobalContext';
 import axios from 'axios';
@@ -522,23 +522,24 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   {/* Play/Read/Theater Button */}
-                  {isCinemaOnly && !isBook ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
-                      className="bg-[#6d6d6e] text-white rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95"
-                      title="In Theaters"
-                    >
-                      <TicketIcon size={18} weight="bold" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleDirectPlay}
-                      className="bg-white text-black rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95"
-                      title={isBook ? "Read Now" : "Play"}
-                    >
-                      {isBook ? <BookOpenIcon size={18} weight="fill" /> : <PlayIcon size={22} weight="fill" className="ml-0.5" />}
-                    </button>
-                  )}
+                      {isCinemaOnly && !isBook ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
+                          className="bg-[#6d6d6e] text-white rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95"
+                          title="In Theaters"
+                        >
+                          <TicketIcon size={18} weight="bold" />
+                        </button>
+                      ) : (
+                        <Link
+                          to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="bg-white text-black rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200"
+                          title={isBook ? "Read Now" : "Play"}
+                        >
+                          {isBook ? <BookOpenIcon size={18} weight="fill" /> : <PlayIcon size={22} weight="fill" className="ml-0.5" />}
+                        </Link>
+                      )}
                   {/* Add to List */}
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleList(movie); }}

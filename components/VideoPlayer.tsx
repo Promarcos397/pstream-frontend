@@ -20,7 +20,14 @@ const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrah
 // Child Components
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
-import { ArrowLeftIcon } from '@phosphor-icons/react';
+import { 
+    ArrowLeftIcon, 
+    XIcon, 
+    PlayIcon, 
+    CheckIcon, 
+    CaretRightIcon, 
+    CaretDownIcon
+} from '@phosphor-icons/react';
 
 interface VideoPlayerProps {
     movie: Movie;
@@ -38,6 +45,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const navigate = (window as any).reactNavigate || (() => window.history.back());
     const { settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState } = useGlobalContext();
     const { setPageTitle } = useTitle();
+    const isMobile = useIsMobile();
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -93,6 +101,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // Quality levels from HLS
     const [qualityLevels, setQualityLevels] = useState<{ height: number; bitrate: number; level: number }[]>([]);
     const [currentQualityLevel, setCurrentQualityLevel] = useState<number>(-1); // -1 = auto
+
+    // Audio tracks from HLS
+    const [audioTracks, setAudioTracks] = useState<{ id: number; name: string; lang: string }[]>([]);
+    const [currentAudioTrack, setCurrentAudioTrack] = useState<number>(-1); // -1 = default
 
     // Mobile touch gesture state
     const [skipIndicator, setSkipIndicator] = useState<{ direction: 'left' | 'right' | null; visible: boolean }>({
@@ -517,9 +529,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     console.log('[VideoPlayer] Quality levels:', levels.map(l => `${l.height}p`));
                 }
 
-                // Auto-select preferred audio track — prevents foreign language dubs
-                // VidZee/VidLink streams often include multiple audio renditions
+                // --- Multi-Audio HLS Support ---
                 if (hls.audioTracks && hls.audioTracks.length > 0) {
+                    const tracks = hls.audioTracks.map((t, index) => ({
+                        id: index,
+                        name: t.name || t.lang || `Track ${index + 1}`,
+                        lang: t.lang || '',
+                        isDefault: !!t.default
+                    }));
+                    setAudioTracks(tracks);
+
                     const preferredLang = (settings.subtitleLanguage || 'en').toLowerCase().slice(0, 2);
 
                     // Find track matching preferred language first
@@ -539,11 +558,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
                     if (bestTrack >= 0 && bestTrack !== hls.audioTrack) {
                         hls.audioTrack = bestTrack;
+                        setCurrentAudioTrack(bestTrack);
+                    } else if (hls.audioTrack !== undefined) {
+                        setCurrentAudioTrack(hls.audioTrack);
                     }
 
-                    console.log(`[VideoPlayer] 🎵 Audio tracks: ${hls.audioTracks.map((t, i) =>
-                        `${i === hls.audioTrack ? '✓' : ' '}${t.name}(${t.lang})`
-                    ).join(' | ')}`);
+                    console.log(`[VideoPlayer] 🎵 Audio tracks loaded: ${tracks.length}`);
                 }
 
                 // Resume from saved position
@@ -841,20 +861,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         window.history.replaceState(null, '', newUrl);
     }, [exploredSeasonNumber, exploredSeasonEpisodes, currentSeasonEpisodes, movie.id]);
 
-    const handleShare = useCallback(() => {
-        const type = mediaType === 'tv' ? 'tv' : 'movie';
-        const url = `${window.location.protocol}//${window.location.host}/watch/${type}/${movie.id}${mediaType === 'tv' ? `?season=${playingSeasonNumber}&episode=${currentEpisode}` : ''}`;
-
-        navigator.clipboard.writeText(url).then(() => {
-            // Provide visual feedback via the loading message (temporary 2s toast)
-            const oldMessage = loadingMessage;
-            setLoadingMessage('✨ Link Copied to Clipboard!');
-            setTimeout(() => setLoadingMessage(oldMessage), 2000);
-        }).catch(err => {
-            console.error('Failed to copy link:', err);
-        });
-    }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, loadingMessage]);
-
     const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
 
     // Season EXPLORATION - just browse, don't trigger playback
@@ -1141,61 +1147,77 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     progress={progress}
                     duration={duration}
                     currentTime={currentTime}
+                    buffered={progress + 5} // Approximate buffered for UI
                     isBuffering={isBuffering}
                     title={displayTitle}
                     showNextEp={mediaType === 'tv' && (
                         currentSeasonEpisodes.some(e => e.episode_number === currentEpisode + 1) ||
                         seasonList.includes(playingSeasonNumber + 1)
                     )}
+                    nextEpisode={currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1)}
                     onPlayPause={togglePlay}
                     onSeek={handleRelativeSeek}
                     volume={volume}
                     onVolumeChange={handleVolumeChange}
                     onToggleMute={toggleMute}
-                    onTimelineSeek={(pct) => {
-                        const video = videoRef.current;
-                        if (video && duration > 0) {
-                            video.currentTime = (pct / 100) * duration;
-                        }
-                    }}
+                    onTimelineSeek={handleAbsoluteSeek}
                     onNextEpisode={() => {
                         const nextEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode + 1);
-                        if (nextEp) {
-                            handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
-                        } else {
-                            // Try next season
-                            const nextSeason = playingSeasonNumber + 1;
-                            if (seasonList.includes(nextSeason)) {
-                                // Fetch first episode of next season
-                                getSeasonDetails(String(movie.id), nextSeason).then(seasonData => {
-                                    if (seasonData?.episodes?.length > 0) {
-                                        const firstEp = seasonData.episodes[0];
-                                        handleEpisodeSelect(firstEp, nextSeason, seasonData.episodes);
-                                    }
-                                });
-                            }
-                        }
+                        if (nextEp) handleEpisodeSelect(nextEp, playingSeasonNumber, currentSeasonEpisodes);
                     }}
-                    onClose={onClose || (() => window.history.back())}
+                    onClose={onClose || (() => navigate(-1))}
                     onToggleFullscreen={toggleFullscreen}
-                    onSettingsClick={() => setActivePanel(activePanel === 'quality' ? 'none' : 'quality')}
-                    onSubtitlesClick={() => setActivePanel(activePanel === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
-                    onSubtitlesHover={() => setIsPanelHovered(true)}
-                    onSettingsHover={() => setIsPanelHovered(true)}
-                    onEpisodesClick={mediaType === 'tv' ? () => setActivePanel(activePanel === 'episodes' ? 'none' : 'episodes') : undefined}
-                    onEpisodesHover={mediaType === 'tv' ? () => setIsPanelHovered(true) : undefined}
+                    onSettingsClick={() => isMobile && setActivePanel('quality')}
+                    onSubtitlesClick={() => isMobile && setActivePanel('audioSubtitles')}
+                    onEpisodesClick={() => isMobile && setActivePanel('episodes')}
+                    isMenuOpen={activePanel !== 'none'}
                     showUI={showUI}
+                    // Pass settings state for hover panels
+                    captions={captions}
+                    currentCaption={currentCaption}
+                    onSubtitleChange={setCurrentCaption}
+                    audioTracks={audioTracks}
+                    currentAudioTrack={currentAudioTrack}
+                    onAudioChange={(trackId) => {
+                        if (hlsRef.current) hlsRef.current.audioTrack = trackId;
+                        setCurrentAudioTrack(trackId);
+                    }}
+                    qualities={qualityLevels}
+                    currentQuality={currentQualityLevel}
+                    onQualityChange={(level) => {
+                        if (hlsRef.current) hlsRef.current.currentLevel = level;
+                        setCurrentQualityLevel(level);
+                    }}
+                    seasonList={seasonList}
+                    currentSeasonEpisodes={exploredSeasonEpisodes.length > 0 ? exploredSeasonEpisodes : currentSeasonEpisodes}
+                    selectedSeason={exploredSeasonNumber}
+                    playingSeason={playingSeasonNumber}
+                    showId={movie.id}
+                    onSeasonSelect={handleSeasonExplore}
+                    onEpisodeSelect={(ep) => handleEpisodeSelect(ep, exploredSeasonNumber, exploredSeasonEpisodes)}
+                    onEpisodeExpand={() => {}}
+                    activePanel={activePanel}
+                    setActivePanel={setActivePanel}
+                    showTitle={movie.name || movie.title}
                 />
             </div>
 
-            {/* Settings Panel */}
-            {activePanel !== 'none' && (
+            {/* Settings Panel (Mobile Sheets only) */}
+            {isMobile && activePanel !== 'none' && (
                 <VideoPlayerSettings
                     activePanel={activePanel}
                     setActivePanel={setActivePanel}
                     captions={captions}
                     currentCaption={currentCaption}
                     onSubtitleChange={setCurrentCaption}
+                    audioTracks={audioTracks}
+                    currentAudioTrack={currentAudioTrack}
+                    onAudioChange={(trackId) => {
+                        if (hlsRef.current) {
+                            hlsRef.current.audioTrack = trackId;
+                            setCurrentAudioTrack(trackId);
+                        }
+                    }}
                     seasonList={seasonList}
                     selectedSeason={exploredSeasonNumber}
                     playingSeason={playingSeasonNumber}
@@ -1204,22 +1226,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     currentEpisode={currentEpisode}
                     onSeasonSelect={handleSeasonExplore}
                     onEpisodeSelect={handleEpisodeSelect}
-                    onEpisodeExpand={(season, ep) => {
-                        console.log(`[VideoPlayer] Prefetching S${season}E${ep} for faster playback`);
-                        // Future: could prefetch stream info here
-                    }}
+                    onEpisodeExpand={() => {}}
                     qualities={qualityLevels}
                     currentQuality={currentQualityLevel}
                     onQualityChange={(level) => {
                         if (hlsRef.current) {
                             hlsRef.current.currentLevel = level;
                             setCurrentQualityLevel(level);
-                            console.log('[VideoPlayer] Quality changed to level:', level);
                         }
                     }}
                     showTitle={displayTitle}
-                    onPanelHover={() => setIsPanelHovered(true)}
-                    onStartHide={() => setIsPanelHovered(false)}
                 />
             )}
         </div>
