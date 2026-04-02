@@ -416,14 +416,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
 
         fetchStream();
-
-        // Cleanup on unmount
-        return () => {
-            if (hlsRef.current) {
-                hlsRef.current.destroy();
-                hlsRef.current = null;
-            }
-        };
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode, retryCount]);
 
     // --- Native Subtitle Loading Effect ---
