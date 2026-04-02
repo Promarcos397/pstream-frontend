@@ -13,6 +13,7 @@ import { useTouchGestures } from '../hooks/useTouchGestures';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
 import { NetworkPriority } from '../services/NetworkPriority';
+import { useHls } from '../hooks/useHls';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -47,7 +48,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const { setPageTitle } = useTitle();
     const isMobile = useIsMobile();
     const videoRef = useRef<HTMLVideoElement>(null);
-    const hlsRef = useRef<Hls | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -373,9 +373,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     finalUrl = URL.createObjectURL(blob);
                     console.log(`[VideoPlayer] 🧠 Using pre-fetched manifest Blob URL (IP-signed token fix)`);
                 } else {
+                    const headers = JSON.stringify({ referer: activeReferer, origin: new URL(activeReferer).origin });
                     finalUrl = hlsSource.isM3U8
-                        ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`
-                        : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&referer=${encodeURIComponent(activeReferer)}`;
+                        ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`
+                        : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`;
                 }
             }
 
@@ -482,170 +483,84 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
     }, [currentCaption]);
 
-    // --- Initialize HLS.js when stream    // HLS Initialization
+    // --- Use Standalone HLS Manager Hook ---
+    const { 
+        isBuffering: hlsBuffering, 
+        qualityLevels: hlsLevels, 
+        currentQuality: hlsQuality,
+        audioTracks: hlsAudios, 
+        currentAudioTrack: hlsAudio,
+        changeQuality, 
+        changeAudioTrack 
+    } = useHls(videoRef, {
+        streamUrl,
+        isM3U8: isStreamM3U8,
+        onManifestParsed: () => {
+            // Re-apply saved position (optional, can also be done inside useHls but safer here)
+            const video = videoRef.current;
+            if (video) {
+                const saved = mediaType === 'tv' 
+                    ? getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode)
+                    : getVideoState(movie.id);
+                if (saved && saved.time > 10 && saved.time < (video.duration - 30)) {
+                    video.currentTime = saved.time;
+                }
+            }
+        },
+        onTokenExpired: () => {
+            console.log('[VideoPlayer] Token expired, refreshing stream...');
+            const releaseYear = formattedDate ? parseInt(formattedDate.split('-')[0]) : undefined;
+            streamCache.remove({
+                title, type: (mediaType === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie',
+                year: releaseYear, season: playingSeasonNumber, episode: currentEpisode,
+                tmdbId: String(movie.id || '')
+            });
+            setRetryCount(c => c + 1);
+        },
+        onError: (errMsg) => {
+            // Try mirror switching before giving up
+            if (currentSourceIndex < allSources.length - 1) {
+                const nextIndex = currentSourceIndex + 1;
+                const nextSource = allSources[nextIndex];
+                setCurrentSourceIndex(nextIndex);
+                setLoadingMessage(`Switching to mirror ${nextIndex + 1}...`);
+                setIsEmbed(!!nextSource.isEmbed);
+                let nextUrl = nextSource.url;
+                if (!nextSource.isEmbed) {
+                    const headers = JSON.stringify({ referer: streamReferer || '', origin: streamReferer ? new URL(streamReferer).origin : '' });
+                    nextUrl = nextSource.isM3U8
+                        ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`
+                        : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`;
+                }
+                setStreamUrl(nextUrl);
+                setIsStreamM3U8(!!nextSource.isM3U8);
+            } else {
+                setError(errMsg);
+            }
+        }
+    });
+
+    // Sync HLS hook states to component states for the UI controls
     useEffect(() => {
-        if (!streamUrl || !videoRef.current || isEmbed) {
-            // For embeds, we stop buffering immediately because the iframe handles its own loading.
-            if (isEmbed && isBuffering) {
-                setTimeout(() => setIsBuffering(false), 500);
-            }
-            return;
-        }
+        setQualityLevels(hlsLevels);
+    }, [hlsLevels]);
 
-        const video = videoRef.current;
+    useEffect(() => {
+        setCurrentQualityLevel(hlsQuality);
+    }, [hlsQuality]);
 
-        // Destroy previous HLS instance
-        if (hlsRef.current) {
-            hlsRef.current.destroy();
-            hlsRef.current = null;
-        }
+    useEffect(() => {
+        setAudioTracks(hlsAudios);
+    }, [hlsAudios]);
 
-        // Check if HLS is supported or if it's a direct MP4
-        if (!isStreamM3U8) {
-            console.log('[VideoPlayer] Direct MP4 stream detected, bypassing HLS.js');
-            video.src = streamUrl;
-            video.addEventListener('loadedmetadata', () => {
-                setIsBuffering(false);
-                video.play().catch(err => console.warn('Autoplay blocked:', err));
-            });
-        } else if (Hls.isSupported()) {
-            const hls = new Hls();
-            hlsRef.current = hls;
-            hls.loadSource(streamUrl);
-            hls.attachMedia(video);
+    useEffect(() => {
+        setCurrentAudioTrack(hlsAudio);
+    }, [hlsAudio]);
 
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                console.log('[VideoPlayer] HLS manifest parsed, starting playback');
-                setIsBuffering(false);
+    useEffect(() => {
+        if (!isEmbed) setIsBuffering(hlsBuffering);
+    }, [hlsBuffering, isEmbed]);
 
-                // Extract quality levels from HLS
-                if (hls.levels && hls.levels.length > 0) {
-                    const levels = hls.levels.map((level, index) => ({
-                        height: level.height || 0,
-                        bitrate: level.bitrate || 0,
-                        level: index
-                    })).sort((a, b) => b.height - a.height);
-                    setQualityLevels(levels);
-                    console.log('[VideoPlayer] Quality levels:', levels.map(l => `${l.height}p`));
-                }
-
-                // --- Multi-Audio HLS Support ---
-                if (hls.audioTracks && hls.audioTracks.length > 0) {
-                    const tracks = hls.audioTracks.map((t, index) => ({
-                        id: index,
-                        name: t.name || t.lang || `Track ${index + 1}`,
-                        lang: t.lang || '',
-                        isDefault: !!t.default
-                    }));
-                    setAudioTracks(tracks);
-
-                    const preferredLang = (settings.subtitleLanguage || 'en').toLowerCase().slice(0, 2);
-
-                    // Find track matching preferred language first
-                    let bestTrack = hls.audioTracks.findIndex(t => {
-                        const lang = (t.lang || '').toLowerCase().slice(0, 2);
-                        const name = (t.name || '').toLowerCase();
-                        return lang === preferredLang || (preferredLang === 'en' && (name.includes('english') || name === 'en'));
-                    });
-
-                    // Fall back to any English track
-                    if (bestTrack < 0) {
-                        bestTrack = hls.audioTracks.findIndex(t =>
-                            (t.lang || '').toLowerCase().startsWith('en') ||
-                            (t.name || '').toLowerCase().includes('english')
-                        );
-                    }
-
-                    if (bestTrack >= 0 && bestTrack !== hls.audioTrack) {
-                        hls.audioTrack = bestTrack;
-                        setCurrentAudioTrack(bestTrack);
-                    } else if (hls.audioTrack !== undefined) {
-                        setCurrentAudioTrack(hls.audioTrack);
-                    }
-
-                    console.log(`[VideoPlayer] 🎵 Audio tracks loaded: ${tracks.length}`);
-                }
-
-                // Resume from saved position
-                if (mediaType === 'tv') {
-                    const saved = getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode);
-                    if (saved && saved.time > 10 && saved.time < (saved.duration - 30)) {
-                        console.log('[VideoPlayer] Resuming TV from', saved.time);
-                        video.currentTime = saved.time;
-                    }
-                } else {
-                    const saved = getVideoState(movie.id);
-                    if (saved && saved.time > 10) {
-                        console.log('[VideoPlayer] Resuming Movie from', saved.time);
-                        video.currentTime = saved.time;
-                    }
-                }
-
-                video.play().catch(err => {
-                    console.warn('[VideoPlayer] Autoplay blocked:', err);
-                });
-            });
-
-            hls.on(Hls.Events.ERROR, (event, data) => {
-                if (data.fatal) {
-                    console.error('[VideoPlayer] HLS fatal error:', data);
-
-                    // On 403 manifest load error: cached token likely expired — bust cache and refetch
-                    if (data.details === 'manifestLoadError' && (data as any)?.response?.code === 403) {
-                        const releaseYear = formattedDate ? parseInt(formattedDate.split('-')[0]) : undefined;
-                        streamCache.remove({
-                            title, type: (mediaType === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie',
-                            year: releaseYear, season: playingSeasonNumber, episode: currentEpisode,
-                            tmdbId: String(movie.id || '')
-                        });
-                        hls.destroy();
-                        setIsBuffering(true);
-                        setLoadingMessage('Token expired — refreshing stream...');
-                        setRetryCount(c => c + 1); // triggers fetchStream useEffect
-                        return;
-                    }
-
-                    // Invisible Mirror-Switching (within same provider result)
-                    if (currentSourceIndex < allSources.length - 1) {
-                        const nextIndex = currentSourceIndex + 1;
-                        const nextSource = allSources[nextIndex];
-                        setCurrentSourceIndex(nextIndex);
-                        setLoadingMessage(`Switching to mirror ${nextIndex + 1}...`);
-                        setIsEmbed(!!nextSource.isEmbed);
-                        let nextUrl = nextSource.url;
-                        if (!nextSource.isEmbed) {
-                            nextUrl = nextSource.isM3U8
-                                ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`
-                                : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&referer=${encodeURIComponent(streamReferer || '')}`;
-                        }
-                        setStreamUrl(nextUrl);
-                        setIsStreamM3U8(!!nextSource.isM3U8);
-                        return;
-                    }
-
-                    setError(`Playback error: ${data.details || data.type}. Try again later.`);
-                    hls.destroy();
-                }
-            });
-
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            // Native HLS support (Safari)
-            video.src = streamUrl;
-            video.addEventListener('loadedmetadata', () => {
-                setIsBuffering(false);
-                video.play();
-            });
-        } else {
-            setError('HLS playback not supported in this browser');
-        }
-
-        return () => {
-            if (hlsRef.current) {
-                hlsRef.current.destroy();
-                hlsRef.current = null;
-            }
-        };
-    }, [streamUrl, streamReferer, isStreamM3U8]);
 
     // --- Fetch TV Show Details ---
     useEffect(() => {
@@ -1178,16 +1093,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     onSubtitleChange={setCurrentCaption}
                     audioTracks={audioTracks}
                     currentAudioTrack={currentAudioTrack}
-                    onAudioChange={(trackId) => {
-                        if (hlsRef.current) hlsRef.current.audioTrack = trackId;
-                        setCurrentAudioTrack(trackId);
-                    }}
+                    onAudioChange={changeAudioTrack}
                     qualities={qualityLevels}
                     currentQuality={currentQualityLevel}
-                    onQualityChange={(level) => {
-                        if (hlsRef.current) hlsRef.current.currentLevel = level;
-                        setCurrentQualityLevel(level);
-                    }}
+                    onQualityChange={changeQuality}
                     seasonList={seasonList}
                     currentSeasonEpisodes={exploredSeasonEpisodes.length > 0 ? exploredSeasonEpisodes : currentSeasonEpisodes}
                     selectedSeason={exploredSeasonNumber}
@@ -1212,12 +1121,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     onSubtitleChange={setCurrentCaption}
                     audioTracks={audioTracks}
                     currentAudioTrack={currentAudioTrack}
-                    onAudioChange={(trackId) => {
-                        if (hlsRef.current) {
-                            hlsRef.current.audioTrack = trackId;
-                            setCurrentAudioTrack(trackId);
-                        }
-                    }}
+                    onAudioChange={changeAudioTrack}
                     seasonList={seasonList}
                     selectedSeason={exploredSeasonNumber}
                     playingSeason={playingSeasonNumber}
@@ -1229,12 +1133,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     onEpisodeExpand={() => {}}
                     qualities={qualityLevels}
                     currentQuality={currentQualityLevel}
-                    onQualityChange={(level) => {
-                        if (hlsRef.current) {
-                            hlsRef.current.currentLevel = level;
-                            setCurrentQualityLevel(level);
-                        }
-                    }}
+                    onQualityChange={changeQuality}
                     showTitle={displayTitle}
                 />
             )}
