@@ -374,9 +374,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     console.log(`[VideoPlayer] 🧠 Using pre-fetched manifest Blob URL (IP-signed token fix)`);
                 } else {
                     const headers = JSON.stringify({ referer: activeReferer, origin: new URL(activeReferer).origin });
-                    finalUrl = hlsSource.isM3U8
-                        ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`
-                        : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`;
+                    finalUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`;
                 }
             }
 
@@ -520,9 +518,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 let nextUrl = nextSource.url;
                 if (!nextSource.isEmbed) {
                     const headers = JSON.stringify({ referer: streamReferer || '', origin: streamReferer ? new URL(streamReferer).origin : '' });
-                    nextUrl = nextSource.isM3U8
-                        ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`
-                        : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`;
+                    nextUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`;
                 }
                 setStreamUrl(nextUrl);
                 setIsStreamM3U8(!!nextSource.isM3U8);
