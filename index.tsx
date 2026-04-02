@@ -25,3 +25,14 @@ root.render(
     </GlobalProvider>
   </TitleProvider>
 );
+ 
+// P-Stream Giga Edge Media Proxy Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      console.log('[Media Proxy] ServiceWorker registered with scope:', registration.scope);
+    }, (err) => {
+      console.error('[Media Proxy] ServiceWorker registration failed:', err);
+    });
+  });
+}

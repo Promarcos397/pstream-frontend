@@ -365,14 +365,33 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             // Use the source-specific referer if available, otherwise use the global one passed by the resolver
             const activeReferer = hlsSource.referer || globalReferer || '';
 
+            const SW_BYPASS_DOMAINS = [
+                'vodvidl.site', 
+                'thunderleaf', 
+                'frostcomet', 
+                'cloudnestra', 
+                'vsembed.ru',
+                'neonhorizonworkshops.com',
+                'wanderlynest.com',
+                'orchidpixelgardens.com',
+                'pstream-cdn.com'
+            ];
+
             let finalUrl = hlsSource.url;
             if (!isEmbedFallback) {
-                // If the backend pre-fetched the manifest (IP-signed token fix), use Blob URL
-                if (hlsSource.directManifest) {
+                // If domain is in SW block, use DIRECT URL (SW will intercept and fix headers/CORS)
+                const isBypass = SW_BYPASS_DOMAINS.some(d => hlsSource.url.toLowerCase().includes(d));
+                
+                if (isBypass) {
+                    console.log(`[VideoPlayer] 🚀 Using Direct URL (Media Proxy Service Worker active)`);
+                    finalUrl = hlsSource.url;
+                } else if (hlsSource.directManifest) {
+                    // Blob fallback
                     const blob = new Blob([hlsSource.directManifest], { type: 'application/vnd.apple.mpegurl' });
                     finalUrl = URL.createObjectURL(blob);
-                    console.log(`[VideoPlayer] 🧠 Using pre-fetched manifest Blob URL (IP-signed token fix)`);
+                    console.log(`[VideoPlayer] 🧠 Using pre-fetched manifest Blob URL`);
                 } else {
+                    // Standard backend proxy
                     const headers = JSON.stringify({ referer: activeReferer, origin: new URL(activeReferer).origin });
                     finalUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`;
                 }
