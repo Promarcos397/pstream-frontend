@@ -370,8 +370,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     finalUrl = URL.createObjectURL(blob);
                     console.log(`[VideoPlayer] 🧠 Using pre-fetched manifest Blob URL`);
                 } else {
-                    const headers = JSON.stringify({ referer: activeReferer, origin: new URL(activeReferer).origin });
-                    finalUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`;
+                    let origin = '';
+                    try {
+                        const refUrl = activeReferer.startsWith('//') ? `https:${activeReferer}` : activeReferer;
+                        origin = refUrl ? new URL(refUrl).origin : '';
+                    } catch (e) {
+                        console.warn('[VideoPlayer] Safe origin construction failed:', e);
+                    }
+                    const headersObj = { referer: activeReferer, origin };
+                    finalUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(JSON.stringify(headersObj))}`;
                 }
             }
 
