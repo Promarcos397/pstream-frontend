@@ -373,19 +373,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     finalUrl = URL.createObjectURL(blob);
                     console.log(`[VideoPlayer] 🧠 Using pre-fetched manifest Blob URL (IP-signed token fix)`);
                 } else {
-                    const isDirectSource = hlsSource.url.includes('storm.vodvidl.site') || 
-                                         hlsSource.url.includes('proxy') || 
-                                         hlsSource.isDirect;
-                                         
-                    if (isDirectSource) {
-                        console.log(`[VideoPlayer] ⚡ Bypassing HF Proxy for Direct source (VidLink)`);
-                        finalUrl = hlsSource.url;
-                    } else {
-                        const headers = JSON.stringify({ referer: activeReferer, origin: new URL(activeReferer).origin });
-                        finalUrl = hlsSource.isM3U8
-                            ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`
-                            : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`;
-                    }
+                    const headers = JSON.stringify({ referer: activeReferer, origin: new URL(activeReferer).origin });
+                    finalUrl = hlsSource.isM3U8
+                        ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`
+                        : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(headers)}`;
                 }
             }
 
@@ -528,17 +519,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 setIsEmbed(!!nextSource.isEmbed);
                 let nextUrl = nextSource.url;
                 if (!nextSource.isEmbed) {
-                    const isDirect = nextSource.url.includes('storm.vodvidl.site') || nextSource.isDirect;
-                    
-                    if (isDirect) {
-                        console.log(`[VideoPlayer] ⚡ Bypassing HF Proxy for next Source`);
-                        nextUrl = nextSource.url;
-                    } else {
-                        const headers = JSON.stringify({ referer: streamReferer || '', origin: streamReferer ? new URL(streamReferer).origin : '' });
-                        nextUrl = nextSource.isM3U8
-                            ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`
-                            : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`;
-                    }
+                    const headers = JSON.stringify({ referer: streamReferer || '', origin: streamReferer ? new URL(streamReferer).origin : '' });
+                    nextUrl = nextSource.isM3U8
+                        ? `${GIGA_BACKEND_URL}/proxy/m3u8?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`
+                        : `${GIGA_BACKEND_URL}/proxy/video?url=${encodeURIComponent(nextSource.url)}&headers=${encodeURIComponent(headers)}`;
                 }
                 setStreamUrl(nextUrl);
                 setIsStreamM3U8(!!nextSource.isM3U8);
