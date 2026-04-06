@@ -48,7 +48,7 @@ class HeroEngineService {
     }
 
     this.isInitializing.add(cacheKey);
-    console.log(`[HeroEngine] Selecting 'The Chosen One' for ${cacheKey}...`);
+    console.log(`[HeroEngine] Selecting 'Daily Featured Content' for ${cacheKey}...`);
 
     try {
       let url = fetchUrl;
