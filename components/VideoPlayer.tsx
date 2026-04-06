@@ -12,6 +12,7 @@ import { streamCache } from '../utils/streamCache';
 import { useTouchGestures } from '../hooks/useTouchGestures';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
+import { SkipService, SkipSegment } from '../services/SkipService';
 import { NetworkPriority } from '../services/NetworkPriority';
 import { useHls } from '../hooks/useHls';
 
@@ -91,8 +92,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentAudioTrack, setCurrentAudioTrack] = useState<number>(-1);
 
     // Skips
+    const [skipSegments, setSkipSegments] = useState<SkipSegment[]>([]);
     const [showSkipIntro, setShowSkipIntro] = useState(false);
     const [showSkipOutro, setShowSkipOutro] = useState(false);
+    const [activeSkipSegment, setActiveSkipSegment] = useState<SkipSegment | null>(null);
 
     // Derived data
     const title = movie.title || movie.name || '';
@@ -231,6 +234,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         fetchStream();
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode, retryCount, applyStreamResult]);
 
+    // Skip Segments Effect
+    useEffect(() => {
+        const fetchSkips = async () => {
+            if (mediaType === 'tv') {
+                const segments = await SkipService.getSkipSegments(String(movie.id), playingSeasonNumber, currentEpisode);
+                console.log(`[VideoPlayer] Found ${segments.length} skip segments.`);
+                setSkipSegments(segments);
+            } else {
+                setSkipSegments([]);
+            }
+        };
+        fetchSkips();
+    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
+
     // HLS Hook Integration
     const { 
         isBuffering: hlsBuffering, 
@@ -281,8 +298,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setDuration(dur);
         setProgress((time / dur) * 100);
 
-        setShowSkipIntro(time > 20 && time < 120);
-        setShowSkipOutro(time > (dur - 130));
+        // Advanced Skip Detection (TheIntroDB)
+        const intro = skipSegments.find(s => s.type === 'intro' && time >= s.startTime && time <= (s.endTime - 2));
+        const outro = skipSegments.find(s => s.type === 'outro' && time >= (s.startTime - 10)); // Trigger 10s before credits
+        
+        setShowSkipIntro(!!intro);
+        setShowSkipOutro(!!outro);
+        setActiveSkipSegment(intro || null);
 
         if (time > 0 && Math.abs(time - (window as any).lastSavedTime || 0) > 5) {
             (window as any).lastSavedTime = time;
@@ -441,9 +463,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onSourceChange={handleSourceChange}
             />
 
-            {showSkipIntro && (
-                <button onClick={() => videoRef.current && (videoRef.current.currentTime = 90)} className="absolute bottom-32 left-8 px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold rounded flex items-center gap-2 transition-all active:scale-95 z-30">
-                    Skip Intro
+            {showSkipIntro && activeSkipSegment && (
+                <button 
+                    onClick={() => {
+                        if (videoRef.current) videoRef.current.currentTime = activeSkipSegment.endTime;
+                        setShowSkipIntro(false);
+                    }} 
+                    className="absolute bottom-32 left-8 px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold rounded flex items-center gap-2 transition-all active:scale-95 z-30"
+                >
+                    <CaretRightIcon weight="bold" /> Skip Intro
                 </button>
             )}
         </div>

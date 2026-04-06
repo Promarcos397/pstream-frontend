@@ -41,10 +41,12 @@ function labelToLanguageCode(label: string): string {
     return langMap[normalized] || 'en';
 }
 
+const BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'http://localhost:7860';
+
 export const SubtitleService = {
     getIntroSubtitles: async (tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<SubtitleTrack[]> => {
         try {
-            const url = `https://api.theintrodb.org/api/subtitles?tmdb_id=${tmdbId}&type=${type}${type === 'tv' ? `&season=${season}&episode=${episode}` : ''}`;
+            const url = `${BACKEND_URL}/api/introdb/subtitles?tmdb_id=${tmdbId}&type=${type}${season ? `&season=${season}` : ''}${episode ? `&episode=${episode}` : ''}`;
             const response = await fetch(url);
             if (!response.ok) return [];
             const data = await response.json();
