@@ -368,7 +368,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                 modestbranding: 1,
                                                 rel: 0,
                                                 controls: 0,
-                                                start: Math.floor(initialTime), // Seamless resume
+                                                start: initialTime > 5 ? Math.floor(initialTime) : 5, // Seamless resume or skip 5s
                                                 loop: 1,
                                                 playlist: trailerQueue[0], // Required for looping
                                             }

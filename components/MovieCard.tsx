@@ -455,6 +455,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         iv_load_policy: 3,
                         cc_load_policy: 0,
                         vq: 'hd1080', // Force HD
+                        start: 5,
                       }
                     }}
                     onReady={(e) => {

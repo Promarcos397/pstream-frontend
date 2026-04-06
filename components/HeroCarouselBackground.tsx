@@ -141,6 +141,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                     origin: window.location.origin,
                                     widget_referrer: window.location.origin,
                                     vq: youtubeQuality,
+                                    start: 5,
                                 }
                             }}
                         />
