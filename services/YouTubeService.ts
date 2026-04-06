@@ -146,7 +146,8 @@ async function executeSearch(query: string, maxResults: number): Promise<string[
         const GIGA_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
         const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%3D%3D`;
         
-        const proxyUrl = `${GIGA_URL}/proxy/video?url=${encodeURIComponent(searchUrl)}`;
+        // FIX: Match backend endpoint (/proxy/stream) and use correct URL query string grammar
+        const proxyUrl = `${GIGA_URL}/proxy/stream?url=${encodeURIComponent(searchUrl)}`;
         const response = await axios.get(proxyUrl, { responseType: 'text' });
         
         const html = response.data;
