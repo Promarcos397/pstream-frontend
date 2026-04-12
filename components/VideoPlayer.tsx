@@ -180,6 +180,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (episode !== currentEpisode) setCurrentEpisode(episode);
     }, [season, episode]);
 
+    // Keyboard shortcut: Escape = close player (desktop)
+    useEffect(() => {
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && activePanel === 'none') {
+                e.preventDefault();
+                if (onClose) onClose();
+            }
+            // Space = play/pause
+            if (e.code === 'Space' && activePanel === 'none') {
+                e.preventDefault();
+                videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
+            }
+            // Arrow keys = seek ±10s
+            if (e.key === 'ArrowRight' && activePanel === 'none') videoRef.current && (videoRef.current.currentTime += 10);
+            if (e.key === 'ArrowLeft' && activePanel === 'none') videoRef.current && (videoRef.current.currentTime -= 10);
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [onClose, activePanel]);
+
     // Fetch Stream Effect
     useEffect(() => {
         const fetchStream = async () => {
@@ -287,6 +307,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setAudioTracks(hlsAudios);
         setCurrentAudioTrack(hlsAudio);
         if (!isEmbed) setIsBuffering(hlsBuffering);
+
+        // Auto-select English audio track to filter out non-English sources
+        if (hlsAudios.length > 1) {
+            const englishTrack = hlsAudios.find(t =>
+                t.lang?.toLowerCase().startsWith('en') ||
+                t.name?.toLowerCase().includes('english') ||
+                t.isDefault
+            );
+            if (englishTrack && englishTrack.id !== hlsAudio) {
+                console.log(`[VideoPlayer] Auto-switching to English audio track: ${englishTrack.name}`);
+                changeAudioTrack(englishTrack.id);
+            }
+        }
     }, [hlsLevels, hlsQuality, hlsAudios, hlsAudio, hlsBuffering, isEmbed]);
 
     // Time Update & History

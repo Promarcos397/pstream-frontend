@@ -6,7 +6,7 @@ export interface SubtitleTrack {
     label: string;
 }
 
-// Helper for language codes (can be expanded)
+// Helper for language codes
 const langMap: Record<string, string> = {
     'English': 'en',
     'Spanish': 'es',
@@ -41,13 +41,13 @@ function labelToLanguageCode(label: string): string {
     return langMap[normalized] || 'en';
 }
 
-const BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'http://localhost:7860';
+const BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
 export const SubtitleService = {
     getIntroSubtitles: async (tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<SubtitleTrack[]> => {
         try {
             const url = `${BACKEND_URL}/api/introdb/subtitles?tmdb_id=${tmdbId}&type=${type}${season ? `&season=${season}` : ''}${episode ? `&episode=${episode}` : ''}`;
-            const response = await fetch(url);
+            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
             if (!response.ok) return [];
             const data = await response.json();
             
@@ -65,7 +65,7 @@ export const SubtitleService = {
 
     getSubtitleTracks: async (tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<SubtitleTrack[]> => {
         try {
-            // First try IntroDB (New P-Stream Standard)
+            // First try IntroDB (P-Stream Standard)
             const introSubs = await SubtitleService.getIntroSubtitles(tmdbId, type, season, episode);
             if (introSubs.length > 0) {
                 console.log(`[SubtitleService] Found ${introSubs.length} subs on IntroDB.`);
@@ -76,7 +76,7 @@ export const SubtitleService = {
 
             const cleanId = tmdbId.replace('tt', '');
 
-            // Fallback to OpenSubtitles (Legacy Method)
+            // Fallback to OpenSubtitles (Legacy)
             const extIds = await getExternalIds(cleanId, type);
             if (!extIds?.imdb_id) {
                 console.warn('[SubtitleService] Missing IMDB ID for legacy OpenSubtitles search.');
@@ -86,43 +86,47 @@ export const SubtitleService = {
             const imdbId = extIds.imdb_id.replace('tt', '');
 
             let url = `https://rest.opensubtitles.org/search/`;
+            // Search English-only to avoid non-English results dominating
             if (type === 'tv' && season && episode) {
-                url += `episode-${episode}/imdbid-${imdbId}/season-${season}`;
+                url += `episode-${episode}/imdbid-${imdbId}/season-${season}/sublanguageid-eng`;
             } else {
-                url += `imdbid-${imdbId}`;
+                url += `imdbid-${imdbId}/sublanguageid-eng`;
             }
 
             console.log(`[SubtitleService] Fetching from legacy OpenSubtitles for IMDB ${imdbId}...`);
 
             const headers = { "X-User-Agent": "VLSub 0.10.2" };
-            const response = await fetch(url, { headers });
+            const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
             if (!response.ok) return [];
             
             const data = await response.json();
             const captions: SubtitleTrack[] = [];
 
             if (Array.isArray(data)) {
-                for (const caption of data) {
+                // Sort by download count (best subtitles first)
+                const sorted = [...data].sort((a: any, b: any) => 
+                    (parseInt(b.SubDownloadsCnt) || 0) - (parseInt(a.SubDownloadsCnt) || 0)
+                );
+
+                for (const caption of sorted) {
                     let downloadUrl = caption.SubDownloadLink;
                     if (downloadUrl) {
                         downloadUrl = downloadUrl.replace(".gz", "").replace("download/", "download/subencoding-utf8/");
                         const language = labelToLanguageCode(caption.LanguageName) || "en";
+                        // Skip non-English subs unless there's nothing else
+                        if (language !== 'en' && captions.length > 0) continue;
                         captions.push({
                             url: downloadUrl,
-                            label: caption.LanguageName || 'Unknown',
+                            label: caption.LanguageName || 'English',
                             lang: language
                         });
+                        // Take the best 2 English tracks (SDH + regular)
+                        if (captions.length >= 2) break;
                     }
                 }
             }
 
-            // Deduplicate
-            return captions.reduce((acc, current) => {
-                const x = acc.find(item => item.lang === current.lang);
-                if (!x) return acc.concat([current]);
-                return acc;
-            }, [] as SubtitleTrack[]);
-
+            return captions;
         } catch (error) {
             console.error("[SubtitleService] Error fetching subtitles:", error);
             return [];
