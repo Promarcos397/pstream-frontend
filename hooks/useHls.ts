@@ -26,8 +26,24 @@ export interface HlsAudioTrack {
 }
 
 /**
+ * Picks the best English audio track index from a list of HLS audio tracks.
+ * Priority: explicit 'en' lang > name contains 'english' > default track > track 0.
+ */
+function pickEnglishTrackId(tracks: HlsAudioTrack[]): number {
+    if (tracks.length === 0) return -1;
+    const byLang = tracks.find(t => t.lang?.toLowerCase().startsWith('en'));
+    if (byLang) return byLang.id;
+    const byName = tracks.find(t => t.name?.toLowerCase().includes('english'));
+    if (byName) return byName.id;
+    const byDefault = tracks.find(t => t.isDefault);
+    if (byDefault) return byDefault.id;
+    return tracks[0].id;
+}
+
+/**
  * Solid Standalone HLS.js Manager Hook
  * Handles lifecycle, error recovery, quality switching, and audio tracks.
+ * Auto-selects English audio immediately on MANIFEST_PARSED.
  */
 export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: UseHlsOptions) => {
     const { streamUrl, isM3U8, autoPlay = true, onManifestParsed, onError, onTokenExpired } = options;
@@ -65,7 +81,6 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                 maxMaxBufferLength: 60,
                 enableWorker: true,
                 startLevel: -1,
-                // Add better error resilience
                 manifestLoadingMaxRetry: 4,
                 levelLoadingMaxRetry: 4
             });
@@ -76,7 +91,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
 
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 setIsBuffering(false);
-                
+
                 // Extract Quality Levels
                 if (hls.levels && hls.levels.length > 0) {
                     const levels = hls.levels.map((level, index) => ({
@@ -87,16 +102,27 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                     setQualityLevels(levels);
                 }
 
-                // Extract Audio Tracks
+                // Extract Audio Tracks and immediately pick English
                 if (hls.audioTracks && hls.audioTracks.length > 0) {
-                    const tracks = hls.audioTracks.map((t, index) => ({
+                    const tracks: HlsAudioTrack[] = hls.audioTracks.map((t, index) => ({
                         id: index,
                         name: t.name || t.lang || `Track ${index + 1}`,
                         lang: t.lang || '',
                         isDefault: !!t.default
                     }));
                     setAudioTracks(tracks);
-                    setCurrentAudioTrack(hls.audioTrack);
+
+                    // Auto-select English audio immediately, preventing foreign language playback
+                    if (tracks.length > 1) {
+                        const englishId = pickEnglishTrackId(tracks);
+                        if (englishId !== -1 && englishId !== hls.audioTrack) {
+                            console.log(`[useHls] Auto-switching to English audio (track ${englishId}: "${tracks[englishId]?.name ?? 'unknown'}")`);
+                            hls.audioTrack = englishId;
+                        }
+                        setCurrentAudioTrack(englishId !== -1 ? englishId : hls.audioTrack);
+                    } else {
+                        setCurrentAudioTrack(hls.audioTrack);
+                    }
                 }
 
                 if (onManifestParsed) onManifestParsed();
@@ -124,12 +150,12 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                             console.log('[useHls] Network error, recovering...');
                             hls.startLoad();
                             break;
-                            
+
                         case Hls.ErrorTypes.MEDIA_ERROR:
                             console.log('[useHls] Media error, recovering...');
                             hls.recoverMediaError();
                             break;
-                            
+
                         default:
                             if (onError) onError(`Unrecoverable playback error: ${data.details}`);
                             destroyHls();
@@ -141,10 +167,9 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             return destroyHls;
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             // Safari / iOS Native HLS Support
-            // We must call onManifestParsed after metadata loads to support resume-from-position.
             setIsBuffering(true);
             video.src = streamUrl;
-            
+
             const onMetadata = () => {
                 setIsBuffering(false);
                 if (onManifestParsed) onManifestParsed();

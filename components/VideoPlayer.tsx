@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Movie, Episode } from '../types';
-import { getSeasonDetails, getMovieDetails, getStream, getExternalIds } from '../services/api';
+import { getSeasonDetails, getMovieDetails, getStream, getExternalIds, prefetchStream } from '../services/api';
 import Hls from 'hls.js';
 import ISO6391 from 'iso-639-1';
 
@@ -22,20 +22,33 @@ const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrah
 // Child Components
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
-import { 
-    ArrowLeftIcon, 
-    XIcon, 
-    PlayIcon, 
-    CheckIcon, 
-    CaretRightIcon, 
-    CaretDownIcon
-} from '@phosphor-icons/react';
+import { CaretRightIcon } from '@phosphor-icons/react';
 
 interface VideoPlayerProps {
     movie: Movie;
     season?: number;
     episode?: number;
     onClose?: () => void;
+}
+
+/** Request landscape fullscreen on mobile/tablet. Works on Android Chrome and most WebKit. */
+function requestMobileLandscapeFullscreen(el: HTMLElement) {
+    const doc = document as any;
+    const elem = el as any;
+    try {
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen().then(() => {
+                if ((screen.orientation as any)?.lock) {
+                    (screen.orientation as any).lock('landscape').catch(() => {});
+                }
+            }).catch(() => {});
+        } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+        } else if (elem.webkitEnterFullscreen) {
+            // iPhone video element fallback
+            elem.webkitEnterFullscreen();
+        }
+    } catch (e) {}
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, onClose }) => {
@@ -46,6 +59,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const containerRef = useRef<HTMLDivElement>(null);
     const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
     const lastSavedTimeRef = useRef<number>(0);
+    const hasAutoFullscreenedRef = useRef(false);
     const [bufferedAmount, setBufferedAmount] = useState<number>(0);
 
     // Player State
@@ -74,12 +88,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [playingSeasonNumber, setPlayingSeasonNumber] = useState(season);
     const [seasonList, setSeasonList] = useState<number[]>([]);
     const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState<Episode[]>([]);
-    const [exploredSeasonEpisodes, setExploredSeasonEpisodes] = useState<Episode[]>([]);
-    const [exploredSeasonNumber, setExploredSeasonNumber] = useState(season);
 
     // Navigation state
     const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers'>('none');
-    const [isPanelHovered, setIsPanelHovered] = useState(false);
 
     // Subtitles
     const [captions, setCaptions] = useState<{ id: string; label: string; url: string; lang: string }[]>([]);
@@ -87,7 +98,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [subtitleObjectUrl, setSubtitleObjectUrl] = useState<string | null>(null);
     const [currentCueText, setCurrentCueText] = useState<string>('');
 
-    // HLS state
+    // HLS state (from hook)
     const [qualityLevels, setQualityLevels] = useState<{ height: number; bitrate: number; level: number }[]>([]);
     const [currentQualityLevel, setCurrentQualityLevel] = useState<number>(-1);
     const [audioTracks, setAudioTracks] = useState<{ id: number; name: string; lang: string }[]>([]);
@@ -103,10 +114,28 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const title = movie.title || movie.name || '';
     const formattedDate = movie.release_date || movie.first_air_date || '';
 
-    // Apply stream result logic
+    // ─── Compute next episode / season ─────────────────────────────────────────
+    const nextEpisodeInfo = useMemo<{ episode: Episode; season: number } | null>(() => {
+        if (mediaType !== 'tv') return null;
+        const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
+        if (currentIdx !== -1 && currentIdx < currentSeasonEpisodes.length - 1) {
+            return { episode: currentSeasonEpisodes[currentIdx + 1], season: playingSeasonNumber };
+        }
+        // End of season — try next season
+        if (seasonList.length > 0) {
+            const nextSeason = seasonList.find(s => s > playingSeasonNumber);
+            if (nextSeason !== undefined) {
+                // We don't have the episodes for the next season yet, so we return a placeholder
+                return { episode: { id: -1, episode_number: 1, name: 'Next Season', season_number: nextSeason } as Episode, season: nextSeason };
+            }
+        }
+        return null;
+    }, [mediaType, currentSeasonEpisodes, currentEpisode, playingSeasonNumber, seasonList]);
+
+    // ─── Apply stream result ────────────────────────────────────────────────────
     const applyStreamResult = useCallback((sources: any[], subtitles: any[], globalReferer?: string | null) => {
         if (!sources || sources.length === 0) return;
-        
+
         setAllSources(sources);
         const hlsSource = sources[0];
         const isEmbedFallback = !!hlsSource.isEmbed;
@@ -114,7 +143,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         const activeReferer = hlsSource.referer || globalReferer || '';
         let finalUrl = hlsSource.url;
-        
+
         if (!isEmbedFallback) {
             if (hlsSource.directManifest) {
                 const blob = new Blob([hlsSource.directManifest], { type: 'application/vnd.apple.mpegurl' });
@@ -124,7 +153,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 try {
                     const refUrl = activeReferer.startsWith('//') ? `https:${activeReferer}` : activeReferer;
                     origin = refUrl ? new URL(refUrl).origin : '';
-                } catch (e) { }
+                } catch (e) {}
                 const headersObj = { referer: activeReferer, origin };
                 finalUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(JSON.stringify(headersObj))}`;
             }
@@ -148,7 +177,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const matchingSub = mappedCaptions.find((s: any) => s.lang.includes(preferredLang) || s.label.toLowerCase().includes(preferredLang));
             const fallbackSub = mappedCaptions.find((s: any) => s.lang === 'en' || s.label.toLowerCase().includes('english'));
             const finalSub = matchingSub || fallbackSub || mappedCaptions[0];
-            
+
             if (finalSub && settings.showSubtitles) {
                 setCurrentCaption(finalSub.url);
             }
@@ -159,52 +188,118 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, [settings.subtitleLanguage, settings.showSubtitles]);
 
-    // Handle Manual Source Change
+    // ─── Manual source change ────────────────────────────────────────────────────
     const handleSourceChange = useCallback((index: number) => {
         if (!allSources[index]) return;
-        
         console.log(`[VideoPlayer] 🔄 Manual server change to: ${allSources[index].provider}`);
         setCurrentSourceIndex(index);
         setError(null);
         setIsBuffering(true);
         setLoadingMessage(`Switching to ${allSources[index].provider || 'Server'}...`);
-        
-        // Construct a temporary list with the selected source at index 0 for applyStreamResult
-        const selectedSource = allSources[index];
-        applyStreamResult([selectedSource], captions);
+        applyStreamResult([allSources[index]], captions);
     }, [allSources, applyStreamResult, captions]);
 
-    // Track state changes
+    // ─── Play next episode ──────────────────────────────────────────────────────
+    const handleNextEpisode = useCallback(async () => {
+        if (!nextEpisodeInfo) return;
+        const { episode: nextEp, season: nextSeason } = nextEpisodeInfo;
+
+        setStreamUrl(null);
+        setIsBuffering(true);
+        setActivePanel('none');
+
+        // If we need to load a new season's episodes first
+        if (nextSeason !== playingSeasonNumber) {
+            try {
+                const seasonData = await getSeasonDetails(String(movie.id), nextSeason);
+                if (seasonData?.episodes) {
+                    setCurrentSeasonEpisodes(seasonData.episodes);
+                    const firstEp = seasonData.episodes[0];
+                    setPlayingSeasonNumber(nextSeason);
+                    setCurrentEpisode(firstEp?.episode_number ?? 1);
+                }
+            } catch (e) {
+                setPlayingSeasonNumber(nextSeason);
+                setCurrentEpisode(1);
+            }
+        } else {
+            setPlayingSeasonNumber(nextSeason);
+            setCurrentEpisode(nextEp.episode_number);
+        }
+    }, [nextEpisodeInfo, playingSeasonNumber, movie.id]);
+
+    // ─── Track episode/season prop changes ─────────────────────────────────────
     useEffect(() => {
         if (season !== playingSeasonNumber) setPlayingSeasonNumber(season);
         if (episode !== currentEpisode) setCurrentEpisode(episode);
     }, [season, episode]);
 
-    // Keyboard shortcut: Escape = close player (desktop)
+    // ─── Keyboard shortcuts ─────────────────────────────────────────────────────
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && activePanel === 'none') {
-                e.preventDefault();
-                if (onClose) onClose();
+            if (activePanel !== 'none') return;
+            switch (e.key) {
+                case 'Escape':
+                    e.preventDefault();
+                    if (onClose) onClose();
+                    break;
+                case ' ':
+                case 'k':
+                    e.preventDefault();
+                    videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
+                    break;
+                case 'ArrowRight':
+                case 'l':
+                    e.preventDefault();
+                    if (videoRef.current) videoRef.current.currentTime += 10;
+                    break;
+                case 'ArrowLeft':
+                case 'j':
+                    e.preventDefault();
+                    if (videoRef.current) videoRef.current.currentTime -= 10;
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (videoRef.current) videoRef.current.volume = Math.min(1, videoRef.current.volume + 0.1);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (videoRef.current) videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
+                    break;
+                case 'n':
+                    if (nextEpisodeInfo) { e.preventDefault(); handleNextEpisode(); }
+                    break;
+                case 's':
+                    // Toggle subtitles on/off (cycle through available or disable)
+                    e.preventDefault();
+                    if (currentCaption) {
+                        setCurrentCaption(null);
+                    } else if (captions.length > 0) {
+                        // Re-select the preferred language
+                        const preferred = captions.find(c => c.lang === 'en' || c.label.toLowerCase().includes('english')) || captions[0];
+                        setCurrentCaption(preferred.url);
+                    }
+                    break;
             }
-            // Space = play/pause
-            if (e.code === 'Space' && activePanel === 'none') {
-                e.preventDefault();
-                videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
-            }
-            // Arrow keys = seek ±10s
-            if (e.key === 'ArrowRight' && activePanel === 'none') videoRef.current && (videoRef.current.currentTime += 10);
-            if (e.key === 'ArrowLeft' && activePanel === 'none') videoRef.current && (videoRef.current.currentTime -= 10);
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [onClose, activePanel]);
+    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode]);
 
-    // Fetch Stream Effect
+    // ─── Fetch Stream ───────────────────────────────────────────────────────────
     useEffect(() => {
         const fetchStream = async () => {
             setIsBuffering(true);
             setError(null);
+            setStreamUrl(null);
             setLoadingMessage('Searching for stream...');
 
             const releaseYear = formattedDate ? parseInt(formattedDate.split('-')[0]) : undefined;
@@ -233,7 +328,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     try {
                         const ext = await getExternalIds(movie.id, mediaType === 'tv' ? 'tv' : 'movie');
                         if (ext?.imdb_id) imdbId = ext.imdb_id;
-                    } catch (e) { }
+                    } catch (e) {}
                 }
 
                 const result = await getStream(title, mediaType === 'tv' ? 'tv' : 'movie', releaseYear, playingSeasonNumber, currentEpisode, String(movie.id || ''), imdbId || '');
@@ -256,12 +351,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         fetchStream();
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode, retryCount, applyStreamResult]);
 
-    // Skip Segments Effect
+    // ─── Skip Segments (TV only) ────────────────────────────────────────────────
     useEffect(() => {
         const fetchSkips = async () => {
             if (mediaType === 'tv') {
                 const segments = await SkipService.getSkipSegments(String(movie.id), playingSeasonNumber, currentEpisode);
-                console.log(`[VideoPlayer] Found ${segments.length} skip segments.`);
                 setSkipSegments(segments);
             } else {
                 setSkipSegments([]);
@@ -270,25 +364,57 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         fetchSkips();
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
-    // HLS Hook Integration
-    const { 
-        isBuffering: hlsBuffering, 
-        qualityLevels: hlsLevels, 
+    // ─── Prefetch next episode when 50%+ through a long episode ─────────────────
+    useEffect(() => {
+        if (mediaType !== 'tv' || !nextEpisodeInfo || duration < 3600) return;
+        if (progress < 50) return;
+
+        const nextEp = nextEpisodeInfo.episode;
+        const nextSeason = nextEpisodeInfo.season;
+        const releaseYear = formattedDate ? parseInt(formattedDate.split('-')[0]) : undefined;
+
+        const cacheKey = {
+            title,
+            type: 'tv' as const,
+            year: releaseYear,
+            season: nextSeason,
+            episode: nextEp.episode_number,
+            tmdbId: String(movie.id)
+        };
+
+        if (!streamCache.get(cacheKey)) {
+            console.log(`[VideoPlayer] Prefetching next episode S${nextSeason}E${nextEp.episode_number}...`);
+            prefetchStream(title, releaseYear || 0, String(movie.id), 'tv', nextSeason, nextEp.episode_number)
+                .catch(() => {});
+        }
+    }, [progress, duration, mediaType, nextEpisodeInfo]);
+
+    // ─── HLS Hook ────────────────────────────────────────────────────────────────
+    const {
+        isBuffering: hlsBuffering,
+        qualityLevels: hlsLevels,
         currentQuality: hlsQuality,
-        audioTracks: hlsAudios, 
+        audioTracks: hlsAudios,
         currentAudioTrack: hlsAudio,
-        changeQuality, 
-        changeAudioTrack 
+        changeQuality,
+        changeAudioTrack
     } = useHls(videoRef, {
         streamUrl,
         isM3U8: isStreamM3U8,
         onManifestParsed: () => {
             const video = videoRef.current;
             if (video) {
-                const saved = mediaType === 'tv' ? getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode) : getVideoState(movie.id);
+                const saved = mediaType === 'tv'
+                    ? getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode)
+                    : getVideoState(movie.id);
                 if (saved?.time > 10 && saved.time < (video.duration - 30)) {
                     video.currentTime = saved.time;
                 }
+            }
+            // Auto fullscreen on mobile — only on first load
+            if (isMobile && !hasAutoFullscreenedRef.current && containerRef.current) {
+                hasAutoFullscreenedRef.current = true;
+                requestMobileLandscapeFullscreen(containerRef.current);
             }
         },
         onTokenExpired: () => setRetryCount(c => c + 1),
@@ -307,22 +433,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setAudioTracks(hlsAudios);
         setCurrentAudioTrack(hlsAudio);
         if (!isEmbed) setIsBuffering(hlsBuffering);
-
-        // Auto-select English audio track to filter out non-English sources
-        if (hlsAudios.length > 1) {
-            const englishTrack = hlsAudios.find(t =>
-                t.lang?.toLowerCase().startsWith('en') ||
-                t.name?.toLowerCase().includes('english') ||
-                t.isDefault
-            );
-            if (englishTrack && englishTrack.id !== hlsAudio) {
-                console.log(`[VideoPlayer] Auto-switching to English audio track: ${englishTrack.name}`);
-                changeAudioTrack(englishTrack.id);
-            }
-        }
     }, [hlsLevels, hlsQuality, hlsAudios, hlsAudio, hlsBuffering, isEmbed]);
 
-    // Time Update & History
+    // ─── Time Update & History ───────────────────────────────────────────────────
     const handleTimeUpdate = useCallback(() => {
         const video = videoRef.current;
         if (!video || isNaN(video.duration) || video.duration === 0) return;
@@ -333,10 +446,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setDuration(dur);
         setProgress((time / dur) * 100);
 
-        // Advanced Skip Detection (TheIntroDB)
+        // Skip detection
         const intro = skipSegments.find(s => s.type === 'intro' && time >= s.startTime && time <= (s.endTime - 2));
-        const outro = skipSegments.find(s => s.type === 'outro' && time >= (s.startTime - 10)); // Trigger 10s before credits
-        
+        const outro = skipSegments.find(s => s.type === 'outro' && time >= (s.startTime - 10));
         setShowSkipIntro(!!intro);
         setShowSkipOutro(!!outro);
         setActiveSkipSegment(intro || null);
@@ -351,12 +463,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         }
 
-        // Update buffered amount for the progress bar
         if (video.buffered.length > 0) {
             const bufferedEnd = video.buffered.end(video.buffered.length - 1);
             setBufferedAmount((bufferedEnd / dur) * 100);
         }
-    }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, addToHistory, updateEpisodeProgress, updateVideoState]);
+    }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, skipSegments, addToHistory, updateEpisodeProgress, updateVideoState]);
 
     const handleEpisodeSelect = useCallback((ep: Episode, seasonNum?: number, episodes?: Episode[]) => {
         setStreamUrl(null);
@@ -367,13 +478,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setActivePanel('none');
     }, [playingSeasonNumber]);
 
-    // Native Subtitle Loading
+    // ─── Native Subtitle Loading ──────────────────────────────────────────────────
     useEffect(() => {
         if (!currentCaption) {
             setSubtitleObjectUrl(null);
             return;
         }
-
         let isMounted = true;
         const loadSubtitles = async () => {
             try {
@@ -398,31 +508,34 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return () => { isMounted = false; };
     }, [currentCaption]);
 
-    // TV Details initialization
+    // ─── TV Details init ──────────────────────────────────────────────────────────
     useEffect(() => {
         const init = async () => {
             if (mediaType === 'tv') {
                 try {
                     const details = await getMovieDetails(String(movie.id), 'tv');
                     if (details.seasons) {
-                        setSeasonList(details.seasons.filter((s: any) => s.season_number > 0).map((s: any) => s.season_number));
+                        const validSeasons = details.seasons
+                            .filter((s: any) => s.season_number > 0)
+                            .map((s: any) => s.season_number);
+                        setSeasonList(validSeasons);
                     }
                     const seasonData = await getSeasonDetails(String(movie.id), playingSeasonNumber);
                     if (seasonData?.episodes) setCurrentSeasonEpisodes(seasonData.episodes);
-                } catch (e) { }
+                } catch (e) {}
             }
         };
         init();
     }, [movie.id, mediaType, playingSeasonNumber]);
 
-    // Handle UI show/hide — works on both mouse and touch
+    // ─── UI show/hide ─────────────────────────────────────────────────────────────
     const showControls = useCallback(() => {
         setShowUI(true);
         if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
         inactivityTimerRef.current = setTimeout(() => setShowUI(false), 3500);
     }, []);
 
-    // iOS/iPad/Android fullscreen toggle with webkit fallback
+    // ─── Fullscreen toggle ────────────────────────────────────────────────────────
     const toggleFullscreen = useCallback(() => {
         const el = containerRef.current as any;
         const doc = document as any;
@@ -430,12 +543,33 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             if (doc.exitFullscreen) doc.exitFullscreen();
             else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
             setIsFullscreen(false);
+            // Unlock orientation on exit
+            try { (screen.orientation as any)?.unlock?.(); } catch (e) {}
         } else {
-            if (el?.requestFullscreen) el.requestFullscreen();
-            else if (el?.webkitRequestFullscreen) el.webkitRequestFullscreen();
-            else if (el?.webkitEnterFullscreen) el.webkitEnterFullscreen(); // iPhone video fallback
+            if (el?.requestFullscreen) {
+                el.requestFullscreen().then(() => {
+                    if ((screen.orientation as any)?.lock) {
+                        (screen.orientation as any).lock('landscape').catch(() => {});
+                    }
+                }).catch(() => {});
+            } else if (el?.webkitRequestFullscreen) el.webkitRequestFullscreen();
+            else if (el?.webkitEnterFullscreen) el.webkitEnterFullscreen();
             setIsFullscreen(true);
         }
+    }, []);
+
+    // ─── Track fullscreen state changes from browser ──────────────────────────────
+    useEffect(() => {
+        const onFsChange = () => {
+            const doc = document as any;
+            setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement));
+        };
+        document.addEventListener('fullscreenchange', onFsChange);
+        document.addEventListener('webkitfullscreenchange', onFsChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', onFsChange);
+            document.removeEventListener('webkitfullscreenchange', onFsChange);
+        };
     }, []);
 
     return (
@@ -445,12 +579,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             onMouseMove={showControls}
             onTouchStart={showControls}
         >
-            <video 
-                ref={videoRef} 
-                className="w-full h-full object-contain" 
-                onTimeUpdate={handleTimeUpdate} 
-                onPlay={() => setIsPlaying(true)} 
+            <video
+                ref={videoRef}
+                className="w-full h-full object-contain"
+                onTimeUpdate={handleTimeUpdate}
+                onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
+                onVolumeChange={() => {
+                    if (videoRef.current) {
+                        setVolume(videoRef.current.volume);
+                        setIsMuted(videoRef.current.muted);
+                    }
+                }}
                 playsInline
             >
                 {subtitleObjectUrl && (
@@ -459,7 +599,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             </video>
 
             {isBuffering && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10 pointer-events-none">
                     <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4" />
                     <p className="text-white/60 text-sm font-medium tracking-widest uppercase">{loadingMessage}</p>
                 </div>
@@ -483,28 +623,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 currentTime={currentTime}
                 buffered={bufferedAmount}
                 isBuffering={isBuffering}
-                title={mediaType === 'tv' ? `${title} - S${playingSeasonNumber} E${currentEpisode}` : title}
+                title={mediaType === 'tv' ? `${title} — S${playingSeasonNumber} E${currentEpisode}` : title}
                 onPlayPause={() => videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause()}
                 onSeek={(amt) => videoRef.current && (videoRef.current.currentTime += amt)}
                 volume={volume}
-                onVolumeChange={(v) => videoRef.current && (videoRef.current.volume = v)}
+                onVolumeChange={(v) => { if (videoRef.current) { videoRef.current.volume = v; if (v > 0) videoRef.current.muted = false; } }}
                 onToggleMute={() => videoRef.current && (videoRef.current.muted = !videoRef.current.muted)}
                 onTimelineSeek={(p) => videoRef.current && (videoRef.current.currentTime = (p / 100) * videoRef.current.duration)}
                 onToggleFullscreen={toggleFullscreen}
                 onClose={onClose || (() => window.history.back())}
                 activePanel={activePanel}
+                // Pass setActivePanel directly so hover in controls can open panels
                 setActivePanel={setActivePanel}
-                allSources={allSources}
-                currentSourceIndex={currentSourceIndex}
-                onSourceChange={handleSourceChange}
-                onServersClick={() => setActivePanel(activePanel === 'servers' ? 'none' : 'servers')}
-                onSettingsClick={() => setActivePanel(activePanel === 'quality' ? 'none' : 'quality')}
-                onEpisodesClick={() => setActivePanel(activePanel === 'episodes' ? 'none' : 'episodes')}
-                onSubtitlesClick={() => setActivePanel(activePanel === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
-                qualities={qualityLevels}
-                currentQuality={currentQualityLevel}
-                onQualityChange={changeQuality}
-                showNextEp={showSkipOutro}
+                // TV-specific
+                mediaType={mediaType}
+                hasNextEpisode={!!nextEpisodeInfo}
+                onNextEpisode={handleNextEpisode}
+                showNextEp={showSkipOutro && !!nextEpisodeInfo}
+                // Subtitle button — click on mobile; hover handled inside controls on desktop
+                onSubtitlesClick={() => setActivePanel(p => p === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
+                currentCaption={currentCaption}
+                // Episode button — TV only, click on mobile; hover handled inside controls on desktop
+                onEpisodesClick={mediaType === 'tv'
+                    ? () => setActivePanel(p => (p === 'episodes' || p === 'seasons') ? 'none' : 'episodes')
+                    : undefined}
             />
 
             <VideoPlayerSettings
@@ -516,7 +658,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 currentEpisode={currentEpisode}
                 playingSeason={playingSeasonNumber}
                 showId={movie.id}
-                onSeasonSelect={(s) => setPlayingSeasonNumber(s)}
+                onSeasonSelect={(s) => {
+                    // Load season episodes when switching seasons in the explorer
+                    getSeasonDetails(String(movie.id), s).then(data => {
+                        if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);
+                    }).catch(() => {});
+                    setActivePanel('episodes');
+                }}
                 onEpisodeSelect={handleEpisodeSelect}
                 qualities={qualityLevels}
                 currentQuality={currentQualityLevel}
@@ -532,15 +680,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onSourceChange={handleSourceChange}
             />
 
+            {/* Skip Intro Button */}
             {showSkipIntro && activeSkipSegment && (
-                <button 
+                <button
                     onClick={() => {
                         if (videoRef.current) videoRef.current.currentTime = activeSkipSegment.endTime;
                         setShowSkipIntro(false);
-                    }} 
+                    }}
                     className="absolute bottom-32 left-8 px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold rounded flex items-center gap-2 transition-all active:scale-95 z-30"
                 >
                     <CaretRightIcon weight="bold" /> Skip Intro
+                </button>
+            )}
+
+            {/* Skip Outro / Next Episode Button */}
+            {showSkipOutro && nextEpisodeInfo && (
+                <button
+                    onClick={handleNextEpisode}
+                    className="absolute bottom-32 right-8 px-6 py-3 bg-white text-black font-bold rounded flex items-center gap-2 hover:bg-white/90 transition-all active:scale-95 z-30 shadow-lg"
+                >
+                    <CaretRightIcon weight="bold" />
+                    Next Episode
                 </button>
             )}
         </div>

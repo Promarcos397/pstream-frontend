@@ -152,9 +152,9 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
   if (isHidden) return null;
   if (!initialLoad && movies.length === 0) return null;
 
-  return (
+    return (
     <div
-      className="group relative my-3 md:my-4 space-y-1 z-10 hover:z-50 transition-all duration-300"
+      className="group relative my-3 md:my-4 space-y-1 z-10 hover:z-50 transition-all duration-300 isolate"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -182,7 +182,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
         <div
           ref={rowRef}
           className="flex overflow-x-scroll scrollbar-hide py-32 -my-32 w-full pointer-events-auto relative z-10 scroll-smooth"
-          style={{ WebkitOverflowScrolling: 'touch' }}
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
         >
           {/* Left spacer mimicking exact padding without scroll-padding limitations */}
           <div className="flex-none w-6 md:w-14 lg:w-16 pointer-events-none"></div>

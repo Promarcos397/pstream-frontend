@@ -270,17 +270,35 @@ export const EpisodeExplorer: React.FC<{
     const isMobile = useIsMobile();
     const { getEpisodeProgress } = useGlobalContext();
     const [previewSeason, setPreviewSeason] = React.useState(selectedSeason);
+    // Two-click state: null = collapsed, number = expanded (info shown), 'ready:{id}' = second click plays
     const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
     const episodesContainerRef = useRef<HTMLDivElement>(null);
     const currentEpisodeRef = useRef<HTMLDivElement>(null);
 
     React.useEffect(() => { setPreviewSeason(selectedSeason); }, [selectedSeason, activePanel]);
 
+    // Auto-scroll to current episode when panel opens
     useEffect(() => {
         if (activePanel === 'episodes' && currentEpisodeRef.current && episodesContainerRef.current) {
-            setTimeout(() => currentEpisodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+            setTimeout(() => currentEpisodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
         }
     }, [activePanel, currentEpisode]);
+
+    // Two-click handler:
+    // First click on a collapsed episode → expand info
+    // First click on an already-expanded episode → play it
+    // Clicking a different episode → collapse the old one, expand the new one
+    const handleEpisodeClick = (ep: Episode) => {
+        if (expandedEpisodeId === ep.id) {
+            // Second click → play
+            onEpisodeSelect(ep);
+            setActivePanel('none');
+            setExpandedEpisodeId(null);
+        } else {
+            // First click → expand
+            setExpandedEpisodeId(ep.id);
+        }
+    };
 
     const innerContent = (
         <div className="flex flex-col h-full bg-[#262626] font-sans text-white">
@@ -301,27 +319,77 @@ export const EpisodeExplorer: React.FC<{
             )}
             {activePanel === 'episodes' && (
                 <div className="flex flex-col h-full">
-                    <div className="flex items-center px-[35px] py-[25px] border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer hover:text-[#b3b3b3] transition-colors" onClick={() => setActivePanel('seasons')}>
+                    {/* Clicking the season header goes back to season list */}
+                    <div
+                        className="flex items-center gap-3 px-[35px] py-[25px] border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer hover:text-[#b3b3b3] transition-colors"
+                        onClick={() => setActivePanel('seasons')}
+                        title="Switch season"
+                    >
+                        <ArrowLeftIcon size={22} weight="bold" className="text-white/60" />
                         <span className="text-[28px] font-bold">Season {previewSeason}</span>
                     </div>
                     <div ref={episodesContainerRef} className="overflow-y-auto scroll-list flex-1">
                         {currentSeasonEpisodes.map(ep => {
-                            const isPlaying = currentEpisode === ep.episode_number && playingSeason === selectedSeason;
+                            const isCurrentlyPlaying = currentEpisode === ep.episode_number && playingSeason === selectedSeason;
                             const isExpanded = expandedEpisodeId === ep.id;
-                            const progress = getEpisodeProgress(showId, selectedSeason, ep.episode_number);
-                            const perc = progress && progress.duration > 0 ? (progress.time / progress.duration) * 100 : 0;
+                            const prog = getEpisodeProgress(showId, selectedSeason, ep.episode_number);
+                            const perc = prog && prog.duration > 0 ? (prog.time / prog.duration) * 100 : 0;
 
                             return (
-                                <div key={ep.id} ref={isPlaying ? currentEpisodeRef : null} className={`transition-colors ${isPlaying || isExpanded ? 'bg-[#121212]' : 'hover:bg-white/5'}`}>
-                                    <div className="flex items-center px-[35px] py-[30px] cursor-pointer" onClick={() => setExpandedEpisodeId(isExpanded ? null : ep.id)}>
-                                        <span className="text-xl font-bold w-[35px]">{ep.episode_number}</span>
-                                        <span className="text-xl font-bold flex-1 truncate">{ep.name}</span>
-                                        <div className="w-[100px] h-[2px] bg-white/20"><div className="h-full bg-red-600" style={{ width: `${perc}%` }} /></div>
+                                <div
+                                    key={ep.id}
+                                    ref={isCurrentlyPlaying ? currentEpisodeRef : null}
+                                    className={`transition-colors border-b border-white/5 ${isCurrentlyPlaying || isExpanded ? 'bg-[#121212]' : 'hover:bg-white/5'}`}
+                                >
+                                    <div
+                                        className="flex items-center px-[35px] py-[28px] cursor-pointer gap-4"
+                                        onClick={() => handleEpisodeClick(ep)}
+                                        title={isExpanded ? `Play ${ep.name}` : `Expand ${ep.name}`}
+                                    >
+                                        {/* Episode number */}
+                                        <span className={`text-xl font-bold w-[35px] flex-shrink-0 ${isCurrentlyPlaying ? 'text-[#e50914]' : 'text-white/60'}`}>
+                                            {ep.episode_number}
+                                        </span>
+                                        {/* Name */}
+                                        <span className={`text-xl font-bold flex-1 truncate ${isCurrentlyPlaying ? 'text-white' : 'text-white/90'}`}>
+                                            {ep.name}
+                                        </span>
+                                        {/* Progress bar */}
+                                        {perc > 0 && (
+                                            <div className="w-[80px] h-[3px] bg-white/20 flex-shrink-0 rounded-full overflow-hidden">
+                                                <div className="h-full bg-red-600 rounded-full" style={{ width: `${Math.min(100, perc)}%` }} />
+                                            </div>
+                                        )}
+                                        {/* Expand/play caret */}
+                                        <CaretRightIcon
+                                            size={16}
+                                            weight="bold"
+                                            className={`flex-shrink-0 transition-transform text-white/40 ${isExpanded ? 'rotate-90' : ''}`}
+                                        />
                                     </div>
+
+                                    {/* Expanded info — click thumbnail or the row again to play */}
                                     {isExpanded && (
-                                        <div className="px-[35px] pb-[30px] flex gap-5">
-                                            {ep.still_path && <img src={`https://image.tmdb.org/t/p/w300${ep.still_path}`} className="w-[200px] h-[112px] object-cover cursor-pointer" onClick={() => { onEpisodeSelect(ep); setActivePanel('none'); }} />}
-                                            <p className="text-sm text-white/60 line-clamp-4">{ep.overview}</p>
+                                        <div
+                                            className="px-[35px] pb-[28px] flex gap-5 cursor-pointer group/ep-play"
+                                            onClick={() => { onEpisodeSelect(ep); setActivePanel('none'); setExpandedEpisodeId(null); }}
+                                            title={`Play ${ep.name}`}
+                                        >
+                                            {ep.still_path && (
+                                                <div className="relative flex-shrink-0">
+                                                    <img
+                                                        src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
+                                                        className="w-[180px] h-[101px] object-cover rounded-sm group-hover/ep-play:brightness-75 transition"
+                                                        alt={ep.name}
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/ep-play:opacity-100 transition">
+                                                        <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
+                                                            <PlayCircleIcon size={28} weight="fill" className="text-black" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <p className="text-sm text-white/60 line-clamp-4 leading-relaxed">{ep.overview || 'No description available.'}</p>
                                         </div>
                                     )}
                                 </div>
@@ -336,7 +404,7 @@ export const EpisodeExplorer: React.FC<{
     if (isMobile) {
         return (
             <div className="fixed inset-0 z-[120] flex flex-col justify-end" onClick={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}>
-                <div className="bg-[#1c1c1c] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden animate-slideIn" style={{ maxHeight: '60vh' }} onClick={(e) => e.stopPropagation()}>
+                <div className="bg-[#1c1c1c] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden animate-slideIn" style={{ maxHeight: '65vh' }} onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
                         <span className="text-white text-base font-bold uppercase">{activePanel === 'seasons' ? 'Seasons' : `Season ${previewSeason}`}</span>
                         <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="p-2 text-white/70"><XIcon size={22} weight="bold" /></button>
