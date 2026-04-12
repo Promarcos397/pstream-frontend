@@ -9,7 +9,9 @@ if (typeof window !== 'undefined' && !window.Buffer) {
 }
 
 const metaEnv = (import.meta as any).env;
-const API_BASE = metaEnv?.VITE_GIGA_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:7860' : window.location.origin);
+// Always use the configured backend URL. Never fall back to window.location.origin 
+// as that would route auth calls to the Cloudflare Pages CDN instead of the backend.
+const API_BASE = metaEnv?.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
 export interface UserProfile {
   public_key: string;

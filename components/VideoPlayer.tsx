@@ -45,6 +45,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const lastSavedTimeRef = useRef<number>(0);
+    const [bufferedAmount, setBufferedAmount] = useState<number>(0);
 
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -306,14 +308,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setShowSkipOutro(!!outro);
         setActiveSkipSegment(intro || null);
 
-        if (time > 0 && Math.abs(time - (window as any).lastSavedTime || 0) > 5) {
-            (window as any).lastSavedTime = time;
+        if (time > 0 && Math.abs(time - lastSavedTimeRef.current) > 5) {
+            lastSavedTimeRef.current = time;
             addToHistory(movie);
             if (mediaType === 'tv') {
                 updateEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode, time, dur);
             } else {
                 updateVideoState(movie.id, time, undefined, dur);
             }
+        }
+
+        // Update buffered amount for the progress bar
+        if (video.buffered.length > 0) {
+            const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+            setBufferedAmount((bufferedEnd / dur) * 100);
         }
     }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, addToHistory, updateEpisodeProgress, updateVideoState]);
 
@@ -374,8 +382,36 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         init();
     }, [movie.id, mediaType, playingSeasonNumber]);
 
+    // Handle UI show/hide — works on both mouse and touch
+    const showControls = useCallback(() => {
+        setShowUI(true);
+        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = setTimeout(() => setShowUI(false), 3500);
+    }, []);
+
+    // iOS/iPad/Android fullscreen toggle with webkit fallback
+    const toggleFullscreen = useCallback(() => {
+        const el = containerRef.current as any;
+        const doc = document as any;
+        if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+            if (doc.exitFullscreen) doc.exitFullscreen();
+            else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+            setIsFullscreen(false);
+        } else {
+            if (el?.requestFullscreen) el.requestFullscreen();
+            else if (el?.webkitRequestFullscreen) el.webkitRequestFullscreen();
+            else if (el?.webkitEnterFullscreen) el.webkitEnterFullscreen(); // iPhone video fallback
+            setIsFullscreen(true);
+        }
+    }, []);
+
     return (
-        <div ref={containerRef} className="fixed inset-0 bg-black z-[100] flex flex-col font-sans select-none overflow-hidden" onMouseMove={() => setShowUI(true)}>
+        <div
+            ref={containerRef}
+            className="fixed inset-0 bg-black z-[100] flex flex-col font-sans select-none overflow-hidden"
+            onMouseMove={showControls}
+            onTouchStart={showControls}
+        >
             <video 
                 ref={videoRef} 
                 className="w-full h-full object-contain" 
@@ -412,7 +448,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 progress={progress}
                 duration={duration}
                 currentTime={currentTime}
-                buffered={0}
+                buffered={bufferedAmount}
                 isBuffering={isBuffering}
                 title={mediaType === 'tv' ? `${title} - S${playingSeasonNumber} E${currentEpisode}` : title}
                 onPlayPause={() => videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause()}
@@ -421,7 +457,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onVolumeChange={(v) => videoRef.current && (videoRef.current.volume = v)}
                 onToggleMute={() => videoRef.current && (videoRef.current.muted = !videoRef.current.muted)}
                 onTimelineSeek={(p) => videoRef.current && (videoRef.current.currentTime = (p / 100) * videoRef.current.duration)}
-                onToggleFullscreen={() => document.fullscreenElement ? document.exitFullscreen() : containerRef.current?.requestFullscreen()}
+                onToggleFullscreen={toggleFullscreen}
                 onClose={onClose || (() => window.history.back())}
                 activePanel={activePanel}
                 setActivePanel={setActivePanel}

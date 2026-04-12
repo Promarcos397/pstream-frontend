@@ -175,7 +175,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     {!isMobile && isHovering && !isMenuOpen && (
                         <div className="absolute -top-9 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded" style={{ left: `${hoverPosition}%` }}>{formatTime(hoverTime)}</div>
                     )}
-                    <div className={`relative w-full flex items-center ${isMobile ? 'h-8' : 'h-10'}`}>
+                    <div className={`relative w-full flex items-center ${isMobile ? 'h-11' : 'h-10'}`}>
                         <div className="absolute left-0 w-full h-[4px] bg-white/20 rounded-full" />
                         <div className="absolute left-0 h-[4px] bg-white/40 rounded-full" style={{ width: `${buffered}%` }} />
                         <div className="absolute left-0 h-[4px] bg-[#e50914] rounded-full" style={{ width: `${progress}%` }} />

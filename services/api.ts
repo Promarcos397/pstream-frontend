@@ -238,7 +238,9 @@ export const getStream = async (title: string, type: 'movie' | 'tv', year?: numb
     });
 
     console.log(`[GigaEngine] Requesting stream (Giga Backend)...`);
-    const response = await axios.get(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`);
+    const response = await axios.get(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, {
+        timeout: 30000  // 30s max — HF Space cold start can take ~15-20s
+    });
     return response.data;
   } catch (error: any) {
     console.error(`[GigaEngine] Ultimate resolution failure: ${error.message}`);

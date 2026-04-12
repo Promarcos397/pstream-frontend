@@ -300,7 +300,10 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const clearAppData = useCallback(() => {
     setMyList([]); setContinueWatching([]); setSettings(DEFAULT_SETTINGS);
     setVideoStates({}); setEpisodeProgress({}); setLikedMovies({});
-    localStorage.clear();
+    // Only remove P-Stream's own keys — do NOT nuke unrelated browser storage
+    const pstreamKeys = ['pstream-list', 'pstream-history', 'pstream-settings', 
+      'pstream-episode-progress', 'pstream-video-states', 'pstream-liked', 'pstream_session_token'];
+    pstreamKeys.forEach(key => localStorage.removeItem(key));
   }, []);
 
   const login = async (mnemonic: string, displayName?: string, isSignUp?: boolean) => {

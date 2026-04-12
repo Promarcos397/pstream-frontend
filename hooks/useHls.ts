@@ -139,14 +139,29 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             });
 
             return destroyHls;
-        } 
-        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            // Safari Native Support
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Safari / iOS Native HLS Support
+            // We must call onManifestParsed after metadata loads to support resume-from-position.
+            setIsBuffering(true);
             video.src = streamUrl;
-            video.addEventListener('loadedmetadata', () => {
+            
+            const onMetadata = () => {
                 setIsBuffering(false);
+                if (onManifestParsed) onManifestParsed();
                 if (autoPlay) video.play().catch(() => {});
-            });
+            };
+            const onWaiting = () => setIsBuffering(true);
+            const onPlaying = () => setIsBuffering(false);
+
+            video.addEventListener('loadedmetadata', onMetadata);
+            video.addEventListener('waiting', onWaiting);
+            video.addEventListener('playing', onPlaying);
+
+            return () => {
+                video.removeEventListener('loadedmetadata', onMetadata);
+                video.removeEventListener('waiting', onWaiting);
+                video.removeEventListener('playing', onPlaying);
+            };
         }
 
     }, [streamUrl, isM3U8, videoRef, autoPlay, destroyHls]);
