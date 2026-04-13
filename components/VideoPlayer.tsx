@@ -27,6 +27,8 @@ interface VideoPlayerProps {
     movie: Movie;
     season?: number;
     episode?: number;
+    /** Seek to this time (seconds) when the video starts — restores watch progress */
+    resumeTime?: number;
     onClose?: () => void;
 }
 
@@ -50,7 +52,7 @@ function requestMobileLandscapeFullscreen(el: HTMLElement) {
     } catch (e) {}
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, onClose }) => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, resumeTime = 0, onClose }) => {
     const { settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState, setActiveVideoId } = useGlobalContext();
     const { setPageTitle } = useTitle();
     const isMobile = useIsMobile();
@@ -85,6 +87,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
     const [currentEpisode, setCurrentEpisode] = useState(episode);
     const [playingSeasonNumber, setPlayingSeasonNumber] = useState(season);
+    const [browsedSeasonNumber, setBrowsedSeasonNumber] = useState(season);
     const [seasonList, setSeasonList] = useState<number[]>([]);
     const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState<Episode[]>([]);
 
@@ -412,6 +415,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         currentQuality: hlsQuality,
         audioTracks: hlsAudios,
         currentAudioTrack: hlsAudio,
+        subtitleTracks: hlsSubtitles,
         changeQuality,
         changeAudioTrack
     } = useHls(videoRef, {
@@ -449,9 +453,61 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setAudioTracks(hlsAudios);
         setCurrentAudioTrack(hlsAudio);
         if (!isEmbed) setIsBuffering(hlsBuffering);
-    }, [hlsLevels, hlsQuality, hlsAudios, hlsAudio, hlsBuffering, isEmbed]);
 
-    // ─── Time Update & History ───────────────────────────────────────────────────
+        // Merge native HLS subtitles if they exist
+        if (hlsSubtitles && hlsSubtitles.length > 0) {
+            setCaptions(prev => {
+                const existingUrls = new Set(prev.map(p => p.url));
+                const newSubs = hlsSubtitles
+                    .filter(sub => sub.url && !existingUrls.has(sub.url))
+                    .map((sub, index) => ({
+                        id: `hls-sub-${sub.id || index}`,
+                        label: ISO6391.getName((sub.lang || 'en').toLowerCase().split('-')[0]) || sub.name || `Subtitle ${index + 1}`,
+                        url: sub.url!,
+                        lang: (sub.lang || 'en').toLowerCase().split('-')[0]
+                    }));
+                return [...prev, ...newSubs];
+            });
+        }
+    }, [hlsLevels, hlsQuality, hlsAudios, hlsAudio, hlsBuffering, isEmbed, hlsSubtitles]);
+
+    // ─── Seek to resume time on load ─────────────────────────────────────────────
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        // Calculate the best resume time:
+        // 1. For TV: getEpisodeProgress for this S+E
+        // 2. For Movie: getVideoState time
+        // 3. Fallback to resumeTime prop passed from CinemaPage
+        const getResumeTime = () => {
+            if (mediaType === 'tv') {
+                const prog = getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode);
+                if (prog && prog.time > 5 && prog.duration > 0 && (prog.time / prog.duration) < 0.95) {
+                    return prog.time;
+                }
+            } else {
+                const state = getVideoState(movie.id);
+                if (state && state.time > 5 && state.duration && (state.time / state.duration) < 0.95) {
+                    return state.time;
+                }
+            }
+            return resumeTime > 5 ? resumeTime : 0;
+        };
+
+        const handleCanPlay = () => {
+            const t = getResumeTime();
+            if (t > 0 && video.currentTime < 2) {
+                video.currentTime = t;
+                console.log(`[VideoPlayer] ▶ Resuming from ${Math.round(t)}s`);
+            }
+        };
+
+        video.addEventListener('canplay', handleCanPlay, { once: true });
+        return () => video.removeEventListener('canplay', handleCanPlay);
+    }, [streamUrl, mediaType, playingSeasonNumber, currentEpisode]);
+
+    // ─── Time Update & History ────────────────────────────────────────────────────
     const handleTimeUpdate = useCallback(() => {
         const video = videoRef.current;
         if (!video || isNaN(video.duration) || video.duration === 0) return;
@@ -743,7 +799,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onSubtitlesClick={() => setActivePanel(p => p === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
                 currentCaption={currentCaption}
                 onEpisodesClick={mediaType === 'tv'
-                    ? () => setActivePanel(p => (p === 'episodes' || p === 'seasons') ? 'none' : 'episodes')
+                    ? () => {
+                        setBrowsedSeasonNumber(playingSeasonNumber);
+                        setActivePanel(p => (p === 'episodes' || p === 'seasons') ? 'none' : 'episodes');
+                      }
                     : undefined}
                 // Next episode popup data
                 nextEpisodeData={nextEpisodeInfo ? {
@@ -759,11 +818,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 setActivePanel={setActivePanel}
                 seasonList={seasonList}
                 currentSeasonEpisodes={currentSeasonEpisodes}
-                selectedSeason={playingSeasonNumber}
+                selectedSeason={browsedSeasonNumber}
                 currentEpisode={currentEpisode}
                 playingSeason={playingSeasonNumber}
                 showId={movie.id}
                 onSeasonSelect={(s) => {
+                    setBrowsedSeasonNumber(s);
                     // Load season episodes when switching seasons in the explorer
                     getSeasonDetails(String(movie.id), s).then(data => {
                         if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);

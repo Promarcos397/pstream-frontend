@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, TicketIcon, ClockIcon } from '@phosphor-icons/react';
+import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, TicketIcon, ClockIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import YouTube from 'react-youtube';
 import { Movie, Episode } from '../types';
 import { IMG_PATH } from '../constants';
@@ -21,11 +21,48 @@ interface InfoModalProps {
     trailerId?: string; // Force specific video
 }
 
+type MovieRating = 'like' | 'dislike' | 'love';
+const InfoModalRatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieRating) => void }> = ({ rating, onRate }) => {
+  const [expanded, setExpanded] = useState(false);
+  const CurrentIcon = rating === 'love' ? HeartIcon : rating === 'dislike' ? ThumbsDownIcon : ThumbsUpIcon;
+  return (
+    <div className="relative flex items-center" onMouseEnter={() => setExpanded(true)} onMouseLeave={() => setExpanded(false)}>
+      <div
+        className={`flex items-center overflow-hidden transition-all duration-200 border-2 rounded-full bg-[#2a2a2a]/60
+          ${expanded ? 'border-white/60 px-2 gap-2' : 'border-gray-500 justify-center w-10 h-10 sm:w-12 sm:h-12'}`}
+        style={{ height: expanded ? 48 : undefined }}
+      >
+        {expanded ? (
+          <>
+            {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
+              const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
+              const isActive = rating === r;
+              return (
+                <button
+                  key={r}
+                  onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-125 flex-shrink-0
+                    ${isActive ? 'text-white' : 'text-white/60 hover:text-white'}`}
+                  title={r.charAt(0).toUpperCase() + r.slice(1)}
+                >
+                  <Icon size={22} weight={isActive ? 'fill' : 'bold'} />
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <CurrentIcon size={22} weight={rating ? 'fill' : 'bold'} className={rating ? 'text-white' : 'text-gray-300'} />
+        )}
+      </div>
+    </div>
+  );
+};
+
 const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, onPlay, trailerId }) => {
     const { 
         myList, toggleList, updateVideoState, heroVideoState, 
         globalMute, setGlobalMute, getVideoState, setActiveVideoId,
-        getLastWatchedEpisode
+        getLastWatchedEpisode, rateMovie, getMovieRating
     } = useGlobalContext();
     const { t } = useTranslation();
     const { detailedMovie, cast, recommendations, logoUrl, isLoading } = useMovieData(movie);
@@ -44,6 +81,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const playerRef = useRef<any>(null);
     const modalRef = useRef<HTMLDivElement>(null);
+    const [hasVideoEnded, setHasVideoEnded] = useState(false);
+    const [replayCount, setReplayCount] = useState(0);
 
 
     const [resumeContext, setResumeContext] = useState<{ season: number; episode: number } | null>(null);
@@ -136,21 +175,18 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             setEpisodes([]);
             setSelectedSeason(1);
             setResumeContext(null);
+            setHasVideoEnded(false);
+            setReplayCount(0);
 
             const type = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
-            // 2. Load Resume Context for TV Shows
+            // 2. Load Resume Context for TV Shows — read from GlobalContext
             if (type === 'tv') {
-                try {
-                    const saved = localStorage.getItem(`pstream-last-watched-${movie.id}`);
-                    if (saved) {
-                        const parsed = JSON.parse(saved);
-                        if (parsed.season && parsed.episode) {
-                            setResumeContext(parsed);
-                            setSelectedSeason(parsed.season);
-                        }
-                    }
-                } catch (e) { console.warn("Failed to load resume context", e); }
+                const saved = getLastWatchedEpisode(movie.id);
+                if (saved?.season && saved?.episode) {
+                    setResumeContext({ season: saved.season, episode: saved.episode });
+                    setSelectedSeason(saved.season);
+                }
             }
 
             // 3. Load Video (Prioritize Local Sync, then Hero Sync, then Prop, then Fetch)
@@ -333,24 +369,36 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                 } catch (_) {}
                                             };
                                             forceHD();
-
-                                            // Re-force if YouTube auto-downgrades quality
                                             e.target.addEventListener?.('onPlaybackQualityChange', forceHD);
-
-                                            // Tell the network manager: video is now active
                                             NetworkPriority.setVideoActive(true);
 
-                                            // Resume logic
-                                            if (initialTime > 0) {
+                                            if (initialTime > 5) {
                                                 e.target.seekTo(initialTime, true);
                                             }
                                         }}
-                                        onEnd={(e) => {
-                                            // Kill player 0.1s before suggestions
+                                        onStateChange={(e) => {
+                                            // Stop 2s before the end to prevent YouTube suggestions overlay
+                                            const YT_PLAYING = 1;
+                                            if (e.data === YT_PLAYING) {
+                                                const checkEnd = () => {
+                                                    if (!playerRef.current) return;
+                                                    try {
+                                                        const remaining = playerRef.current.getDuration() - playerRef.current.getCurrentTime();
+                                                        if (remaining <= 2) {
+                                                            playerRef.current.pauseVideo();
+                                                            setIsPlayingTrailer(false);
+                                                            setHasVideoEnded(true);
+                                                            return;
+                                                        }
+                                                    } catch (_) {}
+                                                    setTimeout(checkEnd, 1000);
+                                                };
+                                                checkEnd();
+                                            }
+                                        }}
+                                        onEnd={() => {
                                             setIsPlayingTrailer(false);
-                                            setTimeout(() => {
-                                              if (trailerQueue.length > 0) setIsPlayingTrailer(true);
-                                            }, 100);
+                                            setHasVideoEnded(true);
                                         }}
                                         onError={(e) => {
                                             console.warn("InfoModal Video error, trying next...", e);
@@ -368,9 +416,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                 modestbranding: 1,
                                                 rel: 0,
                                                 controls: 0,
-                                                start: initialTime > 5 ? Math.floor(initialTime) : 5, // Seamless resume or skip 5s
-                                                loop: 1,
-                                                playlist: trailerQueue[0], // Required for looping
+                                                // Skip first 5s to avoid green-screen warnings
+                                                start: initialTime > 5 ? Math.floor(initialTime) : 5,
+                                                loop: 0,
                                             }
                                         }}
                                     />
@@ -425,30 +473,44 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             })()}
                             <button
                                 onClick={() => toggleList(activeMovie)}
-                                className="border-2 border-gray-500 bg-[#2a2a2a]/60 text-gray-300 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center hover:border-white hover:text-white transition"
+                                className={`border-2 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95
+                                  ${isAdded ? 'border-white bg-white/10 text-white shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/60 text-gray-300 hover:border-white hover:text-white'}`}
                                 title={isAdded ? t('modal.removeFromList') : t('modal.addToList')}
                             >
                                 {isAdded ? <CheckIcon size={24} /> : <PlusIcon size={24} />}
                             </button>
-                            <button
-                                className="border-2 border-gray-500 bg-[#2a2a2a]/60 text-gray-300 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center hover:border-white hover:text-white transition"
-                                title={t('modal.rate')}
-                            >
-                                <ThumbsUpIcon size={22} weight="bold" />
-                            </button>
+                            {/* Rating Pill — Love / Like / Dislike */}
+                            <InfoModalRatingPill
+                                rating={getMovieRating(movie.id)}
+                                onRate={(r) => rateMovie(activeMovie, r)}
+                            />
                         </div>
                     </div>
 
-                    {/* Layer 3: Controls (Mute) */}
-                    {isPlayingTrailer && (
+                    {/* Layer 3: Mute / Replay button — always visible once trailer has been loaded */}
+                    {(isPlayingTrailer || hasVideoEnded) && (
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setIsMuted(!isMuted);
+                                if (hasVideoEnded) {
+                                    // Replay: restart trailer
+                                    setHasVideoEnded(false);
+                                    setIsPlayingTrailer(true);
+                                    setReplayCount(c => c + 1);
+                                    setTimeout(() => {
+                                        playerRef.current?.seekTo(5, true);
+                                        playerRef.current?.playVideo();
+                                    }, 300);
+                                } else {
+                                    setIsMuted(!isMuted);
+                                }
                             }}
                             className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-xl pointer-events-auto cursor-pointer"
+                            aria-label={hasVideoEnded ? 'Replay trailer' : (isMuted ? 'Unmute' : 'Mute')}
                         >
-                            {isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
+                            {hasVideoEnded
+                                ? <ArrowCounterClockwiseIcon size={20} className="text-white" />
+                                : isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
                         </button>
                     )}
                 </div>

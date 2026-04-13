@@ -16,6 +16,21 @@ export const PanelShell: React.FC<{
     showHeader?: boolean;
 }> = ({ title, onClose, onHover, onLeave, children, desktopClass, showHeader = false }) => {
     const isMobile = useIsMobile();
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleMouseEnter = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        if (onHover) onHover();
+    };
+
+    const handleMouseLeave = () => {
+        if (onLeave) onLeave();
+        timeoutRef.current = setTimeout(() => {
+            if (!document.getElementById('video-controls-container')?.matches(':hover')) {
+                onClose();
+            }
+        }, 700);
+    };
 
     if (isMobile) {
         return (
@@ -45,9 +60,10 @@ export const PanelShell: React.FC<{
 
     return (
         <div
+            id="video-panel-shell"
             className={`absolute z-[120] bg-[#262626] rounded-none border-2 border-white shadow-[0px_20px_50px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden animate-fadeIn font-sans ${desktopClass || 'bottom-16 right-0 w-[340px] lg:w-[480px] max-h-[70vh]'}`}
-            onMouseEnter={onHover}
-            onMouseLeave={onLeave}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
         >
             {showHeader && (
                  <div className="flex items-center px-8 py-6 border-b-2 border-white bg-[#262626] flex-shrink-0">
@@ -327,8 +343,9 @@ export const EpisodeExplorer: React.FC<{
     const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
     const episodesContainerRef = useRef<HTMLDivElement>(null);
     const currentEpisodeRef = useRef<HTMLDivElement>(null);
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    React.useEffect(() => { setPreviewSeason(selectedSeason); }, [selectedSeason, activePanel]);
+    React.useEffect(() => { setPreviewSeason(playingSeason || selectedSeason); }, [selectedSeason, playingSeason, activePanel]);
 
     // Auto-scroll to current episode when panel opens
     useEffect(() => {
@@ -468,8 +485,26 @@ export const EpisodeExplorer: React.FC<{
         );
     }
 
+    const handlePanelEnter = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        if (onPanelHover) onPanelHover();
+    };
+    
+    const handlePanelLeave = () => {
+        timeoutRef.current = setTimeout(() => {
+            if (!document.getElementById('video-controls-container')?.matches(':hover')) {
+                onClose ? onClose() : setActivePanel('none');
+            }
+        }, 700);
+    };
+
     return (
-        <div className="absolute bottom-16 rounded-none border-2 border-white shadow-2xl z-[120] flex flex-col animate-fadeIn right-0 w-[400px] lg:w-[800px] h-[70vh] bg-[#262626]" onMouseLeave={() => onClose ? onClose() : setActivePanel('none')}>
+        <div
+            id="video-panel-shell"
+            className="absolute bottom-16 rounded-none border-2 border-white shadow-2xl z-[120] flex flex-col animate-fadeIn right-0 w-[400px] lg:w-[800px] h-[70vh] bg-[#262626]"
+            onMouseEnter={handlePanelEnter}
+            onMouseLeave={handlePanelLeave}
+        >
             {innerContent}
         </div>
     );
@@ -515,8 +550,8 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
                 <PanelShell
                     title="Audio & Subtitles"
                     onClose={close}
-                    onHover={() => { /* keep panel open */ }}
-                    onLeave={close}
+                    onHover={() => { /* keep panel open — timer is suspended by onMouseEnter */ }}
+                    onLeave={() => { /* Don't close here — close is handle via the hover timeout in controls */ }}
                     desktopClass="bottom-16 right-0 w-[400px] lg:w-[550px] h-[480px]"
                 >
                     <AudioSubPanel {...props} onClose={close} />

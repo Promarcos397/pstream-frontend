@@ -192,8 +192,8 @@ const NextEpisodePopup: React.FC<{
             style={{
                 position: 'absolute',
                 bottom: '100%',
-                // Align to the right, matching reference `right: -150px`
-                right: -100,
+                // Right-aligned but pushed slightly out to exactly match user preference
+                right: -30,
                 width: 550,
                 backgroundColor: '#141414',
                 border: '2px solid #ffffff',
@@ -402,10 +402,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const episodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const isTV = mediaType === 'tv';
-    const isPanelOpen = activePanel !== 'none';
+    const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup;
 
     // Bigger icons per your request
-    const ICON_SIZE = isMobile ? 32 : 28;
+    const ICON_SIZE = isMobile ? 25 : 46    ;
 
     // ── Hover extends UI timeout ──────────────────────────────────────────────
     const resetInactivity = useCallback(() => {
@@ -463,19 +463,33 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
     // ── Hover popup helpers (hover bridge pattern) ────────────────────────────
     const openVolume = () => { if (isMobile) return; if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current); setShowVolume(true); };
-    const closeVolume = () => { if (isMobile) return; volumeTimeoutRef.current = setTimeout(() => setShowVolume(false), 400); };
+    const closeVolume = () => { if (isMobile) return; volumeTimeoutRef.current = setTimeout(() => setShowVolume(false), 700); };
     const keepVolume = () => { if (isMobile) return; if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current); };
 
     const openNextEp = () => { if (isMobile || !hasNextEpisode || !nextEpisodeData) return; if (nextEpTimeoutRef.current) clearTimeout(nextEpTimeoutRef.current); setShowNextEpPopup(true); };
-    const closeNextEp = () => { if (isMobile) return; nextEpTimeoutRef.current = setTimeout(() => setShowNextEpPopup(false), 400); };
+    const closeNextEp = () => { if (isMobile) return; nextEpTimeoutRef.current = setTimeout(() => setShowNextEpPopup(false), 700); };
     const keepNextEp = () => { if (isMobile) return; if (nextEpTimeoutRef.current) clearTimeout(nextEpTimeoutRef.current); };
 
     const openSubtitles = () => { if (isMobile) return; if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); setActivePanel?.('audioSubtitles'); };
-    const closeSubtitles = () => { if (isMobile) return; subtitleTimeoutRef.current = setTimeout(() => setActivePanel?.('none'), 500); };
+    const closeSubtitles = () => { 
+        if (isMobile) return; 
+        subtitleTimeoutRef.current = setTimeout(() => {
+            if (!document.getElementById('video-panel-shell')?.matches(':hover')) {
+                setActivePanel?.('none');
+            }
+        }, 700); 
+    };
     const keepSubtitles = () => { if (isMobile) return; if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); };
 
     const openEpisodes = () => { if (isMobile) return; if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); setActivePanel?.('episodes'); };
-    const closeEpisodes = () => { if (isMobile) return; episodeTimeoutRef.current = setTimeout(() => setActivePanel?.('none'), 500); };
+    const closeEpisodes = () => { 
+        if (isMobile) return; 
+        episodeTimeoutRef.current = setTimeout(() => {
+            if (!document.getElementById('video-panel-shell')?.matches(':hover')) {
+                setActivePanel?.('none');
+            }
+        }, 700); 
+    };
     const keepEpisodes = () => { if (isMobile) return; if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); };
 
     // ── Base styles ───────────────────────────────────────────────────────────
@@ -523,10 +537,13 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
             {/* ── BOTTOM Controls ── */}
             <div
+                id="video-controls-container"
                 className={`absolute inset-x-0 bottom-0 z-30 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                 onClick={(e) => e.stopPropagation()}
-                // Hovering controls cancels the UI hide timer
-                onMouseEnter={resetInactivity}
+                // Hovering over controls: suspend the auto-hide timer
+                onMouseEnter={() => {
+                    if (typeof resetInactivity === 'function') resetInactivity();
+                }}
             >
                 <div className="absolute inset-0 bg-gradient-to-t from-black/98 via-black/60 to-transparent pointer-events-none" />
 
@@ -558,7 +575,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         >
                             {/* Hover tooltip */}
                             {!isMobile && isHovering && (
-                                <div className="absolute -top-9 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded pointer-events-none font-consolas" style={{ left: `${hoverPosition}%` }}>
+                                <div className="absolute -top-9 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded pointer-events-none font-consolas shadow-md" style={{ left: `${hoverPosition}%` }}>
                                     {(() => {
                                         const t = hoverTime;
                                         const h = Math.floor(t / 3600);
@@ -633,7 +650,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         {/* CENTER: Title (desktop only, absolute so it doesn't push groups) */}
                         {!isMobile && (
                             <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none px-4 text-center" style={{ maxWidth: '46%', bottom: 0 }}>
-                                <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[15px] drop-shadow-lg line-clamp-2" />
+                                <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[22px] drop-shadow-lg line-clamp-2" />
                             </div>
                         )}
 
@@ -651,7 +668,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                     )}
                                     {/* Invisible bridge */}
                                     {showNextEpPopup && (
-                                        <div style={{ position: 'absolute', bottom: '100%', right: 0, width: '100%', height: 20, zIndex: 99 }} onMouseEnter={keepNextEp} />
+                                        <div style={{ position: 'absolute', bottom: '100%', right: -30, width: 550, height: 20, zIndex:  99}} onMouseEnter={keepNextEp} />
                                     )}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onNextEpisode(); }}

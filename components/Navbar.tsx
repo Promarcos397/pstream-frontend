@@ -16,12 +16,11 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery, activeTab, setActiveTab }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchActive, setMobileSearchActive] = useState(false);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-
   const { settings, user, logout } = useGlobalContext();
-
   const isSettings = location.pathname.startsWith('/settings');
 
   const navItems = [
@@ -81,12 +80,17 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
         </div>
 
         <div className="flex items-center space-x-3 md:space-x-5">
-          {/* Search Bar */}
+          {/* Search Bar — expands to fill; on mobile hides burger+avatar when active */}
           {!isSettings && activeTab !== 'settings' && (
-            <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+            <SearchBar
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              onActiveChange={(active) => setMobileSearchActive(active)}
+            />
           )}
 
-          <div className="flex items-center space-x-5">
+          {/* Profile / Login — hidden on mobile when search is active */}
+          <div className={`flex items-center space-x-5 transition-all duration-300 ${mobileSearchActive ? 'md:flex hidden' : 'flex'}`}>
               {/* Profile Dropdown & Sign In */}
               {!user ? (
                 <button
@@ -120,8 +124,12 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
               )}
           </div>
 
+          {/* Burger menu — hidden on mobile when search is active */}
           {!isSettings && (
-            <div className="md:hidden flex items-center ml-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <div
+              className={`md:hidden flex items-center ml-2 transition-all duration-300 ${mobileSearchActive ? 'opacity-0 pointer-events-none w-0 overflow-hidden' : 'opacity-100'}`}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
               {mobileMenuOpen ? <XIcon size={24} className="text-white cursor-pointer" /> : <ListIcon size={24} className="text-white cursor-pointer" />}
             </div>
           )}
@@ -142,12 +150,14 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
               {item.label}
             </div>
           ))}
-          <div
-            onClick={() => handleTabClick('settings')}
-            className={`text-2xl font-bold tracking-tight text-shadow-hard transition-all duration-300 hover:scale-110 ${activeTab === 'settings' ? 'text-white' : 'text-gray-500 hover:text-white'}`}
-          >
-            {t('nav.accountSettings')}
-          </div>
+          {user && (
+            <div
+              onClick={() => handleTabClick('settings')}
+              className={`text-2xl font-bold tracking-tight text-shadow-hard transition-all duration-300 hover:scale-110 ${activeTab === 'settings' ? 'text-white' : 'text-gray-500 hover:text-white'}`}
+            >
+              {t('nav.accountSettings')}
+            </div>
+          )}
           {!user && (
             <button 
               onClick={() => { setMobileMenuOpen(false); navigate('/login'); }}

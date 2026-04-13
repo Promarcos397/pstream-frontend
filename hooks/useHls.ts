@@ -25,6 +25,14 @@ export interface HlsAudioTrack {
     isDefault: boolean;
 }
 
+export interface HlsSubtitleTrack {
+    id: number;
+    name: string;
+    lang: string;
+    url?: string;
+    isDefault: boolean;
+}
+
 /**
  * Picks the best English audio track index from a list of HLS audio tracks.
  * Priority: explicit 'en' lang > name contains 'english' > default track > track 0.
@@ -52,6 +60,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
     const [currentQuality, setCurrentQuality] = useState<number>(-1);
     const [audioTracks, setAudioTracks] = useState<HlsAudioTrack[]>([]);
     const [currentAudioTrack, setCurrentAudioTrack] = useState<number>(-1);
+    const [subtitleTracks, setSubtitleTracks] = useState<HlsSubtitleTrack[]>([]);
     const [isBuffering, setIsBuffering] = useState(true);
 
     const destroyHls = useCallback(() => {
@@ -123,6 +132,18 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                     } else {
                         setCurrentAudioTrack(hls.audioTrack);
                     }
+                }
+
+                // Extract embedded Subtitle Tracks
+                if (hls.subtitleTracks && hls.subtitleTracks.length > 0) {
+                    const tracks: HlsSubtitleTrack[] = hls.subtitleTracks.map((t, index) => ({
+                        id: index,
+                        name: t.name || t.lang || `Subtitle ${index + 1}`,
+                        lang: t.lang || '',
+                        url: t.url,
+                        isDefault: !!t.default
+                    }));
+                    setSubtitleTracks(tracks);
                 }
 
                 if (onManifestParsed) onManifestParsed();
@@ -212,6 +233,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
         currentQuality,
         audioTracks,
         currentAudioTrack,
+        subtitleTracks,
         changeQuality,
         changeAudioTrack
     };

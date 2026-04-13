@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, CaretDownIcon, BookOpenIcon, TicketIcon } from '@phosphor-icons/react';
+import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon } from '@phosphor-icons/react';
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { useNavigate, Link } from 'react-router-dom';
@@ -110,6 +110,47 @@ const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; ge
   }
   return null;
 });
+
+type MovieRating = 'like' | 'dislike' | 'love';
+const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieRating) => void }> = ({ rating, onRate }) => {
+  const [expanded, setExpanded] = useState(false);
+  const CurrentIcon = rating === 'love' ? HeartIcon : rating === 'dislike' ? ThumbsDownIcon : ThumbsUpIcon;
+  return (
+    <div
+      className="relative flex items-center"
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+    >
+      <div
+        className={`flex items-center gap-1 overflow-hidden transition-all duration-200 border-2 rounded-full bg-[#2a2a2a]/80
+          ${expanded ? 'border-white/60 px-2 gap-2' : 'border-gray-500 justify-center w-8 h-8 md:w-9 md:h-9'}`}
+        style={{ height: expanded ? 36 : undefined }}
+      >
+        {expanded ? (
+          <>
+            {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
+              const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
+              const isActive = rating === r;
+              return (
+                <button
+                  key={r}
+                  onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-125 flex-shrink-0
+                    ${isActive ? 'text-white' : 'text-white/60 hover:text-white'}`}
+                  title={r.charAt(0).toUpperCase() + r.slice(1)}
+                >
+                  <Icon size={16} weight={isActive ? 'fill' : 'bold'} />
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <CurrentIcon size={16} weight={rating ? 'fill' : 'bold'} className={rating ? 'text-white' : 'text-white'} />
+        )}
+      </div>
+    </div>
+  );
+};
 
 const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false }) => {
   const { t } = useTranslation();
@@ -228,7 +269,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   // Prefetch stream on hover
   const handleMouseEnter = (e: React.MouseEvent) => {
-    if (!window.matchMedia('(hover: hover)').matches) return;
+  //Robust mobile/touch detection - Android Chrome often falsely reports (hover: hover)
+    if (window.innerWidth < 1400 || ('ontouchstart' in window && navigator.maxTouchPoints > 0)) return;
 
     const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
     const dateStr = movie.release_date || movie.first_air_date;
@@ -541,22 +583,20 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                           {isBook ? <BookOpenIcon size={18} weight="fill" /> : <PlayIcon size={22} weight="fill" className="ml-0.5" />}
                         </Link>
                       )}
-                  {/* Add to List */}
+                  {/* Add to List — subtle animation on state change */}
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
-                    className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-white hover:border-white hover:scale-110 transition-all duration-200"
-                    title="Add to My List"
+                    className={`border-2 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
+                      ${isAdded ? 'border-white bg-white/10 shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'}`}
+                    title={isAdded ? 'Remove from My List' : 'Add to My List'}
                   >
                     {isAdded ? <CheckIcon size={16} weight="bold" /> : <PlusIcon size={16} weight="bold" />}
                   </button>
-                  {/* Rate / Thumbs Up */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); rateMovie(movie, 'like'); }}
-                    className={`border-2 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center transition-all duration-200 hover:scale-110 ${getMovieRating(movie.id) === 'like' ? 'bg-white text-black border-white' : 'bg-[#2a2a2a]/80 text-white border-gray-500 hover:border-white'}`}
-                    title="Rate"
-                  >
-                    <ThumbsUpIcon size={16} weight={getMovieRating(movie.id) === 'like' ? "fill" : "bold"} />
-                  </button>
+                  {/* Rate — Love / Like / Dislike pill */}
+                  <RatingPill
+                    rating={getMovieRating(movie.id)}
+                    onRate={(r) => { rateMovie(movie, r); }}
+                  />
                 </div>
 
                 {/* More Info - Chevron Down */}

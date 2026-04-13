@@ -350,7 +350,9 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         }}
         trailerVideoId={trailerQueue[0]} hasVideoEnded={hasVideoEnded}
       />
-      <div className="absolute right-0 bottom-[34%] flex items-center gap-3 z-30 pointer-events-auto">
+      {/* Mute + Age Rating — row-aligned with the Play/More Info buttons */}
+      <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto bottom-[22%] sm:bottom-[18%] md:bottom-[14%]"
+      >
         {showVideo && isVideoReady && (
           <button 
             onClick={() => {
@@ -362,7 +364,8 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
                 setIsMuted(!isMuted);
               }
             }} 
-            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-lg group mr-4"
+            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-lg group mr-4 active:scale-90"
+            aria-label={isMuted ? 'Unmute' : 'Mute'}
           >
             {hasVideoEnded ? (
               <ArrowCounterClockwise size={20} className="text-white" />
@@ -371,7 +374,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
             )}
           </button>
         )}
-        <div className="bg-gray-500/40 border-l-[3px] border-gray-300 py-1.5 px-3 md:px-5 min-w-[60px] md:min-w-[90px] flex items-center justify-start">
+        <div className="bg-gray-500/40 border-l-[3px] border-gray-300 px-3 md:px-5 min-w-[60px] md:min-w-[90px] flex items-center justify-start h-[40px] md:h-[48px]">
           <span className="text-white text-sm md:text-lg font-medium drop-shadow-md select-none">{movie.adult ? '18+' : '13+'}</span>
         </div>
       </div>

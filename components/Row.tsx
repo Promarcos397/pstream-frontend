@@ -184,13 +184,13 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
         <div
           ref={rowRef}
           className={`row-scroll-strip flex overflow-x-scroll scrollbar-hide w-full pointer-events-auto relative z-10 scroll-smooth ${
-            // On mobile: no expanded py-32/-my-32 zone — it blocks vertical page scroll
-            // On desktop: use the zone for card hover scale effect
             isMobile ? 'py-3 -my-0' : 'py-32 -my-32'
           }`}
           style={{
             WebkitOverflowScrolling: 'touch',
             overscrollBehaviorX: 'contain',
+            // Allow horizontal swiping on the strip without stealing vertical scroll
+            touchAction: 'pan-x',
           }}
         >
           {/* Left spacer */}
@@ -207,7 +207,13 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
               </div>
             ))
             : movies.slice(0, 36).map((movie) => (movie.backdrop_path || movie.poster_path) && (
-              <div key={movie.id} className="movie-card-container pointer-events-auto mr-1 md:mr-1.5 lg:mr-2">
+              <div
+                key={movie.id}
+                className="movie-card-container pointer-events-auto mr-1 md:mr-1.5 lg:mr-2"
+                // Allow vertical scroll through cards on touch; horizontal is handled by the strip
+          style={{ touchAction: 'pan-y' }}
+
+              >
                 <MovieCard movie={movie} onSelect={onSelect} onPlay={onPlay} />
               </div>
             ))

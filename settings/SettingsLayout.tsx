@@ -171,10 +171,11 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
                         onError={(e) => { (e.target as any).style.display = 'none'; }}
                     />
                 </div>
-                
-                <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/settings')}>
-                    <Avatar src={settings.avatarUrl} size={30} />
-                </div>
+                {user && (
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/settings')}>
+                        <Avatar src={settings.avatarUrl} size={30} />
+                    </div>
+                )}
             </header>
 
             {/* ── Main Content Area (Centered) ────────────────── */}

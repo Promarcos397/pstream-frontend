@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { CaretDownIcon } from '@phosphor-icons/react';
+import React, { useState, useRef, useEffect } from 'react';
+import { CaretDownIcon, XIcon } from '@phosphor-icons/react';
 
 export interface Genre {
     id: number;
@@ -24,8 +24,8 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     onViewModeChange,
 }) => {
     const [genreMenuOpen, setGenreMenuOpen] = useState(false);
-    // Delay closing so accidental mouse-exit doesn't flicker the panel shut
     const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const openMenu = () => {
         if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -39,11 +39,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     const toggleMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        if (genreMenuOpen) {
-            setGenreMenuOpen(false);
-        } else {
-            openMenu();
-        }
+        setGenreMenuOpen(prev => !prev);
     };
 
     const handleGenreClick = (genre: Genre | null) => {
@@ -52,10 +48,26 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
         onGenreSelect(genre);
     };
 
+    // Tap-outside to close on mobile
+    useEffect(() => {
+        if (!genreMenuOpen) return;
+        const handleOutside = (e: MouseEvent | TouchEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setGenreMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutside);
+        document.addEventListener('touchstart', handleOutside, { passive: true });
+        return () => {
+            document.removeEventListener('mousedown', handleOutside);
+            document.removeEventListener('touchstart', handleOutside);
+        };
+    }, [genreMenuOpen]);
+
     return (
         <div className="relative z-30 flex items-center justify-between px-6 md:px-14 lg:px-16 pt-2 pb-3 select-none">
-            {/* Left side: Title + breadcrumb + Genres dropdown */}
-            <div className="flex items-center gap-4 md:gap-6">
+            {/* Left side: Title + Genres dropdown */}
+            <div className="flex items-center gap-3 md:gap-6" ref={containerRef}>
 
                 {/* Dynamic Title / Breadcrumb */}
                 <h1 className="text-xl md:text-3xl lg:text-4xl font-bold text-white flex items-center">
@@ -68,14 +80,14 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                                 {title}
                             </span>
                             <span className="text-[#808080] font-normal text-xl md:text-2xl mx-3">&gt;</span>
-                            <span className="truncate max-w-[150px] md:max-w-none">{selectedGenre.name} {title}</span>
+                            <span className="truncate max-w-[120px] md:max-w-none">{selectedGenre.name}</span>
                         </>
                     ) : (
                         <span>{title}</span>
                     )}
                 </h1>
 
-                {/* Genres Dropdown — always visible (not hidden when genre is selected) */}
+                {/* Genres Dropdown */}
                 <div
                     className="relative"
                     onMouseEnter={openMenu}
@@ -83,7 +95,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                 >
                     <button
                         onClick={toggleMenu}
-                        className={`flex items-center gap-2 px-3 py-[6px] md:py-[5px] text-[13px] font-medium text-white bg-transparent border transition-colors rounded-[2px] active:scale-95
+                        className={`flex items-center gap-2 px-3 py-[5px] text-[13px] font-medium text-white bg-transparent border transition-colors rounded-[2px] active:scale-95
                             ${selectedGenre ? 'border-white/70 bg-white/5' : 'border-white/40 hover:border-white/70'}`}
                         aria-haspopup="listbox"
                         aria-expanded={genreMenuOpen}
@@ -96,7 +108,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                         />
                     </button>
 
-                    {/* Genre Dropdown Panel — delayed close prevents accidental flicker */}
+                    {/* Dropdown Panel */}
                     <div
                         className={`absolute top-full left-0 mt-1 z-50 transition-all duration-200 ${
                             genreMenuOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-1 pointer-events-none'
@@ -105,24 +117,25 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                         onMouseLeave={scheduleClose}
                         role="listbox"
                     >
-                        <div className="w-[85vw] max-w-[320px] md:w-[480px] md:max-w-none max-h-[60vh] md:max-h-[460px] overflow-y-auto bg-[#141414]/[0.98] backdrop-blur-xl border border-white/20 rounded-[2px] shadow-[0_8px_48px_rgba(0,0,0,0.9)] p-4 scrollbar-hide">
-                            {/* "All" reset option when a genre is active */}
+                        {/* Shorter panel: max-h reduced from 60vh to 42vh on mobile, 320px on desktop */}
+                        <div className="w-[80vw] max-w-[280px] md:w-[440px] md:max-w-none max-h-[42vh] md:max-h-[320px] overflow-y-auto bg-[#141414]/[0.98] backdrop-blur-xl border border-white/20 rounded-[2px] shadow-[0_8px_48px_rgba(0,0,0,0.9)] p-3 scrollbar-hide">
+                            {/* "All" reset option */}
                             {selectedGenre && (
                                 <button
                                     onClick={() => handleGenreClick(null)}
-                                    className="w-full text-left text-[14px] py-[10px] mb-2 border-b border-white/10 text-white/50 hover:text-white transition-colors flex items-center gap-2"
+                                    className="w-full text-left text-[13px] py-[8px] mb-2 border-b border-white/10 text-white/50 hover:text-white transition-colors flex items-center gap-2"
                                 >
-                                    <span className="text-lg">←</span> All {title}
+                                    <span className="text-base">←</span> All {title}
                                 </button>
                             )}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-[1px]">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-[1px]">
                                 {genres.map((genre) => (
                                     <button
                                         key={genre.id}
                                         onClick={() => handleGenreClick(genre)}
                                         role="option"
                                         aria-selected={selectedGenre?.id === genre.id}
-                                        className={`text-left text-[14px] md:text-[13px] py-[10px] md:py-[7px] transition-colors hover:text-white whitespace-nowrap px-2 rounded-sm hover:bg-white/5
+                                        className={`text-left text-[13px] py-[8px] md:py-[6px] transition-colors hover:text-white whitespace-nowrap px-2 rounded-sm hover:bg-white/5 active:bg-white/10
                                             ${selectedGenre?.id === genre.id ? 'text-white font-semibold bg-white/5' : 'text-[#b3b3b3]'}`}
                                     >
                                         {genre.name}
