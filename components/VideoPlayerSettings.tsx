@@ -45,7 +45,7 @@ export const PanelShell: React.FC<{
 
     return (
         <div
-            className={`absolute z-[120] bg-[#262626] rounded-none border-2 border-white shadow-[0px_20px_50px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden animate-fadeIn font-sans ${desktopClass || 'bottom-24 right-4 w-[340px] lg:w-[480px] max-h-[70vh]'}`}
+            className={`absolute z-[120] bg-[#262626] rounded-none border-2 border-white shadow-[0px_20px_50px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden animate-fadeIn font-sans ${desktopClass || 'bottom-16 right-0 w-[340px] lg:w-[480px] max-h-[70vh]'}`}
             onMouseEnter={onHover}
             onMouseLeave={onLeave}
         >
@@ -176,8 +176,61 @@ export const AudioSubPanel: React.FC<{
 
     return (
         <div className={`flex ${isMobile ? 'flex-col' : 'flex-row w-full h-full py-6'}`}>
-            {audioTracks.length > 0 && renderAudioColumn()}
-            {renderSubtitleColumn()}
+            {/* Audio column */}
+            <div className="flex flex-col flex-1 border-r border-white/10 min-w-[200px] h-full">
+                <div className={`text-white font-bold mb-6 ${isMobile ? 'px-4 py-3 text-xs uppercase tracking-widest border-b border-white/5 opacity-50' : 'px-8 py-0 text-[22px]'}`}>
+                    Audio
+                </div>
+                <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-[#555] scrollbar-track-transparent">
+                    {audioTracks.length > 0 ? audioTracks.map((track) => (
+                        <div key={track.id} className={rowCls} onClick={() => onAudioChange(track.id)}>
+                            <div className="w-8 flex-shrink-0 flex justify-center">
+                                {currentAudioTrack === track.id && <CheckIcon size={20} weight="bold" className="text-white" />}
+                            </div>
+                            <span className={`text-base truncate transition-colors ${currentAudioTrack === track.id ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>
+                                {track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}
+                            </span>
+                        </div>
+                    )) : (
+                        <div className="px-8 py-4 text-white/30 text-sm italic">No audio tracks available</div>
+                    )}
+                </div>
+            </div>
+            {/* Subtitle column */}
+            <div className="flex flex-col flex-1 min-w-[200px] h-full">
+                <div className={`text-white font-bold mb-6 ${isMobile ? 'px-4 py-3 text-xs uppercase tracking-widest border-b border-white/5 opacity-50' : 'px-8 py-0 text-[22px]'}`}>
+                    Subtitles
+                </div>
+                <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-[#555] scrollbar-track-transparent">
+                    <div className={rowCls} onClick={() => onSubtitleChange(null)}>
+                        <div className="w-8 flex-shrink-0 flex justify-center">
+                            {currentCaption === null && <CheckIcon size={20} weight="bold" className="text-white" />}
+                        </div>
+                        <span className={`text-base transition-colors ${currentCaption === null ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>Off</span>
+                    </div>
+                    {groupedCaptions.length === 0 && (
+                        <div className="px-8 py-4 text-white/30 text-sm italic">No subtitles found</div>
+                    )}
+                    {groupedCaptions.map(([langKey, caps]) => {
+                        const isMulti = caps.length > 1;
+                        const hasActiveChild = caps.some(c => c.url === currentCaption);
+                        return (
+                            <div key={langKey} className={`${rowCls} justify-between`} onClick={() => {
+                                if (isMulti) { setActiveLangGroup(langKey); }
+                                else { onSubtitleChange(caps[0].url); }
+                            }}>
+                                <div className="flex items-center overflow-hidden">
+                                    <div className="w-8 flex-shrink-0 flex justify-center">
+                                        {hasActiveChild && <CheckIcon size={20} weight="bold" className="text-white" />}
+                                    </div>
+                                    <span className={`text-base truncate transition-colors ${hasActiveChild ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>{caps[0].label}</span>
+                                </div>
+                                {isMulti && <CaretRightIcon size={14} weight="bold" className="text-white/40 ml-2 flex-shrink-0" />}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
         </div>
     );
 };
@@ -416,7 +469,7 @@ export const EpisodeExplorer: React.FC<{
     }
 
     return (
-        <div className="absolute bottom-24 rounded-none border-2 border-white shadow-2xl z-[120] flex flex-col animate-fadeIn right-2 w-[400px] lg:w-[800px] h-[70vh] bg-[#262626]" onMouseLeave={() => onClose ? onClose() : setActivePanel('none')}>
+        <div className="absolute bottom-16 rounded-none border-2 border-white shadow-2xl z-[120] flex flex-col animate-fadeIn right-0 w-[400px] lg:w-[800px] h-[70vh] bg-[#262626]" onMouseLeave={() => onClose ? onClose() : setActivePanel('none')}>
             {innerContent}
         </div>
     );
@@ -459,12 +512,18 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
     return (
         <>
             {props.activePanel === 'audioSubtitles' && (
-                <PanelShell title="Audio & Subtitles" onClose={close} desktopClass="bottom-24 right-4 w-[400px] lg:w-[550px] h-[480px]">
+                <PanelShell
+                    title="Audio & Subtitles"
+                    onClose={close}
+                    onHover={() => { /* keep panel open */ }}
+                    onLeave={close}
+                    desktopClass="bottom-16 right-0 w-[400px] lg:w-[550px] h-[480px]"
+                >
                     <AudioSubPanel {...props} onClose={close} />
                 </PanelShell>
             )}
             {props.activePanel === 'quality' && (
-                <PanelShell title="Video Quality" onClose={close} desktopClass="bottom-24 right-4 w-[320px] lg:w-[500px] max-h-[70vh]">
+                <PanelShell title="Video Quality" onClose={close} desktopClass="bottom-16 right-0 w-[320px] lg:w-[500px] max-h-[70vh]">
                     <QualityMenu {...props} onClose={close} />
                 </PanelShell>
             )}
@@ -472,7 +531,7 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
                 <EpisodeExplorer {...props} onClose={close} />
             )}
             {props.activePanel === 'servers' && (
-                <PanelShell title="Servers" onClose={close} desktopClass="bottom-24 right-4 w-[340px] lg:w-[450px] max-h-[60vh] h-auto">
+                <PanelShell title="Servers" onClose={close} desktopClass="bottom-16 right-0 w-[340px] lg:w-[450px] max-h-[60vh] h-auto">
                     <ServerPanel {...props} onClose={close} />
                 </PanelShell>
             )}

@@ -6,6 +6,42 @@
 }
 
 @font-face {
+  font-family: 'Consolas';
+  src: url('./Consolas-Font/Consolas.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Consolas';
+  src: url('./Consolas-Font/CONSOLAB.TTF') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Consolas';
+  src: url('./Consolas-Font/consolai.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Consolas';
+  src: url('./Consolas-Font/consolaz.ttf') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+  font-display: swap;
+}
+
+.font-consolas {
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+@font-face {
   font-family: 'Leaner Bold';
   src: url('./assets/fonts/LeanerBold.otf') format('opentype');
   font-display: swap;
@@ -294,4 +330,57 @@ body {
 .animate-scaleIn {
   animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ─── Subtitle Overlay ─────────────────────────────────────────────────────── */
+.subtitle-overlay {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  text-align: center;
+  pointer-events: none;
+  transition: bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: min(90vw, 900px);
+  width: max-content;
+}
+
+.subtitle-overlay .subtitle-line {
+  display: inline-block;
+  font-family: 'Consolas', 'Harmonia Sans Mono', 'Courier New', monospace;
+  font-size: clamp(14px, 2.2vw, 22px);
+  font-weight: 500;
+  color: #fff;
+  padding: 2px 8px 3px;
+  border-radius: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7);
+}
+
+/* ─── Row touch-action fix: outer wrapper allows vertical, inner strip horizontal ─ */
+.row-scroll-outer {
+  touch-action: pan-y;    /* page scrolls vertically through this zone */
+}
+
+.row-scroll-strip {
+  touch-action: pan-x;   /* once user is inside strip, horizontal wins */
+}
+
+/* ─── Play/Pause Ripple ───────────────────────────────────────────────────────── */
+@keyframes pp-ripple {
+  0%   { opacity: 0; transform: scale(0.6); }
+  30%  { opacity: 1; transform: scale(1.05); }
+  70%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.2); }
+}
+
+/* ─── Seek Flash ─────────────────────────────────────────────────────────────── */
+@keyframes seek-flash {
+  0%   { opacity: 0.6; }
+  60%  { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+
+
 

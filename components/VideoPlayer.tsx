@@ -7,7 +7,6 @@ import ISO6391 from 'iso-639-1';
 
 import { useGlobalContext } from '../context/GlobalContext';
 import { useTitle } from '../context/TitleContext';
-import { convertSubtitlesToObjectUrl } from '../utils/captions';
 import { streamCache } from '../utils/streamCache';
 import { useTouchGestures } from '../hooks/useTouchGestures';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -113,6 +112,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // Derived data
     const title = movie.title || movie.name || '';
     const formattedDate = movie.release_date || movie.first_air_date || '';
+    const currentEpisodeName = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode)?.name || '';
+
+    // ─── Touch gestures ──────────────────────────────────────────────────────────
+    // Double-tap left/right = ±10s seek; double-tap center = play/pause
+    useTouchGestures(containerRef, {
+        onDoubleTapLeft: () => { if (videoRef.current) videoRef.current.currentTime -= 10; },
+        onDoubleTapRight: () => { if (videoRef.current) videoRef.current.currentTime += 10; },
+        onDoubleTapCenter: () => { videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause(); },
+        onSingleTap: () => { setShowUI(v => !v); },
+    });
 
     // ─── Compute next episode / season ─────────────────────────────────────────
     const nextEpisodeInfo = useMemo<{ episode: Episode; season: number } | null>(() => {
@@ -320,7 +329,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
             try {
                 const openSubPromise = settings.showSubtitles
-                    ? SubtitleService.getSubtitleTracks(String(movie.id), mediaType === 'tv' ? 'tv' : 'movie', playingSeasonNumber, currentEpisode).catch(() => [])
+                    ? SubtitleService.getSubtitleTracks(
+                        String(movie.id),
+                        mediaType === 'tv' ? 'tv' : 'movie',
+                        playingSeasonNumber,
+                        currentEpisode,
+                        // Pass browser language as preferred so we get native subtitles
+                        settings.subtitleLanguage || navigator.language?.split('-')[0] || 'en'
+                      ).catch(() => [])
                     : Promise.resolve([]);
 
                 let imdbId = movie.imdb_id;
@@ -478,28 +494,47 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setActivePanel('none');
     }, [playingSeasonNumber]);
 
-    // ─── Native Subtitle Loading ──────────────────────────────────────────────────
+    // ─── Custom Subtitle Cue Engine ───────────────────────────────────────────────
+    // We parse the VTT file directly and drive currentCueText via a polling ref.
+    const parsedCuesRef = useRef<Array<{ start: number; end: number; text: string }>>([]);
+
     useEffect(() => {
         if (!currentCaption) {
             setSubtitleObjectUrl(null);
+            setCurrentCueText('');
+            parsedCuesRef.current = [];
             return;
         }
         let isMounted = true;
         const loadSubtitles = async () => {
             try {
-                const electron = (window as any).electron;
-                let text = '';
-                if (electron?.fetchSubtitle) {
-                    const res = await electron.fetchSubtitle(currentCaption);
-                    if (res.success) text = res.text;
-                } else {
-                    const res = await fetch(currentCaption);
-                    text = await res.text();
+                const res = await fetch(currentCaption);
+                const text = await res.text();
+                if (!text || !isMounted) return;
+
+                // Parse VTT/SRT cues
+                const cues: Array<{ start: number; end: number; text: string }> = [];
+                const timeToSec = (t: string) => {
+                    const parts = t.trim().split(':');
+                    if (parts.length === 3) {
+                        return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2].replace(',', '.'));
+                    }
+                    return parseFloat(parts[0]) * 60 + parseFloat(parts[1].replace(',', '.'));
+                };
+                // Universal VTT + SRT regex
+                const cueRegex = /(?:\d+\n)?([\d:,.]+ --> [\d:,.]+)[^\n]*\n([\s\S]*?)(?=\n\n|\n?$)/g;
+                let match;
+                while ((match = cueRegex.exec(text)) !== null) {
+                    const [startStr, endStr] = match[1].split(' --> ');
+                    const cueText = match[2].trim().replace(/<[^>]+>/g, '');
+                    if (cueText) cues.push({ start: timeToSec(startStr), end: timeToSec(endStr), text: cueText });
                 }
-                if (text && isMounted) {
-                    const url = convertSubtitlesToObjectUrl(text);
-                    if (url) setSubtitleObjectUrl(url);
-                }
+                parsedCuesRef.current = cues;
+
+                // Also produce a blob URL for any other consumers
+                const { convertSubtitlesToObjectUrl } = await import('../utils/captions');
+                const url = convertSubtitlesToObjectUrl(text);
+                if (url && isMounted) setSubtitleObjectUrl(url);
             } catch (e) {
                 console.error('[VideoPlayer] Subtitle load failed', e);
             }
@@ -507,6 +542,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         loadSubtitles();
         return () => { isMounted = false; };
     }, [currentCaption]);
+
+    // Poll video currentTime to update the active cue text
+    useEffect(() => {
+        const update = () => {
+            const video = videoRef.current;
+            if (!video) return;
+            const t = video.currentTime;
+            const cue = parsedCuesRef.current.find(c => t >= c.start && t <= c.end);
+            setCurrentCueText(cue ? cue.text : '');
+        };
+        const vid = videoRef.current;
+        vid?.addEventListener('timeupdate', update);
+        return () => vid?.removeEventListener('timeupdate', update);
+    }, [subtitleObjectUrl]);
+
+
 
     // ─── TV Details init ──────────────────────────────────────────────────────────
     useEffect(() => {
@@ -529,11 +580,25 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, [movie.id, mediaType, playingSeasonNumber]);
 
     // ─── UI show/hide ─────────────────────────────────────────────────────────────
+    const isControlsHovered = useRef(false);
+
     const showControls = useCallback(() => {
         setShowUI(true);
+        // Don't start a hide timer if a panel is open or mouse is over controls
+        if (isControlsHovered.current || activePanel !== 'none') return;
         if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = setTimeout(() => setShowUI(false), 3500);
-    }, []);
+        inactivityTimerRef.current = setTimeout(() => {
+            if (!isControlsHovered.current) setShowUI(false);
+        }, 3500);
+    }, [activePanel]);
+
+    // When panel opens, cancel the hide timer
+    useEffect(() => {
+        if (activePanel !== 'none') {
+            if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+            setShowUI(true);
+        }
+    }, [activePanel]);
 
     // ─── Fullscreen toggle ────────────────────────────────────────────────────────
     const toggleFullscreen = useCallback(() => {
@@ -578,6 +643,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             className="fixed inset-0 bg-black z-[100] flex flex-col font-sans select-none overflow-hidden"
             onMouseMove={showControls}
             onTouchStart={showControls}
+            // Double-click on the video container = toggle fullscreen (desktop)
+            onDoubleClick={(e) => {
+                // Ignore double-clicks on control buttons
+                const target = e.target as HTMLElement;
+                if (target.tagName === 'BUTTON' || target.closest('button')) return;
+                toggleFullscreen();
+            }}
         >
             <video
                 ref={videoRef}
@@ -592,11 +664,39 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }
                 }}
                 playsInline
-            >
-                {subtitleObjectUrl && (
-                    <track kind="subtitles" src={subtitleObjectUrl} default label="Subtitles" />
-                )}
-            </video>
+            />
+
+            {/* ── Custom Subtitle Overlay (replaces native <track> for full style control) ── */}
+            {subtitleObjectUrl && currentCueText && (
+                <div
+                    className="subtitle-overlay"
+                    style={{
+                        bottom: showUI ? '7rem' : '2.5rem',
+                        fontFamily: settings.subtitleFontFamily || "'Consolas', monospace",
+                        fontSize: settings.subtitleSize === 'small' ? 'clamp(12px, 1.6vw, 17px)' :
+                                  settings.subtitleSize === 'large' ? 'clamp(18px, 2.8vw, 28px)' :
+                                  'clamp(14px, 2.2vw, 22px)',
+                    }}
+                >
+                    <span
+                        className="subtitle-line"
+                        style={{
+                            color: settings.subtitleColor || 'white',
+                            backgroundColor: (settings.subtitleBackground as string) !== 'none'
+                                ? ((settings.subtitleBackground as string) === 'black' ? 'rgba(0,0,0,0.75)' :
+                                   (settings.subtitleBackground as string) === 'white' ? 'rgba(255,255,255,0.15)' :
+                                   (settings.subtitleBackground as string) === 'box' ? 'rgba(0,0,0,0.75)' : 'transparent')
+                                : 'transparent',
+                            textShadow: settings.subtitleEdgeStyle === 'drop-shadow'
+                                ? '0 1px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8)'
+                                : settings.subtitleEdgeStyle === 'outline'
+                                    ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
+                                    : 'none',
+                        }}
+                        dangerouslySetInnerHTML={{ __html: currentCueText.replace(/\n/g, '<br/>') }}
+                    />
+                </div>
+            )}
 
             {isBuffering && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10 pointer-events-none">
@@ -623,7 +723,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 currentTime={currentTime}
                 buffered={bufferedAmount}
                 isBuffering={isBuffering}
-                title={mediaType === 'tv' ? `${title} — S${playingSeasonNumber} E${currentEpisode}` : title}
+                title={title}
+                episodeNumber={mediaType === 'tv' ? currentEpisode : undefined}
+                episodeName={mediaType === 'tv' ? currentEpisodeName : undefined}
                 onPlayPause={() => videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause()}
                 onSeek={(amt) => videoRef.current && (videoRef.current.currentTime += amt)}
                 volume={volume}
@@ -633,20 +735,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onToggleFullscreen={toggleFullscreen}
                 onClose={onClose || (() => window.history.back())}
                 activePanel={activePanel}
-                // Pass setActivePanel directly so hover in controls can open panels
                 setActivePanel={setActivePanel}
-                // TV-specific
                 mediaType={mediaType}
                 hasNextEpisode={!!nextEpisodeInfo}
                 onNextEpisode={handleNextEpisode}
                 showNextEp={showSkipOutro && !!nextEpisodeInfo}
-                // Subtitle button — click on mobile; hover handled inside controls on desktop
                 onSubtitlesClick={() => setActivePanel(p => p === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
                 currentCaption={currentCaption}
-                // Episode button — TV only, click on mobile; hover handled inside controls on desktop
                 onEpisodesClick={mediaType === 'tv'
                     ? () => setActivePanel(p => (p === 'episodes' || p === 'seasons') ? 'none' : 'episodes')
                     : undefined}
+                // Next episode popup data
+                nextEpisodeData={nextEpisodeInfo ? {
+                    episodeNumber: nextEpisodeInfo.episode.episode_number,
+                    name: nextEpisodeInfo.episode.name || `Episode ${nextEpisodeInfo.episode.episode_number}`,
+                    description: (nextEpisodeInfo.episode as any).overview || '',
+                    stillPath: (nextEpisodeInfo.episode as any).still_path || null,
+                } : null}
             />
 
             <VideoPlayerSettings

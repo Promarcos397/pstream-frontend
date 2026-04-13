@@ -5,10 +5,12 @@ import { Movie, RowProps } from '../types';
 import MovieCard from './MovieCard';
 import { fetchData } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) => {
   const { t } = useTranslation();
   const { pageSeenIds, registerSeenIds } = useGlobalContext();
+  const isMobile = useIsMobile();
   
   // Start movies as empty unless data is provided
   const [movies, setMovies] = useState<Movie[]>([]);
@@ -177,14 +179,21 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
       </div>
 
       {/* Row Content — no overflow-hidden so modal scale works */}
-      <div className="relative group/row">
+      <div className="relative group/row row-scroll-outer">
         {/* Scroll Container */}
         <div
           ref={rowRef}
-          className="flex overflow-x-scroll scrollbar-hide py-32 -my-32 w-full pointer-events-auto relative z-10 scroll-smooth"
-          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
+          className={`row-scroll-strip flex overflow-x-scroll scrollbar-hide w-full pointer-events-auto relative z-10 scroll-smooth ${
+            // On mobile: no expanded py-32/-my-32 zone — it blocks vertical page scroll
+            // On desktop: use the zone for card hover scale effect
+            isMobile ? 'py-3 -my-0' : 'py-32 -my-32'
+          }`}
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehaviorX: 'contain',
+          }}
         >
-          {/* Left spacer mimicking exact padding without scroll-padding limitations */}
+          {/* Left spacer */}
           <div className="flex-none w-6 md:w-14 lg:w-16 pointer-events-none"></div>
 
           {initialLoad
@@ -204,31 +213,33 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
             ))
           }
 
-          {/* Right spacer for symmetrical scrolling ending */}
+          {/* Right spacer */}
           <div className="flex-none w-6 md:w-14 lg:w-16 pointer-events-none"></div>
         </div>
 
-        {/* Left Arrow — matches exact height of cards (top-32, bottom-32 because of py-32 container padding) and width of spacer */}
-        <div
-          className={`absolute top-32 bottom-32 left-0 z-50 w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
-            bg-transparent hover:bg-[#141414]/80 flex
-            transition-all duration-300 pointer-events-none rounded-r-md
-            ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
-          onClick={() => scroll('left')}
-        >
-          <CaretLeftIcon size={36} className="text-white hover:scale-125 transition drop-shadow-lg" />
-        </div>
-
-        {/* Right Arrow — limits height exactly to the image and width to the padding spacer */}
-        <div
-          className={`absolute top-32 bottom-32 right-0 z-50 w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
-            bg-transparent hover:bg-[#141414]/80 flex
-            transition-all duration-300 pointer-events-none rounded-l-md
-            ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
-          onClick={() => scroll('right')}
-        >
-          <CaretRightIcon size={36} className="text-white hover:scale-125 transition drop-shadow-lg" />
-        </div>
+        {/* Arrows — desktop only */}
+        {!isMobile && (
+          <>
+            <div
+              className={`absolute top-32 bottom-32 left-0 z-50 w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
+                bg-transparent hover:bg-[#141414]/80 flex
+                transition-all duration-300 pointer-events-none rounded-r-md
+                ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
+              onClick={() => scroll('left')}
+            >
+              <CaretLeftIcon size={36} className="text-white hover:scale-125 transition drop-shadow-lg" />
+            </div>
+            <div
+              className={`absolute top-32 bottom-32 right-0 z-50 w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
+                bg-transparent hover:bg-[#141414]/80 flex
+                transition-all duration-300 pointer-events-none rounded-l-md
+                ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
+              onClick={() => scroll('right')}
+            >
+              <CaretRightIcon size={36} className="text-white hover:scale-125 transition drop-shadow-lg" />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

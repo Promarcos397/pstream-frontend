@@ -13,10 +13,10 @@ import {
     CornersOutIcon,
     ArrowLeftIcon,
 } from '@phosphor-icons/react';
-import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { Episode } from '../types';
 
+// ─── Types ───────────────────────────────────────────────────────────────────
 interface VideoPlayerControlsProps {
     isPlaying: boolean;
     isMuted: boolean;
@@ -28,7 +28,9 @@ interface VideoPlayerControlsProps {
     showNextEp: boolean;
     hasNextEpisode?: boolean;
     nextEpisode?: Episode;
-    title: React.ReactNode;
+    title: string;
+    episodeNumber?: number;
+    episodeName?: string;
     mediaType?: string;
     onPlayPause: () => void;
     onSeek: (amount: number) => void;
@@ -41,24 +43,27 @@ interface VideoPlayerControlsProps {
     onToggleFullscreen: () => void;
     onSubtitlesClick?: () => void;
     onEpisodesClick?: () => void;
-    activePanel?: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers';
-    setActivePanel?: (panel: any) => void;
-    // subtitles toggle for keyboard shortcut 'S'
     currentCaption?: string | null;
-    onSubtitleToggle?: () => void;
-    // kept for compat
     allSources?: any[];
     currentSourceIndex?: number;
     onSourceChange?: (index: number) => void;
-    onServersClick?: () => void;
-    onSettingsClick?: () => void;
     qualities?: Array<{ height: number; bitrate: number; level: number }>;
     currentQuality?: number;
     onQualityChange?: (level: number) => void;
     isMenuOpen?: boolean;
     showUI: boolean;
+    activePanel?: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers';
+    setActivePanel?: (panel: any) => void;
+    // For next episode popup data
+    nextEpisodeData?: {
+        episodeNumber: number;
+        name: string;
+        description?: string;
+        stillPath?: string;
+    } | null;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatRemaining = (currentTime: number, duration: number): string => {
     if (!duration || isNaN(duration)) return '';
     const remaining = Math.max(0, duration - currentTime);
@@ -69,127 +74,346 @@ const formatRemaining = (currentTime: number, duration: number): string => {
     return `-${m}:${s.toString().padStart(2, '0')}`;
 };
 
-// ── Vertical Volume Slider Popup ──────────────────────────────────────────────
+// ─── Volume Popup (matches reference design exactly) ─────────────────────────
+// Design: #262626 bg, no border-radius, 12px track, red fill, red circle thumb above fill
 const VolumePopup: React.FC<{
     volume: number;
     isMuted: boolean;
     onVolumeChange: (v: number) => void;
-    onToggleMute: () => void;
-}> = ({ volume, isMuted, onVolumeChange, onToggleMute }) => {
+}> = ({ volume, isMuted, onVolumeChange }) => {
     const trackRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
 
-    const effectiveVolume = isMuted ? 0 : volume;
+    const TRACK_H = 110; // px — matches reference .vol-track-vertical height
+    const THUMB_HALF = 12; // half of 24px thumb
 
-    const getVolumeFromY = (clientY: number) => {
-        if (!trackRef.current) return effectiveVolume;
+    const effective = isMuted ? 0 : volume;
+    const fillPct = effective * 100;
+    // Thumb sits above the fill end. Clamp so it stays inside the track.
+    const fillPx = Math.round((fillPct / 100) * TRACK_H);
+    const thumbBottom = Math.max(THUMB_HALF, Math.min(TRACK_H - THUMB_HALF, fillPx));
+
+    const getVol = (clientY: number) => {
+        if (!trackRef.current) return effective;
         const rect = trackRef.current.getBoundingClientRect();
-        const ratio = 1 - Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-        return ratio;
-    };
-
-    const handleTrackClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        const v = getVolumeFromY(e.clientY);
-        onVolumeChange(v);
-    };
-
-    const handleMouseDown = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
-        setIsDragging(true);
+        return 1 - Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
     };
 
     useEffect(() => {
         if (!isDragging) return;
-        const onMove = (e: MouseEvent) => {
-            const v = getVolumeFromY(e.clientY);
-            onVolumeChange(v);
+        const onMove = (e: MouseEvent | TouchEvent) => {
+            const y = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+            onVolumeChange(getVol(y));
         };
         const onUp = () => setIsDragging(false);
         window.addEventListener('mousemove', onMove);
+        window.addEventListener('touchmove', onMove, { passive: true });
         window.addEventListener('mouseup', onUp);
+        window.addEventListener('touchend', onUp);
         return () => {
             window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('touchmove', onMove);
             window.removeEventListener('mouseup', onUp);
+            window.removeEventListener('touchend', onUp);
         };
     }, [isDragging]);
 
-    const fillPercent = effectiveVolume * 100;
-
     return (
         <div
-            className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 px-3 py-4 bg-[#1f1f1f]/95 backdrop-blur-md rounded-lg border border-white/10 shadow-2xl z-50"
+            style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 50,
+                height: 160,
+                backgroundColor: '#262626',
+                borderRadius: 0,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'flex-end',
+                paddingBottom: 20,
+                zIndex: 100,
+            }}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* Volume percentage label */}
-            <span className="text-white/60 text-xs font-mono tabular-nums">{Math.round(effectiveVolume * 100)}%</span>
-
-            {/* Vertical track */}
+            {/* Track */}
             <div
                 ref={trackRef}
-                className="relative w-4 h-28 flex items-center justify-center cursor-pointer"
-                onClick={handleTrackClick}
+                style={{
+                    width: 12,
+                    height: TRACK_H,
+                    backgroundColor: '#666',
+                    position: 'relative',
+                    cursor: 'pointer',
+                }}
+                onClick={(e) => { e.stopPropagation(); onVolumeChange(getVol(e.clientY)); }}
             >
-                {/* Track background */}
-                <div className="absolute inset-x-0 mx-auto w-1 h-full bg-white/20 rounded-full" />
                 {/* Fill */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${fillPct}%`,
+                    backgroundColor: '#ff0000',
+                }} />
+                {/* Thumb — sits at the top of the fill (reference: top:-8px, left:-6px) */}
                 <div
-                    className="absolute bottom-0 inset-x-0 mx-auto w-1 bg-[#e50914] rounded-full transition-none"
-                    style={{ height: `${fillPercent}%` }}
-                />
-                {/* Thumb */}
-                <div
-                    className="absolute w-3.5 h-3.5 bg-white rounded-full shadow-lg cursor-grab active:cursor-grabbing transition-transform hover:scale-125"
-                    style={{ bottom: `calc(${fillPercent}% - 7px)` }}
-                    onMouseDown={handleMouseDown}
+                    style={{
+                        position: 'absolute',
+                        bottom: thumbBottom - THUMB_HALF,
+                        left: -6,
+                        width: 24,
+                        height: 24,
+                        backgroundColor: '#ff0000',
+                        borderRadius: '50%',
+                        cursor: 'grab',
+                    }}
+                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setIsDragging(true); }}
+                    onTouchStart={(e) => { e.stopPropagation(); setIsDragging(true); }}
                 />
             </div>
-
-            {/* Mute toggle icon at bottom */}
-            <button
-                onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
-                className="text-white/60 hover:text-white transition"
-                aria-label={isMuted ? 'Unmute' : 'Mute'}
-            >
-                {isMuted || volume === 0
-                    ? <SpeakerXIcon size={16} />
-                    : volume < 0.5
-                        ? <SpeakerLowIcon size={16} />
-                        : <SpeakerHighIcon size={16} />
-                }
-            </button>
         </div>
     );
 };
 
-// ── Main Controls ─────────────────────────────────────────────────────────────
+// ─── Next Episode Popup (matches reference design exactly) ────────────────────
+// Design: 650px wide, dark bg, white heavy border, header bar, thumbnail, title, description
+const NextEpisodePopup: React.FC<{
+    data: NonNullable<VideoPlayerControlsProps['nextEpisodeData']>;
+    onPlay: () => void;
+}> = ({ data, onPlay }) => {
+    const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w400';
+    const imgSrc = data.stillPath ? `${TMDB_IMAGE_BASE}${data.stillPath}` : null;
+
+    return (
+        <div
+            style={{
+                position: 'absolute',
+                bottom: '100%',
+                // Align to the right, matching reference `right: -150px`
+                right: -100,
+                width: 550,
+                backgroundColor: '#141414',
+                border: '2px solid #ffffff',
+                boxShadow: '0px 20px 50px rgba(0,0,0,0.9)',
+                borderRadius: 0,
+                overflow: 'hidden',
+                zIndex: 100,
+                marginBottom: 12,
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {/* Header */}
+            <div style={{
+                backgroundColor: '#262626',
+                padding: '16px 22px',
+                fontSize: 22,
+                fontWeight: 700,
+                borderBottom: '1px solid #000',
+                fontFamily: 'Consolas, monospace',
+            }}>
+                Next episode
+            </div>
+
+            {/* Content */}
+            <div style={{ display: 'flex', padding: 22, gap: 22, alignItems: 'flex-start' }}>
+                {/* Thumbnail */}
+                <div
+                    style={{
+                        position: 'relative',
+                        width: 220,
+                        height: 124,
+                        flexShrink: 0,
+                        backgroundColor: '#333',
+                        cursor: 'pointer',
+                        borderRadius: 2,
+                        overflow: 'hidden',
+                    }}
+                    onClick={onPlay}
+                >
+                    {imgSrc ? (
+                        <img src={imgSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                        <div style={{ width: '100%', height: '100%', backgroundColor: '#2a2a2a' }} />
+                    )}
+                    {/* Overlay with play icon */}
+                    <div style={{
+                        position: 'absolute', inset: 0,
+                        background: 'rgba(0,0,0,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'background 0.2s',
+                    }}>
+                        <svg viewBox="0 0 24 24" style={{ width: 44, height: 44, fill: 'rgba(255,255,255,0.85)', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))' }}>
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
+                    </div>
+                </div>
+
+                {/* Text */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 2, flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 19, fontWeight: 700, fontFamily: 'Consolas, monospace' }}>
+                        <span style={{ marginRight: 14 }}>{data.episodeNumber}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.name}</span>
+                    </div>
+                    {data.description && (
+                        <div style={{
+                            fontSize: 14,
+                            lineHeight: 1.4,
+                            color: '#ccc',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 4,
+                            WebkitBoxOrient: 'vertical' as any,
+                            overflow: 'hidden',
+                        }}>
+                            {data.description}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── Play/Pause Ripple Animation ──────────────────────────────────────────────
+const PlayPauseRipple: React.FC<{ isPlaying: boolean; trigger: number }> = ({ isPlaying, trigger }) => {
+    const [visible, setVisible] = useState(false);
+    useEffect(() => {
+        if (trigger === 0) return;
+        setVisible(true);
+        const t = setTimeout(() => setVisible(false), 600);
+        return () => clearTimeout(t);
+    }, [trigger]);
+
+    if (!visible) return null;
+
+    return (
+        <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 25,
+            pointerEvents: 'none',
+        }}>
+            <div style={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(0,0,0,0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                animation: 'pp-ripple 0.55s ease-out forwards',
+            }}>
+                {isPlaying
+                    ? <PlayIcon size={36} weight="fill" color="white" />
+                    : <PauseIcon size={36} weight="fill" color="white" />
+                }
+            </div>
+        </div>
+    );
+};
+
+// ─── Title Component ─────────────────────────────────────────────────────────
+const PlayerTitle: React.FC<{
+    title: string;
+    episodeNumber?: number;
+    episodeName?: string;
+    mediaType?: string;
+    className?: string;
+}> = ({ title, episodeNumber, episodeName, mediaType, className = '' }) => {
+    const isTV = mediaType === 'tv';
+    return (
+        <span className={`font-consolas select-none leading-snug ${className}`}>
+            <strong>{title}</strong>
+            {isTV && episodeNumber != null && (
+                <>
+                    <strong>{'  '}E{episodeNumber}</strong>
+                    {episodeName && (
+                        <span className="font-normal text-white/75">{'  '}{episodeName}</span>
+                    )}
+                </>
+            )}
+        </span>
+    );
+};
+
+// ─── Seek Flash Overlay (double-tap) ─────────────────────────────────────────
+const SeekFlash: React.FC<{ side: 'left' | 'right' | null; seconds: number }> = ({ side, seconds }) => {
+    if (!side) return null;
+    return (
+        <div style={{
+            position: 'absolute',
+            top: 0, bottom: 0,
+            [side]: 0,
+            width: '30%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 28,
+            pointerEvents: 'none',
+            backgroundColor: 'rgba(255,255,255,0.08)',
+            borderRadius: side === 'left' ? '0 100px 100px 0' : '100px 0 0 100px',
+            animation: 'seek-flash 0.4s ease-out forwards',
+        }}>
+            <span style={{
+                color: 'white',
+                fontFamily: 'Consolas, monospace',
+                fontSize: 14,
+                fontWeight: 700,
+                opacity: 0.9,
+                textShadow: '0 1px 3px rgba(0,0,0,0.7)',
+            }}>
+                {side === 'left' ? `◀ ${seconds}s` : `${seconds}s ▶`}
+            </span>
+        </div>
+    );
+};
+
+// ─── Main Controls Component ──────────────────────────────────────────────────
 const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     isPlaying, isMuted, progress, duration, currentTime = 0, buffered = 0,
-    isBuffering, showNextEp, hasNextEpisode, title, mediaType,
+    isBuffering, showNextEp, hasNextEpisode, title, episodeNumber, episodeName, mediaType,
     onPlayPause, onSeek, volume, onVolumeChange, onToggleMute, onTimelineSeek,
     onNextEpisode, onToggleFullscreen,
-    onSubtitlesClick, onEpisodesClick, onSubtitleToggle,
-    isMenuOpen, showUI, onClose,
+    onSubtitlesClick, onEpisodesClick,
+    showUI, onClose,
     activePanel = 'none', setActivePanel,
+    nextEpisodeData,
 }) => {
-    const { t } = useTranslation();
     const isMobile = useIsMobile();
     const timelineRef = useRef<HTMLDivElement>(null);
-    const volumeBtnRef = useRef<HTMLDivElement>(null);
+    const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isHovering, setIsHovering] = useState(false);
     const [hoverPosition, setHoverPosition] = useState(0);
     const [hoverTime, setHoverTime] = useState(0);
     const [showVolume, setShowVolume] = useState(false);
+    const [showNextEpPopup, setShowNextEpPopup] = useState(false);
+    const [ppRippleTrigger, setPpRippleTrigger] = useState(0);
+    const [seekFlash, setSeekFlash] = useState<{ side: 'left' | 'right'; ts: number } | null>(null);
+
     const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const nextEpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const subtitleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const episodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const isTV = mediaType === 'tv';
+    const isPanelOpen = activePanel !== 'none';
 
-    // Consistent icon size for all buttons
-    const ICON_SIZE = isMobile ? 28 : 22;
+    // Bigger icons per your request
+    const ICON_SIZE = isMobile ? 32 : 28;
 
-    // ── Timeline helpers ──────────────────────────────────────────────────────
+    // ── Hover extends UI timeout ──────────────────────────────────────────────
+    const resetInactivity = useCallback(() => {
+        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        // Don't hide if a panel is open or user is hovering
+    }, []);
+
+    // ── Timeline ──────────────────────────────────────────────────────────────
     const getClientX = (e: React.MouseEvent | React.TouchEvent): number => {
         if ('touches' in e && e.touches.length > 0) return e.touches[0].clientX;
         if ('changedTouches' in e && (e as React.TouchEvent).changedTouches.length > 0)
@@ -197,7 +421,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
         return (e as React.MouseEvent).clientX;
     };
 
-    const seekFromEvent = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    const doSeek = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         if (timelineRef.current) {
             const rect = timelineRef.current.getBoundingClientRect();
             const x = getClientX(e) - rect.left;
@@ -209,8 +433,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const handleTimelineStart = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         e.stopPropagation();
         setIsDragging(true);
-        seekFromEvent(e);
-    }, [seekFromEvent]);
+        doSeek(e);
+    }, [doSeek]);
 
     const handleTimelineMove = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         if (timelineRef.current) {
@@ -225,96 +449,91 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
     const handleTimelineEnd = useCallback(() => setIsDragging(false), []);
 
-    // ── Volume hover helpers ──────────────────────────────────────────────────
-    const handleVolumeEnter = () => {
-        if (isMobile) return;
-        if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
-        setShowVolume(true);
-    };
-    const handleVolumeLeave = () => {
-        if (isMobile) return;
-        volumeTimeoutRef.current = setTimeout(() => setShowVolume(false), 300);
+    // ── Play/pause with ripple ────────────────────────────────────────────────
+    const handlePlayPause = () => {
+        onPlayPause();
+        setPpRippleTrigger(t => t + 1);
     };
 
-    // ── Panel hover for desktop ───────────────────────────────────────────────
-    // Panels (subtitles, episodes) open on hover on desktop, close on mouse-leave
-    const subtitleHoverTimeout = useRef<NodeJS.Timeout | null>(null);
-    const episodesHoverTimeout = useRef<NodeJS.Timeout | null>(null);
-
-    const handleSubtitleEnter = () => {
-        if (isMobile) return;
-        if (subtitleHoverTimeout.current) clearTimeout(subtitleHoverTimeout.current);
-        setActivePanel?.('audioSubtitles');
-    };
-    const handleSubtitleLeave = () => {
-        if (isMobile) return;
-        // Longer timeout so user can move cursor into the panel without it closing
-        subtitleHoverTimeout.current = setTimeout(() => {
-            setActivePanel?.('none');
-        }, 500);
+    // ── Seek flash for double-tap feedback ───────────────────────────────────
+    const triggerSeekFlash = (side: 'left' | 'right') => {
+        setSeekFlash({ side, ts: Date.now() });
+        setTimeout(() => setSeekFlash(null), 450);
     };
 
-    const handleEpisodesEnter = () => {
-        if (isMobile) return;
-        if (episodesHoverTimeout.current) clearTimeout(episodesHoverTimeout.current);
-        setActivePanel?.('episodes');
-    };
-    const handleEpisodesLeave = () => {
-        if (isMobile) return;
-        episodesHoverTimeout.current = setTimeout(() => {
-            setActivePanel?.('none');
-        }, 500);
-    };
+    // ── Hover popup helpers (hover bridge pattern) ────────────────────────────
+    const openVolume = () => { if (isMobile) return; if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current); setShowVolume(true); };
+    const closeVolume = () => { if (isMobile) return; volumeTimeoutRef.current = setTimeout(() => setShowVolume(false), 400); };
+    const keepVolume = () => { if (isMobile) return; if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current); };
 
-    // ── Base button style ─────────────────────────────────────────────────────
-    const btn = 'flex items-center justify-center text-white/75 hover:text-white active:text-white/50 transition-all duration-150 active:scale-90 select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 rounded-sm';
+    const openNextEp = () => { if (isMobile || !hasNextEpisode || !nextEpisodeData) return; if (nextEpTimeoutRef.current) clearTimeout(nextEpTimeoutRef.current); setShowNextEpPopup(true); };
+    const closeNextEp = () => { if (isMobile) return; nextEpTimeoutRef.current = setTimeout(() => setShowNextEpPopup(false), 400); };
+    const keepNextEp = () => { if (isMobile) return; if (nextEpTimeoutRef.current) clearTimeout(nextEpTimeoutRef.current); };
+
+    const openSubtitles = () => { if (isMobile) return; if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); setActivePanel?.('audioSubtitles'); };
+    const closeSubtitles = () => { if (isMobile) return; subtitleTimeoutRef.current = setTimeout(() => setActivePanel?.('none'), 500); };
+    const keepSubtitles = () => { if (isMobile) return; if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); };
+
+    const openEpisodes = () => { if (isMobile) return; if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); setActivePanel?.('episodes'); };
+    const closeEpisodes = () => { if (isMobile) return; episodeTimeoutRef.current = setTimeout(() => setActivePanel?.('none'), 500); };
+    const keepEpisodes = () => { if (isMobile) return; if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); };
+
+    // ── Base styles ───────────────────────────────────────────────────────────
+    const btn = 'flex items-center justify-center text-white/80 hover:text-white active:text-white/40 transition-all duration-150 active:scale-90 select-none focus:outline-none rounded-sm p-1.5 hover:scale-110';
     const btnActive = 'text-white';
 
-    // ── Remaining time ────────────────────────────────────────────────────────
     const remaining = formatRemaining(currentTime, duration);
 
     return (
         <>
-            {/* ── Clickable video overlay (center tap to pause) ── */}
+            {/* ── Ripple on play/pause ── */}
+            <PlayPauseRipple isPlaying={isPlaying} trigger={ppRippleTrigger} />
+
+            {/* ── Seek flash ── */}
+            {seekFlash && <SeekFlash side={seekFlash.side} seconds={10} />}
+
+            {/* ── Click-to-pause overlay ── */}
             <div
-                className={`absolute inset-0 z-20 cursor-pointer ${showUI ? '' : ''}`}
-                onClick={onPlayPause}
-                // Don't intercept clicks on actual controls
-                style={{ pointerEvents: 'auto' }}
+                className="absolute inset-0 z-20 cursor-pointer"
+                onClick={handlePlayPause}
                 aria-label={isPlaying ? 'Pause' : 'Play'}
             />
 
-            {/* ── Back Button + Title (top-left, all platforms) ── */}
-            <div
-                className={`absolute top-0 left-0 right-0 z-40 px-4 md:px-8 pt-4 md:pt-5 flex items-center gap-3 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-                style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
-            >
-                <button
-                    onClick={(e) => { e.stopPropagation(); onClose(); }}
-                    className="flex items-center justify-center text-white/80 hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 rounded-sm flex-shrink-0"
-                    aria-label="Close player"
+            {/* ── TOP: Back + title (mobile) ── */}
+            {isMobile && (
+                <div
+                    className={`absolute top-0 left-0 right-0 z-40 px-5 pt-5 flex items-center gap-3 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                    style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)' }}
                 >
-                    <ArrowLeftIcon size={isMobile ? 22 : 24} weight="bold" />
-                </button>
-                <span className="text-white font-semibold text-sm md:text-base tracking-wide line-clamp-1 drop-shadow-md">
-                    {title}
-                </span>
-            </div>
+                    <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white transition-all p-1 flex-shrink-0" aria-label="Close player">
+                        <ArrowLeftIcon size={26} weight="bold" />
+                    </button>
+                    <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white text-sm line-clamp-1 drop-shadow-md" />
+                </div>
+            )}
 
-            {/* ── Bottom Controls ── */}
+            {/* ── TOP: Back button (desktop only, top-left) ── */}
+            {!isMobile && (
+                <div className={`absolute top-0 left-0 z-40 px-8 pt-8 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                    <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white/80 hover:text-white hover:scale-110 transition-all p-1.5" aria-label="Close player">
+                        <ArrowLeftIcon size={30} weight="bold" />
+                    </button>
+                </div>
+            )}
+
+            {/* ── BOTTOM Controls ── */}
             <div
                 className={`absolute inset-x-0 bottom-0 z-30 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-                style={{ touchAction: 'manipulation' }}
-                onClick={(e) => e.stopPropagation()} // Don't bubble to click-to-pause overlay
+                onClick={(e) => e.stopPropagation()}
+                // Hovering controls cancels the UI hide timer
+                onMouseEnter={resetInactivity}
             >
-                {/* Gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none rounded-b-sm" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/98 via-black/60 to-transparent pointer-events-none" />
 
-                <div className={`relative px-4 md:px-8 pb-4 md:pb-6 pt-8`}>
+                <div className="relative px-5 md:px-10 pb-5 md:pb-7 pt-8 md:pt-12">
 
-                    {/* ── Progress Bar + Remaining Time on same row ── */}
-                    <div className="flex items-center gap-3 mb-3 md:mb-4">
-                        {/* Timeline */}
+                    {/* ── Progress bar (hidden when panel open) ── */}
+                    <div className={`flex items-center gap-3 mb-5 transition-all duration-200 ${isPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ height: isPanelOpen ? 0 : undefined, marginBottom: isPanelOpen ? 0 : undefined, overflow: isPanelOpen ? 'hidden' : undefined }}>
                         <div
                             ref={timelineRef}
                             className="relative flex-1 cursor-pointer group/timeline"
@@ -337,68 +556,53 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 if (e.key === 'ArrowLeft') { e.preventDefault(); onTimelineSeek(Math.max(0, progress - 2)); }
                             }}
                         >
-                            {/* Hover time tooltip */}
+                            {/* Hover tooltip */}
                             {!isMobile && isHovering && (
-                                <div
-                                    className="absolute -top-8 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded pointer-events-none"
-                                    style={{ left: `${hoverPosition}%` }}
-                                >
+                                <div className="absolute -top-9 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded pointer-events-none font-consolas" style={{ left: `${hoverPosition}%` }}>
                                     {(() => {
                                         const t = hoverTime;
                                         const h = Math.floor(t / 3600);
                                         const m = Math.floor((t % 3600) / 60);
                                         const s = Math.floor(t % 60);
-                                        return h > 0
-                                            ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-                                            : `${m}:${s.toString().padStart(2, '0')}`;
+                                        return h > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : `${m}:${s.toString().padStart(2,'0')}`;
                                     })()}
                                 </div>
                             )}
-
-                            {/* Track */}
+                            {/* Track — 6px tall = thicker progress bar */}
                             <div className={`relative w-full flex items-center ${isMobile ? 'h-10' : 'h-8'}`}>
-                                <div className="absolute left-0 w-full h-1 bg-white/20 rounded-full" />
-                                <div className="absolute left-0 h-1 bg-white/35 rounded-full transition-none" style={{ width: `${buffered}%` }} />
-                                <div className="absolute left-0 h-1 bg-[#e50914] rounded-full transition-none" style={{ width: `${progress}%` }} />
-                                {/* Thumb */}
-                                <div
-                                    className={`absolute h-3.5 w-3.5 bg-[#e50914] rounded-full shadow-lg -translate-x-1/2 transition-transform ${isMobile || isDragging ? 'scale-100' : 'scale-0 group-hover/timeline:scale-110'}`}
-                                    style={{ left: `${progress}%` }}
-                                />
+                                <div className="absolute left-0 w-full h-[6px] bg-white/20 rounded-full" />
+                                <div className="absolute left-0 h-[6px] bg-white/35 rounded-full" style={{ width: `${buffered}%` }} />
+                                <div className="absolute left-0 h-[6px] bg-[#e50914] rounded-full" style={{ width: `${progress}%` }} />
+                                <div className={`absolute h-4 w-4 bg-[#e50914] rounded-full shadow-lg -translate-x-1/2 transition-transform ${isMobile || isDragging ? 'scale-100' : 'scale-0 group-hover/timeline:scale-125'}`} style={{ left: `${progress}%` }} />
                             </div>
                         </div>
-
-                        {/* Remaining time — right of progress bar */}
-                        <span className="text-white/55 text-xs font-mono tabular-nums flex-shrink-0 select-none">
-                            {remaining}
-                        </span>
+                        {/* Remaining time */}
+                        <span className="text-white/60 text-xs font-consolas tabular-nums flex-shrink-0 select-none min-w-[60px] text-right">{remaining}</span>
                     </div>
 
                     {/* ── Control Buttons Row ── */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between relative">
 
-                        {/* Left side */}
-                        <div className="flex items-center gap-5 md:gap-6">
+                        {/* LEFT GROUP */}
+                        <div className="flex items-center gap-5 md:gap-8">
                             {isMobile ? (
                                 <>
-                                    <button onClick={() => onSeek(-10)} className={btn} aria-label="Rewind 10s">
+                                    {/* Mobile: seek | play | seek */}
+                                    <button onClick={() => { onSeek(-10); triggerSeekFlash('left'); }} className={btn} aria-label="Rewind 10s">
                                         <ArrowCounterClockwiseIcon size={ICON_SIZE} />
                                     </button>
-                                    <button onClick={onPlayPause} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
-                                        {isPlaying
-                                            ? <PauseIcon size={ICON_SIZE} weight="fill" />
-                                            : <PlayIcon size={ICON_SIZE} weight="fill" />}
+                                    <button onClick={handlePlayPause} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                                        {isPlaying ? <PauseIcon size={ICON_SIZE} weight="fill" /> : <PlayIcon size={ICON_SIZE} weight="fill" />}
                                     </button>
-                                    <button onClick={() => onSeek(10)} className={btn} aria-label="Fast-forward 10s">
+                                    <button onClick={() => { onSeek(10); triggerSeekFlash('right'); }} className={btn} aria-label="Fast-forward 10s">
                                         <ArrowClockwiseIcon size={ICON_SIZE} />
                                     </button>
                                 </>
                             ) : (
                                 <>
-                                    <button onClick={onPlayPause} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
-                                        {isPlaying
-                                            ? <PauseIcon size={ICON_SIZE} weight="fill" />
-                                            : <PlayIcon size={ICON_SIZE} weight="fill" />}
+                                    {/* Desktop: play | rewind | ff | volume */}
+                                    <button onClick={handlePlayPause} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                                        {isPlaying ? <PauseIcon size={ICON_SIZE} weight="fill" /> : <PlayIcon size={ICON_SIZE} weight="fill" />}
                                     </button>
                                     <button onClick={() => onSeek(-10)} className={btn} aria-label="Rewind 10s">
                                         <ArrowCounterClockwiseIcon size={ICON_SIZE} />
@@ -407,64 +611,69 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         <ArrowClockwiseIcon size={ICON_SIZE} />
                                     </button>
 
-                                    {/* Volume button with hover popup */}
-                                    <div
-                                        ref={volumeBtnRef}
-                                        className="relative flex items-center justify-center"
-                                        onMouseEnter={handleVolumeEnter}
-                                        onMouseLeave={handleVolumeLeave}
-                                    >
+                                    {/* Volume — hover to open popup, bridge keeps it open */}
+                                    <div className="relative" onMouseEnter={openVolume} onMouseLeave={closeVolume}>
                                         {showVolume && (
-                                            <VolumePopup
-                                                volume={volume}
-                                                isMuted={isMuted}
-                                                onVolumeChange={onVolumeChange}
-                                                onToggleMute={onToggleMute}
-                                            />
+                                            <div onMouseEnter={keepVolume} onMouseLeave={closeVolume}>
+                                                <VolumePopup volume={volume} isMuted={isMuted} onVolumeChange={onVolumeChange} />
+                                            </div>
                                         )}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
-                                            className={btn}
-                                            aria-label={isMuted ? 'Unmute' : 'Mute'}
-                                            title="Volume (M)"
-                                        >
-                                            {isMuted || volume === 0
-                                                ? <SpeakerXIcon size={ICON_SIZE} />
-                                                : volume < 0.5
-                                                    ? <SpeakerLowIcon size={ICON_SIZE} />
-                                                    : <SpeakerHighIcon size={ICON_SIZE} />}
+                                        {/* Invisible bridge between button and popup */}
+                                        {showVolume && (
+                                            <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', width: 60, height: 20, zIndex: 99 }} onMouseEnter={keepVolume} />
+                                        )}
+                                        <button onClick={(e) => { e.stopPropagation(); onToggleMute(); }} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
+                                            {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} /> : <SpeakerHighIcon size={ICON_SIZE} />}
                                         </button>
                                     </div>
                                 </>
                             )}
                         </div>
 
-                        {/* Right side */}
-                        <div className="flex items-center gap-5 md:gap-6">
+                        {/* CENTER: Title (desktop only, absolute so it doesn't push groups) */}
+                        {!isMobile && (
+                            <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none px-4 text-center" style={{ maxWidth: '46%', bottom: 0 }}>
+                                <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[15px] drop-shadow-lg line-clamp-2" />
+                            </div>
+                        )}
 
-                            {/* Next Episode — TV only, has next */}
+                        {/* RIGHT GROUP */}
+                        <div className="flex items-center gap-5 md:gap-8">
+
+                            {/* Next Episode button with popup */}
                             {isTV && hasNextEpisode && onNextEpisode && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onNextEpisode(); }}
-                                    className={`${btn} ${showNextEp ? btnActive : ''}`}
-                                    aria-label="Next episode"
-                                    title="Next Episode (N)"
-                                >
-                                    <SkipForwardIcon size={ICON_SIZE} weight={showNextEp ? 'fill' : 'regular'} />
-                                </button>
+                                <div className="relative" onMouseEnter={openNextEp} onMouseLeave={closeNextEp}>
+                                    {/* Popup */}
+                                    {showNextEpPopup && nextEpisodeData && (
+                                        <div onMouseEnter={keepNextEp} onMouseLeave={closeNextEp}>
+                                            <NextEpisodePopup data={nextEpisodeData} onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }} />
+                                        </div>
+                                    )}
+                                    {/* Invisible bridge */}
+                                    {showNextEpPopup && (
+                                        <div style={{ position: 'absolute', bottom: '100%', right: 0, width: '100%', height: 20, zIndex: 99 }} onMouseEnter={keepNextEp} />
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onNextEpisode(); }}
+                                        className={`${btn} ${showNextEp ? btnActive : ''}`}
+                                        aria-label="Next episode"
+                                        title="Next Episode (N)"
+                                    >
+                                        <SkipForwardIcon size={ICON_SIZE} weight={showNextEp ? 'fill' : 'regular'} />
+                                    </button>
+                                </div>
                             )}
 
-                            {/* Subtitles — hover on desktop, click on mobile */}
+                            {/* Subtitles — hover on desktop */}
                             {onSubtitlesClick && (
-                                <div
-                                    className="relative"
-                                    onMouseEnter={handleSubtitleEnter}
-                                    onMouseLeave={handleSubtitleLeave}
-                                >
+                                <div className="relative" onMouseEnter={openSubtitles} onMouseLeave={closeSubtitles}>
+                                    {/* Invisible bridge between button and panel */}
+                                    <div style={{ position: 'absolute', bottom: '100%', left: -20, right: -20, height: 20, zIndex: 99 }} onMouseEnter={keepSubtitles} />
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            if (isMobile) onSubtitlesClick();
+                                            if (activePanel === 'audioSubtitles') setActivePanel?.('none');
+                                            else setActivePanel?.('audioSubtitles');
                                         }}
                                         className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
                                         aria-label="Subtitles & Audio"
@@ -475,38 +684,27 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 </div>
                             )}
 
-                            {/* Episodes — TV only, hover on desktop, click on mobile */}
+                            {/* Episodes — TV only */}
                             {isTV && onEpisodesClick && (
-                                <>
-                                    <div
-                                        className="relative"
-                                        onMouseEnter={handleEpisodesEnter}
-                                        onMouseLeave={handleEpisodesLeave}
+                                <div className="relative" onMouseEnter={openEpisodes} onMouseLeave={closeEpisodes}>
+                                    <div style={{ position: 'absolute', bottom: '100%', left: -20, right: -20, height: 20, zIndex: 99 }} onMouseEnter={keepEpisodes} />
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (activePanel === 'episodes' || activePanel === 'seasons') setActivePanel?.('none');
+                                            else setActivePanel?.('episodes');
+                                        }}
+                                        className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
+                                        aria-label="Episode Explorer"
+                                        title="Episodes"
                                     >
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (isMobile) onEpisodesClick();
-                                            }}
-                                            className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
-                                            aria-label="Episode Explorer"
-                                            title="Episodes"
-                                        >
-                                            <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'regular'} />
-                                        </button>
-                                    </div>
-                                    {/* Intentional gap before fullscreen when episodes button is present */}
-                                    <span className="w-2 md:w-3 flex-shrink-0" aria-hidden="true" />
-                                </>
+                                        <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'regular'} />
+                                    </button>
+                                </div>
                             )}
 
                             {/* Fullscreen */}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
-                                className={btn}
-                                aria-label="Toggle fullscreen"
-                                title="Fullscreen (F)"
-                            >
+                            <button onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }} className={btn} aria-label="Toggle fullscreen" title="Fullscreen (F)">
                                 <CornersOutIcon size={ICON_SIZE} />
                             </button>
                         </div>

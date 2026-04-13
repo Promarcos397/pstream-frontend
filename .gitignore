@@ -29,7 +29,7 @@ credentials.json
 *.exe
 *.dmg
 *.AppImage
-# Specific kinemora build caches & references
+# Specific pstream build caches & references
 projec/
 references/
 electron/dist/
@@ -41,3 +41,4 @@ images-for-mobile-screenshot-for-design/
 images-screenshot-for-settings/
 row-scroll-behaviour-video-recording-frames/
 .vercel
+Consolas-Font
