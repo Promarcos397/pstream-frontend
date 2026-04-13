@@ -33,36 +33,7 @@ api.interceptors.request.use((config) => {
 
 // --- Intelligent Caching & Deduplication Layer ---
 const imageCache: Map<string, any> = new Map();
-const videoCache: Map<string, any> = new Map();
 const pendingImageRequests: Map<string, Promise<any>> = new Map();
-const pendingVideoRequests: Map<string, Promise<any>> = new Map();
-
-export const getMovieVideos = async (id: number | string, type: 'movie' | 'tv') => {
-  const cacheKey = `${type}_${id}`;
-  
-  // 1. Return from memory cache if hits
-  if (videoCache.has(cacheKey)) return videoCache.get(cacheKey);
-  
-  // 2. Return pending promise if a request is already in flight for this ID
-  if (pendingVideoRequests.has(cacheKey)) return pendingVideoRequests.get(cacheKey);
-
-  const request = (async () => {
-    try {
-      const response = await api.get<VideoResponse>(`/${type}/${id}/videos`);
-      const results = response.data.results;
-      videoCache.set(cacheKey, results);
-      return results;
-    } catch (error) {
-      console.error(`Error fetching videos for ${type} ${id}:`, error);
-      return [];
-    } finally {
-      pendingVideoRequests.delete(cacheKey);
-    }
-  })();
-
-  pendingVideoRequests.set(cacheKey, request);
-  return request;
-};
 
 export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') => {
   const cacheKey = `${type}_${id}`;

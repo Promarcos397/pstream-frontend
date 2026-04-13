@@ -8,10 +8,12 @@ import YouTube from 'react-youtube';
 import { useGlobalContext } from '../context/GlobalContext';
 import axios from 'axios';
 import { GENRES, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream, getExternalIds, getMovieVideos, getMovieDetails, fetchTrailers } from '../services/api';
+import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails, fetchTrailers } from '../services/api';
 import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { NetworkPriority } from '../services/NetworkPriority';
+
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface MovieCardProps {
   movie: Movie;
@@ -155,6 +157,7 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
 const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { 
     myList, toggleList, rateMovie, getMovieRating, getVideoState, 
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode, 
@@ -170,6 +173,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
+  const [lastSyncTime, setLastSyncTime] = useState(0);
+
+  // --- 4. Bidirectional Sync Layer: Modal -> Card ---
+  useEffect(() => {
+    // When the global video claim is released (activeVideoId === null),
+    // and this card is still hovered/alive, we check if we need to catch up
+    if (isHovered && playerRef.current && activeVideoId === null && trailerUrl) {
+      const savedState = getVideoState(movie.id);
+      if (savedState && savedState.time > 0 && savedState.videoId === trailerUrl) {
+        // Sync if the difference is meaningful (> 1s) to avoid unnecessary jitter
+        const currentTime = playerRef.current.getCurrentTime();
+        if (Math.abs(currentTime - savedState.time) > 1) {
+          playerRef.current.seekTo(savedState.time, true);
+        }
+      }
+    }
+  }, [activeVideoId, isHovered, trailerUrl, movie.id, getVideoState]);
 
   // 'center' | 'left' | 'right' - determines expansion direction
   const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
@@ -270,7 +290,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   // Prefetch stream on hover
   const handleMouseEnter = (e: React.MouseEvent) => {
   //Robust mobile/touch detection - Android Chrome often falsely reports (hover: hover)
-    if (window.innerWidth < 1400 || ('ontouchstart' in window && navigator.maxTouchPoints > 0)) return;
+    if (isMobile || window.innerWidth < 1200 || ('ontouchstart' in window && navigator.maxTouchPoints > 0)) return;
 
     const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
     const dateStr = movie.release_date || movie.first_air_date;
@@ -423,7 +443,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   return (
     <div
       ref={cardRef}
-      className={`relative z-10 group/card transition-all duration-300
+      className={`relative z-10 group/card transition-all duration-300 select-none
         ${isPrimed ? 'scale-[1.05] z-50 ring-1 ring-white/20' : 'scale-100'}
         ${isGrid
           ? 'w-full aspect-video cursor-pointer'
@@ -440,6 +460,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           className={`w-full h-full object-cover rounded-sm backdrop-pop ${isBook && !isGrid ? 'object-[50%_30%]' : 'object-center'}`}
           alt={movie.name || movie.title}
           loading="lazy"
+          draggable={false}
         />
 
         {/* Base Title Overlay */}
@@ -452,6 +473,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   alt={movie.title || movie.name}
                   onLoad={handleLogoLoad}
                   className={`w-auto object-contain drop-shadow-2xl transition-all duration-300 ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
+                  draggable={false}
                 />
               ) : (
                 <h3 className={`text-white font-leaner text-center tracking-wide leading-tight drop-shadow-md line-clamp-3 mb-2 w-full px-1 ${isBook ? 'text-2xl' : 'text-xl'}`}>
@@ -513,6 +535,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       if (savedState && savedState.time > 0 && savedState.videoId === trailerUrl) {
                         e.target.seekTo(savedState.time, true);
                       }
+                    }}
+                    onStateChange={(e) => {
+                      // Save progress in real-time so other surfaces (like Modal) can pick up exactly where we are
+                      try {
+                        const time = e.target.getCurrentTime();
+                        if (time > 0 && trailerUrl) {
+                          updateVideoState(movie.id, time, trailerUrl);
+                        }
+                      } catch (err) {}
                     }}
                     onError={(e) => { 
                       console.warn("YouTube blocked playback:", e);

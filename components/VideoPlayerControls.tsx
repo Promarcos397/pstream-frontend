@@ -470,27 +470,28 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const closeNextEp = () => { if (isMobile) return; nextEpTimeoutRef.current = setTimeout(() => setShowNextEpPopup(false), 700); };
     const keepNextEp = () => { if (isMobile) return; if (nextEpTimeoutRef.current) clearTimeout(nextEpTimeoutRef.current); };
 
-    const openSubtitles = () => { if (isMobile) return; if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); setActivePanel?.('audioSubtitles'); };
+    const openSubtitles = () => { 
+        if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); 
+        setActivePanel?.('audioSubtitles'); 
+    };
     const closeSubtitles = () => { 
-        if (isMobile) return; 
         subtitleTimeoutRef.current = setTimeout(() => {
             if (!document.getElementById('video-panel-shell')?.matches(':hover')) {
                 setActivePanel?.('none');
             }
-        }, 700); 
+        }, 800); 
     };
-    const keepSubtitles = () => { if (isMobile) return; if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); };
+    const keepSubtitles = () => { if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); };
 
-    const openEpisodes = () => { if (isMobile) return; if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); setActivePanel?.('episodes'); };
+    const openEpisodes = () => { if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); setActivePanel?.('episodes'); };
     const closeEpisodes = () => { 
-        if (isMobile) return; 
         episodeTimeoutRef.current = setTimeout(() => {
             if (!document.getElementById('video-panel-shell')?.matches(':hover')) {
                 setActivePanel?.('none');
             }
-        }, 700); 
+        }, 800); 
     };
-    const keepEpisodes = () => { if (isMobile) return; if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); };
+    const keepEpisodes = () => { if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); };
 
     // ── Base styles ───────────────────────────────────────────────────────────
     const btn = 'flex items-center justify-center text-white/80 hover:text-white active:text-white/40 transition-all duration-150 active:scale-90 select-none focus:outline-none rounded-sm p-1.5 hover:scale-110';
@@ -573,16 +574,30 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 if (e.key === 'ArrowLeft') { e.preventDefault(); onTimelineSeek(Math.max(0, progress - 2)); }
                             }}
                         >
-                            {/* Hover tooltip */}
+                            {/* Hover tooltip — with Image Preview as requested */}
                             {!isMobile && isHovering && (
-                                <div className="absolute -top-9 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded pointer-events-none font-consolas shadow-md" style={{ left: `${hoverPosition}%` }}>
-                                    {(() => {
-                                        const t = hoverTime;
-                                        const h = Math.floor(t / 3600);
-                                        const m = Math.floor((t % 3600) / 60);
-                                        const s = Math.floor(t % 60);
-                                        return h > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : `${m}:${s.toString().padStart(2,'0')}`;
-                                    })()}
+                                <div className="absolute -top-32 -translate-x-1/2 flex flex-col items-center pointer-events-none z-50 animate-fadeIn" style={{ left: `${hoverPosition}%` }}>
+                                    <div className="w-[180px] aspect-video bg-zinc-900 rounded-md border border-white/20 shadow-2xl overflow-hidden mb-2 relative">
+                                        {/* Use high-res backdrop for movies, or episode still if available */}
+                                        <img 
+                                            src={nextEpisodeData?.stillPath ? `https://image.tmdb.org/t/p/w300${nextEpisodeData.stillPath}` : (window as any).__video_backdrop} 
+                                            alt="Preview"
+                                            className="w-full h-full object-cover brightness-75"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                                        <div className="absolute bottom-2 left-2 right-2 text-white font-bold text-[10px] uppercase tracking-widest truncate">
+                                            {title}
+                                        </div>
+                                    </div>
+                                    <div className="bg-black/95 text-white text-[13px] px-3 py-1 rounded-sm font-consolas shadow-xl border border-white/10">
+                                        {(() => {
+                                            const t = hoverTime;
+                                            const h = Math.floor(t / 3600);
+                                            const m = Math.floor((t % 3600) / 60);
+                                            const s = Math.floor(t % 60);
+                                            return h > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : `${m}:${s.toString().padStart(2,'0')}`;
+                                        })()}
+                                    </div>
                                 </div>
                             )}
                             {/* Track — 6px tall = thicker progress bar */}

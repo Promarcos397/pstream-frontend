@@ -377,6 +377,15 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             }
                                         }}
                                         onStateChange={(e) => {
+                                            // Progress Sync: Save current time to context in real-time
+                                            try {
+                                                const time = e.target.getCurrentTime();
+                                                const videoId = trailerQueue[0];
+                                                if (time > 0 && videoId && movie) {
+                                                    updateVideoState(movie.id, time, videoId);
+                                                }
+                                            } catch (err) {}
+
                                             // Stop 2s before the end to prevent YouTube suggestions overlay
                                             const YT_PLAYING = 1;
                                             if (e.data === YT_PLAYING) {

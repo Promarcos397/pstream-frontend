@@ -8,7 +8,7 @@ import HeroCarouselBackground from './HeroCarouselBackground';
 import HeroCarouselContent from './HeroCarouselContent';
 import { Movie, TMDBResponse } from '../types';
 import { REQUESTS, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream, getExternalIds, getMovieVideos } from '../services/api';
+import { getMovieImages, prefetchStream, getExternalIds } from '../services/api';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
 import { NetworkPriority } from '../services/NetworkPriority';
@@ -340,6 +340,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         }}
         onVideoEnd={() => { setHasVideoEnded(true); setShowVideo(false); setIsVideoReady(false); }}
         youtubeQuality={networkQuality.quality}
+        onUpdateState={updateVideoState}
       />
       <HeroCarouselContent
         movie={movie} logoUrl={logoUrl} isVideoReady={isVideoReady} onPlay={onPlay}

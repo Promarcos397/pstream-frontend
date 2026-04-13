@@ -189,8 +189,6 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
           style={{
             WebkitOverflowScrolling: 'touch',
             overscrollBehaviorX: 'contain',
-            // Allow horizontal swiping on the strip without stealing vertical scroll
-            touchAction: 'pan-x',
           }}
         >
           {/* Left spacer */}
@@ -210,9 +208,6 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
               <div
                 key={movie.id}
                 className="movie-card-container pointer-events-auto mr-1 md:mr-1.5 lg:mr-2"
-                // Allow vertical scroll through cards on touch; horizontal is handled by the strip
-          style={{ touchAction: 'pan-y' }}
-
               >
                 <MovieCard movie={movie} onSelect={onSelect} onPlay={onPlay} />
               </div>

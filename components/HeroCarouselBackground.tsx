@@ -19,6 +19,7 @@ interface HeroCarouselBackgroundProps {
     onVideoEnd?: () => void;
     youtubeQuality?: 'hd720' | 'hd1080' | 'default';
     replayCount?: number;
+    onUpdateState?: (id: number, time: number, videoId: string) => void;
 }
 
 const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
@@ -36,7 +37,8 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     onSyncCheck,
     onVideoEnd,
     youtubeQuality = 'hd1080',
-    replayCount = 0
+    replayCount = 0,
+    onUpdateState
 }) => {
     // 1. Sync Mute State
     useEffect(() => {
@@ -105,9 +107,10 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                     const time = e.target.getCurrentTime();
                                     const videoId = trailerQueue[0];
                                     if (time > 0 && videoId) {
-                                      // Using onSyncCheck's presence to determine we should save back
-                                      // We wrap it in a custom check in the parent too
                                       (window as any).__last_hero_time = time;
+                                      if (onUpdateState && movie.id) {
+                                        onUpdateState(Number(movie.id), time, videoId);
+                                      }
                                     }
                                 } catch (err) {}
                             }}

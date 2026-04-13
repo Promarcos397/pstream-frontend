@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
-import { getMovieVideos, getMovieImages, getExternalIds, prefetchStream, getMovieDetails } from './api';
+import { getMovieImages, getExternalIds, prefetchStream, getMovieDetails } from './api';
 import { searchTrailersWithFallback } from './YouTubeService';
 
 /**
@@ -75,9 +75,7 @@ class HeroEngineService {
       const selectedMovie = results[index];
       const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
-      // --- Magic Omni-Fetch ---
-      const [videos, images, externals, details] = await Promise.all([
-        getMovieVideos(selectedMovie.id, mediaType),
+      const [images, externals, details] = await Promise.all([
         getMovieImages(selectedMovie.id, mediaType),
         getExternalIds(selectedMovie.id, mediaType),
         getMovieDetails(selectedMovie.id, mediaType) 

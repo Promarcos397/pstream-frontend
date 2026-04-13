@@ -98,6 +98,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [captions, setCaptions] = useState<{ id: string; label: string; url: string; lang: string }[]>([]);
     const [currentCaption, setCurrentCaption] = useState<string | null>(null);
     const [subtitleObjectUrl, setSubtitleObjectUrl] = useState<string | null>(null);
+
+    // Store Backdrop globally for Tooltip Previews
+    useEffect(() => {
+        const backdrop = movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : '';
+        (window as any).__video_backdrop = backdrop;
+    }, [movie.id]);
     const [currentCueText, setCurrentCueText] = useState<string>('');
 
     // HLS state (from hook)
