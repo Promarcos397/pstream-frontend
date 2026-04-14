@@ -109,6 +109,7 @@ export const SubtitleService = {
 
             const seenLangs = new Set<string>();
             const tracks: SubtitleTrack[] = [];
+            let englishCount = 0;
 
             for (const sub of sorted) {
                 if (!sub.SubDownloadLink) continue;
@@ -118,13 +119,19 @@ export const SubtitleService = {
                 const lang = labelToLangCode(sub.LanguageName || '');
                 const label = LANG_LABELS[lang] || sub.LanguageName || lang.toUpperCase();
 
-                // Take the best track per language (top download count wins)
-                if (!seenLangs.has(lang)) {
+                // Allow up to 5 English tracks as requested for selection logic
+                if (lang === 'en') {
+                    if (englishCount < 5) {
+                        englishCount++;
+                        tracks.push({ url, lang, label });
+                    }
+                } else if (!seenLangs.has(lang)) {
+                    // One best track for all other languages
                     seenLangs.add(lang);
                     tracks.push({ url, lang, label });
                 }
-                // Cap at 12 languages total
-                if (tracks.length >= 12) break;
+                
+                if (tracks.length >= 20) break; // Increased cap slightly 
             }
 
             return tracks;

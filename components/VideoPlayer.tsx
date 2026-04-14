@@ -53,7 +53,7 @@ function requestMobileLandscapeFullscreen(el: HTMLElement) {
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, resumeTime = 0, onClose }) => {
-    const { settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState, setActiveVideoId } = useGlobalContext();
+    const { user, settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState, setActiveVideoId } = useGlobalContext();
     const { setPageTitle } = useTitle();
     const isMobile = useIsMobile();
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -192,9 +192,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             setCaptions(mappedCaptions);
 
             const preferredLang = settings.subtitleLanguage?.toLowerCase() || 'en';
-            const matchingSub = mappedCaptions.find((s: any) => s.lang.includes(preferredLang) || s.label.toLowerCase().includes(preferredLang));
-            const fallbackSub = mappedCaptions.find((s: any) => s.lang === 'en' || s.label.toLowerCase().includes('english'));
-            const finalSub = matchingSub || fallbackSub || mappedCaptions[0];
+            
+            // New logic: If user is Guest (!user) or prefers English, target the 3rd English track.
+            const isEnglishTarget = (!user && preferredLang === 'en') || preferredLang === 'en' || !user;
+            
+            let finalSub = null;
+            if (isEnglishTarget) {
+                const enSubs = mappedCaptions.filter((s: any) => s.lang === 'en' || s.label.toLowerCase().includes('english'));
+                // Target the 3rd track (index 2) as requested, else fallback to 1st.
+                finalSub = enSubs.length >= 3 ? enSubs[2] : (enSubs[0] || mappedCaptions[0]);
+            } else {
+                // Logged in and prefers a different language.
+                finalSub = mappedCaptions.find((s: any) => s.lang.includes(preferredLang) || s.label.toLowerCase().includes(preferredLang));
+                // Fallback to 3rd English if preferred isn't found.
+                if (!finalSub) {
+                    const enSubs = mappedCaptions.filter((s: any) => s.lang === 'en' || s.label.toLowerCase().includes('english'));
+                    finalSub = enSubs.length >= 3 ? enSubs[2] : (enSubs[0] || mappedCaptions[0]);
+                }
+            }
 
             if (finalSub && settings.showSubtitles) {
                 setCurrentCaption(finalSub.url);
