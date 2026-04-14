@@ -17,6 +17,7 @@ import { AppSettings } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { DEFAULT_AVATAR } from '../constants';
+import pstreamLogo from '../assets/pstream-logo.png';
 
 interface SettingsLayoutProps {
     settings: AppSettings;
@@ -165,7 +166,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
             <header className="h-16 border-b border-gray-100 flex items-center justify-between px-6 md:px-10 lg:px-16 bg-white sticky top-0 z-[100] pt-safe">
                 <div onClick={() => navigate('/')} className="cursor-pointer h-8 flex items-center">
                     <img 
-                        src="/assets/pstream-logo.png" 
+                        src={pstreamLogo}
                         alt="Pstream" 
                         className="h-6 md:h-8 w-auto"
                         onError={(e) => { (e.target as any).style.display = 'none'; }}

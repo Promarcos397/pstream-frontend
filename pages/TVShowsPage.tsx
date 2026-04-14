@@ -5,7 +5,6 @@ import { Movie } from '../types';
 import HeroCarousel from '../components/HeroCarousel';
 import Row from '../components/Row';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
-
 import { useGlobalContext } from '../context/GlobalContext';
 
 interface PageProps {

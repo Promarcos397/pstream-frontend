@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import VideoPlayer from '../components/VideoPlayer';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { getMovieDetails } from '../services/api';
 import { useTitle } from '../context/TitleContext';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -129,13 +130,15 @@ const CinemaPage: React.FC = () => {
     }
 
     return (
-        <VideoPlayer
-            movie={movie}
-            season={type === 'tv' ? season : undefined}
-            episode={type === 'tv' ? episode : undefined}
-            resumeTime={resumeTime}
-            onClose={handleClose}
-        />
+        <ErrorBoundary>
+            <VideoPlayer
+                movie={movie}
+                season={type === 'tv' ? season : undefined}
+                episode={type === 'tv' ? episode : undefined}
+                resumeTime={resumeTime}
+                onClose={handleClose}
+            />
+        </ErrorBoundary>
     );
 };
 

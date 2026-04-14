@@ -135,15 +135,61 @@ export const useDynamicManifest = (pageType: 'home' | 'movie' | 'tv' | 'new_popu
         });
       });
 
-      // ABUNDANCE FILL: If we still have fewer than 20 rows, we recursively fill with "Deep Page" shifts
-      // This ensures the site feels infinite even for niche genres.
+      // ABUNDANCE FILL: Replaced repetitive "More to Watch" with varied themed discovery rows
+      const varietyRows: SmartRow[] = [
+        {
+          key: `classics-${selectedGenreId}`,
+          title: t('rows.genreClassics', { genre: mainGenreName, defaultValue: `${mainGenreName} Classics` }),
+          fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'vote_average.desc') + `&release_date.lte=2010-01-01&vote_count.gte=1000`
+        },
+        {
+          key: `top10-${selectedGenreId}`,
+          title: t('rows.top10Genre', { genre: mainGenreName, defaultValue: `Top 10 ${mainGenreName} Today` }),
+          fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'popularity.desc'),
+          type: 'top10' // This breaks the monotony by using the large number style row
+        },
+        {
+          key: `international-${selectedGenreId}`,
+          title: t('rows.internationalGenre', { genre: mainGenreName, defaultValue: `International ${mainGenreName} Cinema` }),
+          fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'popularity.desc') + `&without_original_language=en`
+        },
+        {
+          key: `new-this-year-${selectedGenreId}`,
+          title: t('rows.newYearGenre', { genre: mainGenreName, year: new Date().getFullYear(), defaultValue: `Best of ${new Date().getFullYear()} ${mainGenreName}` }),
+          fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'vote_average.desc') + `&release_date.gte=${new Date().getFullYear()}-01-01&vote_count.gte=50`
+        },
+        {
+          key: `underrated-${selectedGenreId}`,
+          title: t('rows.underratedGenre', { genre: mainGenreName, defaultValue: `Underrated ${mainGenreName} Gems` }),
+          fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'vote_average.desc') + `&vote_count.gte=100&vote_count.lte=1000&popularity.lte=100`
+        },
+        {
+          key: `modern-${selectedGenreId}`,
+          title: t('rows.modernGenre', { genre: mainGenreName, defaultValue: `Modern ${mainGenreName} Masterpieces` }),
+          fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'vote_average.desc') + `&release_date.gte=2018-01-01&vote_count.gte=500`
+        },
+        {
+          key: `genre-legends-${selectedGenreId}`,
+          title: t('rows.genreLegends', { genre: mainGenreName, defaultValue: `${mainGenreName} Legends` }),
+          fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'vote_count.desc') + `&vote_average.gte=8`
+        },
+        {
+            key: `fast-paced-${selectedGenreId}`,
+            title: t('rows.fastPaced', { genre: mainGenreName, defaultValue: `More ${mainGenreName} favorites` }),
+            fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'popularity.desc') + `&page=4`
+        }
+      ];
+
+      varietyRows.forEach(row => manifest.push(row));
+
+      // Final safety fill — drastically reduced to prevent repetition fatigue
       const currentCount = manifest.length;
-      if (currentCount < 20) {
-        for (let i = 1; i <= (20 - currentCount); i++) {
-          const page = 4 + i;
+      if (currentCount < 14) {
+        for (let i = 1; i <= (14 - currentCount); i++) {
+          const page = 5 + i;
           manifest.push({
-            key: `infinite-fill-${selectedGenreId}-${page}`,
-            title: t('rows.moreMoreToWatch', { defaultValue: `More ${mainGenreName} to Watch` }),
+            key: `discovery-fill-${selectedGenreId}-${page}`,
+            title: t('rows.deepDiscovery', { genre: mainGenreName, defaultValue: `Discover More ${mainGenreName}` }),
             fetchUrl: REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', selectedGenreId, 'popularity.desc') + `&page=${page}`
           });
         }

@@ -305,7 +305,6 @@ export const EpisodeExplorer: React.FC<{
     const isMobile = useIsMobile();
     const { getEpisodeProgress } = useGlobalContext();
     const [previewSeason, setPreviewSeason] = React.useState(selectedSeason);
-    // Two-click state: null = collapsed, number = expanded (info shown), 'ready:{id}' = second click plays
     const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
     const episodesContainerRef = useRef<HTMLDivElement>(null);
     const currentEpisodeRef = useRef<HTMLDivElement>(null);
@@ -313,28 +312,32 @@ export const EpisodeExplorer: React.FC<{
 
     React.useEffect(() => { setPreviewSeason(playingSeason || selectedSeason); }, [selectedSeason, playingSeason, activePanel]);
 
-    // Auto-scroll to current episode when panel opens
+    // Auto-scroll AND auto-expand current episode when panel opens
     useEffect(() => {
-        if (activePanel === 'episodes' && currentEpisodeRef.current && episodesContainerRef.current) {
-            setTimeout(() => currentEpisodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
-        }
-    }, [activePanel, currentEpisode]);
+        if (activePanel === 'episodes' && currentSeasonEpisodes.length > 0) {
+            // Find current episode object to get its ID for expansion
+            const playingEp = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode);
+            if (playingEp) {
+                setExpandedEpisodeId(playingEp.id);
+            }
 
-    // Two-click handler:
-    // First click on a collapsed episode → expand info
-    // First click on an already-expanded episode → play it
-    // Clicking a different episode → collapse the old one, expand the new one
+            if (currentEpisodeRef.current && episodesContainerRef.current) {
+                setTimeout(() => currentEpisodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+            }
+        }
+    }, [activePanel, currentEpisode, currentSeasonEpisodes.length]);
+
+    // Two-click handler
     const handleEpisodeClick = (ep: Episode) => {
         if (expandedEpisodeId === ep.id) {
-            // Second click → play
             onEpisodeSelect(ep);
             setActivePanel('none');
             setExpandedEpisodeId(null);
         } else {
-            // First click → expand
             setExpandedEpisodeId(ep.id);
         }
     };
+
 
     const innerContent = (
         <div className="flex flex-col h-full bg-[#262626] font-sans text-white">
@@ -373,7 +376,7 @@ export const EpisodeExplorer: React.FC<{
                         <ArrowLeftIcon size={24} weight="bold" className="text-white" />
                         <span className="text-[28px] font-bold">Season {previewSeason}</span>
                     </div>
-                    <div ref={episodesContainerRef} className="overflow-y-auto scroll-list flex-1">
+                    <div ref={episodesContainerRef} className="overflow-y-auto scroll-list flex-1 scrollbar-hide">
                         {currentSeasonEpisodes.map(ep => {
                             const isCurrentlyPlaying = currentEpisode === ep.episode_number && playingSeason === selectedSeason;
                             const isExpanded = expandedEpisodeId === ep.id;
@@ -387,9 +390,8 @@ export const EpisodeExplorer: React.FC<{
                                     className={`transition-colors border-b border-white/5 ${isCurrentlyPlaying || isExpanded ? 'bg-[#121212]' : 'hover:bg-white/5'}`}
                                 >
                                     <div
-                                        className="flex items-center px-[35px] py-[28px] cursor-pointer gap-4"
+                                        className="flex items-center px-[35px] py-[24px] cursor-pointer gap-4"
                                         onClick={(e) => { e.stopPropagation(); handleEpisodeClick(ep); }}
-                                        title={isExpanded ? `Play ${ep.name}` : `Expand ${ep.name}`}
                                     >
                                          {/* Episode number */}
                                         <span className={`flex-shrink-0 ${isMobile ? 'text-2xl w-[45px]' : 'text-xl w-[35px]'} font-bold ${isCurrentlyPlaying ? 'text-[#e50914]' : 'text-white/60'}`}>
@@ -406,7 +408,6 @@ export const EpisodeExplorer: React.FC<{
                                             </div>
                                         )}
                                         {/* Expand/play caret */}
-                                        {/* Removed the soft background click-to-pause layer here to ensure 'hard buttons' only */}
                                         <CaretRightIcon
                                             size={isMobile ? 20 : 16}
                                             weight="bold"
@@ -414,28 +415,28 @@ export const EpisodeExplorer: React.FC<{
                                         />
                                     </div>
 
-                                    {/* Expanded info — click thumbnail or the row again to play */}
+                                    {/* Expanded info — Removed the white background circle from play icon */}
                                     {isExpanded && (
                                         <div
-                                            className="px-[35px] pb-[28px] flex gap-5 cursor-pointer group/ep-play"
+                                            className="px-[35px] pb-[28px] flex flex-col md:flex-row gap-5 cursor-pointer group/ep-play"
                                             onClick={(e) => { e.stopPropagation(); onEpisodeSelect(ep); setActivePanel('none'); setExpandedEpisodeId(null); }}
-                                            title={`Play ${ep.name}`}
                                         >
                                             {ep.still_path && (
-                                                <div className="relative flex-shrink-0">
+                                                <div className="relative flex-shrink-0 w-full md:w-[220px]">
                                                     <img
                                                         src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
-                                                        className="w-[180px] h-[101px] object-cover rounded-sm group-hover/ep-play:brightness-75 transition"
+                                                        className="w-full h-auto aspect-video object-cover rounded-sm group-hover/ep-play:brightness-75 transition"
                                                         alt={ep.name}
                                                     />
-                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/ep-play:opacity-100 transition">
-                                                        <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
-                                                            <PlayCircleIcon size={28} weight="fill" className="text-black" />
-                                                        </div>
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/ep-play:opacity-100 transition duration-300">
+                                                        <PlayCircleIcon size={54} weight="fill" className="text-white drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]" />
                                                     </div>
                                                 </div>
                                             )}
-                                            <p className="text-sm text-white/60 line-clamp-4 leading-relaxed">{ep.overview || 'No description available.'}</p>
+                                            <div className="flex-1 flex flex-col">
+                                                <p className="text-sm text-white/60 line-clamp-4 leading-relaxed italic mb-2">"{ep.name}"</p>
+                                                <p className="text-sm text-white/80 line-clamp-6 leading-relaxed bg-white/5 p-3 rounded-sm border-l-2 border-white/20">{ep.overview || 'No description available.'}</p>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -448,6 +449,7 @@ export const EpisodeExplorer: React.FC<{
     );
 
     if (isMobile) {
+
         return (
             <div className="fixed inset-0 z-[120] pointer-events-auto" onClick={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}>
                 <div 

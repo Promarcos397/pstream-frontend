@@ -105,6 +105,114 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const backdrop = movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : '';
         (window as any).__video_backdrop = backdrop;
     }, [movie.id]);
+
+    // ─── Compute next episode / season ──────────────────────────────────────────────────
+    // Single canonical declaration — used by Media Session, auto-next trigger, and controls.
+    const nextEpisodeInfo = useMemo<{ episode: Episode; season: number } | null>(() => {
+        if (mediaType !== 'tv') return null;
+        // Find current episode index within the loaded season episode list
+        const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
+        // Case 1: There is a next episode in this same season
+        if (currentIdx !== -1 && currentIdx < currentSeasonEpisodes.length - 1) {
+            return { episode: currentSeasonEpisodes[currentIdx + 1], season: playingSeasonNumber };
+        }
+        // Case 2: Last episode of the season — find the next season
+        const nextSeason = seasonList.find(s => s > playingSeasonNumber);
+        if (nextSeason !== undefined) {
+            // Return a placeholder ep; the real list loads when the season is fetched
+            return {
+                episode: { id: -1, episode_number: 1, name: 'Next Season', season_number: nextSeason } as Episode,
+                season: nextSeason,
+            };
+        }
+        return null;
+    }, [mediaType, currentSeasonEpisodes, currentEpisode, playingSeasonNumber, seasonList]);
+
+    // ─── Media Session API ────────────────────────────────────────────────────
+    // Powers: Android notification, iOS lock screen, Windows media flyout, macOS Control Center
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+
+        const showTitle = movie.title || movie.name || '';
+        const epName = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode)?.name || '';
+
+        // Match the title format used in the video player HUD exactly
+        const notificationTitle = mediaType === 'tv'
+            ? showTitle
+            : showTitle;
+        const notificationArtist = mediaType === 'tv' && epName
+            ? `S${playingSeasonNumber} E${currentEpisode} – ${epName}`
+            : (movie.release_date || movie.first_air_date || '').slice(0, 4) || 'Pstream';
+        const notificationAlbum = mediaType === 'tv' ? `Season ${playingSeasonNumber}` : 'Movie';
+
+        // Use TMDB backdrop for all platforms (wide 16:9 — best for notifications)
+        const backdropUrl = movie.backdrop_path
+            ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
+            : '';
+
+        const artwork: MediaImage[] = backdropUrl
+            ? [
+                { src: backdropUrl, sizes: '1280x720', type: 'image/jpeg' },
+              ]
+            : [];
+
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: notificationTitle,
+            artist: notificationArtist,
+            album: notificationAlbum,
+            artwork,
+        });
+
+        // Wire OS controls to the actual video element
+        const video = videoRef.current;
+        if (!video) return;
+
+        navigator.mediaSession.setActionHandler('play', () => { video.play(); });
+        navigator.mediaSession.setActionHandler('pause', () => { video.pause(); });
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+            video.currentTime = Math.max(0, video.currentTime - (details.seekOffset || 10));
+        });
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+            video.currentTime = Math.min(video.duration, video.currentTime + (details.seekOffset || 10));
+        });
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+            if (details.seekTime != null) video.currentTime = details.seekTime;
+        });
+
+        // Wire "next track" to the next episode handler if available
+        if (mediaType === 'tv') {
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                if (nextEpisodeInfo) {
+                    const ep = nextEpisodeInfo.episode;
+                    setCurrentEpisode(ep.episode_number);
+                    if (nextEpisodeInfo.season !== playingSeasonNumber) {
+                        setPlayingSeasonNumber(nextEpisodeInfo.season);
+                    }
+                    setStreamUrl(null);
+                    setIsBuffering(true);
+                    setActivePanel('none');
+                }
+            });
+        } else {
+            navigator.mediaSession.setActionHandler('nexttrack', null);
+        }
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+
+        // Sync position state so the OS scrubber knows the duration
+        const syncPosition = () => {
+            if (!video.duration || isNaN(video.duration)) return;
+            try {
+                navigator.mediaSession.setPositionState({
+                    duration: video.duration,
+                    playbackRate: video.playbackRate,
+                    position: video.currentTime,
+                });
+            } catch (_) {}
+        };
+        video.addEventListener('timeupdate', syncPosition);
+        return () => { video.removeEventListener('timeupdate', syncPosition); };
+    }, [movie, mediaType, playingSeasonNumber, currentEpisode, currentSeasonEpisodes, nextEpisodeInfo]);
+
     const [currentCueText, setCurrentCueText] = useState<string>('');
 
     // HLS state (from hook)
@@ -136,23 +244,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         },
     });
 
-    // ─── Compute next episode / season ─────────────────────────────────────────
-    const nextEpisodeInfo = useMemo<{ episode: Episode; season: number } | null>(() => {
-        if (mediaType !== 'tv') return null;
-        const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
-        if (currentIdx !== -1 && currentIdx < currentSeasonEpisodes.length - 1) {
-            return { episode: currentSeasonEpisodes[currentIdx + 1], season: playingSeasonNumber };
-        }
-        // End of season — try next season
-        if (seasonList.length > 0) {
-            const nextSeason = seasonList.find(s => s > playingSeasonNumber);
-            if (nextSeason !== undefined) {
-                // We don't have the episodes for the next season yet, so we return a placeholder
-                return { episode: { id: -1, episode_number: 1, name: 'Next Season', season_number: nextSeason } as Episode, season: nextSeason };
-            }
-        }
-        return null;
-    }, [mediaType, currentSeasonEpisodes, currentEpisode, playingSeasonNumber, seasonList]);
+    // ─── (nextEpisodeInfo is declared above — single canonical useMemo) ──────────
 
     // ─── Apply stream result ────────────────────────────────────────────────────
     const applyStreamResult = useCallback((sources: any[], subtitles: any[], globalReferer?: string | null) => {
@@ -241,71 +333,53 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setStreamUrl(null);
         setIsBuffering(true);
         setActivePanel('none');
-        if (seasonNum) setPlayingSeasonNumber(seasonNum);
+        // Always sync season: prefer explicit seasonNum, then ep.season_number
+        const targetSeason = seasonNum ?? ep.season_number;
+        if (targetSeason && targetSeason !== playingSeasonNumber) {
+            setPlayingSeasonNumber(targetSeason);
+            setBrowsedSeasonNumber(targetSeason);
+            // Load the new season's episode list so nextEpisodeInfo stays accurate
+            getSeasonDetails(String(movie.id), targetSeason).then(data => {
+                if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);
+            }).catch(() => {});
+        }
         if (episodes) setCurrentSeasonEpisodes(episodes);
         setCurrentEpisode(ep.episode_number);
-        // Progress will be saved automatically via timeUpdate useEffect
-    }, []);
+    }, [playingSeasonNumber, movie.id]);
 
+    // Pass the target season explicitly so cross-season transitions always update season state
     const handleNextEpisode = useCallback(() => {
-        if (nextEpisodeInfo) {
-            handleEpisodeSelect(nextEpisodeInfo.episode);
-        }
+        if (!nextEpisodeInfo) return;
+        handleEpisodeSelect(nextEpisodeInfo.episode, nextEpisodeInfo.season);
     }, [nextEpisodeInfo, handleEpisodeSelect]);
 
-    // ─── 99.7% Auto Next Episode ───────────────────────────────────────────────
+    // ─── 99.7% Auto Next Episode (one-shot per episode) ────────────────────────
+    // Guard prevents firing multiple times while progress lingers at ~100%.
+    // Also guards against buffering-state race where progress hasn't reset yet.
+    const hasTriggeredAutoNextRef = useRef(false);
     useEffect(() => {
-        if (mediaType === 'tv' && nextEpisodeInfo && progress >= 99.7) {
+        // Reset the guard whenever the episode changes (new episode started)
+        hasTriggeredAutoNextRef.current = false;
+    }, [currentEpisode]);
+    useEffect(() => {
+        if (
+            mediaType === 'tv' &&
+            nextEpisodeInfo &&
+            progress >= 99.7 &&
+            !hasTriggeredAutoNextRef.current &&
+            !isBuffering &&                          // don't trigger while stream is still loading
+            settings.autoplayNextEpisode !== false   // respect user preference (default true)
+        ) {
+            hasTriggeredAutoNextRef.current = true;
             handleNextEpisode();
         }
-    }, [progress, mediaType, nextEpisodeInfo, handleNextEpisode]);
+    }, [progress, mediaType, nextEpisodeInfo, handleNextEpisode, isBuffering, settings.autoplayNextEpisode]);
 
     // ─── Track episode/season prop changes ─────────────────────────────────────
     useEffect(() => {
         if (season !== playingSeasonNumber) setPlayingSeasonNumber(season);
         if (episode !== currentEpisode) setCurrentEpisode(episode);
     }, [season, episode]);
-
-    // ─── Media Session API (Android/iOS/PC Lock Screen Metadata) ──────────────────
-    useEffect(() => {
-        if ('mediaSession' in navigator) {
-            const displayTitle = mediaType === 'tv' 
-                ? `${movie.name || movie.title} S${playingSeasonNumber} E${currentEpisode}`
-                : (movie.title || movie.name || '');
-            
-            const artwork = [
-                { src: movie.backdrop_path ? `https://image.tmdb.org/t/p/w300${movie.backdrop_path}` : '', sizes: '300x169', type: 'image/jpeg' },
-                { src: movie.backdrop_path ? `https://image.tmdb.org/t/p/w780${movie.backdrop_path}` : '', sizes: '780x439', type: 'image/jpeg' },
-                { src: movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : '', sizes: '1280x720', type: 'image/jpeg' }
-            ].filter(a => a.src);
-
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: displayTitle,
-                artist: 'Pstream',
-                album: mediaType === 'tv' ? (currentEpisodeName || `Episode ${currentEpisode}`) : 'Movie',
-                artwork: artwork
-            });
-
-            // Action Handlers
-            navigator.mediaSession.setActionHandler('play', () => videoRef.current?.play());
-            navigator.mediaSession.setActionHandler('pause', () => videoRef.current?.pause());
-            navigator.mediaSession.setActionHandler('seekbackward', () => { if (videoRef.current) videoRef.current.currentTime -= 10; });
-            navigator.mediaSession.setActionHandler('seekforward', () => { if (videoRef.current) videoRef.current.currentTime += 10; });
-            
-            if (mediaType === 'tv') {
-                navigator.mediaSession.setActionHandler('previoustrack', () => {
-                    const idx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
-                    if (idx > 0) handleEpisodeSelect(currentSeasonEpisodes[idx-1]);
-                });
-                navigator.mediaSession.setActionHandler('nexttrack', () => {
-                   if (nextEpisodeInfo) handleNextEpisode();
-                });
-            }
-
-            // Sync playback state
-            navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-        }
-    }, [isPlaying, currentEpisode, playingSeasonNumber, movie, mediaType, currentEpisodeName, currentSeasonEpisodes, handleEpisodeSelect, handleNextEpisode, nextEpisodeInfo]);
 
     // ─── Keyboard shortcuts ─────────────────────────────────────────────────────
     useEffect(() => {
@@ -391,6 +465,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 return;
             }
 
+            // Show a 'still searching' message after 10 seconds to reduce user anxiety
+            const slowFetchTimer = setTimeout(() => {
+                setLoadingMessage('Still searching, please wait...');
+            }, 10000);
+
             try {
                 const openSubPromise = settings.showSubtitles
                     ? SubtitleService.getSubtitleTracks(
@@ -425,6 +504,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             } catch (err: any) {
                 setError(err.message || 'Failed to fetch stream');
                 setIsBuffering(false);
+            } finally {
+                clearTimeout(slowFetchTimer);
             }
         };
 
@@ -610,7 +691,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     useEffect(() => {
         if (!currentCaption) {
-            setSubtitleObjectUrl(null);
+            setSubtitleObjectUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
             setCurrentCueText('');
             parsedCuesRef.current = [];
             return;
@@ -641,16 +722,25 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 }
                 parsedCuesRef.current = cues;
 
-                // Also produce a blob URL for any other consumers
+                // Produce a blob URL and revoke the previous one to prevent memory leaks
                 const { convertSubtitlesToObjectUrl } = await import('../utils/captions');
-                const url = convertSubtitlesToObjectUrl(text);
-                if (url && isMounted) setSubtitleObjectUrl(url);
+                const newUrl = convertSubtitlesToObjectUrl(text);
+                if (newUrl && isMounted) {
+                    setSubtitleObjectUrl(prev => {
+                        if (prev) URL.revokeObjectURL(prev);
+                        return newUrl;
+                    });
+                }
             } catch (e) {
                 console.error('[VideoPlayer] Subtitle load failed', e);
             }
         };
         loadSubtitles();
-        return () => { isMounted = false; };
+        return () => {
+            isMounted = false;
+            // Revoke blob URL when caption changes or component unmounts
+            setSubtitleObjectUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+        };
     }, [currentCaption]);
 
     // Poll video currentTime to update the active cue text
@@ -669,24 +759,36 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
 
 
-    // ─── TV Details init ──────────────────────────────────────────────────────────
+    // ─── TV Details init (two separate effects to avoid double-fetching) ──────────
+    // Effect 1: Fetch season list once — only needs movie.id and mediaType
     useEffect(() => {
+        if (mediaType !== 'tv') return;
         const init = async () => {
-            if (mediaType === 'tv') {
-                try {
-                    const details = await getMovieDetails(String(movie.id), 'tv');
-                    if (details.seasons) {
-                        const validSeasons = details.seasons
-                            .filter((s: any) => s.season_number > 0)
-                            .map((s: any) => s.season_number);
-                        setSeasonList(validSeasons);
-                    }
-                    const seasonData = await getSeasonDetails(String(movie.id), playingSeasonNumber);
-                    if (seasonData?.episodes) setCurrentSeasonEpisodes(seasonData.episodes);
-                } catch (e) {}
-            }
+            try {
+                const details = await getMovieDetails(String(movie.id), 'tv');
+                if (details?.seasons) {
+                    const validSeasons = details.seasons
+                        .filter((s: any) => s.season_number > 0)
+                        .map((s: any) => s.season_number);
+                    setSeasonList(validSeasons);
+                }
+            } catch (e) {}
         };
         init();
+    }, [movie.id, mediaType]);
+
+    // Effect 2: Fetch episode list whenever the viewed season changes
+    useEffect(() => {
+        if (mediaType !== 'tv') return;
+        let cancelled = false;
+        const fetchEps = async () => {
+            try {
+                const seasonData = await getSeasonDetails(String(movie.id), playingSeasonNumber);
+                if (!cancelled && seasonData?.episodes) setCurrentSeasonEpisodes(seasonData.episodes);
+            } catch (e) {}
+        };
+        fetchEps();
+        return () => { cancelled = true; };
     }, [movie.id, mediaType, playingSeasonNumber]);
 
     // ─── UI show/hide ─────────────────────────────────────────────────────────────
