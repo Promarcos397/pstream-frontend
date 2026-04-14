@@ -97,10 +97,7 @@ export const SubtitleService = {
         }
 
         try {
-            const fetchHeaders = { ...headers, "Accept": "application/json" };
-            const proxyUrl = `${BACKEND_URL}/proxy/stream?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify(fetchHeaders))}`;
-            
-            const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+            const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
             if (!response.ok) return [];
             const data = await response.json();
             if (!Array.isArray(data)) return [];
