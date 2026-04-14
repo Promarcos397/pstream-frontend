@@ -97,7 +97,11 @@ export const SubtitleService = {
         }
 
         try {
-            const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+            const proxyUrl = `${BACKEND_URL}/proxy/subtitles/opensubtitles?url=${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl, { 
+                headers: { 'X-User-Agent': 'VLSub 0.10.2' },
+                signal: AbortSignal.timeout(10000) 
+            });
             if (!response.ok) return [];
             const data = await response.json();
             if (!Array.isArray(data)) return [];
