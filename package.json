@@ -11,7 +11,7 @@
   },
   "build": {
     "appId": "com.pstream.app",
-    "productName": "P-Stream",
+    "productName": "Pstream",
     "directories": {
       "output": "release"
     },
@@ -34,7 +34,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "P-Stream",
+      "shortcutName": "Pstream",
       "deleteAppDataOnUninstall": true,
       "installerSidebar": "build/installerSidebar.png",
       "uninstallerSidebar": "build/installerSidebar.png",

@@ -166,7 +166,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
                 <div onClick={() => navigate('/')} className="cursor-pointer h-8 flex items-center">
                     <img 
                         src="/assets/pstream-logo.png" 
-                        alt="P-STREAM" 
+                        alt="Pstream" 
                         className="h-6 md:h-8 w-auto"
                         onError={(e) => { (e.target as any).style.display = 'none'; }}
                     />

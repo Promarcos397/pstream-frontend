@@ -1,5 +1,5 @@
 /**
- * Stream Cache for P-Stream
+ * Stream Cache for Pstream
  * 
  * Caches stream URLs with TTL to avoid re-fetching.
  * Token-aware: checks URL expiry timestamp before returning cached results.

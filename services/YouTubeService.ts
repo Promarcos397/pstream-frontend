@@ -19,7 +19,7 @@ function sleep(ms: number) {
 let currentKeyIndex = 0;
 let failedKeys = new Set<number>(); // Track keys that have failed this session
 
-const CACHE_KEY = 'pstream-youtube-cache';
+const CACHE_KEY = 'Pstream-youtube-cache';
 
 // Shared instance to handle the memory data
 const loadInitialCache = (): [string, string[]][] => {

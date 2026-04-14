@@ -14,7 +14,7 @@
         "searchTitle": "搜索: {{query}}",
         "manageProfiles": "个人资料管理",
         "accountSettings": "账户 / 设置",
-        "signOut": "登出 P-Stream",
+        "signOut": "登出 Pstream",
         "signIn": "登录"
     },
     "hero": {
@@ -84,12 +84,12 @@
         "viewingHistoryEmpty": "您的观影历史目前为空。",
         "viewingHistoryTitle": "最近活动",
         "transferTitle": "转移个人资料",
-        "transferDesc": "您的 p-stream 身份是可移植的。使用您的 12 个单词的恢复短语在任何设备上登录。"
+        "transferDesc": "您的 Pstream 身份是可移植的。使用您的 12 个单词的恢复短语在任何设备上登录。"
     },
     "rows": {
         "trending": "今日热门",
         "topRated": "高分佳作",
-        "netflixOriginals": "P-Stream 原创内容",
+        "netflixOriginals": "Pstream 原创内容",
         "action": "动作片",
         "comedy": "喜剧片",
         "horror": "恐怖片",
