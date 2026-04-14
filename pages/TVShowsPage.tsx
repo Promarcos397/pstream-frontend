@@ -52,7 +52,8 @@ const TVShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime }) =
 
       <HeroCarousel key="tv" onSelect={onSelectMovie} onPlay={onPlay} fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV} seekTime={seekTime} pageType="tv" />
 
-      <main className="relative z-10 pb-12 -mt-12 sm:-mt-20 md:-mt-28 space-y-4 md:space-y-6">
+      {/* THEME_TOGGLE: ROW_POSITION - Adjust negative margin to move rows up/down relative to Hero */}
+      <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6">
         {!selectedGenre ? (
           <>
             <Row title="Netflix Originals" fetchUrl={REQUESTS.fetchNetflixOriginals} onSelect={onSelectMovie} />

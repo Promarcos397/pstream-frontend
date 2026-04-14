@@ -352,7 +352,9 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         trailerVideoId={trailerQueue[0]} hasVideoEnded={hasVideoEnded}
       />
       {/* Mute + Age Rating — row-aligned with the Play/More Info buttons */}
-      <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto bottom-[22%] sm:bottom-[18%] md:bottom-[14%]"
+      <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
+        /* THEME_TOGGLE: HERO_CONTROLS_POSITION - Adjust bottom to move Mute/Age up or down */
+        bottom-[25%] sm:bottom-[21%] md:bottom-[17%]"
       >
         {showVideo && isVideoReady && (
           <button 

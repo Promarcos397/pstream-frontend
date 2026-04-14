@@ -67,20 +67,21 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     return (
         <div className="relative z-30 flex items-center justify-between px-6 md:px-14 lg:px-16 pt-2 pb-3 select-none">
             {/* Left side: Title + Genres dropdown */}
-            <div className="flex items-center gap-3 md:gap-6" ref={containerRef}>
+            <div className={`flex items-center ${selectedGenre ? 'gap-2 md:gap-6' : 'gap-4 md:gap-6'}`} ref={containerRef}>
 
                 {/* Dynamic Title / Breadcrumb */}
-                <h1 className="text-xl md:text-3xl lg:text-4xl font-bold text-white flex items-center">
+                <h1 className={`font-bold text-white flex items-center transition-all duration-300 
+                    ${selectedGenre ? 'text-lg md:text-3xl' : 'text-xl md:text-3xl lg:text-4xl'}`}>
                     {selectedGenre ? (
                         <>
                             <span
                                 onClick={() => handleGenreClick(null)}
-                                className="cursor-pointer hover:underline text-[#e5e5e5] transition-colors"
+                                className="cursor-pointer hover:underline text-[#e5e5e5] transition-colors truncate max-w-[80px] sm:max-w-[120px] md:max-w-none"
                             >
                                 {title}
                             </span>
-                            <span className="text-[#808080] font-normal text-xl md:text-2xl mx-3">&gt;</span>
-                            <span className="truncate max-w-[120px] md:max-w-none">{selectedGenre.name}</span>
+                            <span className="text-[#808080] font-normal text-lg md:text-2xl mx-1.5 md:mx-3">&gt;</span>
+                            <span className="truncate max-w-[100px] sm:max-w-[180px] md:max-w-none">{selectedGenre.name}</span>
                         </>
                     ) : (
                         <span>{title}</span>
@@ -100,19 +101,21 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                         aria-haspopup="listbox"
                         aria-expanded={genreMenuOpen}
                     >
-                        {selectedGenre ? selectedGenre.name : 'Genres'}
+                        {selectedGenre ? (
+                            <span className="max-w-[80px] truncate">{selectedGenre.name}</span>
+                        ) : 'Genres'}
                         <CaretDownIcon
                             size={10}
                             weight="bold"
-                            className={`text-white/70 transition-transform duration-200 ${genreMenuOpen ? 'rotate-180' : ''}`}
+                            className={`text-white/70 transition-transform duration-200 shrink-0 ${genreMenuOpen ? 'rotate-180' : ''}`}
                         />
                     </button>
 
                     {/* Dropdown Panel */}
                     <div
-                        className={`absolute top-full left-0 mt-1 z-50 transition-all duration-200 ${
-                            genreMenuOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-1 pointer-events-none'
-                        }`}
+                        className={`absolute top-full left-0 md:left-0 mt-1 z-50 transition-all duration-200 
+                            ${selectedGenre ? '-translate-x-12 md:translate-x-0' : 'translate-x-0'}
+                            ${genreMenuOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-1 pointer-events-none'}`}
                         onMouseEnter={openMenu}
                         onMouseLeave={scheduleClose}
                         role="listbox"

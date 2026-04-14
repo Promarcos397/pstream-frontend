@@ -46,7 +46,9 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 
     return (
         <div className={`absolute top-0 left-0 w-full h-full flex flex-col justify-end z-20 
-          pl-[calc(1.5rem+env(safe-area-inset-left))] md:pl-14 lg:pl-16 pr-4 md:pr-12 pointer-events-none pb-[22%] sm:pb-[18%] md:pb-[14%]`}
+          pl-[calc(1.5rem+env(safe-area-inset-left))] md:pl-14 lg:pl-16 pr-4 md:pr-12 pointer-events-none 
+          /* THEME_TOGGLE: HERO_CTA_POSITION - Adjust pb to move Play/Info buttons up or down */
+          pb-[18%] sm:pb-[14%] md:pb-[10%]`}
         >
             <div className="max-w-[95%] sm:max-w-lg md:max-w-xl lg:max-w-2xl space-y-4 md:space-y-4 pointer-events-auto">
 
