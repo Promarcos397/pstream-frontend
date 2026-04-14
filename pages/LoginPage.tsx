@@ -119,7 +119,7 @@ const LoginPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                     <img 
                         src={logo} 
-                        alt="P-Stream" 
+                        alt="Pstream" 
                         onClick={() => navigate('/')}
                         className="h-4 sm:h-5 md:h-6 lg:h-7 cursor-pointer drop-shadow-md transition-transform hover:scale-105" 
                     />
@@ -173,7 +173,7 @@ const LoginPage: React.FC = () => {
                                 {t('auth.createTitle', { defaultValue: 'Create Account' })}
                             </h1>
                             <p className="text-white/50 text-sm">
-                                {t('auth.createSubtitle', { defaultValue: 'Enter your name to generate your unique P-Stream recovery key.' })}
+                                {t('auth.createSubtitle', { defaultValue: 'Enter your name to generate your unique Pstream recovery key.' })}
                             </p>
                         </div>
 

@@ -14,7 +14,7 @@
         "searchTitle": "検索: {{query}}",
         "manageProfiles": "プロフィールの管理",
         "accountSettings": "アカウント / 設定",
-        "signOut": "P-Streamからログアウト",
+        "signOut": "Pstreamからログアウト",
         "signIn": "ログイン"
     },
     "hero": {

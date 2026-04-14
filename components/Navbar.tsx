@@ -59,7 +59,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
         <div className="flex items-center space-x-4 md:space-x-8">
           <img
             src={pstreamLogo}
-            alt="P-Stream"
+            alt="Pstream"
             className={`h-4 sm:h-5 md:h-6 lg:h-7 cursor-pointer drop-shadow-md transition-transform hover:scale-105 relative z-10 ${isSettings ? 'brightness-100' : ''}`}
             onClick={() => handleTabClick('home')}
           />
@@ -167,7 +167,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
             </button>
           )}
           <div className="pt-10">
-             <img src={pstreamLogo} alt="P-Stream" className="h-7 opacity-40" />
+             <img src={pstreamLogo} alt="Pstream" className="h-7 opacity-40" />
           </div>
         </div>
       )}

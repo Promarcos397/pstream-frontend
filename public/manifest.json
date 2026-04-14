@@ -1,6 +1,6 @@
 {
-  "name": "P-Stream",
-  "short_name": "P-Stream",
+  "name": "Pstream",
+  "short_name": "Pstream",
   "description": "Stream movies and TV series — your personal cinema.",
   "start_url": "/",
   "display": "standalone",

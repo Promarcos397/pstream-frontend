@@ -14,7 +14,7 @@
         "searchTitle": "Search: {{query}}",
         "manageProfiles": "Manage Profiles",
         "accountSettings": "Account / Settings",
-        "signOut": "Sign out of P-Stream",
+        "signOut": "Sign out of Pstream",
         "signIn": "Sign In"
     },
     "hero": {
@@ -92,7 +92,7 @@
         "transferButton": "Start Profile Transfer",
         "transferOther": "Transfer another profile",
         "transferMoreInfo": "More info",
-        "transferDesc": "Your p-stream identity is portable. Use your 12-word recovery phrase to sign in on any device and your profile will follow you automatically."
+        "transferDesc": "Your Pstream identity is portable. Use your 12-word recovery phrase to sign in on any device and your profile will follow you automatically."
     },
     "rows": {
         "trending": "Trending Now",
