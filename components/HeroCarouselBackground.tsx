@@ -77,9 +77,11 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                             className="w-full h-full"
                             onReady={(e) => {
                                 playerRef.current = e.target;
-                                // Sync sound state with global profile to avoid "Ghost Mutes"
-                                if (isMuted) e.target.mute();
-                                else e.target.unMute();
+                                
+                                // FORCE MUTE FIRST: This is critical for browser autoplay bypass
+                                try {
+                                    e.target.mute(); 
+                                } catch (err) {}
 
                                 // Sync check: Resume from last known position (Bidirectional Sync)
                                 const syncTime = onSyncCheck?.(trailerQueue[0]);
@@ -102,6 +104,11 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                 setIsVideoReady(true);
                             }}
                             onStateChange={(e) => {
+                                // Watchdog: Trigger play if player is stuck in "Cued" or "Unstarted"
+                                if (e.data === 5 || e.data === -1) {
+                                    try { e.target.playVideo(); } catch(err) {}
+                                }
+
                                 // Save playback time whenever player pauses or stays steady 
                                 try {
                                     const time = e.target.getCurrentTime();
@@ -145,6 +152,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                     widget_referrer: window.location.origin,
                                     vq: youtubeQuality,
                                     start: 5,
+                                    playsinline: 1,
                                 }
                             }}
                         />

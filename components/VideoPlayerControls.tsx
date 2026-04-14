@@ -405,7 +405,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup;
 
     // Bigger icons per your request
-    const ICON_SIZE = isMobile ? 25 : 46    ;
+    const ICON_SIZE = isMobile ? 28 : 32    ;
 
     // ── Hover extends UI timeout ──────────────────────────────────────────────
     const resetInactivity = useCallback(() => {
