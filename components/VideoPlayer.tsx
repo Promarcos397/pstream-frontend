@@ -73,6 +73,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [isMuted, setIsMuted] = useState(false);
     const [showUI, setShowUI] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('Finding stream...');
     const [streamUrl, setStreamUrl] = useState<string | null>(null);
     const [streamReferer, setStreamReferer] = useState<string | null>(null);
@@ -128,8 +129,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useTouchGestures(containerRef, {
         onDoubleTapLeft: () => { if (videoRef.current) videoRef.current.currentTime -= 10; },
         onDoubleTapRight: () => { if (videoRef.current) videoRef.current.currentTime += 10; },
-        onDoubleTapCenter: () => { videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause(); },
-        onSingleTap: () => { setShowUI(v => !v); },
+        onSingleTap: () => { 
+            // Only toggle HUD if no panel is active. If a panel is active, we might want it to stay.
+            // But user said: "When you click, it just reveals the video controls, and when you click again, it hides them."
+            setShowUI(v => !v); 
+        },
     });
 
     // ─── Compute next episode / season ─────────────────────────────────────────
@@ -232,40 +236,76 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         applyStreamResult([allSources[index]], captions);
     }, [allSources, applyStreamResult, captions]);
 
-    // ─── Play next episode ──────────────────────────────────────────────────────
-    const handleNextEpisode = useCallback(async () => {
-        if (!nextEpisodeInfo) return;
-        const { episode: nextEp, season: nextSeason } = nextEpisodeInfo;
-
+    // ─── Episode Selection ──────────────────────────────────────────────────
+    const handleEpisodeSelect = useCallback(async (ep: Episode, seasonNum?: number, episodes?: Episode[]) => {
         setStreamUrl(null);
         setIsBuffering(true);
         setActivePanel('none');
+        if (seasonNum) setPlayingSeasonNumber(seasonNum);
+        if (episodes) setCurrentSeasonEpisodes(episodes);
+        setCurrentEpisode(ep.episode_number);
+        // Progress will be saved automatically via timeUpdate useEffect
+    }, []);
 
-        // If we need to load a new season's episodes first
-        if (nextSeason !== playingSeasonNumber) {
-            try {
-                const seasonData = await getSeasonDetails(String(movie.id), nextSeason);
-                if (seasonData?.episodes) {
-                    setCurrentSeasonEpisodes(seasonData.episodes);
-                    const firstEp = seasonData.episodes[0];
-                    setPlayingSeasonNumber(nextSeason);
-                    setCurrentEpisode(firstEp?.episode_number ?? 1);
-                }
-            } catch (e) {
-                setPlayingSeasonNumber(nextSeason);
-                setCurrentEpisode(1);
-            }
-        } else {
-            setPlayingSeasonNumber(nextSeason);
-            setCurrentEpisode(nextEp.episode_number);
+    const handleNextEpisode = useCallback(() => {
+        if (nextEpisodeInfo) {
+            handleEpisodeSelect(nextEpisodeInfo.episode);
         }
-    }, [nextEpisodeInfo, playingSeasonNumber, movie.id]);
+    }, [nextEpisodeInfo, handleEpisodeSelect]);
+
+    // ─── 99.7% Auto Next Episode ───────────────────────────────────────────────
+    useEffect(() => {
+        if (mediaType === 'tv' && nextEpisodeInfo && progress >= 99.7) {
+            handleNextEpisode();
+        }
+    }, [progress, mediaType, nextEpisodeInfo, handleNextEpisode]);
 
     // ─── Track episode/season prop changes ─────────────────────────────────────
     useEffect(() => {
         if (season !== playingSeasonNumber) setPlayingSeasonNumber(season);
         if (episode !== currentEpisode) setCurrentEpisode(episode);
     }, [season, episode]);
+
+    // ─── Media Session API (Android/iOS/PC Lock Screen Metadata) ──────────────────
+    useEffect(() => {
+        if ('mediaSession' in navigator) {
+            const displayTitle = mediaType === 'tv' 
+                ? `${movie.name || movie.title} S${playingSeasonNumber} E${currentEpisode}`
+                : (movie.title || movie.name || '');
+            
+            const artwork = [
+                { src: movie.backdrop_path ? `https://image.tmdb.org/t/p/w300${movie.backdrop_path}` : '', sizes: '300x169', type: 'image/jpeg' },
+                { src: movie.backdrop_path ? `https://image.tmdb.org/t/p/w780${movie.backdrop_path}` : '', sizes: '780x439', type: 'image/jpeg' },
+                { src: movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : '', sizes: '1280x720', type: 'image/jpeg' }
+            ].filter(a => a.src);
+
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: displayTitle,
+                artist: 'Pstream',
+                album: mediaType === 'tv' ? (currentEpisodeName || `Episode ${currentEpisode}`) : 'Movie',
+                artwork: artwork
+            });
+
+            // Action Handlers
+            navigator.mediaSession.setActionHandler('play', () => videoRef.current?.play());
+            navigator.mediaSession.setActionHandler('pause', () => videoRef.current?.pause());
+            navigator.mediaSession.setActionHandler('seekbackward', () => { if (videoRef.current) videoRef.current.currentTime -= 10; });
+            navigator.mediaSession.setActionHandler('seekforward', () => { if (videoRef.current) videoRef.current.currentTime += 10; });
+            
+            if (mediaType === 'tv') {
+                navigator.mediaSession.setActionHandler('previoustrack', () => {
+                    const idx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
+                    if (idx > 0) handleEpisodeSelect(currentSeasonEpisodes[idx-1]);
+                });
+                navigator.mediaSession.setActionHandler('nexttrack', () => {
+                   if (nextEpisodeInfo) handleNextEpisode();
+                });
+            }
+
+            // Sync playback state
+            navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+        }
+    }, [isPlaying, currentEpisode, playingSeasonNumber, movie, mediaType, currentEpisodeName, currentSeasonEpisodes, handleEpisodeSelect, handleNextEpisode, nextEpisodeInfo]);
 
     // ─── Keyboard shortcuts ─────────────────────────────────────────────────────
     useEffect(() => {
@@ -562,14 +602,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, skipSegments, addToHistory, updateEpisodeProgress, updateVideoState]);
 
-    const handleEpisodeSelect = useCallback((ep: Episode, seasonNum?: number, episodes?: Episode[]) => {
-        setStreamUrl(null);
-        setIsBuffering(true);
-        setPlayingSeasonNumber(seasonNum || ep.season_number || playingSeasonNumber);
-        if (episodes) setCurrentSeasonEpisodes(episodes);
-        setCurrentEpisode(ep.episode_number);
-        setActivePanel('none');
-    }, [playingSeasonNumber]);
+    // Subtitle management below...
 
     // ─── Custom Subtitle Cue Engine ───────────────────────────────────────────────
     // We parse the VTT file directly and drive currentCueText via a polling ref.
@@ -681,43 +714,59 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const toggleFullscreen = useCallback(() => {
         const el = containerRef.current as any;
         const doc = document as any;
-        if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+
+        // On iPhone (where requestFullscreen on DIV often fails), we use Pseudo-Fullscreen
+        const isIPhone = /iPhone/i.test(navigator.userAgent);
+        
+        if (isFullscreen || isPseudoFullscreen) {
             if (doc.exitFullscreen) doc.exitFullscreen();
             else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+            else if (doc.msExitFullscreen) doc.msExitFullscreen();
+            
             setIsFullscreen(false);
-            // Unlock orientation on exit
+            setIsPseudoFullscreen(false);
             try { (screen.orientation as any)?.unlock?.(); } catch (e) {}
         } else {
             if (el?.requestFullscreen) {
                 el.requestFullscreen().then(() => {
-                    if ((screen.orientation as any)?.lock) {
-                        (screen.orientation as any).lock('landscape').catch(() => {});
-                    }
+                    if ((screen.orientation as any)?.lock) (screen.orientation as any).lock('landscape').catch(() => {});
                 }).catch(() => {});
-            } else if (el?.webkitRequestFullscreen) el.webkitRequestFullscreen();
-            else if (el?.webkitEnterFullscreen) el.webkitEnterFullscreen();
+            } else if (el?.webkitRequestFullscreen) {
+                el.webkitRequestFullscreen();
+            } else if (isIPhone) {
+                // iPhone Fallback: Use Fixed position "Pseudo-Fullscreen" to keep our UI
+                setIsPseudoFullscreen(true);
+            } else if ((videoRef.current as any)?.webkitEnterFullscreen) {
+                // Last resort: native video fullscreen
+                (videoRef.current as any).webkitEnterFullscreen();
+            }
             setIsFullscreen(true);
         }
-    }, []);
+    }, [isFullscreen, isPseudoFullscreen]);
 
     // ─── Track fullscreen state changes from browser ──────────────────────────────
     useEffect(() => {
-        const onFsChange = () => {
+        const handleFsChange = () => {
             const doc = document as any;
-            setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement));
+            setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement));
         };
-        document.addEventListener('fullscreenchange', onFsChange);
-        document.addEventListener('webkitfullscreenchange', onFsChange);
+        document.addEventListener('fullscreenchange', handleFsChange);
+        document.addEventListener('webkitfullscreenchange', handleFsChange);
+        document.addEventListener('mozfullscreenchange', handleFsChange);
+        document.addEventListener('MSFullscreenChange', handleFsChange);
         return () => {
-            document.removeEventListener('fullscreenchange', onFsChange);
-            document.removeEventListener('webkitfullscreenchange', onFsChange);
+            document.removeEventListener('fullscreenchange', handleFsChange);
+            document.removeEventListener('webkitfullscreenchange', handleFsChange);
+            document.removeEventListener('mozfullscreenchange', handleFsChange);
+            document.removeEventListener('MSFullscreenChange', handleFsChange);
         };
     }, []);
 
     return (
         <div
             ref={containerRef}
-            className="fixed inset-0 bg-black z-[100] flex flex-col font-sans select-none overflow-hidden"
+            className={`fixed z-[100] flex flex-col font-sans select-none overflow-hidden bg-black ${isPseudoFullscreen ? 'inset-0' : (isFullscreen ? '' : 'inset-0')}`}
+            style={isPseudoFullscreen ? { position: 'fixed', zIndex: 9999 } : {}}
             onMouseMove={showControls}
             onTouchStart={showControls}
             // Double-click on the video container = toggle fullscreen (desktop)
@@ -748,11 +797,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 <div
                     className="subtitle-overlay"
                     style={{
-                        bottom: showUI ? '7rem' : '2.5rem',
+                        bottom: showUI ? (isMobile ? '8rem' : '7rem') : '2.5rem',
                         fontFamily: settings.subtitleFontFamily || "'Consolas', monospace",
-                        fontSize: settings.subtitleSize === 'small' ? 'clamp(12px, 1.6vw, 17px)' :
-                                  settings.subtitleSize === 'large' ? 'clamp(18px, 2.8vw, 28px)' :
-                                  'clamp(14px, 2.2vw, 22px)',
+                        fontSize: isMobile 
+                            ? (settings.subtitleSize === 'small' ? '14px' : settings.subtitleSize === 'large' ? '22px' : '18px')
+                            : (settings.subtitleSize === 'small' ? 'clamp(14px, 1.8vw, 18px)' :
+                               settings.subtitleSize === 'large' ? 'clamp(22px, 3.2vw, 32px)' :
+                               'clamp(18px, 2.5vw, 26px)'),
                     }}
                 >
                     <span

@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
+const commonPanelCls = "bg-[#262626] border-2 border-white shadow-[0px_15px_40px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-fadeIn fixed z-[120] bottom-5 md:bottom-24 right-5";
+
 // ─── Shared: compact panel wrapper ────────────────────────────────────────────
 export const PanelShell: React.FC<{
     title: string;
@@ -35,21 +37,22 @@ export const PanelShell: React.FC<{
     if (isMobile) {
         return (
             <div
-                className="fixed inset-0 z-[120] flex flex-col justify-end"
+                className="fixed inset-0 z-[120] pointer-events-auto"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
                 onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             >
                 <div
-                    className="bg-[#1c1c1c] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden animate-slideIn"
-                    style={{ maxHeight: '58vh' }}
+                    className={`${commonPanelCls} ${desktopClass || 'w-[90vw] max-w-[550px] h-[480px]'} pointer-events-auto`}
+                    style={{ borderRadius: 0, bottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 flex-shrink-0">
-                        <span className="text-white text-base font-bold uppercase tracking-widest">{title}</span>
+                    <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 flex-shrink-0">
+                        <span className="text-white text-xl font-bold tracking-wide uppercase">{title}</span>
                         <button
                             onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
-                            className="p-2 -mr-2 text-white/70 active:text-white rounded-full active:bg-white/10"
+                            className="w-10 h-10 flex items-center justify-center text-white/50 active:text-white"
                         >
-                            <XIcon size={22} weight="bold" />
+                            <XIcon size={20} weight="bold" />
                         </button>
                     </div>
                     <div className="overflow-y-auto flex-1 scrollbar-none">{children}</div>
@@ -61,9 +64,8 @@ export const PanelShell: React.FC<{
     return (
         <div
             id="video-panel-shell"
-            className={`absolute z-[120] bg-[#262626] rounded-none border-2 border-white shadow-[0px_20px_50px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden animate-fadeIn font-sans ${desktopClass || 'bottom-16 right-0 w-[340px] lg:w-[480px] max-h-[70vh]'}`}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
+            className={`${commonPanelCls} ${desktopClass || 'w-[550px] h-[480px]'}`}
+            style={{ borderRadius: 0 }}
         >
             {showHeader && (
                  <div className="flex items-center px-8 py-6 border-b-2 border-white bg-[#262626] flex-shrink-0">
@@ -107,60 +109,70 @@ export const AudioSubPanel: React.FC<{
         });
     }, [captions]);
 
-    const rowCls = `flex items-center px-4 ${isMobile ? 'py-4' : 'py-2.5'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition rounded select-none`;
+    const rowCls = `flex items-center px-6 ${isMobile ? 'py-3' : 'py-3'} cursor-pointer hover:text-white transition-colors duration-150 select-none group`;
 
     const renderAudioColumn = () => (
-        <div className="flex flex-col flex-1 border-r border-white/10 min-w-[200px] h-full">
-            <div className={`text-white font-bold mb-6 ${isMobile ? 'px-4 py-3 text-xs uppercase tracking-widest border-b border-white/5 opacity-50' : 'px-8 py-0 text-[22px]'}`}>
+        <div className="flex flex-col flex-1 border-r border-white/10 min-w-[200px] h-full py-6">
+            <div className="text-white font-bold mb-6 px-8 text-[22px]">
                 Audio
             </div>
-            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-[#555] scrollbar-track-transparent">
+            <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
                 {audioTracks.map((track) => (
-                    <div key={track.id} className={rowCls} onClick={() => onAudioChange(track.id)}>
+                    <li 
+                        key={track.id} 
+                        className={`${rowCls} ${currentAudioTrack === track.id ? 'text-white' : 'text-[#b3b3b3]'}`} 
+                        onClick={(e) => { e.stopPropagation(); onAudioChange(track.id); }}
+                    >
                         <div className="w-8 flex-shrink-0 flex justify-center">
-                            {currentAudioTrack === track.id && <CheckIcon size={20} weight="bold" className="text-white" />}
+                            {currentAudioTrack === track.id && <span className="text-white font-light text-lg">✓</span>}
                         </div>
-                        <span className={`text-base truncate transition-colors ${currentAudioTrack === track.id ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>
-                            {track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}
-                        </span>
-                    </div>
+                        <span className="text-base truncate">{track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}</span>
+                    </li>
                 ))}
-            </div>
+            </ul>
         </div>
     );
 
     const renderSubtitleColumn = () => (
-        <div className="flex flex-col flex-1 min-w-[200px] h-full">
-             <div className={`text-white font-bold mb-6 ${isMobile ? 'px-4 py-3 text-xs uppercase tracking-widest border-b border-white/5 opacity-50' : 'px-8 py-0 text-[22px]'}`}>
+        <div className="flex flex-col flex-1 min-w-[200px] h-full py-6">
+             <div className="text-white font-bold mb-6 px-8 text-[22px]">
                 Subtitles
              </div>
-             <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-[#555] scrollbar-track-transparent">
-                <div className={rowCls} onClick={() => onSubtitleChange(null)}>
+             <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
+                <li 
+                    className={`${rowCls} ${currentCaption === null ? 'text-white' : 'text-[#b3b3b3]'}`} 
+                    onClick={(e) => { e.stopPropagation(); onSubtitleChange(null); }}
+                >
                     <div className="w-8 flex-shrink-0 flex justify-center">
-                        {currentCaption === null && <CheckIcon size={20} weight="bold" className="text-white" />}
+                        {currentCaption === null && <span className="text-white font-light text-lg">✓</span>}
                     </div>
-                    <span className={`text-base transition-colors ${currentCaption === null ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>{t('player.off')}</span>
-                </div>
+                    <span className="text-base">{t('player.off')}</span>
+                </li>
 
                 {groupedCaptions.map(([langKey, caps]) => {
                     const isMulti = caps.length > 1;
                     const hasActiveChild = caps.some(c => c.url === currentCaption);
                     return (
-                        <div key={langKey} className={`${rowCls} justify-between`} onClick={() => {
-                            if (isMulti) { setActiveLangGroup(langKey); }
-                            else { onSubtitleChange(caps[0].url); }
-                        }}>
+                        <li 
+                            key={langKey} 
+                            className={`${rowCls} justify-between ${hasActiveChild ? 'text-white' : 'text-[#b3b3b3]'}`} 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (isMulti) { setActiveLangGroup(langKey); }
+                                else { onSubtitleChange(caps[0].url); }
+                            }}
+                        >
                             <div className="flex items-center overflow-hidden">
                                 <div className="w-8 flex-shrink-0 flex justify-center">
-                                    {hasActiveChild && <CheckIcon size={20} weight="bold" className="text-white" />}
+                                    {hasActiveChild && <span className="text-white font-light text-lg">✓</span>}
                                 </div>
-                                <span className={`text-base truncate transition-colors ${hasActiveChild ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>{caps[0].label}</span>
+                                <span className="text-base truncate">{caps[0].label}</span>
                             </div>
-                            {isMulti && <CaretRightIcon size={14} weight="bold" className="text-white/40 ml-2 flex-shrink-0" />}
-                        </div>
+                            {isMulti && <CaretRightIcon size={14} weight="bold" className="text-[#b3b3b3] group-hover:text-white ml-2 flex-shrink-0" />}
+                        </li>
                     );
                 })}
-             </div>
+             </ul>
         </div>
     );
 
@@ -170,83 +182,37 @@ export const AudioSubPanel: React.FC<{
         const langName = groupCaps[0]?.label ?? activeLangGroup;
 
         return (
-            <div className="flex flex-col w-full py-1">
-                <div onClick={() => setActiveLangGroup(null)} className={`${rowCls} border-b border-white/10 mb-1`}>
+            <div className="flex flex-col w-full py-6">
+                <div onClick={(e) => { e.stopPropagation(); setActiveLangGroup(null); }} className={`${rowCls} border-b border-white/10 mb-2 pb-4`}>
                     <ArrowLeftIcon size={18} weight="bold" className="text-white mr-3 flex-shrink-0" />
-                    <span className="text-white font-bold">{langName}</span>
+                    <span className="text-white font-bold text-xl">{langName}</span>
                 </div>
-                {groupCaps.map((cap, index) => {
-                    const displayLabel = groupCaps.length > 1 ? `${cap.label} (Track ${index + 1})` : cap.label;
-                    return (
-                        <div key={cap.id} className={rowCls} onClick={() => { onSubtitleChange(cap.url); setActiveLangGroup(null); onClose(); }}>
-                            <div className="w-5 mr-3 flex-shrink-0 flex justify-center">
-                                {currentCaption === cap.url && <CheckIcon size={14} weight="bold" className="text-white" />}
-                            </div>
-                            <span className={`text-sm truncate ${currentCaption === cap.url ? 'text-white font-bold' : 'text-white/60'}`}>{displayLabel}</span>
-                        </div>
-                    );
-                })}
+                <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
+                    {groupCaps.map((cap, index) => {
+                        const displayLabel = groupCaps.length > 1 ? `${cap.label} (Track ${index + 1})` : cap.label;
+                        const isSelected = currentCaption === cap.url;
+                        return (
+                            <li 
+                                key={cap.id} 
+                                className={`${rowCls} ${isSelected ? 'text-white' : 'text-[#b3b3b3]'}`} 
+                                onClick={(e) => { e.stopPropagation(); onSubtitleChange(cap.url); setActiveLangGroup(null); onClose(); }}
+                            >
+                                <div className="w-8 flex-shrink-0 flex justify-center">
+                                    {isSelected && <span className="text-white font-light text-lg">✓</span>}
+                                </div>
+                                <span className="text-base truncate">{displayLabel}</span>
+                            </li>
+                        );
+                    })}
+                </ul>
             </div>
         );
     }
 
     return (
-        <div className={`flex ${isMobile ? 'flex-col' : 'flex-row w-full h-full py-6'}`}>
-            {/* Audio column */}
-            <div className="flex flex-col flex-1 border-r border-white/10 min-w-[200px] h-full">
-                <div className={`text-white font-bold mb-6 ${isMobile ? 'px-4 py-3 text-xs uppercase tracking-widest border-b border-white/5 opacity-50' : 'px-8 py-0 text-[22px]'}`}>
-                    Audio
-                </div>
-                <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-[#555] scrollbar-track-transparent">
-                    {audioTracks.length > 0 ? audioTracks.map((track) => (
-                        <div key={track.id} className={rowCls} onClick={() => onAudioChange(track.id)}>
-                            <div className="w-8 flex-shrink-0 flex justify-center">
-                                {currentAudioTrack === track.id && <CheckIcon size={20} weight="bold" className="text-white" />}
-                            </div>
-                            <span className={`text-base truncate transition-colors ${currentAudioTrack === track.id ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>
-                                {track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}
-                            </span>
-                        </div>
-                    )) : (
-                        <div className="px-8 py-4 text-white/30 text-sm italic">No audio tracks available</div>
-                    )}
-                </div>
-            </div>
-            {/* Subtitle column */}
-            <div className="flex flex-col flex-1 min-w-[200px] h-full">
-                <div className={`text-white font-bold mb-6 ${isMobile ? 'px-4 py-3 text-xs uppercase tracking-widest border-b border-white/5 opacity-50' : 'px-8 py-0 text-[22px]'}`}>
-                    Subtitles
-                </div>
-                <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-[#555] scrollbar-track-transparent">
-                    <div className={rowCls} onClick={() => onSubtitleChange(null)}>
-                        <div className="w-8 flex-shrink-0 flex justify-center">
-                            {currentCaption === null && <CheckIcon size={20} weight="bold" className="text-white" />}
-                        </div>
-                        <span className={`text-base transition-colors ${currentCaption === null ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>Off</span>
-                    </div>
-                    {groupedCaptions.length === 0 && (
-                        <div className="px-8 py-4 text-white/30 text-sm italic">No subtitles found</div>
-                    )}
-                    {groupedCaptions.map(([langKey, caps]) => {
-                        const isMulti = caps.length > 1;
-                        const hasActiveChild = caps.some(c => c.url === currentCaption);
-                        return (
-                            <div key={langKey} className={`${rowCls} justify-between`} onClick={() => {
-                                if (isMulti) { setActiveLangGroup(langKey); }
-                                else { onSubtitleChange(caps[0].url); }
-                            }}>
-                                <div className="flex items-center overflow-hidden">
-                                    <div className="w-8 flex-shrink-0 flex justify-center">
-                                        {hasActiveChild && <CheckIcon size={20} weight="bold" className="text-white" />}
-                                    </div>
-                                    <span className={`text-base truncate transition-colors ${hasActiveChild ? 'text-white font-bold' : 'text-[#b3b3b3] hover:text-white'}`}>{caps[0].label}</span>
-                                </div>
-                                {isMulti && <CaretRightIcon size={14} weight="bold" className="text-white/40 ml-2 flex-shrink-0" />}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
+        <div className="flex flex-row w-full h-full">
+            {renderAudioColumn()}
+            {renderSubtitleColumn()}
         </div>
     );
 };
@@ -379,7 +345,16 @@ export const EpisodeExplorer: React.FC<{
                     </div>
                     <div className="overflow-y-auto scroll-list flex-1">
                         {seasonList.map(s => (
-                            <div key={s} onClick={() => { setPreviewSeason(s); onSeasonSelect(s); setActivePanel('episodes'); }} className={`relative px-[70px] py-[25px] text-[22px] font-bold transition-colors cursor-pointer border-2 border-transparent hover:bg-white/5 ${selectedSeason === s ? 'border-white bg-[#262626]' : ''}`}>
+                            <div 
+                                key={s} 
+                                onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setPreviewSeason(s); 
+                                    onSeasonSelect(s); 
+                                    setActivePanel('episodes'); 
+                                }} 
+                                className={`relative px-[70px] py-[25px] text-[22px] font-bold transition-colors cursor-pointer border-2 border-transparent hover:bg-white/5 ${selectedSeason === s ? 'border-white bg-[#262626]' : ''}`}
+                            >
                                 {selectedSeason === s && <CheckIcon size={20} weight="bold" className="absolute left-[25px] top-1/2 -translate-y-1/2 text-white" />}
                                 Season {s}
                             </div>
@@ -391,11 +366,11 @@ export const EpisodeExplorer: React.FC<{
                 <div className="flex flex-col h-full">
                     {/* Clicking the season header goes back to season list */}
                     <div
-                        className="flex items-center gap-3 px-[35px] py-[25px] border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer hover:text-[#b3b3b3] transition-colors"
-                        onClick={() => setActivePanel('seasons')}
+                        className="flex items-center gap-3 px-[40px] py-[30px] border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer text-white transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setActivePanel('seasons'); }}
                         title="Switch season"
                     >
-                        <ArrowLeftIcon size={22} weight="bold" className="text-white/60" />
+                        <ArrowLeftIcon size={24} weight="bold" className="text-white" />
                         <span className="text-[28px] font-bold">Season {previewSeason}</span>
                     </div>
                     <div ref={episodesContainerRef} className="overflow-y-auto scroll-list flex-1">
@@ -413,26 +388,27 @@ export const EpisodeExplorer: React.FC<{
                                 >
                                     <div
                                         className="flex items-center px-[35px] py-[28px] cursor-pointer gap-4"
-                                        onClick={() => handleEpisodeClick(ep)}
+                                        onClick={(e) => { e.stopPropagation(); handleEpisodeClick(ep); }}
                                         title={isExpanded ? `Play ${ep.name}` : `Expand ${ep.name}`}
                                     >
-                                        {/* Episode number */}
-                                        <span className={`text-xl font-bold w-[35px] flex-shrink-0 ${isCurrentlyPlaying ? 'text-[#e50914]' : 'text-white/60'}`}>
+                                         {/* Episode number */}
+                                        <span className={`flex-shrink-0 ${isMobile ? 'text-2xl w-[45px]' : 'text-xl w-[35px]'} font-bold ${isCurrentlyPlaying ? 'text-[#e50914]' : 'text-white/60'}`}>
                                             {ep.episode_number}
                                         </span>
                                         {/* Name */}
-                                        <span className={`text-xl font-bold flex-1 truncate ${isCurrentlyPlaying ? 'text-white' : 'text-white/90'}`}>
+                                        <span className={`font-bold flex-1 truncate ${isMobile ? 'text-xl' : 'text-xl'} ${isCurrentlyPlaying ? 'text-white' : 'text-white/90'}`}>
                                             {ep.name}
                                         </span>
                                         {/* Progress bar */}
                                         {perc > 0 && (
-                                            <div className="w-[80px] h-[3px] bg-white/20 flex-shrink-0 rounded-full overflow-hidden">
-                                                <div className="h-full bg-red-600 rounded-full" style={{ width: `${Math.min(100, perc)}%` }} />
+                                            <div className={`${isMobile ? 'w-[100px] h-1.5' : 'w-[80px] h-[3px]'} bg-white/20 flex-shrink-0 rounded-full overflow-hidden`}>
+                                                <div className="h-full bg-red-500 rounded-full" style={{ width: `${Math.min(100, perc)}%` }} />
                                             </div>
                                         )}
                                         {/* Expand/play caret */}
+                                        {/* Removed the soft background click-to-pause layer here to ensure 'hard buttons' only */}
                                         <CaretRightIcon
-                                            size={16}
+                                            size={isMobile ? 20 : 16}
                                             weight="bold"
                                             className={`flex-shrink-0 transition-transform text-white/40 ${isExpanded ? 'rotate-90' : ''}`}
                                         />
@@ -442,7 +418,7 @@ export const EpisodeExplorer: React.FC<{
                                     {isExpanded && (
                                         <div
                                             className="px-[35px] pb-[28px] flex gap-5 cursor-pointer group/ep-play"
-                                            onClick={() => { onEpisodeSelect(ep); setActivePanel('none'); setExpandedEpisodeId(null); }}
+                                            onClick={(e) => { e.stopPropagation(); onEpisodeSelect(ep); setActivePanel('none'); setExpandedEpisodeId(null); }}
                                             title={`Play ${ep.name}`}
                                         >
                                             {ep.still_path && (
@@ -473,11 +449,15 @@ export const EpisodeExplorer: React.FC<{
 
     if (isMobile) {
         return (
-            <div className="fixed inset-0 z-[120] flex flex-col justify-end" onClick={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}>
-                <div className="bg-[#1c1c1c] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden animate-slideIn" style={{ maxHeight: '65vh' }} onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-                        <span className="text-white text-base font-bold uppercase">{activePanel === 'seasons' ? 'Seasons' : `Season ${previewSeason}`}</span>
-                        <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="p-2 text-white/70"><XIcon size={22} weight="bold" /></button>
+            <div className="fixed inset-0 z-[120] pointer-events-auto" onClick={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}>
+                <div 
+                    className={`${commonPanelCls} ${activePanel === 'audioSubtitles' ? 'w-[550px]' : 'w-[420px]'} h-[480px] pointer-events-auto`} 
+                    style={{ borderRadius: 0 }} 
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex items-center justify-between px-6 py-5 border-b-2 border-white flex-shrink-0">
+                        <span className="text-white text-xl font-bold uppercase">{activePanel === 'seasons' ? 'Seasons' : `Season ${previewSeason}`}</span>
+                        <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="w-10 h-10 flex items-center justify-center text-white active:text-white/50"><XIcon size={20} weight="bold" /></button>
                     </div>
                     <div className="overflow-y-auto flex-1">{innerContent}</div>
                 </div>
@@ -501,9 +481,7 @@ export const EpisodeExplorer: React.FC<{
     return (
         <div
             id="video-panel-shell"
-            className="absolute bottom-16 rounded-none border-2 border-white shadow-2xl z-[120] flex flex-col animate-fadeIn right-0 w-[400px] lg:w-[800px] h-[70vh] bg-[#262626]"
-            onMouseEnter={handlePanelEnter}
-            onMouseLeave={handlePanelLeave}
+            className={`${commonPanelCls} ${activePanel === 'audioSubtitles' ? 'w-[550px]' : (activePanel === 'episodes' || activePanel === 'seasons' ? 'w-[850px]' : 'w-[420px]')} h-[480px] lg:h-[75vh]`}
         >
             {innerContent}
         </div>

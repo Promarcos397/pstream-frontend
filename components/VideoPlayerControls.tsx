@@ -396,8 +396,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const [ppRippleTrigger, setPpRippleTrigger] = useState(0);
     const [seekFlash, setSeekFlash] = useState<{ side: 'left' | 'right'; ts: number } | null>(null);
 
-    const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const nextEpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const subtitleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const episodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -461,37 +459,27 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
         setTimeout(() => setSeekFlash(null), 450);
     };
 
-    // ── Hover popup helpers (hover bridge pattern) ────────────────────────────
-    const openVolume = () => { if (isMobile) return; if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current); setShowVolume(true); };
-    const closeVolume = () => { if (isMobile) return; volumeTimeoutRef.current = setTimeout(() => setShowVolume(false), 700); };
-    const keepVolume = () => { if (isMobile) return; if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current); };
-
-    const openNextEp = () => { if (isMobile || !hasNextEpisode || !nextEpisodeData) return; if (nextEpTimeoutRef.current) clearTimeout(nextEpTimeoutRef.current); setShowNextEpPopup(true); };
-    const closeNextEp = () => { if (isMobile) return; nextEpTimeoutRef.current = setTimeout(() => setShowNextEpPopup(false), 700); };
-    const keepNextEp = () => { if (isMobile) return; if (nextEpTimeoutRef.current) clearTimeout(nextEpTimeoutRef.current); };
-
-    const openSubtitles = () => { 
-        if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); 
-        setActivePanel?.('audioSubtitles'); 
+    // NO HOVER LOGIC - ALL CLICKS ONLY
+    const toggleVolume = () => { setShowVolume(prev => !prev); setShowNextEpPopup(false); setActivePanel?.('none'); };
+    const toggleNextEp = () => { if (!hasNextEpisode || !nextEpisodeData) return; setShowNextEpPopup(prev => !prev); setShowVolume(false); setActivePanel?.('none'); };
+    
+    const toggleSubtitles = () => {
+        if (activePanel === 'audioSubtitles') setActivePanel?.('none');
+        else {
+            setActivePanel?.('audioSubtitles');
+            setShowVolume(false);
+            setShowNextEpPopup(false);
+        }
     };
-    const closeSubtitles = () => { 
-        subtitleTimeoutRef.current = setTimeout(() => {
-            if (!document.getElementById('video-panel-shell')?.matches(':hover')) {
-                setActivePanel?.('none');
-            }
-        }, 800); 
-    };
-    const keepSubtitles = () => { if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current); };
 
-    const openEpisodes = () => { if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); setActivePanel?.('episodes'); };
-    const closeEpisodes = () => { 
-        episodeTimeoutRef.current = setTimeout(() => {
-            if (!document.getElementById('video-panel-shell')?.matches(':hover')) {
-                setActivePanel?.('none');
-            }
-        }, 800); 
+    const toggleEpisodes = () => {
+        if (activePanel === 'episodes' || activePanel === 'seasons') setActivePanel?.('none');
+        else {
+            setActivePanel?.('episodes');
+            setShowVolume(false);
+            setShowNextEpPopup(false);
+        }
     };
-    const keepEpisodes = () => { if (episodeTimeoutRef.current) clearTimeout(episodeTimeoutRef.current); };
 
     // ── Base styles ───────────────────────────────────────────────────────────
     const btn = 'flex items-center justify-center text-white/80 hover:text-white active:text-white/40 transition-all duration-150 active:scale-90 select-none focus:outline-none rounded-sm p-1.5 hover:scale-110';
@@ -507,12 +495,18 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             {/* ── Seek flash ── */}
             {seekFlash && <SeekFlash side={seekFlash.side} seconds={10} />}
 
-            {/* ── Click-to-pause overlay ── */}
-            <div
-                className="absolute inset-0 z-20 cursor-pointer"
-                onClick={handlePlayPause}
-                aria-label={isPlaying ? 'Pause' : 'Play'}
-            />
+            {/* Background layer for dismissal when panels are open */}
+            {isPanelOpen && (
+                <div 
+                    className="absolute inset-0 z-10 cursor-default" 
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setActivePanel?.('none');
+                        setShowVolume(false);
+                        setShowNextEpPopup(false);
+                    }} 
+                />
+            )}
 
             {/* ── TOP: Back + title (mobile) ── */}
             {isMobile && (
@@ -643,18 +637,12 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         <ArrowClockwiseIcon size={ICON_SIZE} />
                                     </button>
 
-                                    {/* Volume — hover to open popup, bridge keeps it open */}
-                                    <div className="relative" onMouseEnter={openVolume} onMouseLeave={closeVolume}>
+                                    {/* Volume — Toggle via Click */}
+                                    <div className="relative">
                                         {showVolume && (
-                                            <div onMouseEnter={keepVolume} onMouseLeave={closeVolume}>
-                                                <VolumePopup volume={volume} isMuted={isMuted} onVolumeChange={onVolumeChange} />
-                                            </div>
+                                            <VolumePopup volume={volume} isMuted={isMuted} onVolumeChange={onVolumeChange} />
                                         )}
-                                        {/* Invisible bridge between button and popup */}
-                                        {showVolume && (
-                                            <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', width: 60, height: 20, zIndex: 99 }} onMouseEnter={keepVolume} />
-                                        )}
-                                        <button onClick={(e) => { e.stopPropagation(); onToggleMute(); }} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
+                                        <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
                                             {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} /> : <SpeakerHighIcon size={ICON_SIZE} />}
                                         </button>
                                     </div>
@@ -674,19 +662,13 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                             {/* Next Episode button with popup */}
                             {isTV && hasNextEpisode && onNextEpisode && (
-                                <div className="relative" onMouseEnter={openNextEp} onMouseLeave={closeNextEp}>
+                                <div className="relative">
                                     {/* Popup */}
                                     {showNextEpPopup && nextEpisodeData && (
-                                        <div onMouseEnter={keepNextEp} onMouseLeave={closeNextEp}>
-                                            <NextEpisodePopup data={nextEpisodeData} onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }} />
-                                        </div>
-                                    )}
-                                    {/* Invisible bridge */}
-                                    {showNextEpPopup && (
-                                        <div style={{ position: 'absolute', bottom: '100%', right: -30, width: 550, height: 20, zIndex:  99}} onMouseEnter={keepNextEp} />
+                                        <NextEpisodePopup data={nextEpisodeData} onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }} />
                                     )}
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); onNextEpisode(); }}
+                                        onClick={(e) => { e.stopPropagation(); toggleNextEp(); }}
                                         className={`${btn} ${showNextEp ? btnActive : ''}`}
                                         aria-label="Next episode"
                                         title="Next Episode (N)"
@@ -698,14 +680,11 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                             {/* Subtitles — hover on desktop */}
                             {onSubtitlesClick && (
-                                <div className="relative" onMouseEnter={openSubtitles} onMouseLeave={closeSubtitles}>
-                                    {/* Invisible bridge between button and panel */}
-                                    <div style={{ position: 'absolute', bottom: '100%', left: -20, right: -20, height: 20, zIndex: 99 }} onMouseEnter={keepSubtitles} />
+                                <div className="relative">
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            if (activePanel === 'audioSubtitles') setActivePanel?.('none');
-                                            else setActivePanel?.('audioSubtitles');
+                                            toggleSubtitles();
                                         }}
                                         className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
                                         aria-label="Subtitles & Audio"
@@ -718,13 +697,11 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                             {/* Episodes — TV only */}
                             {isTV && onEpisodesClick && (
-                                <div className="relative" onMouseEnter={openEpisodes} onMouseLeave={closeEpisodes}>
-                                    <div style={{ position: 'absolute', bottom: '100%', left: -20, right: -20, height: 20, zIndex: 99 }} onMouseEnter={keepEpisodes} />
+                                <div className="relative">
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            if (activePanel === 'episodes' || activePanel === 'seasons') setActivePanel?.('none');
-                                            else setActivePanel?.('episodes');
+                                            toggleEpisodes();
                                         }}
                                         className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
                                         aria-label="Episode Explorer"
