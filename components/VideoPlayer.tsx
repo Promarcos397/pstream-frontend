@@ -82,6 +82,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [isStreamM3U8, setIsStreamM3U8] = useState<boolean>(true);
     const [isEmbed, setIsEmbed] = useState<boolean>(false);
+    // ─── Retry guard: max backend refetches per episode load ────────────────────
+    // Prevents the infinite 403 storm when a CDN IP-blocks the proxy.
+    // After MAX_STREAM_RETRIES total backend re-fetches, show "no sources" error.
+    const MAX_STREAM_RETRIES = 3;
+    const retryCountRef = useRef(0);
     const [retryCount, setRetryCount] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
@@ -92,6 +97,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [browsedSeasonNumber, setBrowsedSeasonNumber] = useState(season);
     const [seasonList, setSeasonList] = useState<number[]>([]);
     const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState<Episode[]>([]);
+
+    // Reset retry counter when episode/movie changes (declared after TV state to avoid hoisting issue)
+    useEffect(() => {
+        retryCountRef.current = 0;
+        setRetryCount(0);
+    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
     // Navigation state
     const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers'>('none');
@@ -628,7 +639,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 requestMobileLandscapeFullscreen(containerRef.current);
             }
         },
-        onTokenExpired: () => setRetryCount(c => c + 1),
+        onTokenExpired: () => {
+            // 403/401: First try cycling to next source in the current source list.
+            // Only fall back to a full backend re-fetch if we've exhausted all sources.
+            const nextIdx = currentSourceIndex + 1;
+            if (allSources[nextIdx]) {
+                console.log(`[VideoPlayer] 🔄 403 on source ${currentSourceIndex} → trying source ${nextIdx}`);
+                handleSourceChange(nextIdx);
+            } else if (retryCountRef.current < MAX_STREAM_RETRIES) {
+                retryCountRef.current += 1;
+                console.log(`[VideoPlayer] 🔁 All sources failed, backend re-fetch #${retryCountRef.current}`);
+                setRetryCount(c => c + 1);
+            } else {
+                console.warn(`[VideoPlayer] ❌ Max retries (${MAX_STREAM_RETRIES}) reached — showing error`);
+                setError('Stream unavailable: all sources are temporarily blocked. Please try again in a minute.');
+                setIsBuffering(false);
+            }
+        },
         onError: (errMsg) => {
             if (currentSourceIndex < allSources.length - 1) {
                 handleSourceChange(currentSourceIndex + 1);

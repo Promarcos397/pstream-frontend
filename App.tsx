@@ -8,6 +8,7 @@ import { prefetchStream } from './services/api';
 import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
 import { HeroEngine } from './services/HeroEngine';
+import { backendWakeService } from './services/BackendWakeService';
 
 
 // Components
@@ -38,6 +39,12 @@ const App: React.FC = () => {
   useEffect(() => {
     (window as any).reactNavigate = navigate;
   }, [navigate]);
+
+  // Wake the HF Space on app mount (prevents 503 storm after free-tier sleep)
+  useEffect(() => {
+    backendWakeService.wake();
+    return () => { /* keepalive continues until page unload */ };
+  }, []);
 
   // Sync search query from URL on mount
   useEffect(() => {
