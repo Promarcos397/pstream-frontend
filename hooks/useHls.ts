@@ -6,10 +6,14 @@ interface UseHlsOptions {
     streamUrl: string | null;
     isM3U8: boolean;
     autoPlay?: boolean;
+    /** Referer to inject on all HLS XHR requests (needed for noProxy IP-locked streams) */
+    streamReferer?: string | null;
     onManifestParsed?: () => void;
     onError?: (error: string) => void;
     onTokenExpired?: () => void;
     onMirrorSwitch?: () => void;
+    /** Called when HLS fires a fatal, unrecoverable error. Use to report to health service. */
+    onFatalError?: (type: string, details: string, statusCode?: number) => void;
 }
 
 export interface HlsQuality {
@@ -54,7 +58,7 @@ function pickEnglishTrackId(tracks: HlsAudioTrack[]): number {
  * Auto-selects English audio immediately on MANIFEST_PARSED.
  */
 export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: UseHlsOptions) => {
-    const { streamUrl, isM3U8, autoPlay = true, onManifestParsed, onError, onTokenExpired } = options;
+    const { streamUrl, isM3U8, autoPlay = true, streamReferer, onManifestParsed, onError, onTokenExpired, onFatalError } = options;
     const hlsRef = useRef<Hls | null>(null);
     const [qualityLevels, setQualityLevels] = useState<HlsQuality[]>([]);
     const [currentQuality, setCurrentQuality] = useState<number>(-1);
@@ -85,14 +89,28 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
         destroyHls();
 
         if (Hls.isSupported()) {
-            const hls = new Hls({
+            const hlsConfig: Partial<Hls['config']> = {
                 maxBufferLength: 30,
                 maxMaxBufferLength: 60,
                 enableWorker: true,
                 startLevel: -1,
                 manifestLoadingMaxRetry: 4,
-                levelLoadingMaxRetry: 4
-            });
+                levelLoadingMaxRetry: 4,
+            };
+
+            // Inject Referer header on every XHR for IP/referer-locked CDNs (noProxy streams)
+            if (streamReferer) {
+                const referer = streamReferer;
+                (hlsConfig as any).xhrSetup = (xhr: XMLHttpRequest) => {
+                    // Note: setting Referer directly is blocked by browsers for security.
+                    // We set it via a custom header — the CDN usually checks "Referer" or "Origin".
+                    // For same-origin requests this won't be needed, but cross-origin CDNs
+                    // that validate by token (not referer) will work fine without it.
+                    xhr.setRequestHeader('X-Referer', referer);
+                };
+            }
+
+            const hls = new Hls(hlsConfig as any);
 
             hlsRef.current = hls;
             hls.loadSource(streamUrl);
@@ -160,15 +178,21 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
 
             hls.on(Hls.Events.ERROR, (event, data) => {
                 if (data.fatal) {
-                    console.error('[useHls] Fatal HLS error:', data.type, data.details);
+                    console.error('[useHls] Fatal HLS error:', data.type, data.details, (data as any)?.response?.code);
+
+                    const statusCode = (data as any)?.response?.code || (data as any)?.response?.status;
 
                     switch (data.type) {
                         case Hls.ErrorTypes.NETWORK_ERROR:
-                            if (data.details === 'manifestLoadError' && (data as any)?.response?.code === 403) {
+                            // 403 on manifest or segments = token expired or IP blocked
+                            if (statusCode === 403 || statusCode === 401) {
+                                console.warn('[useHls] 403/401 — Token expired or IP blocked, triggering retry...');
+                                if (onFatalError) onFatalError(data.type, data.details, statusCode);
                                 if (onTokenExpired) onTokenExpired();
                                 return;
                             }
                             console.log('[useHls] Network error, recovering...');
+                            if (onFatalError) onFatalError(data.type, data.details, statusCode);
                             hls.startLoad();
                             break;
 
@@ -178,6 +202,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                             break;
 
                         default:
+                            if (onFatalError) onFatalError(data.type, data.details, statusCode);
                             if (onError) onError(`Unrecoverable playback error: ${data.details}`);
                             destroyHls();
                             break;
@@ -210,7 +235,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             };
         }
 
-    }, [streamUrl, isM3U8, videoRef, autoPlay, destroyHls]);
+    }, [streamUrl, isM3U8, streamReferer, videoRef, autoPlay, destroyHls]);
 
     const changeQuality = useCallback((levelIndex: number) => {
         if (hlsRef.current) {

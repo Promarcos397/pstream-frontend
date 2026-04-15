@@ -54,7 +54,6 @@ interface VideoPlayerControlsProps {
     showUI: boolean;
     activePanel?: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers';
     setActivePanel?: (panel: any) => void;
-    // For next episode popup data
     nextEpisodeData?: {
         episodeNumber: number;
         name: string;
@@ -74,36 +73,42 @@ const formatRemaining = (currentTime: number, duration: number): string => {
     return `-${m}:${s.toString().padStart(2, '0')}`;
 };
 
-// ─── Volume Popup (matches reference design exactly) ─────────────────────────
-// Design: #262626 bg, no border-radius, 12px track, red fill, red circle thumb above fill
+// ─── Volume Popup ─────────────────────────────────────────────────────────────
+// Desktop: vertical slider · Mobile: horizontal slider (easier to use with thumb)
 const VolumePopup: React.FC<{
     volume: number;
     isMuted: boolean;
+    isMobile: boolean;
     onVolumeChange: (v: number) => void;
-}> = ({ volume, isMuted, onVolumeChange }) => {
+}> = ({ volume, isMuted, isMobile, onVolumeChange }) => {
     const trackRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
-
-    const TRACK_H = 110; // px — matches reference .vol-track-vertical height
-    const THUMB_HALF = 12; // half of 24px thumb
-
     const effective = isMuted ? 0 : volume;
+
+    // ── Desktop: vertical ────────────────────────────────────────────────────
+    const TRACK_H = 110;
+    const THUMB_HALF = 12;
     const fillPct = effective * 100;
-    // Thumb sits above the fill end. Clamp so it stays inside the track.
     const fillPx = Math.round((fillPct / 100) * TRACK_H);
     const thumbBottom = Math.max(THUMB_HALF, Math.min(TRACK_H - THUMB_HALF, fillPx));
 
-    const getVol = (clientY: number) => {
+    const getVolV = (clientY: number) => {
         if (!trackRef.current) return effective;
         const rect = trackRef.current.getBoundingClientRect();
         return 1 - Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
     };
 
+    const getVolH = (clientX: number) => {
+        if (!trackRef.current) return effective;
+        const rect = trackRef.current.getBoundingClientRect();
+        return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    };
+
     useEffect(() => {
         if (!isDragging) return;
         const onMove = (e: MouseEvent | TouchEvent) => {
-            const y = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
-            onVolumeChange(getVol(y));
+            const pt = 'touches' in e ? e.touches[0] : e as MouseEvent;
+            onVolumeChange(isMobile ? getVolH(pt.clientX) : getVolV(pt.clientY));
         };
         const onUp = () => setIsDragging(false);
         window.addEventListener('mousemove', onMove);
@@ -116,8 +121,70 @@ const VolumePopup: React.FC<{
             window.removeEventListener('mouseup', onUp);
             window.removeEventListener('touchend', onUp);
         };
-    }, [isDragging]);
+    }, [isDragging, isMobile]);
 
+    if (isMobile) {
+        // Horizontal volume slider for mobile — easier to use  
+        return (
+            <div
+                style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 180,
+                    height: 50,
+                    backgroundColor: '#262626',
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 16px',
+                    zIndex: 100,
+                    marginBottom: 8,
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div
+                    ref={trackRef}
+                    style={{
+                        flex: 1,
+                        height: 6,
+                        backgroundColor: '#555',
+                        borderRadius: 3,
+                        position: 'relative',
+                        cursor: 'pointer',
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onVolumeChange(getVolH(e.clientX));
+                    }}
+                    onMouseDown={() => setIsDragging(true)}
+                    onTouchStart={() => setIsDragging(true)}
+                >
+                    <div style={{
+                        position: 'absolute', left: 0, top: 0, bottom: 0,
+                        width: `${fillPct}%`,
+                        backgroundColor: '#ff0000',
+                        borderRadius: 3,
+                    }} />
+                    <div style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: `${fillPct}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: 20,
+                        height: 20,
+                        backgroundColor: '#ff0000',
+                        borderRadius: '50%',
+                        cursor: 'grab',
+                    }} />
+                </div>
+            </div>
+        );
+    }
+
+    // Desktop: vertical slider (unchanged behavior)
     return (
         <div
             style={{
@@ -137,7 +204,6 @@ const VolumePopup: React.FC<{
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* Track */}
             <div
                 ref={trackRef}
                 style={{
@@ -147,25 +213,18 @@ const VolumePopup: React.FC<{
                     position: 'relative',
                     cursor: 'pointer',
                 }}
-                onClick={(e) => { e.stopPropagation(); onVolumeChange(getVol(e.clientY)); }}
+                onClick={(e) => { e.stopPropagation(); onVolumeChange(getVolV(e.clientY)); }}
             >
-                {/* Fill */}
                 <div style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    width: '100%',
+                    position: 'absolute', bottom: 0, left: 0, width: '100%',
                     height: `${fillPct}%`,
                     backgroundColor: '#ff0000',
                 }} />
-                {/* Thumb — sits at the top of the fill (reference: top:-8px, left:-6px) */}
                 <div
                     style={{
                         position: 'absolute',
                         bottom: thumbBottom - THUMB_HALF,
-                        left: -6,
-                        width: 24,
-                        height: 24,
+                        left: -6, width: 24, height: 24,
                         backgroundColor: '#ff0000',
                         borderRadius: '50%',
                         cursor: 'grab',
@@ -178,12 +237,12 @@ const VolumePopup: React.FC<{
     );
 };
 
-// ─── Next Episode Popup (matches reference design exactly) ────────────────────
-// Design: 650px wide, dark bg, white heavy border, header bar, thumbnail, title, description
+// ─── Next Episode Popup ───────────────────────────────────────────────────────
 const NextEpisodePopup: React.FC<{
     data: NonNullable<VideoPlayerControlsProps['nextEpisodeData']>;
+    isMobile: boolean;
     onPlay: () => void;
-}> = ({ data, onPlay }) => {
+}> = ({ data, isMobile, onPlay }) => {
     const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w400';
     const imgSrc = data.stillPath ? `${TMDB_IMAGE_BASE}${data.stillPath}` : null;
 
@@ -192,24 +251,26 @@ const NextEpisodePopup: React.FC<{
             style={{
                 position: 'absolute',
                 bottom: '100%',
-                // Right-aligned but pushed slightly out to exactly match user preference
-                right: -30,
-                width: 550,
+                right: isMobile ? 'auto' : -30,
+                left: isMobile ? '50%' : 'auto',
+                transform: isMobile ? 'translateX(-50%)' : 'none',
+                // Responsive width: full-width-minus-padding on mobile, fixed on desktop
+                width: isMobile ? 'calc(100vw - 40px)' : 550,
+                maxWidth: isMobile ? 360 : 550,
                 backgroundColor: '#141414',
                 border: '2px solid #ffffff',
                 boxShadow: '0px 20px 50px rgba(0,0,0,0.9)',
-                borderRadius: 0,
+                borderRadius: isMobile ? 8 : 0,
                 overflow: 'hidden',
                 zIndex: 100,
                 marginBottom: 12,
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* Header */}
             <div style={{
                 backgroundColor: '#262626',
-                padding: '16px 22px',
-                fontSize: 22,
+                padding: isMobile ? '12px 16px' : '16px 22px',
+                fontSize: isMobile ? 16 : 22,
                 fontWeight: 700,
                 borderBottom: '1px solid #000',
                 fontFamily: 'Consolas, monospace',
@@ -217,14 +278,13 @@ const NextEpisodePopup: React.FC<{
                 Next episode
             </div>
 
-            {/* Content */}
-            <div style={{ display: 'flex', padding: 22, gap: 22, alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', padding: isMobile ? 14 : 22, gap: isMobile ? 12 : 22, alignItems: 'flex-start' }}>
                 {/* Thumbnail */}
                 <div
                     style={{
                         position: 'relative',
-                        width: 220,
-                        height: 124,
+                        width: isMobile ? 120 : 220,
+                        height: isMobile ? 68 : 124,
                         flexShrink: 0,
                         backgroundColor: '#333',
                         cursor: 'pointer',
@@ -238,30 +298,26 @@ const NextEpisodePopup: React.FC<{
                     ) : (
                         <div style={{ width: '100%', height: '100%', backgroundColor: '#2a2a2a' }} />
                     )}
-                    {/* Overlay with play icon */}
                     <div style={{
                         position: 'absolute', inset: 0,
                         background: 'rgba(0,0,0,0.2)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'background 0.2s',
                     }}>
-                        <svg viewBox="0 0 24 24" style={{ width: 44, height: 44, fill: 'rgba(255,255,255,0.85)', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))' }}>
+                        <svg viewBox="0 0 24 24" style={{ width: isMobile ? 28 : 44, height: isMobile ? 28 : 44, fill: 'rgba(255,255,255,0.85)', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))' }}>
                             <path d="M8 5v14l11-7z" />
                         </svg>
                     </div>
                 </div>
 
                 {/* Text */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 2, flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 19, fontWeight: 700, fontFamily: 'Consolas, monospace' }}>
-                        <span style={{ marginRight: 14 }}>{data.episodeNumber}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 2, flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', fontSize: isMobile ? 14 : 19, fontWeight: 700, fontFamily: 'Consolas, monospace', gap: 8 }}>
+                        <span>{data.episodeNumber}</span>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.name}</span>
                     </div>
-                    {data.description && (
+                    {data.description && !isMobile && (
                         <div style={{
-                            fontSize: 14,
-                            lineHeight: 1.4,
-                            color: '#ccc',
+                            fontSize: 14, lineHeight: 1.4, color: '#ccc',
                             display: '-webkit-box',
                             WebkitLineClamp: 4,
                             WebkitBoxOrient: 'vertical' as any,
@@ -269,6 +325,23 @@ const NextEpisodePopup: React.FC<{
                         }}>
                             {data.description}
                         </div>
+                    )}
+                    {/* Mobile: play button */}
+                    {isMobile && (
+                        <button onClick={onPlay} style={{
+                            marginTop: 4,
+                            padding: '6px 14px',
+                            backgroundColor: '#e50914',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            alignSelf: 'flex-start',
+                        }}>
+                            Play Now
+                        </button>
                     )}
                 </div>
             </div>
@@ -290,22 +363,15 @@ const PlayPauseRipple: React.FC<{ isPlaying: boolean; trigger: number }> = ({ is
 
     return (
         <div style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 25,
-            pointerEvents: 'none',
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 25, pointerEvents: 'none',
         }}>
             <div style={{
-                width: 80,
-                height: 80,
+                width: 80, height: 80,
                 borderRadius: '50%',
                 backgroundColor: 'rgba(0,0,0,0.45)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 animation: 'pp-ripple 0.55s ease-out forwards',
             }}>
                 {isPlaying
@@ -317,7 +383,7 @@ const PlayPauseRipple: React.FC<{ isPlaying: boolean; trigger: number }> = ({ is
     );
 };
 
-// ─── Title Component ─────────────────────────────────────────────────────────
+// ─── Title Component ──────────────────────────────────────────────────────────
 const PlayerTitle: React.FC<{
     title: string;
     episodeNumber?: number;
@@ -346,28 +412,24 @@ const SeekFlash: React.FC<{ side: 'left' | 'right' | null; seconds: number }> = 
     if (!side) return null;
     return (
         <div style={{
-            position: 'absolute',
-            top: 0, bottom: 0,
+            position: 'absolute', top: 0, bottom: 0,
             [side]: 0,
-            width: '30%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 28,
-            pointerEvents: 'none',
-            backgroundColor: 'rgba(255,255,255,0.08)',
-            borderRadius: side === 'left' ? '0 100px 100px 0' : '100px 0 0 100px',
+            width: '33%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 28, pointerEvents: 'none',
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            borderRadius: side === 'left' ? '0 80px 80px 0' : '80px 0 0 80px',
             animation: 'seek-flash 0.4s ease-out forwards',
         }}>
             <span style={{
                 color: 'white',
                 fontFamily: 'Consolas, monospace',
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 700,
-                opacity: 0.9,
-                textShadow: '0 1px 3px rgba(0,0,0,0.7)',
+                opacity: 0.95,
+                textShadow: '0 1px 4px rgba(0,0,0,0.8)',
             }}>
-                {side === 'left' ? `◀ ${seconds}s` : `${seconds}s ▶`}
+                {side === 'left' ? `◀◀ ${seconds}s` : `${seconds}s ▶▶`}
             </span>
         </div>
     );
@@ -386,7 +448,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 }) => {
     const isMobile = useIsMobile();
     const timelineRef = useRef<HTMLDivElement>(null);
-    const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isHovering, setIsHovering] = useState(false);
     const [hoverPosition, setHoverPosition] = useState(0);
@@ -395,97 +456,112 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const [showNextEpPopup, setShowNextEpPopup] = useState(false);
     const [ppRippleTrigger, setPpRippleTrigger] = useState(0);
     const [seekFlash, setSeekFlash] = useState<{ side: 'left' | 'right'; ts: number } | null>(null);
-
-    const subtitleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const episodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // Track live drag position separately from playback progress for smooth scrubbing
+    const [dragProgress, setDragProgress] = useState(0);
 
     const isTV = mediaType === 'tv';
     const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup;
 
-    // Bigger icons per your request
-    const ICON_SIZE = isMobile ? 28 : 32    ;
+    const ICON_SIZE = isMobile ? 30 : 32;
 
-    // ── Hover extends UI timeout ──────────────────────────────────────────────
-    const resetInactivity = useCallback(() => {
-        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-        // Don't hide if a panel is open or user is hovering
-    }, []);
+    // ── Global touch/mouse drag for timeline scrubbing ─────────────────────
+    // Mirrors legacy useProgressBar — listeners on document so drag works
+    // even when finger moves outside the bar (critical on mobile!)
+    useEffect(() => {
+        if (!isDragging) return;
 
-    // ── Timeline ──────────────────────────────────────────────────────────────
-    const getClientX = (e: React.MouseEvent | React.TouchEvent): number => {
-        if ('touches' in e && e.touches.length > 0) return e.touches[0].clientX;
-        if ('changedTouches' in e && (e as React.TouchEvent).changedTouches.length > 0)
-            return (e as React.TouchEvent).changedTouches[0].clientX;
-        return (e as React.MouseEvent).clientX;
-    };
-
-    const doSeek = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-        if (timelineRef.current) {
+        const onMove = (e: MouseEvent | TouchEvent) => {
+            if (!timelineRef.current) return;
+            const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
             const rect = timelineRef.current.getBoundingClientRect();
-            const x = getClientX(e) - rect.left;
-            const perc = Math.max(0, Math.min(100, (x / rect.width) * 100));
+            const perc = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+            setDragProgress(perc);
+            setHoverPosition(perc);
+            setHoverTime((perc / 100) * duration);
+            // Commit continuously so the video position updates while scrubbing
             onTimelineSeek(perc);
-        }
-    }, [onTimelineSeek]);
+        };
+
+        const onUp = (e: MouseEvent | TouchEvent) => {
+            if (!timelineRef.current) return;
+            const clientX = 'changedTouches' in e
+                ? (e as TouchEvent).changedTouches[0].clientX
+                : (e as MouseEvent).clientX;
+            const rect = timelineRef.current.getBoundingClientRect();
+            const perc = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+            onTimelineSeek(perc);
+            setIsDragging(false);
+        };
+
+        // Prevent page scroll while scrubbing on mobile
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchend', onUp);
+
+        return () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            document.removeEventListener('touchend', onUp);
+        };
+    }, [isDragging, duration, onTimelineSeek]);
 
     const handleTimelineStart = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         e.stopPropagation();
+        if (!timelineRef.current) return;
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const rect = timelineRef.current.getBoundingClientRect();
+        const perc = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+        setDragProgress(perc);
         setIsDragging(true);
-        doSeek(e);
-    }, [doSeek]);
+        onTimelineSeek(perc);
+    }, [onTimelineSeek]);
 
-    const handleTimelineMove = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-        if (timelineRef.current) {
-            const rect = timelineRef.current.getBoundingClientRect();
-            const x = getClientX(e) - rect.left;
-            const perc = Math.max(0, Math.min(100, (x / rect.width) * 100));
-            setHoverPosition(perc);
-            setHoverTime((perc / 100) * duration);
-            if (isDragging) onTimelineSeek(perc);
-        }
-    }, [duration, isDragging, onTimelineSeek]);
+    const handleTimelineHover = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        if (!timelineRef.current) return;
+        const rect = timelineRef.current.getBoundingClientRect();
+        const perc = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+        setHoverPosition(perc);
+        setHoverTime((perc / 100) * duration);
+    }, [duration]);
 
-    const handleTimelineEnd = useCallback(() => setIsDragging(false), []);
-
-    // ── Play/pause with ripple ────────────────────────────────────────────────
     const handlePlayPause = () => {
         onPlayPause();
         setPpRippleTrigger(t => t + 1);
     };
 
-    // ── Seek flash for double-tap feedback ───────────────────────────────────
     const triggerSeekFlash = (side: 'left' | 'right') => {
         setSeekFlash({ side, ts: Date.now() });
         setTimeout(() => setSeekFlash(null), 450);
     };
 
-    // NO HOVER LOGIC - ALL CLICKS ONLY
-    const toggleVolume = () => { setShowVolume(prev => !prev); setShowNextEpPopup(false); setActivePanel?.('none'); };
-    const toggleNextEp = () => { if (!hasNextEpisode || !nextEpisodeData) return; setShowNextEpPopup(prev => !prev); setShowVolume(false); setActivePanel?.('none'); };
-    
+    const toggleVolume = () => { setShowVolume(p => !p); setShowNextEpPopup(false); setActivePanel?.('none'); };
+    const toggleNextEp = () => {
+        if (!hasNextEpisode || !nextEpisodeData) return;
+        setShowNextEpPopup(p => !p); setShowVolume(false); setActivePanel?.('none');
+    };
     const toggleSubtitles = () => {
         if (activePanel === 'audioSubtitles') setActivePanel?.('none');
-        else {
-            setActivePanel?.('audioSubtitles');
-            setShowVolume(false);
-            setShowNextEpPopup(false);
-        }
+        else { setActivePanel?.('audioSubtitles'); setShowVolume(false); setShowNextEpPopup(false); }
     };
-
     const toggleEpisodes = () => {
         if (activePanel === 'episodes' || activePanel === 'seasons') setActivePanel?.('none');
-        else {
-            setActivePanel?.('episodes');
-            setShowVolume(false);
-            setShowNextEpPopup(false);
-        }
+        else { setActivePanel?.('episodes'); setShowVolume(false); setShowNextEpPopup(false); }
     };
 
-    // ── Base styles ───────────────────────────────────────────────────────────
+    // Display progress: use drag position while dragging for instant feedback
+    const displayProgress = isDragging ? dragProgress : progress;
+
     const btn = 'flex items-center justify-center text-white/80 hover:text-white active:text-white/40 transition-all duration-150 active:scale-90 select-none focus:outline-none rounded-sm p-1.5 hover:scale-110';
     const btnActive = 'text-white';
-
     const remaining = formatRemaining(currentTime, duration);
+
+    // ── Safe-area padding for iOS home bar and notch ───────────────────────
+    // Uses CSS env() so it's dynamic and works in both portrait and landscape
+    const safeBottom = 'max(env(safe-area-inset-bottom, 0px), 8px)';
+    const safeLeft = 'env(safe-area-inset-left, 0px)';
+    const safeRight = 'env(safe-area-inset-right, 0px)';
 
     return (
         <>
@@ -497,27 +573,45 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
             {/* Background layer for dismissal when panels are open */}
             {isPanelOpen && (
-                <div 
-                    className="absolute inset-0 z-10 cursor-default" 
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
+                <div
+                    className="absolute inset-0 z-10 cursor-default"
+                    onClick={(e) => {
+                        e.stopPropagation();
                         setActivePanel?.('none');
                         setShowVolume(false);
                         setShowNextEpPopup(false);
-                    }} 
+                    }}
                 />
             )}
 
             {/* ── TOP: Back + title (mobile) ── */}
             {isMobile && (
                 <div
-                    className={`absolute top-0 left-0 right-0 z-40 px-5 pt-5 flex items-center gap-3 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-                    style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)' }}
+                    className={`absolute top-0 left-0 right-0 z-40 flex items-center gap-3 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                    style={{
+                        paddingTop: `max(env(safe-area-inset-top, 0px), 16px)`,
+                        paddingLeft: `max(${safeLeft}, 16px)`,
+                        paddingRight: `max(${safeRight}, 16px)`,
+                        paddingBottom: 16,
+                        background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%)',
+                    }}
                 >
-                    <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white transition-all p-1 flex-shrink-0" aria-label="Close player">
-                        <ArrowLeftIcon size={26} weight="bold" />
+                    {/* Larger back button for better touch target (min 44×44) */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onClose(); }}
+                        className="flex items-center justify-center text-white transition-all flex-shrink-0"
+                        style={{ minWidth: 44, minHeight: 44 }}
+                        aria-label="Close player"
+                    >
+                        <ArrowLeftIcon size={28} weight="bold" />
                     </button>
-                    <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white text-sm line-clamp-1 drop-shadow-md" />
+                    <PlayerTitle
+                        title={title}
+                        episodeNumber={episodeNumber}
+                        episodeName={episodeName}
+                        mediaType={mediaType}
+                        className="text-white text-sm line-clamp-1 drop-shadow-md"
+                    />
                 </div>
             )}
 
@@ -535,46 +629,55 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 id="video-controls-container"
                 className={`absolute inset-x-0 bottom-0 z-30 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                 onClick={(e) => e.stopPropagation()}
-                // Hovering over controls: suspend the auto-hide timer
-                onMouseEnter={() => {
-                    if (typeof resetInactivity === 'function') resetInactivity();
-                }}
+                onMouseEnter={() => setIsHovering(true)}
+                onMouseLeave={() => setIsHovering(false)}
             >
                 <div className="absolute inset-0 bg-gradient-to-t from-black/98 via-black/60 to-transparent pointer-events-none" />
 
-                <div className="relative px-5 md:px-10 pb-5 md:pb-7 pt-8 md:pt-12">
-
-                    {/* ── Progress bar (hidden when panel open) ── */}
-                    <div className={`flex items-center gap-3 mb-5 transition-all duration-200 ${isPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ height: isPanelOpen ? 0 : undefined, marginBottom: isPanelOpen ? 0 : undefined, overflow: isPanelOpen ? 'hidden' : undefined }}>
+                <div
+                    className="relative"
+                    style={{
+                        paddingLeft: `max(${safeLeft}, ${isMobile ? '16px' : '40px'})`,
+                        paddingRight: `max(${safeRight}, ${isMobile ? '16px' : '40px'})`,
+                        paddingTop: isMobile ? 24 : 40,
+                        paddingBottom: `max(${safeBottom}, ${isMobile ? '16px' : '24px'})`,
+                    }}
+                >
+                    {/* ── Progress bar ── */}
+                    <div className={`flex items-center gap-3 transition-all duration-200 ${isPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                        style={{
+                            height: isPanelOpen ? 0 : undefined,
+                            marginBottom: isPanelOpen ? 0 : (isMobile ? 12 : 20),
+                            overflow: isPanelOpen ? 'hidden' : undefined,
+                        }}
+                    >
                         <div
                             ref={timelineRef}
                             className="relative flex-1 cursor-pointer group/timeline"
                             onMouseDown={handleTimelineStart}
-                            onMouseMove={handleTimelineMove}
-                            onMouseUp={handleTimelineEnd}
-                            onMouseLeave={() => { setIsHovering(false); handleTimelineEnd(); }}
+                            onMouseMove={handleTimelineHover}
                             onMouseEnter={() => setIsHovering(true)}
+                            onMouseLeave={() => setIsHovering(false)}
+                            // Touch: start scrub immediately
                             onTouchStart={handleTimelineStart}
-                            onTouchMove={handleTimelineMove}
-                            onTouchEnd={handleTimelineEnd}
+                            // Note: touchmove/touchend handled globally above
                             role="slider"
                             aria-label="Video progress"
                             aria-valuemin={0}
                             aria-valuemax={100}
-                            aria-valuenow={Math.round(progress)}
+                            aria-valuenow={Math.round(displayProgress)}
                             tabIndex={0}
                             onKeyDown={(e) => {
                                 if (e.key === 'ArrowRight') { e.preventDefault(); onTimelineSeek(Math.min(100, progress + 2)); }
                                 if (e.key === 'ArrowLeft') { e.preventDefault(); onTimelineSeek(Math.max(0, progress - 2)); }
                             }}
                         >
-                            {/* Hover tooltip — with Image Preview as requested */}
-                            {!isMobile && isHovering && (
+                            {/* Hover tooltip — desktop only */}
+                            {!isMobile && isHovering && !isDragging && (
                                 <div className="absolute -top-32 -translate-x-1/2 flex flex-col items-center pointer-events-none z-50 animate-fadeIn" style={{ left: `${hoverPosition}%` }}>
                                     <div className="w-[180px] aspect-video bg-zinc-900 rounded-md border border-white/20 shadow-2xl overflow-hidden mb-2 relative">
-                                        {/* Use high-res backdrop for movies, or episode still if available */}
-                                        <img 
-                                            src={nextEpisodeData?.stillPath ? `https://image.tmdb.org/t/p/w300${nextEpisodeData.stillPath}` : (window as any).__video_backdrop} 
+                                        <img
+                                            src={nextEpisodeData?.stillPath ? `https://image.tmdb.org/t/p/w300${nextEpisodeData.stillPath}` : (window as any).__video_backdrop}
                                             alt="Preview"
                                             className="w-full h-full object-cover brightness-75"
                                         />
@@ -589,17 +692,22 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                             const h = Math.floor(t / 3600);
                                             const m = Math.floor((t % 3600) / 60);
                                             const s = Math.floor(t % 60);
-                                            return h > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : `${m}:${s.toString().padStart(2,'0')}`;
+                                            return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
                                         })()}
                                     </div>
                                 </div>
                             )}
-                            {/* Track — 6px tall = thicker progress bar */}
+
+                            {/* Track — bigger touch target on mobile (h-10 = 40px, within 44px rule) */}
                             <div className={`relative w-full flex items-center ${isMobile ? 'h-10' : 'h-8'}`}>
                                 <div className="absolute left-0 w-full h-[6px] bg-white/20 rounded-full" />
                                 <div className="absolute left-0 h-[6px] bg-white/35 rounded-full" style={{ width: `${buffered}%` }} />
-                                <div className="absolute left-0 h-[6px] bg-[#e50914] rounded-full" style={{ width: `${progress}%` }} />
-                                <div className={`absolute h-4 w-4 bg-[#e50914] rounded-full shadow-lg -translate-x-1/2 transition-transform ${isMobile || isDragging ? 'scale-100' : 'scale-0 group-hover/timeline:scale-125'}`} style={{ left: `${progress}%` }} />
+                                <div className="absolute left-0 h-[6px] bg-[#e50914] rounded-full transition-all" style={{ width: `${displayProgress}%` }} />
+                                {/* Thumb — always visible while dragging, scales on mobile */}
+                                <div
+                                    className={`absolute h-5 w-5 bg-[#e50914] rounded-full shadow-lg -translate-x-1/2 transition-transform ${isMobile || isDragging ? 'scale-100' : 'scale-0 group-hover/timeline:scale-125'}`}
+                                    style={{ left: `${displayProgress}%` }}
+                                />
                             </div>
                         </div>
                         {/* Remaining time */}
@@ -610,17 +718,32 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     <div className="flex items-center justify-between relative">
 
                         {/* LEFT GROUP */}
-                        <div className="flex items-center gap-5 md:gap-8">
+                        <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-5 md:gap-8'}`}>
                             {isMobile ? (
                                 <>
-                                    {/* Mobile: seek | play | seek */}
-                                    <button onClick={() => { onSeek(-10); triggerSeekFlash('left'); }} className={btn} aria-label="Rewind 10s">
+                                    {/* Mobile: seek back | play | seek fwd */}
+                                    <button
+                                        onClick={() => { onSeek(-10); triggerSeekFlash('left'); }}
+                                        className={btn}
+                                        style={{ minWidth: 44, minHeight: 44 }}
+                                        aria-label="Rewind 10s"
+                                    >
                                         <ArrowCounterClockwiseIcon size={ICON_SIZE} />
                                     </button>
-                                    <button onClick={handlePlayPause} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                                    <button
+                                        onClick={handlePlayPause}
+                                        className={btn}
+                                        style={{ minWidth: 44, minHeight: 44 }}
+                                        aria-label={isPlaying ? 'Pause' : 'Play'}
+                                    >
                                         {isPlaying ? <PauseIcon size={ICON_SIZE} weight="fill" /> : <PlayIcon size={ICON_SIZE} weight="fill" />}
                                     </button>
-                                    <button onClick={() => { onSeek(10); triggerSeekFlash('right'); }} className={btn} aria-label="Fast-forward 10s">
+                                    <button
+                                        onClick={() => { onSeek(10); triggerSeekFlash('right'); }}
+                                        className={btn}
+                                        style={{ minWidth: 44, minHeight: 44 }}
+                                        aria-label="Fast-forward 10s"
+                                    >
                                         <ArrowClockwiseIcon size={ICON_SIZE} />
                                     </button>
                                 </>
@@ -636,11 +759,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                     <button onClick={() => onSeek(10)} className={btn} aria-label="Fast-forward 10s">
                                         <ArrowClockwiseIcon size={ICON_SIZE} />
                                     </button>
-
-                                    {/* Volume — Toggle via Click */}
+                                    {/* Volume */}
                                     <div className="relative">
                                         {showVolume && (
-                                            <VolumePopup volume={volume} isMuted={isMuted} onVolumeChange={onVolumeChange} />
+                                            <VolumePopup volume={volume} isMuted={isMuted} isMobile={false} onVolumeChange={onVolumeChange} />
                                         )}
                                         <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
                                             {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} /> : <SpeakerHighIcon size={ICON_SIZE} />}
@@ -650,7 +772,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             )}
                         </div>
 
-                        {/* CENTER: Title (desktop only, absolute so it doesn't push groups) */}
+                        {/* CENTER: Title (desktop only) */}
                         {!isMobile && (
                             <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none px-4 text-center" style={{ maxWidth: '46%', bottom: 0 }}>
                                 <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[22px] drop-shadow-lg line-clamp-2" />
@@ -658,35 +780,36 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         )}
 
                         {/* RIGHT GROUP */}
-                        <div className="flex items-center gap-5 md:gap-8">
+                        <div className={`flex items-center ${isMobile ? 'gap-3' : 'gap-5 md:gap-8'}`}>
 
-                            {/* Next Episode button with popup */}
+                            {/* Next Episode */}
                             {isTV && hasNextEpisode && onNextEpisode && (
                                 <div className="relative">
-                                    {/* Popup */}
                                     {showNextEpPopup && nextEpisodeData && (
-                                        <NextEpisodePopup data={nextEpisodeData} onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }} />
+                                        <NextEpisodePopup
+                                            data={nextEpisodeData}
+                                            isMobile={isMobile}
+                                            onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }}
+                                        />
                                     )}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleNextEp(); }}
                                         className={`${btn} ${showNextEp ? btnActive : ''}`}
+                                        style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                                         aria-label="Next episode"
-                                        title="Next Episode (N)"
                                     >
                                         <SkipForwardIcon size={ICON_SIZE} weight={showNextEp ? 'fill' : 'regular'} />
                                     </button>
                                 </div>
                             )}
 
-                            {/* Subtitles — hover on desktop */}
+                            {/* Subtitles & Audio */}
                             {onSubtitlesClick && (
                                 <div className="relative">
                                     <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleSubtitles();
-                                        }}
+                                        onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
                                         className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
+                                        style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                                         aria-label="Subtitles & Audio"
                                         title="Subtitles (S)"
                                     >
@@ -699,13 +822,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             {isTV && onEpisodesClick && (
                                 <div className="relative">
                                     <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleEpisodes();
-                                        }}
+                                        onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
                                         className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
+                                        style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                                         aria-label="Episode Explorer"
-                                        title="Episodes"
                                     >
                                         <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'regular'} />
                                     </button>
@@ -713,7 +833,13 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             )}
 
                             {/* Fullscreen */}
-                            <button onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }} className={btn} aria-label="Toggle fullscreen" title="Fullscreen (F)">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
+                                className={btn}
+                                style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
+                                aria-label="Toggle fullscreen"
+                                title="Fullscreen (F)"
+                            >
                                 <CornersOutIcon size={ICON_SIZE} />
                             </button>
                         </div>

@@ -42,3 +42,8 @@ images-screenshot-for-settings/
 row-scroll-behaviour-video-recording-frames/
 .vercel
 Consolas-Font
+scratch-note.md
+cleanup_locales.py
+localize_all.py
+update_locales.cjs
+SECRETS.local.md

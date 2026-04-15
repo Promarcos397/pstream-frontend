@@ -14,6 +14,7 @@ import { SubtitleService } from '../services/SubtitleService';
 import { SkipService, SkipSegment } from '../services/SkipService';
 import { NetworkPriority } from '../services/NetworkPriority';
 import { useHls } from '../hooks/useHls';
+import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -262,6 +263,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             if (hlsSource.directManifest) {
                 const blob = new Blob([hlsSource.directManifest], { type: 'application/vnd.apple.mpegurl' });
                 finalUrl = URL.createObjectURL(blob);
+            } else if (hlsSource.noProxy) {
+                // noProxy: send URL directly to HLS.js (CDN is IP-locked — browser fetch works, server proxy fails)
+                finalUrl = hlsSource.url;
+                console.log(`[VideoPlayer] ⚡ Direct (no-proxy) stream: ${finalUrl.substring(0, 60)}...`);
             } else {
                 let origin = '';
                 try {
@@ -563,6 +568,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     } = useHls(videoRef, {
         streamUrl,
         isM3U8: isStreamM3U8,
+        streamReferer: streamReferer,
         onManifestParsed: () => {
             const video = videoRef.current;
             if (video) {
