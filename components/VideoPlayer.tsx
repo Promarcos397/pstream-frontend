@@ -88,6 +88,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const MAX_STREAM_RETRIES = 3;
     const retryCountRef = useRef(0);
     const [retryCount, setRetryCount] = useState(0);
+    // Stores the current stream's cache key so the 403 handler can bust it
+    const cacheKeyRef = useRef<import('../utils/streamCache').CacheKey | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     // TV Show state
@@ -517,6 +519,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 episode: currentEpisode,
                 tmdbId: String(movie.id || '')
             };
+            // Keep ref in sync so 403 handler can bust it if needed
+            cacheKeyRef.current = cacheKey;
 
             const cached = streamCache.get(cacheKey);
             if (cached && cached.sources?.length > 0) {
@@ -648,7 +652,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 handleSourceChange(nextIdx);
             } else if (retryCountRef.current < MAX_STREAM_RETRIES) {
                 retryCountRef.current += 1;
-                console.log(`[VideoPlayer] 🔁 All sources failed, backend re-fetch #${retryCountRef.current}`);
+                console.log(`[VideoPlayer] 🔁 All sources failed, busting cache + backend re-fetch #${retryCountRef.current}`);
+                // ⚠️ CRITICAL: Bust the cache so re-fetch doesn't return the same blocked URLs.
+                // The cache has no way to know a URL is 403-blocked (no expiry param).
+                if (cacheKeyRef.current) {
+                    streamCache.remove(cacheKeyRef.current);
+                    console.log(`[VideoPlayer] 🗑️ Cache busted for blocked stream`);
+                }
+                // Reset source index so cycling restarts from 0 on the fresh sources
+                setCurrentSourceIndex(0);
                 setRetryCount(c => c + 1);
             } else {
                 console.warn(`[VideoPlayer] ❌ Max retries (${MAX_STREAM_RETRIES}) reached — showing error`);

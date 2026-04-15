@@ -40,14 +40,15 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     replayCount = 0,
     onUpdateState
 }) => {
-    // 1. Sync Mute State
+    // 1. Sync Mute State — only fire once the player is confirmed ready
     useEffect(() => {
-        if (playerRef.current && typeof playerRef.current.mute === 'function') {
-            try {
-                if (isMuted) playerRef.current.mute();
-                else playerRef.current.unMute();
-            } catch (e) {}
-        }
+        const player = playerRef.current;
+        // Guard: player must be initialised and attached to DOM
+        if (!player || typeof player.getPlayerState !== 'function') return;
+        try {
+            if (isMuted) player.mute();
+            else player.unMute();
+        } catch (e) {}
     }, [isMuted, playerRef.current]);
 
     return (
