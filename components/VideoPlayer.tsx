@@ -358,27 +358,70 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         handleEpisodeSelect(nextEpisodeInfo.episode, nextEpisodeInfo.season);
     }, [nextEpisodeInfo, handleEpisodeSelect]);
 
-    // ─── 99.7% Auto Next Episode (one-shot per episode) ────────────────────────
-    // Guard prevents firing multiple times while progress lingers at ~100%.
-    // Also guards against buffering-state race where progress hasn't reset yet.
-    const hasTriggeredAutoNextRef = useRef(false);
+    // ─── Smart Auto-Next Episode Popup System ────────────────────────────────────
+    //
+    // Timing formula: triggerAt = max(duration - 60, duration * 0.92)
+    // This gives ~60s before end for long episodes and scales down proportionally
+    // for short ones (never less than 92% through). Only fires for TV with next ep.
+    //
+    // State: popup visible, countdown (10→0 → auto-advance)
+    const [autoNextVisible, setAutoNextVisible] = useState(false);
+    const [autoNextCountdown, setAutoNextCountdown] = useState(10);
+    const autoNextDismissedRef = useRef(false);  // user clicked Keep Watching
+    const autoNextFiredRef = useRef(false);       // guard: one popup per episode
+    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Reset guards when episode changes
     useEffect(() => {
-        // Reset the guard whenever the episode changes (new episode started)
-        hasTriggeredAutoNextRef.current = false;
+        autoNextDismissedRef.current = false;
+        autoNextFiredRef.current = false;
+        setAutoNextVisible(false);
+        setAutoNextCountdown(10);
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     }, [currentEpisode]);
+
+    // Trigger popup when within the window
     useEffect(() => {
         if (
-            mediaType === 'tv' &&
-            nextEpisodeInfo &&
-            progress >= 99.7 &&
-            !hasTriggeredAutoNextRef.current &&
-            !isBuffering &&                          // don't trigger while stream is still loading
-            settings.autoplayNextEpisode !== false   // respect user preference (default true)
-        ) {
-            hasTriggeredAutoNextRef.current = true;
-            handleNextEpisode();
-        }
-    }, [progress, mediaType, nextEpisodeInfo, handleNextEpisode, isBuffering, settings.autoplayNextEpisode]);
+            mediaType !== 'tv' ||
+            !nextEpisodeInfo ||
+            isBuffering ||
+            duration < 60 ||       // don't trigger on tiny clips
+            autoNextFiredRef.current ||
+            autoNextDismissedRef.current ||
+            settings.autoplayNextEpisode === false
+        ) return;
+
+        // Formula: appear 60s before end, or 92% through — whichever is later
+        const triggerAt = Math.max(duration - 60, duration * 0.92);
+        if (currentTime < triggerAt) return;
+
+        autoNextFiredRef.current = true;
+        setAutoNextVisible(true);
+        setAutoNextCountdown(10);
+
+        let count = 10;
+        countdownIntervalRef.current = setInterval(() => {
+            count -= 1;
+            setAutoNextCountdown(count);
+            if (count <= 0) {
+                if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+                setAutoNextVisible(false);
+                handleNextEpisode();
+            }
+        }, 1000);
+
+        return () => { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); };
+    }, [currentTime, duration, mediaType, nextEpisodeInfo, isBuffering, handleNextEpisode, settings.autoplayNextEpisode]);
+
+    // Cleanup interval on unmount
+    useEffect(() => () => { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); }, []);
+
+    const dismissAutoNext = useCallback(() => {
+        autoNextDismissedRef.current = true;
+        setAutoNextVisible(false);
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    }, []);
 
     // ─── Track episode/season prop changes ─────────────────────────────────────
     useEffect(() => {
@@ -975,7 +1018,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 mediaType={mediaType}
                 hasNextEpisode={!!nextEpisodeInfo}
                 onNextEpisode={handleNextEpisode}
-                showNextEp={showSkipOutro && !!nextEpisodeInfo}
+                showNextEp={!!nextEpisodeInfo}
                 onSubtitlesClick={() => setActivePanel(p => p === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
                 currentCaption={currentCaption}
                 onEpisodesClick={mediaType === 'tv'
@@ -984,13 +1027,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         setActivePanel(p => (p === 'episodes' || p === 'seasons') ? 'none' : 'episodes');
                       }
                     : undefined}
-                // Next episode popup data
-                nextEpisodeData={nextEpisodeInfo ? {
-                    episodeNumber: nextEpisodeInfo.episode.episode_number,
-                    name: nextEpisodeInfo.episode.name || `Episode ${nextEpisodeInfo.episode.episode_number}`,
-                    description: (nextEpisodeInfo.episode as any).overview || '',
-                    stillPath: (nextEpisodeInfo.episode as any).still_path || null,
-                } : null}
             />
 
             <VideoPlayerSettings
@@ -1038,15 +1074,140 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 </button>
             )}
 
-            {/* Skip Outro / Next Episode Button */}
-            {showSkipOutro && nextEpisodeInfo && (
-                <button
-                    onClick={handleNextEpisode}
-                    className="absolute bottom-32 right-8 px-6 py-3 bg-white text-black font-bold rounded flex items-center gap-2 hover:bg-white/90 transition-all active:scale-95 z-30 shadow-lg"
+            {/* ── Auto-Next Episode Popup ─────────────────────────────────────────
+                 Appears independently of control visibility near end of episode.
+                 10-second countdown, 'Keep Watching' to dismiss.
+                 Positioned: bottom-right above the progress bar area.
+            ─────────────────────────────────────────────────────────────────── */}
+            {autoNextVisible && nextEpisodeInfo && (
+                <div
+                    className="absolute z-40 pointer-events-auto"
+                    style={{
+                        bottom: isMobile ? 90 : 100,
+                        right: isMobile ? 16 : 40,
+                        // Animate in from right
+                        animation: 'slide-in-right 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <CaretRightIcon weight="bold" />
-                    Next Episode
-                </button>
+                    <div style={{
+                        background: 'rgba(18, 18, 18, 0.92)',
+                        backdropFilter: 'blur(16px)',
+                        WebkitBackdropFilter: 'blur(16px)',
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        width: isMobile ? 240 : 290,
+                        // Subtle accent border — just a top line
+                        boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.7)',
+                    }}>
+                        {/* Episode thumbnail if available */}
+                        {(nextEpisodeInfo.episode as any).still_path && (
+                            <div style={{ position: 'relative', width: '100%', aspectRatio: '16/7', overflow: 'hidden' }}>
+                                <img
+                                    src={`https://image.tmdb.org/t/p/w400${(nextEpisodeInfo.episode as any).still_path}`}
+                                    alt=""
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                />
+                                {/* Gradient overlay for readability */}
+                                <div style={{
+                                    position: 'absolute', inset: 0,
+                                    background: 'linear-gradient(to bottom, transparent 40%, rgba(18,18,18,0.95) 100%)'
+                                }} />
+                                {/* Episode label over thumbnail */}
+                                <div style={{
+                                    position: 'absolute', bottom: 8, left: 12, right: 12,
+                                    fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)',
+                                    fontFamily: 'Consolas, monospace', letterSpacing: '0.08em', textTransform: 'uppercase'
+                                }}>
+                                    Up Next · E{nextEpisodeInfo.episode.episode_number}
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ padding: '12px 14px 14px' }}>
+                            {/* Episode name */}
+                            <div style={{
+                                fontSize: isMobile ? 13 : 14,
+                                fontWeight: 700,
+                                color: '#fff',
+                                marginBottom: 10,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                fontFamily: 'Consolas, monospace',
+                            }}>
+                                {nextEpisodeInfo.episode.name || `Episode ${nextEpisodeInfo.episode.episode_number}`}
+                            </div>
+
+                            {/* Action row: countdown pill + Keep Watching */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                {/* Next Episode button with live countdown */}
+                                <button
+                                    onClick={() => { dismissAutoNext(); handleNextEpisode(); }}
+                                    style={{
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 7,
+                                        padding: '8px 12px',
+                                        background: '#fff',
+                                        color: '#000',
+                                        border: 'none',
+                                        borderRadius: 6,
+                                        fontWeight: 700,
+                                        fontSize: 13,
+                                        cursor: 'pointer',
+                                        fontFamily: 'Consolas, monospace',
+                                        transition: 'background 0.15s',
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = '#e0e0e0')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                                >
+                                    {/* Circular countdown ring */}
+                                    <svg width="20" height="20" viewBox="0 0 20 20" style={{ flexShrink: 0 }}>
+                                        <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="2" />
+                                        <circle
+                                            cx="10" cy="10" r="8"
+                                            fill="none" stroke="#000" strokeWidth="2"
+                                            strokeDasharray={`${(50.27 * (10 - autoNextCountdown)) / 10} 50.27`}
+                                            strokeLinecap="round"
+                                            transform="rotate(-90 10 10)"
+                                            style={{ transition: 'stroke-dasharray 0.9s linear' }}
+                                        />
+                                        <text x="10" y="14" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#000">
+                                            {autoNextCountdown}
+                                        </text>
+                                    </svg>
+                                    Next Episode
+                                </button>
+
+                                {/* Keep Watching (dismiss) */}
+                                <button
+                                    onClick={dismissAutoNext}
+                                    style={{
+                                        padding: '8px 10px',
+                                        background: 'rgba(255,255,255,0.08)',
+                                        color: 'rgba(255,255,255,0.7)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        borderRadius: 6,
+                                        fontWeight: 600,
+                                        fontSize: 12,
+                                        cursor: 'pointer',
+                                        fontFamily: 'Consolas, monospace',
+                                        whiteSpace: 'nowrap',
+                                        transition: 'all 0.15s',
+                                        flexShrink: 0,
+                                    }}
+                                    onMouseEnter={e => { (e.currentTarget.style.background = 'rgba(255,255,255,0.15)'); (e.currentTarget.style.color = '#fff'); }}
+                                    onMouseLeave={e => { (e.currentTarget.style.background = 'rgba(255,255,255,0.08)'); (e.currentTarget.style.color = 'rgba(255,255,255,0.7)'); }}
+                                >
+                                    Keep Watching
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

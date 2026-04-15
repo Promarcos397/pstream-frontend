@@ -381,6 +381,15 @@ body {
   60%  { opacity: 0.5; }
   100% { opacity: 0; }
 }
+/* ─── Auto-Next Episode Popup Animation ──────────────────────────────────────── */
+@keyframes slide-in-right {
+  0%   { opacity: 0; transform: translateX(32px) scale(0.96); }
+  60%  { opacity: 1; transform: translateX(-4px) scale(1.01); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
 
-
+@keyframes slide-out-right {
+  0%   { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(40px); }
+}
 
