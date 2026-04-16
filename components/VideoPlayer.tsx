@@ -113,6 +113,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [captions, setCaptions] = useState<{ id: string; label: string; url: string; lang: string }[]>([]);
     const [currentCaption, setCurrentCaption] = useState<string | null>(null);
     const [subtitleObjectUrl, setSubtitleObjectUrl] = useState<string | null>(null);
+    // Dialogue subtitle state: tracks which side the last cue was on
+    const speakerSideRef = useRef<'left' | 'right'>('right');
+    const [subtitleSide, setSubtitleSide] = useState<'left' | 'center' | 'right'>('center');
+    const prevCueRef = useRef<string>('');
 
     // Store Backdrop globally for Tooltip Previews
     useEffect(() => {
@@ -982,39 +986,104 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 playsInline
             />
 
-            {/* ── Custom Subtitle Overlay (replaces native <track> for full style control) ── */}
-            {subtitleObjectUrl && currentCueText && (
-                <div
-                    className="subtitle-overlay"
-                    style={{
-                        bottom: showUI ? (isMobile ? '8rem' : '7rem') : '2.5rem',
-                        fontFamily: settings.subtitleFontFamily || "'Consolas', monospace",
-                        fontSize: isMobile 
-                            ? (settings.subtitleSize === 'small' ? '14px' : settings.subtitleSize === 'large' ? '22px' : '18px')
-                            : (settings.subtitleSize === 'small' ? 'clamp(14px, 1.8vw, 18px)' :
-                               settings.subtitleSize === 'large' ? 'clamp(22px, 3.2vw, 32px)' :
-                               'clamp(18px, 2.5vw, 26px)'),
-                    }}
-                >
-                    <span
-                        className="subtitle-line"
+            {/* ── Custom Subtitle Overlay (dialogue-aware left/right positioning) ── */}
+            {subtitleObjectUrl && currentCueText && (() => {
+                // Dialogue detection: lines starting with '- ' (or '– ')
+                // e.g. "- Hello there\n- Hi!" → two speakers
+                const lines = currentCueText.split(/\n/);
+                const isDialogue = lines.length >= 2 && lines.filter(l => /^[-–]\s/.test(l.trim())).length >= 1;
+
+                // When cue changes, determine positioning
+                if (currentCueText !== prevCueRef.current) {
+                    prevCueRef.current = currentCueText;
+                    if (isDialogue) {
+                        // Dialogue cue: flip side from last time
+                        speakerSideRef.current = speakerSideRef.current === 'right' ? 'left' : 'right';
+                        // Don't call setState inside render — use a layout effect later
+                    }
+                }
+
+                // For dialogue: render two speaker lines with slight offset
+                if (isDialogue) {
+                    const speakerLines = lines.map(l => l.replace(/^[-–]\s*/, '').trim()).filter(Boolean);
+                    const side = speakerSideRef.current;
+                    return (
+                        <div
+                            className="subtitle-overlay"
+                            style={{
+                                bottom: showUI ? (isMobile ? '8rem' : '7rem') : '2.5rem',
+                                fontFamily: settings.subtitleFontFamily || "'Consolas', monospace",
+                                fontSize: isMobile
+                                    ? (settings.subtitleSize === 'small' ? '14px' : settings.subtitleSize === 'large' ? '22px' : '18px')
+                                    : (settings.subtitleSize === 'small' ? 'clamp(14px, 1.8vw, 18px)' :
+                                       settings.subtitleSize === 'large' ? 'clamp(22px, 3.2vw, 32px)' :
+                                       'clamp(18px, 2.5vw, 26px)'),
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: side === 'left' ? 'flex-start' : 'flex-end',
+                                paddingLeft: side === 'left' ? '12%' : '4%',
+                                paddingRight: side === 'right' ? '12%' : '4%',
+                                transition: 'all 0.25s ease',
+                            }}
+                        >
+                            {speakerLines.map((line, i) => (
+                                <span
+                                    key={i}
+                                    className="subtitle-line"
+                                    style={{
+                                        color: settings.subtitleColor || 'white',
+                                        backgroundColor: (settings.subtitleBackground as string) !== 'none'
+                                            ? 'rgba(0,0,0,0.75)'
+                                            : 'transparent',
+                                        textShadow: '0 1px 4px rgba(0,0,0,0.95)',
+                                        marginBottom: i < speakerLines.length - 1 ? '0.2em' : 0,
+                                        // Second line slightly offset to opposite side
+                                        alignSelf: i === 1 ? (side === 'left' ? 'flex-end' : 'flex-start') : undefined,
+                                        opacity: i === 1 ? 0.85 : 1,
+                                        transform: `translateX(${i === 1 ? (side === 'left' ? '8%' : '-8%') : '0'})`,
+                                        transition: 'all 0.2s ease',
+                                    }}
+                                    dangerouslySetInnerHTML={{ __html: line }}
+                                />
+                            ))}
+                        </div>
+                    );
+                }
+
+                // Standard single-speaker subtitle
+                return (
+                    <div
+                        className="subtitle-overlay"
                         style={{
-                            color: settings.subtitleColor || 'white',
-                            backgroundColor: (settings.subtitleBackground as string) !== 'none'
-                                ? ((settings.subtitleBackground as string) === 'black' ? 'rgba(0,0,0,0.75)' :
-                                   (settings.subtitleBackground as string) === 'white' ? 'rgba(255,255,255,0.15)' :
-                                   (settings.subtitleBackground as string) === 'box' ? 'rgba(0,0,0,0.75)' : 'transparent')
-                                : 'transparent',
-                            textShadow: settings.subtitleEdgeStyle === 'drop-shadow'
-                                ? '0 1px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8)'
-                                : settings.subtitleEdgeStyle === 'outline'
-                                    ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
-                                    : 'none',
+                            bottom: showUI ? (isMobile ? '8rem' : '7rem') : '2.5rem',
+                            fontFamily: settings.subtitleFontFamily || "'Consolas', monospace",
+                            fontSize: isMobile
+                                ? (settings.subtitleSize === 'small' ? '14px' : settings.subtitleSize === 'large' ? '22px' : '18px')
+                                : (settings.subtitleSize === 'small' ? 'clamp(14px, 1.8vw, 18px)' :
+                                   settings.subtitleSize === 'large' ? 'clamp(22px, 3.2vw, 32px)' :
+                                   'clamp(18px, 2.5vw, 26px)'),
                         }}
-                        dangerouslySetInnerHTML={{ __html: currentCueText.replace(/\n/g, '<br/>') }}
-                    />
-                </div>
-            )}
+                    >
+                        <span
+                            className="subtitle-line"
+                            style={{
+                                color: settings.subtitleColor || 'white',
+                                backgroundColor: (settings.subtitleBackground as string) !== 'none'
+                                    ? ((settings.subtitleBackground as string) === 'black' ? 'rgba(0,0,0,0.75)' :
+                                       (settings.subtitleBackground as string) === 'white' ? 'rgba(255,255,255,0.15)' :
+                                       'rgba(0,0,0,0.75)')
+                                    : 'transparent',
+                                textShadow: settings.subtitleEdgeStyle === 'drop-shadow'
+                                    ? '0 1px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8)'
+                                    : settings.subtitleEdgeStyle === 'outline'
+                                        ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
+                                        : 'none',
+                            }}
+                            dangerouslySetInnerHTML={{ __html: currentCueText.replace(/\n/g, '<br/>') }}
+                        />
+                    </div>
+                );
+            })()}
 
             {isBuffering && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10 pointer-events-none">
@@ -1113,10 +1182,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 </button>
             )}
 
-            {/* ── Auto-Next Episode Popup ─────────────────────────────────────────
-                 Appears independently of control visibility near end of episode.
-                 10-second countdown, 'Keep Watching' to dismiss.
-                 Positioned: bottom-right above the progress bar area.
+            {/* ── Auto-Next: Two minimal flush buttons, no card ─────────────────────────
+                 "Next Episode" (white, sharp, fill-right animation countdown)
+                 "Keep Watching" (dark gray, left of it)
+                 Both same width. No description, no thumbnail, no red.
             ─────────────────────────────────────────────────────────────────── */}
             {autoNextVisible && nextEpisodeInfo && (
                 <div
@@ -1124,128 +1193,98 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     style={{
                         bottom: isMobile ? 90 : 100,
                         right: isMobile ? 16 : 40,
-                        // Animate in from right
-                        animation: 'slide-in-right 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+                        display: 'flex',
+                        flexDirection: 'row',
+                        alignItems: 'stretch',
+                        gap: 8,
+                        animation: 'slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards',
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div style={{
-                        background: 'rgba(18, 18, 18, 0.92)',
-                        backdropFilter: 'blur(16px)',
-                        WebkitBackdropFilter: 'blur(16px)',
-                        borderRadius: 10,
-                        overflow: 'hidden',
-                        width: isMobile ? 240 : 290,
-                        // Subtle accent border — just a top line
-                        boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.7)',
-                    }}>
-                        {/* Episode thumbnail if available */}
-                        {(nextEpisodeInfo.episode as any).still_path && (
-                            <div style={{ position: 'relative', width: '100%', aspectRatio: '16/7', overflow: 'hidden' }}>
-                                <img
-                                    src={`https://image.tmdb.org/t/p/w400${(nextEpisodeInfo.episode as any).still_path}`}
-                                    alt=""
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                />
-                                {/* Gradient overlay for readability */}
-                                <div style={{
-                                    position: 'absolute', inset: 0,
-                                    background: 'linear-gradient(to bottom, transparent 40%, rgba(18,18,18,0.95) 100%)'
-                                }} />
-                                {/* Episode label over thumbnail */}
-                                <div style={{
-                                    position: 'absolute', bottom: 8, left: 12, right: 12,
-                                    fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)',
-                                    fontFamily: 'Consolas, monospace', letterSpacing: '0.08em', textTransform: 'uppercase'
-                                }}>
-                                    Up Next · E{nextEpisodeInfo.episode.episode_number}
-                                </div>
-                            </div>
-                        )}
+                    {/* Keep Watching — dark gray left button */}
+                    <button
+                        onClick={dismissAutoNext}
+                        style={{
+                            width: isMobile ? 120 : 148,
+                            height: isMobile ? 38 : 44,
+                            background: 'rgba(38,38,38,0.96)',
+                            color: 'rgba(255,255,255,0.75)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: 3,
+                            fontWeight: 600,
+                            fontSize: isMobile ? 11 : 12,
+                            cursor: 'pointer',
+                            fontFamily: 'Consolas, monospace',
+                            letterSpacing: '0.04em',
+                            transition: 'background 0.15s, color 0.15s',
+                            position: 'relative',
+                            overflow: 'hidden',
+                        }}
+                        onMouseEnter={e => { (e.currentTarget.style.background = 'rgba(58,58,58,0.98)'); (e.currentTarget.style.color = '#fff'); }}
+                        onMouseLeave={e => { (e.currentTarget.style.background = 'rgba(38,38,38,0.96)'); (e.currentTarget.style.color = 'rgba(255,255,255,0.75)'); }}
+                    >
+                        Keep Watching
+                    </button>
 
-                        <div style={{ padding: '12px 14px 14px' }}>
-                            {/* Episode name */}
-                            <div style={{
-                                fontSize: isMobile ? 13 : 14,
-                                fontWeight: 700,
-                                color: '#fff',
-                                marginBottom: 10,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                fontFamily: 'Consolas, monospace',
-                            }}>
-                                {nextEpisodeInfo.episode.name || `Episode ${nextEpisodeInfo.episode.episode_number}`}
-                            </div>
-
-                            {/* Action row: countdown pill + Keep Watching */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                {/* Next Episode button with live countdown */}
-                                <button
-                                    onClick={() => { dismissAutoNext(); handleNextEpisode(); }}
-                                    style={{
-                                        flex: 1,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: 7,
-                                        padding: '8px 12px',
-                                        background: '#fff',
-                                        color: '#000',
-                                        border: 'none',
-                                        borderRadius: 6,
-                                        fontWeight: 700,
-                                        fontSize: 13,
-                                        cursor: 'pointer',
-                                        fontFamily: 'Consolas, monospace',
-                                        transition: 'background 0.15s',
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = '#e0e0e0')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                                >
-                                    {/* Circular countdown ring */}
-                                    <svg width="20" height="20" viewBox="0 0 20 20" style={{ flexShrink: 0 }}>
-                                        <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="2" />
-                                        <circle
-                                            cx="10" cy="10" r="8"
-                                            fill="none" stroke="#000" strokeWidth="2"
-                                            strokeDasharray={`${(50.27 * (10 - autoNextCountdown)) / 10} 50.27`}
-                                            strokeLinecap="round"
-                                            transform="rotate(-90 10 10)"
-                                            style={{ transition: 'stroke-dasharray 0.9s linear' }}
-                                        />
-                                        <text x="10" y="14" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#000">
-                                            {autoNextCountdown}
-                                        </text>
-                                    </svg>
-                                    Next Episode
-                                </button>
-
-                                {/* Keep Watching (dismiss) */}
-                                <button
-                                    onClick={dismissAutoNext}
-                                    style={{
-                                        padding: '8px 10px',
-                                        background: 'rgba(255,255,255,0.08)',
-                                        color: 'rgba(255,255,255,0.7)',
-                                        border: '1px solid rgba(255,255,255,0.12)',
-                                        borderRadius: 6,
-                                        fontWeight: 600,
-                                        fontSize: 12,
-                                        cursor: 'pointer',
-                                        fontFamily: 'Consolas, monospace',
-                                        whiteSpace: 'nowrap',
-                                        transition: 'all 0.15s',
-                                        flexShrink: 0,
-                                    }}
-                                    onMouseEnter={e => { (e.currentTarget.style.background = 'rgba(255,255,255,0.15)'); (e.currentTarget.style.color = '#fff'); }}
-                                    onMouseLeave={e => { (e.currentTarget.style.background = 'rgba(255,255,255,0.08)'); (e.currentTarget.style.color = 'rgba(255,255,255,0.7)'); }}
-                                >
-                                    Keep Watching
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Next Episode — white, sharp corners, fill countdown animation */}
+                    <button
+                        onClick={() => { dismissAutoNext(); handleNextEpisode(); }}
+                        style={{
+                            width: isMobile ? 120 : 148,
+                            height: isMobile ? 38 : 44,
+                            background: 'transparent',
+                            color: '#000',
+                            border: 'none',
+                            borderRadius: 3,
+                            fontWeight: 700,
+                            fontSize: isMobile ? 11 : 12,
+                            cursor: 'pointer',
+                            fontFamily: 'Consolas, monospace',
+                            letterSpacing: '0.04em',
+                            position: 'relative',
+                            overflow: 'hidden',
+                        }}
+                    >
+                        {/* Fill animation background — fill from left over countdown seconds */}
+                        <span
+                            style={{
+                                position: 'absolute',
+                                inset: 0,
+                                background: '#fff',
+                                transformOrigin: 'left center',
+                                transform: `scaleX(${(10 - autoNextCountdown) / 10})`,
+                                transition: 'transform 0.95s linear',
+                                zIndex: 0,
+                            }}
+                        />
+                        {/* Unfilled background */}
+                        <span
+                            style={{
+                                position: 'absolute',
+                                inset: 0,
+                                background: 'rgba(255,255,255,0.15)',
+                                border: '1px solid rgba(255,255,255,0.5)',
+                                borderRadius: 3,
+                                zIndex: 0,
+                            }}
+                        />
+                        {/* Label — color changes as fill covers it */}
+                        <span style={{
+                            position: 'relative',
+                            zIndex: 1,
+                            color: autoNextCountdown <= 5 ? '#000' : '#fff',
+                            transition: 'color 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            width: '100%',
+                            height: '100%',
+                        }}>
+                            <span>Next Episode</span>
+                            <span style={{ fontSize: isMobile ? 10 : 11, opacity: 0.8 }}>({autoNextCountdown}s)</span>
+                        </span>
+                    </button>
                 </div>
             )}
         </div>

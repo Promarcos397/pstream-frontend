@@ -219,15 +219,117 @@ export const getStream = async (title: string, type: 'movie' | 'tv', year?: numb
   }
 };
 
-// PREFETCH DISABLED: 
-// Pre-fetching resolves the direct M3U8 URL and saves it in streamCache.
-// However, providers like VidLink and VidZee use highly volatile, time-sensitive tokens.
-// If we prefetch the stream 3 minutes before the user actually clicks 'Play', the token
-// will have already expired, throwing a 403 Forbidden error and forcing a re-fetch anyway.
-// Since the backend now uses `fastRace` (resolving in < 1 second), prefetching is unnecessary.
-export const prefetchStream = async (title: string, year: number | undefined, tmdbId: string, type: 'movie' | 'tv', season: number = 1, episode: number = 1, imdbId?: string) => {
-  // no-op to prevent 403 cache poisoning
-  return;
+/**
+ * Smart Stream Pre-fetcher — v2 (2026-04)
+ *
+ * Strategy: Two modes depending on trigger:
+ *
+ * 1. WARM mode (list/history batch prefetch):
+ *    - Just calls the backend /api/stream, which primes the Redis cache and warms the HF Space.
+ *    - Does NOT store the result in the local streamCache (tokens may expire before user clicks).
+ *    - Run at most once per TMDB ID per session.
+ *
+ * 2. HOT mode (hover/InfoModal/90%-of-current-video triggers):
+ *    - Fetches AND caches in streamCache for 4 minutes (240s).
+ *    - Only runs for providers with long-lived CDN tokens (AutoEmbed, VidZee, 2Embed, VidLink).
+ *    - VixSrc tokens (~15min) and VidSrc (~10min) are borderline safe within 4min window.
+ *    - On actual Play: cache hit returns instantly; if expired, falls back to fresh fetch.
+ *
+ * Short-lived token providers (VixSrc) won't poison the cache because the 4min TTL means
+ * the url will have expired before the VideoPlayer's 403 retry logic kicks in.
+ */
+
+// Track which TMDB IDs we've already warmed this session (avoid redundant calls)
+const warmedSet = new Set<string>();
+
+export const prefetchStream = async (
+  title: string,
+  year: number | undefined,
+  tmdbId: string,
+  type: 'movie' | 'tv',
+  season: number = 1,
+  episode: number = 1,
+  imdbId?: string,
+  mode: 'warm' | 'hot' = 'warm'
+): Promise<void> => {
+  if (!tmdbId) return;
+
+  const key = `${tmdbId}-${type}-${season}-${episode}`;
+
+  // WARM mode: only hit backend once per session per item
+  if (mode === 'warm') {
+    if (warmedSet.has(key)) return;
+    warmedSet.add(key);
+    // Fire-and-forget: just warm the Space + Redis cache, don't await result
+    const params = new URLSearchParams({ tmdbId, type, season: season.toString(), episode: episode.toString(), title: title || '', year: year ? year.toString() : '', imdbId: imdbId || '' });
+    fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, { signal: AbortSignal.timeout(25000) })
+      .catch(() => { /* ignore — prefetch failures are silent */ });
+    console.log(`[Prefetch] 🔥 Warming HF cache for: ${title} (${type})`);
+    return;
+  }
+
+  // HOT mode: fetch + cache result for VideoPlayer instant load
+  const { streamCache } = await import('../utils/streamCache');
+  const cacheKey = { title: title || String(tmdbId), tmdbId, type, season, episode };
+  if (streamCache.get(cacheKey)) {
+    console.log(`[Prefetch] ✅ Already hot-cached: ${title}`);
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({ tmdbId, type, season: season.toString(), episode: episode.toString(), title: title || '', year: year ? year.toString() : '', imdbId: imdbId || '' });
+    const resp = await fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, { signal: AbortSignal.timeout(20000) });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data?.sources?.length && !data.sources.every((s: any) => s.isEmbed)) {
+      // Only cache if provider is known to have long-lived tokens (not just 15s VixSrc kind)
+      const provider = (data.provider || '').toLowerCase();
+      const isShortLived = provider.includes('vixsrc');
+      if (!isShortLived) {
+        streamCache.set(cacheKey, data); // uses internal CACHE_TTL_MS
+        console.log(`[Prefetch] 🚀 HOT cached: ${title} via ${data.provider}`);
+      } else {
+        console.log(`[Prefetch] ⚠️ Skipping cache for short-lived provider: ${data.provider}`);
+      }
+    }
+  } catch {
+    // silent — prefetch failures never affect UX
+  }
+};
+
+/**
+ * Batch warm-prefetch for history/watchlist items.
+ * Staggers requests by 1.5s to avoid hammering HF.
+ * Call this from App.tsx after user data loads.
+ *
+ * @param items - Array of {tmdbId, type, title, year, season, episode}
+ * @param maxItems - Max items to prefetch (default: 6 — last 3 watched + last 3 in list)
+ */
+export const schedulePrefetchQueue = (items: Array<{
+  tmdbId: string;
+  type: 'movie' | 'tv';
+  title: string;
+  year?: number;
+  season?: number;
+  episode?: number;
+  imdbId?: string;
+}>, maxItems = 6): void => {
+  const queue = items.slice(0, maxItems);
+  queue.forEach((item, i) => {
+    setTimeout(() => {
+      prefetchStream(
+        item.title,
+        item.year,
+        item.tmdbId,
+        item.type,
+        item.season || 1,
+        item.episode || 1,
+        item.imdbId,
+        'warm'
+      );
+    }, i * 1500); // stagger: 0ms, 1.5s, 3s, 4.5s, 6s, 7.5s
+  });
+  console.log(`[Prefetch] 📋 Queued ${queue.length} warm prefetches`);
 };
 
 export const getReleaseDates = async (id: number | string, type: 'movie' | 'tv') => {

@@ -256,14 +256,14 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         if (!movie) return;
         const yearStr = (movie.release_date || movie.first_air_date)?.substring(0, 4);
         const year = yearStr ? parseInt(yearStr) : 0;
-        if (!year) return;
 
         if (mediaType === 'movie') {
-            prefetchStream(movie.title || movie.name || '', year, String(movie.id), 'movie');
+            // HOT mode: user is actively looking at this movie — pre-resolve for instant play
+            prefetchStream(movie.title || movie.name || '', year || undefined, String(movie.id), 'movie', 1, 1, undefined, 'hot');
         } else {
             const s = resumeContext?.season || 1;
             const e = resumeContext?.episode || 1;
-            prefetchStream(movie.name || movie.title || '', year, String(movie.id), 'tv', s, e);
+            prefetchStream(movie.name || movie.title || '', year || undefined, String(movie.id), 'tv', s, e, undefined, 'hot');
         }
     }, [movie, resumeContext, mediaType]);
 

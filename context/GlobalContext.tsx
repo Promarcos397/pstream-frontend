@@ -5,6 +5,7 @@ import { AuthService, UserProfile } from '../services/AuthService';
 import { DEFAULT_AVATAR } from '../constants';
 import i18n from '../i18n';
 import { prefetchStream } from '../services/api';
+import { usePrefetchQueue } from '../hooks/usePrefetchQueue';
 import Cookies from 'js-cookie';
 
 interface VideoState {
@@ -338,6 +339,11 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return true;
     } catch { return false; }
   };
+
+  // ── Smart prefetch: warm HF Space + Redis for last 3 watched + last 3 in list ──
+  // Fires 5 seconds after app load, staggered every 1.5s. Always runs (lists are
+  // hydrated from localStorage synchronously, no async wait needed).
+  usePrefetchQueue({ continueWatching, myList, isReady: true });
 
   return (
     <GlobalContext.Provider value={{
