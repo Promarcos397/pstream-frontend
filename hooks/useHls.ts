@@ -112,6 +112,11 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
 
             const hls = new Hls(hlsConfig as any);
 
+            // Disable native subtitle rendering — our custom VTT cue overlay is the
+            // sole renderer. Without this, HLS.js also renders via <track> → double subs.
+            // subtitleDisplay is an instance getter/setter, not a config option.
+            hls.subtitleDisplay = false;
+
             hlsRef.current = hls;
             hls.loadSource(streamUrl);
             hls.attachMedia(video);
