@@ -592,10 +592,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         fetchSkips();
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
-    // ─── Prefetch next episode when 50%+ through a long episode ─────────────────
+    // ─── Prefetch next episode at 30%+ progress ───────────────────────────────
+    // Fires for ALL episode lengths (removed the >=3600s gate — a 22-min episode
+    // still needs its next episode preloaded). Threshold lowered 50→30% so on
+    // slow connections there's more runway before autoplay transition.
     useEffect(() => {
-        if (mediaType !== 'tv' || !nextEpisodeInfo || duration < 3600) return;
-        if (progress < 50) return;
+        if (mediaType !== 'tv' || !nextEpisodeInfo) return;
+        if (progress < 30 || duration < 60) return; // skip first 60s guard
 
         const nextEp = nextEpisodeInfo.episode;
         const nextSeason = nextEpisodeInfo.season;
@@ -611,7 +614,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
 
         if (!streamCache.get(cacheKey)) {
-            console.log(`[VideoPlayer] Prefetching next episode S${nextSeason}E${nextEp.episode_number}...`);
+            console.log(`[VideoPlayer] 🔮 Prefetching S${nextSeason}E${nextEp.episode_number} at ${Math.round(progress)}%...`);
             prefetchStream(title, releaseYear || 0, String(movie.id), 'tv', nextSeason, nextEp.episode_number)
                 .catch(() => {});
         }
@@ -774,6 +777,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             setBufferedAmount((bufferedEnd / dur) * 100);
         }
     }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, skipSegments, addToHistory, updateEpisodeProgress, updateVideoState]);
+
+    // ─── Instant progress save on manual scrub ────────────────────────────────
+    // timeupdate only fires every ~250ms and has a 5s throttle gate — so if the
+    // user jumps with the seek bar we must catch it on 'seeked' immediately.
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        const onSeeked = () => {
+            const time = video.currentTime;
+            const dur = video.duration;
+            if (!time || !dur || isNaN(dur)) return;
+            lastSavedTimeRef.current = time; // reset throttle so next tick saves cleanly
+            if (mediaType === 'tv') {
+                updateEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode, time, dur);
+            } else {
+                updateVideoState(movie.id, time, undefined, dur);
+            }
+        };
+        video.addEventListener('seeked', onSeeked);
+        return () => video.removeEventListener('seeked', onSeeked);
+    }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, updateEpisodeProgress, updateVideoState]);
 
     // Subtitle management below...
 
