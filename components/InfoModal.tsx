@@ -587,7 +587,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 <span className="text-gray-500">{t('common.genres')}</span>
                                 <span className="text-white">{genreNames}</span>
                             </div>
-                            </div>
                         </div>
                     </div>
 
