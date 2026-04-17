@@ -215,7 +215,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 });
             }
         }
-    }, [movie, trailerId, getVideoState]);
+    }, [movie, trailerId]); // NOTE: intentionally omit getVideoState — its ref changes on every progress tick, which would reset episodes unnecessarily
 
     const fetchEpisodes = useCallback(async (id: number, season: number) => {
         setLoadingEpisodes(true);
@@ -312,6 +312,21 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const totalSeasons = activeMovie.number_of_seasons || 1;
 
+    // Progress bar data — computed once, used in hero area above button
+    let watchPct = 0, watchMins = 0, totalMins = 0;
+    if (hasResumeMovie && savedMovieState?.time && savedMovieState?.duration) {
+        watchPct = Math.min(100, (savedMovieState.time / savedMovieState.duration) * 100);
+        watchMins = Math.round(savedMovieState.time / 60);
+        totalMins = Math.round(savedMovieState.duration / 60);
+    } else if (hasResumeTV && lastEp) {
+        const epProg = getEpisodeProgress(movie.id, lastEp.season, lastEp.episode);
+        if (epProg?.duration) {
+            watchPct = Math.min(100, (epProg.time / epProg.duration) * 100);
+            watchMins = Math.round(epProg.time / 60);
+            totalMins = Math.round(epProg.duration / 60);
+        }
+    }
+
     return (
         <div
             className="fixed inset-0 z-[200] bg-black/70 flex justify-center overflow-y-auto backdrop-blur-md scrollbar-hide animate-fadeIn cursor-default"
@@ -319,7 +334,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         >
             <div
                 ref={modalRef}
-                className={`relative w-full max-w-[850px] bg-[#181818] rounded-md shadow-2xl mt-12 md:mt-16 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10
+                className={`relative w-full max-w-[950px] bg-[#181818] rounded-2xl shadow-2xl mt-12 md:mt-16 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10
                     transition-all duration-500 cubic-bezier-spring animate-modal-spring`}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -440,8 +455,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     </div>
 
                     {/* Layer 2: Content (Buttons, Title) - Always Visible */}
-                    <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 space-y-4 md:space-y-6 z-20 pointer-events-auto">
-                        <div className="w-[80%] mb-2">
+                    <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 space-y-3 md:space-y-4 z-20 pointer-events-auto">
+                        {/* Logo / Title + progress bar above button */}
+                        <div className="w-[80%]">
                             {logoUrl && !imgFailed ? (
                                 <img src={logoUrl} alt={activeMovie.title} className="h-24 md:h-32 object-contain origin-bottom-left" onError={() => setImgFailed(true)} />
                             ) : (
@@ -449,8 +465,25 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                     {activeMovie.title || activeMovie.name}
                                 </h2>
                             )}
+                            {/* Progress bar — ABOVE button, flat corners, width of logo container */}
+                            {watchPct > 1 && (
+                                <div className="flex items-center gap-2.5 mt-3 w-full">
+                                    <div className="flex-1 h-[3px] bg-white/25 overflow-hidden" style={{ borderRadius: 0 }}>
+                                        <div
+                                            className="h-full bg-[#e50914] transition-all duration-300"
+                                            style={{ width: `${watchPct}%`, borderRadius: 0 }}
+                                        />
+                                    </div>
+                                    {totalMins > 0 && (
+                                        <span className="text-gray-400/80 text-[11px] whitespace-nowrap flex-shrink-0 font-medium">
+                                            {watchMins} of {totalMins}m
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
+                        {/* Action buttons row */}
                         <div className="flex items-center space-x-3">
                             {isCinemaOnly && mediaType === 'movie' ? (
                                 <div className="bg-[#6d6d6e]/80 text-white px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center select-none cursor-not-allowed">
@@ -463,41 +496,18 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 if (type === 'tv' && lastEp) {
                                     watchUrl += `?season=${lastEp.season}&episode=${lastEp.episode}`;
                                 }
-
-                                // Calculate watch progress for mini bar
-                                let watchPct = 0;
-                                if (hasResumeMovie && savedMovieState?.duration) {
-                                    watchPct = Math.min(100, (savedMovieState.time / savedMovieState.duration) * 100);
-                                } else if (hasResumeTV && lastEp) {
-                                    const ep = getEpisodeProgress(movie.id, lastEp.season, lastEp.episode);
-                                    if (ep?.duration) watchPct = Math.min(100, (ep.time / ep.duration) * 100);
-                                }
-
                                 return (
-                                    <div className="flex flex-col items-stretch">
-                                        <Link
-                                            to={watchUrl}
-                                            className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons no-underline"
-                                        >
-                                            {isResuming ? (
-                                                <ClockIcon size={24} weight="bold" className="mr-2" />
-                                            ) : (
-                                                <PlayIcon size={24} weight="fill" className="mr-2" />
-                                            )}
-                                            {hasResumeTV ? t('modal.resume', { season: lastEp.season, episode: lastEp.episode }) :
-                                             hasResumeMovie ? t('rows.continueWatching') :
-                                             t('hero.play')}
-                                        </Link>
-                                        {/* Mini progress bar — same width as button above, only when there's watch history */}
-                                        {watchPct > 1 && (
-                                            <div className="w-full h-[3px] bg-white/20 rounded-full overflow-hidden mt-1.5">
-                                                <div
-                                                    className="h-full bg-[#e50914] rounded-full transition-all duration-300"
-                                                    style={{ width: `${watchPct}%` }}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
+                                    <Link
+                                        to={watchUrl}
+                                        className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons no-underline"
+                                    >
+                                        <PlayIcon size={24} weight="fill" className="mr-2" />
+                                        {hasResumeTV
+                                            ? `Resume E${lastEp?.episode ?? 1}`
+                                            : hasResumeMovie
+                                            ? 'Resume'
+                                            : t('hero.play')}
+                                    </Link>
                                 );
                             })()}
                             <button
