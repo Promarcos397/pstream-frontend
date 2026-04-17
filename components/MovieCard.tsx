@@ -105,8 +105,11 @@ const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; ge
 
   if (progress > 0 && progress < 100) {
     return (
-      <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-[80%] h-1 bg-[#333] shadow-md pointer-events-none z-0">
-        <div className="h-full bg-[#E50914]" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+      <div className="absolute bottom-0 left-0 w-full h-[3px] bg-black/50 pointer-events-none z-10">
+        <div
+          className="h-full bg-[#E50914]"
+          style={{ width: `${Math.max(0, Math.min(100, progress))}%`, borderRadius: 0 }}
+        />
       </div>
     );
   }
@@ -443,8 +446,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   return (
     <div
       ref={cardRef}
-      className={`relative z-10 group/card transition-all duration-300 select-none
-        ${isPrimed ? 'scale-[1.05] z-50 ring-1 ring-white/20' : 'scale-100'}
+      className={`relative z-10 group/card transition-all duration-200 select-none
+        ${isPrimed ? 'scale-[1.04] z-50 brightness-110' : 'scale-100 brightness-100'}
         ${isGrid
           ? 'w-full aspect-video cursor-pointer'
           : 'flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.32] cursor-pointer'
@@ -493,10 +496,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
       {/* Hover Popup - Active on all views */}
       {isHovered && (
-        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-[800ms] ease-out animate-netflix-zoom-${hoverPosition} ${posClasses.wrapper}`}>
+        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-50px] z-[100] animate-netflix-zoom-${hoverPosition} ${posClasses.wrapper}`}>
           <div
-            className={`w-[210px] md:w-[230px] lg:w-[265px] bg-[#141414] rounded-md movie-card-glow overflow-hidden transition-all duration-[800ms] ease-out ring-1 ring-zinc-700/50 ${posClasses.inner}`}
-            onClick={(e) => e.stopPropagation()} // Prevent click from bubbling to base card
+            className={`w-[220px] md:w-[245px] lg:w-[275px] bg-[#141414] rounded-lg overflow-hidden ring-1 ring-zinc-700/60 shadow-[0_8px_32px_rgba(0,0,0,0.8)] ${posClasses.inner}`}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Media Container */}
             <div className="relative h-[147px] md:h-[159px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>

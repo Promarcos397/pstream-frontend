@@ -353,7 +353,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 </button>
 
                 {/* --- Hero Section - Video Background --- */}
-                <div className="relative h-[250px] sm:h-[350px] md:h-[480px] w-full bg-black group overflow-hidden">
+                <div className="relative h-[300px] sm:h-[420px] md:h-[560px] w-full bg-black group overflow-hidden">
 
                     {/* Layer 1: Media (Image or Video) */}
                     <div className="absolute inset-0 z-0 text-[0px]"> {/* text-[0] removes whitespace gaps */}
@@ -435,6 +435,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                         opts={{
                                             width: '100%',
                                             height: '100%',
+                                            host: 'https://www.youtube-nocookie.com',
                                             playerVars: {
                                                 autoplay: 1,
                                                 modestbranding: 1,

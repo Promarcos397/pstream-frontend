@@ -88,9 +88,7 @@ interface SearchOptions {
  */
 function buildSearchQueries(options: SearchOptions): string[] {
     const { title, year, company } = options;
-
-    // USER REQUEST: [Production company name + media title + release year + official trailer]
-    // Consolidate into a single, high-precision query to save maximum API quota.
+    
     const queryParts = [];
     if (company) queryParts.push(company);
     queryParts.push(title);
@@ -117,7 +115,9 @@ async function executeSearch(query: string, maxResults: number): Promise<string[
                     type: 'video',
                     maxResults: maxResults,
                     relevanceLanguage: 'en',
-                    videoEmbeddable: 'true'
+                    // NOTE: intentionally NOT filtering by videoEmbeddable='true'.
+                    // That flag excludes age-gated trailers (The Boys, etc.).
+                    // Age-gated videos fail at the player level and are skipped via onError cycling.
                 }
             });
 
