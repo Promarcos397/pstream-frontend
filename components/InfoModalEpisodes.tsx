@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CaretUpIcon, CaretDownIcon, PlayIcon } from '@phosphor-icons/react';
+import { CaretUpIcon, CaretDownIcon, PlayIcon, CheckIcon } from '@phosphor-icons/react';
 import { Episode, Movie } from '../types';
 import { IMG_PATH } from '../constants';
+import { useGlobalContext } from '../context/GlobalContext';
 
 interface InfoModalEpisodesProps {
     movie: Movie;
@@ -29,6 +30,7 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
     const dropdownRef = useRef<HTMLDivElement>(null);
     const { t, i18n } = useTranslation();
     const isRTL = ['ar', 'he'].includes(i18n.language.split('-')[0]);
+    const { getEpisodeProgress } = useGlobalContext();
 
     // Close on click outside (dropdown)
     useEffect(() => {
@@ -105,6 +107,25 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
                                         <PlayIcon size={16} weight="fill" className="text-black" />
                                     </div>
                                 </div>
+                                {/* Per-episode progress bar */}
+                                {(() => {
+                                    const prog = getEpisodeProgress(movie.id, selectedSeason, ep.episode_number);
+                                    if (!prog || !prog.duration || prog.time < 5) return null;
+                                    const pct = Math.min(100, (prog.time / prog.duration) * 100);
+                                    const done = pct >= 95;
+                                    return done ? (
+                                        <div className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5">
+                                            <CheckIcon size={10} className="text-white" weight="bold" />
+                                        </div>
+                                    ) : (
+                                        <div className="absolute bottom-0 left-0 w-full h-[3px] bg-white/20">
+                                            <div
+                                                className="h-full bg-[#e50914] transition-all duration-300"
+                                                style={{ width: `${pct}%` }}
+                                            />
+                                        </div>
+                                    );
+                                })()}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between mb-1">

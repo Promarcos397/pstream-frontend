@@ -463,21 +463,41 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 if (type === 'tv' && lastEp) {
                                     watchUrl += `?season=${lastEp.season}&episode=${lastEp.episode}`;
                                 }
-                                
+
+                                // Calculate watch progress for mini bar
+                                let watchPct = 0;
+                                if (hasResumeMovie && savedMovieState?.duration) {
+                                    watchPct = Math.min(100, (savedMovieState.time / savedMovieState.duration) * 100);
+                                } else if (hasResumeTV && lastEp) {
+                                    const ep = getEpisodeProgress(movie.id, lastEp.season, lastEp.episode);
+                                    if (ep?.duration) watchPct = Math.min(100, (ep.time / ep.duration) * 100);
+                                }
+
                                 return (
-                                    <Link
-                                        to={watchUrl}
-                                        className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons no-underline"
-                                    >
-                                        {isResuming ? (
-                                            <ClockIcon size={24} weight="bold" className="mr-2" />
-                                        ) : (
-                                            <PlayIcon size={24} weight="fill" className="mr-2" />
+                                    <div className="flex flex-col items-stretch">
+                                        <Link
+                                            to={watchUrl}
+                                            className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons no-underline"
+                                        >
+                                            {isResuming ? (
+                                                <ClockIcon size={24} weight="bold" className="mr-2" />
+                                            ) : (
+                                                <PlayIcon size={24} weight="fill" className="mr-2" />
+                                            )}
+                                            {hasResumeTV ? t('modal.resume', { season: lastEp.season, episode: lastEp.episode }) :
+                                             hasResumeMovie ? t('rows.continueWatching') :
+                                             t('hero.play')}
+                                        </Link>
+                                        {/* Mini progress bar — same width as button above, only when there's watch history */}
+                                        {watchPct > 1 && (
+                                            <div className="w-full h-[3px] bg-white/20 rounded-full overflow-hidden mt-1.5">
+                                                <div
+                                                    className="h-full bg-[#e50914] rounded-full transition-all duration-300"
+                                                    style={{ width: `${watchPct}%` }}
+                                                />
+                                            </div>
                                         )}
-                                        {hasResumeTV ? t('modal.resume', { season: lastEp.season, episode: lastEp.episode }) : 
-                                         hasResumeMovie ? t('rows.continueWatching') : 
-                                         t('hero.play')}
-                                    </Link>
+                                    </div>
                                 );
                             })()}
                             <button
@@ -494,28 +514,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 onRate={(r) => rateMovie(activeMovie, r)}
                             />
                         </div>
-
-                        {/* Mini progress bar — shown under the play button when there's watch history */}
-                        {(() => {
-                            let watchPct = 0;
-                            if (hasResumeMovie && savedMovieState?.duration) {
-                                watchPct = Math.min(100, (savedMovieState.time / savedMovieState.duration) * 100);
-                            } else if (hasResumeTV && lastEp) {
-                                const ep = getEpisodeProgress(movie.id, lastEp.season, lastEp.episode);
-                                if (ep?.duration) watchPct = Math.min(100, (ep.time / ep.duration) * 100);
-                            }
-                            if (watchPct < 1) return null;
-                            return (
-                                <div className="w-full mt-1.5" style={{ maxWidth: '160px' }}>
-                                    <div className="w-full h-[3px] bg-white/20 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-p-red rounded-full transition-all duration-300"
-                                            style={{ width: `${watchPct}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })()}
                     </div>
 
                     {/* Layer 3: Mute / Replay button — always visible once trailer has been loaded */}
