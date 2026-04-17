@@ -10,7 +10,7 @@ if (YOUTUBE_API_KEYS.length === 0) {
 
 // Global throttle to prevent spamming Google APIs too hard
 let lastSearchTime = 0;
-const GLOBAL_SEARCH_THROTTLE_MS = 500; 
+const GLOBAL_SEARCH_THROTTLE_MS = 500;
 
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -88,14 +88,14 @@ interface SearchOptions {
  */
 function buildSearchQueries(options: SearchOptions): string[] {
     const { title, year, company } = options;
-    
+
     // USER REQUEST: [Production company name + media title + release year + official trailer]
     // Consolidate into a single, high-precision query to save maximum API quota.
     const queryParts = [];
     if (company) queryParts.push(company);
     queryParts.push(title);
     if (year) queryParts.push(year);
-    queryParts.push('official trailer');
+    queryParts.push('official trailer 4K');
 
     return [queryParts.join(' ')];
 }
@@ -105,7 +105,7 @@ function buildSearchQueries(options: SearchOptions): string[] {
  */
 async function executeSearch(query: string, maxResults: number): Promise<string[]> {
     const key = YOUTUBE_API_KEYS[currentKeyIndex];
-    
+
     // If we have a key, try official API first
     if (key) {
         try {
@@ -127,7 +127,7 @@ async function executeSearch(query: string, maxResults: number): Promise<string[
         } catch (error: any) {
             const status = error.response?.status;
             const reason = error.response?.data?.error?.message || error.message;
-            
+
             if (status === 403 || status === 429) {
                 console.warn(`[YouTubeService] Key ${currentKeyIndex} failed (${status}): ${reason}. Rotating...`);
                 if (rotateKey()) {
@@ -145,11 +145,11 @@ async function executeSearch(query: string, maxResults: number): Promise<string[
         console.log(`[YouTubeService] 🚀 Using No-API Scraper Fallback for: ${query}`);
         const GIGA_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
         const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%3D%3D`;
-        
+
         // FIX: Match backend endpoint (/proxy/stream) and use correct URL query string grammar
         const proxyUrl = `${GIGA_URL}/proxy/stream?url=${encodeURIComponent(searchUrl)}`;
         const response = await axios.get(proxyUrl, { responseType: 'text' });
-        
+
         const html = response.data;
         // Search for "videoId":"..." pattern in YT initial data
         const matches = [...html.matchAll(/"videoId":"([^"]{11})"/g)];

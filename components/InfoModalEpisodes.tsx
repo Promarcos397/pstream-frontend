@@ -48,7 +48,7 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
     return (
         <div className="mt-10">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl md:text-2xl font-bold text-white">{t('modal.episodes')}</h3>
+                <h3 className="text-xl md:text-1xl font-bold text-white">{t('modal.episodes')}</h3>
 
                 {/* Season Dropdown */}
                 {totalSeasons > 0 && (
