@@ -292,8 +292,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   // Prefetch stream on hover
   const handleMouseEnter = (e: React.MouseEvent) => {
-  //Robust mobile/touch detection - Android Chrome often falsely reports (hover: hover)
-    if (isMobile || window.innerWidth < 1200 || ('ontouchstart' in window && navigator.maxTouchPoints > 0)) return;
+    // CSS media query is the most reliable touch/cursor signal.
+    // (hover: hover) = device supports hover. (pointer: fine) = precise pointer (mouse/trackpad).
+    // Touch screens, tablets, and touch-mode laptops all fail (pointer: fine).
+    const hasRealCursor = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (!hasRealCursor || isMobile) return;
 
     const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
     const dateStr = movie.release_date || movie.first_air_date;
