@@ -64,53 +64,52 @@ const BadgeOverlay: React.FC<{ badge: { text: string; type: string } | null; isB
   return null;
 });
 
-const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; getVideoState: any }> = React.memo(({ movie, getLastWatchedEpisode, getVideoState }) => {
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const fetchProgress = async () => {
-      try {
-        // Skip background fetch if video is actively playing — don't compete for bandwidth
-        if (NetworkPriority.isVideoActive()) return;
-
-        // Fallback to local storage logic instantly for UI snap
-        let localProgress = 0;
-        const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv');
-        if (mediaType === 'tv') {
-          const ep = getLastWatchedEpisode(String(movie.id));
-          if (ep && ep.duration > 0) localProgress = (ep.time / ep.duration) * 100;
-        } else {
-          const state = getVideoState(movie.id);
-          if (state && state.duration && state.duration > 0) localProgress = (state.time / state.duration) * 100;
-        }
-
-        setProgress(localProgress);
-
-        // Then asynchronously ask the server for the precise cross-device watch percentage
-        try {
-          const apiBase = (import.meta as any).env?.VITE_GIGA_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:7860' : window.location.origin);
-          const res = await axios.get(`${apiBase}/api/profiles/default/progress/${movie.id}`);
-          if (res.data && res.data.length > 0) {
-            const p = res.data[0];
-            if (p.duration > 0) {
-              setProgress((p.watched / p.duration) * 100);
-            }
-          }
-        } catch (e) { /* server offline, rely on local */ }
-
-      } catch (err) { }
-    };
-    fetchProgress();
-  }, [movie.id]);
-
-  if (progress > 0 && progress < 100) {
-    return (
-      <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-[80%] h-1 bg-[#333] shadow-md pointer-events-none z-0">
-        <div className="h-full bg-[#E50914]" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
-      </div>
-    );
+// Returns { pct, watchMins, totalMins } from local state
+function getWatchData(movie: Movie, getLastWatchedEpisode: any, getVideoState: any): { pct: number; watchMins: number; totalMins: number } {
+  const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv');
+  if (mediaType === 'tv') {
+    const ep = getLastWatchedEpisode(String(movie.id));
+    if (ep && ep.duration > 0) {
+      return { pct: Math.min(99, (ep.time / ep.duration) * 100), watchMins: Math.round(ep.time / 60), totalMins: Math.round(ep.duration / 60) };
+    }
+  } else {
+    const state = getVideoState(movie.id);
+    if (state && state.duration > 0) {
+      return { pct: Math.min(99, (state.time / state.duration) * 100), watchMins: Math.round(state.time / 60), totalMins: Math.round(state.duration / 60) };
+    }
   }
-  return null;
+  return { pct: 0, watchMins: 0, totalMins: 0 };
+}
+
+// Thin flat red bar + '11 of 43m' text — matches InfoModal style
+const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; getVideoState: any }> = React.memo(({ movie, getLastWatchedEpisode, getVideoState }) => {
+  const { pct, watchMins, totalMins } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
+  if (pct <= 0) return null;
+  return (
+    <div className="absolute bottom-0 left-0 right-0 flex items-center pointer-events-none z-10">
+      <div className="flex-1 h-[3px] bg-white/20" style={{ borderRadius: 0 }}>
+        <div className="h-full bg-[#E50914]" style={{ width: `${pct}%`, borderRadius: 0 }} />
+      </div>
+    </div>
+  );
+});
+
+// Hover-popup version: bar + '11 of 43m' right-aligned text (like Netflix card)
+const HoverProgressBar: React.FC<{ movie: Movie; getLastWatchedEpisode: any; getVideoState: any }> = React.memo(({ movie, getLastWatchedEpisode, getVideoState }) => {
+  const { pct, watchMins, totalMins } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
+  if (pct <= 0) return null;
+  return (
+    <div className="flex items-center gap-2 px-3 pt-1 pb-0">
+      <div className="flex-1 h-[3px] bg-white/20" style={{ borderRadius: 0 }}>
+        <div className="h-full bg-[#e50914] transition-all duration-300" style={{ width: `${pct}%`, borderRadius: 0 }} />
+      </div>
+      {totalMins > 0 && (
+        <span className="text-gray-400/80 text-[11px] whitespace-nowrap flex-shrink-0 font-medium">
+          {watchMins} of {totalMins}m
+        </span>
+      )}
+    </div>
+  );
 });
 
 type MovieRating = 'like' | 'dislike' | 'love';
@@ -289,22 +288,21 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   // Prefetch stream on hover
   const handleMouseEnter = (e: React.MouseEvent) => {
-  //Robust mobile/touch detection - Android Chrome often falsely reports (hover: hover)
-    if (isMobile || window.innerWidth < 1200 || ('ontouchstart' in window && navigator.maxTouchPoints > 0)) return;
+    // Block on any touch-capable device (phones, tablets) regardless of screen width
+    if (navigator.maxTouchPoints > 1 || ('ontouchstart' in window)) return;
 
     const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
     const dateStr = movie.release_date || movie.first_air_date;
     const yearString = dateStr ? dateStr.split('-')[0] : '';
 
     // Determine screen position for smart popup alignment
+    // Use a generous buffer so the popup (≈265px wide, scales 1.1×) never clips
     let currentPos: 'center' | 'left' | 'right' = 'center';
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
-      const popupWidth = window.innerWidth > 1024 ? 300 : 260;
-      const expansionBuffer = (popupWidth * 1.05 - rect.width) / 2;
-
-      if (rect.left < expansionBuffer) currentPos = 'left';
-      else if (window.innerWidth - rect.right < expansionBuffer) currentPos = 'right';
+      const EDGE_BUFFER = 160; // half of popup width at scale
+      if (rect.left < EDGE_BUFFER) currentPos = 'left';
+      else if (window.innerWidth - rect.right < EDGE_BUFFER) currentPos = 'right';
       setHoverPosition(currentPos);
     }
 
@@ -488,7 +486,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         )}
       </div>
 
-      {/* Progress Bar underneath the poster */}
+      {/* Flat progress bar anchored to card bottom — only when not hovered */}
       {!isHovered && <ProgressIndicator movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />}
 
       {/* Hover Popup - Active on all views */}
@@ -590,8 +588,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               </div>
             </div>
 
+            {/* Netflix-style hover progress bar: flat, red, '11 of 43m' */}
+            <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
+
             {/* Info Section */}
-            <div className="px-3 pt-2.5 pb-3 space-y-2.5 bg-[#181818]">
+            <div className="px-3 pt-2 pb-3 space-y-2.5 bg-[#181818]">
               {/* Action Buttons Row */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
@@ -642,10 +643,19 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
               {/* Metadata Row */}
               <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
-                {/* Maturity Rating Badge */}
-                <span className="border border-white/40 text-white/90 px-1 py-[1px] text-[10px] font-medium">
-                  {movie.adult ? 'TV-MA' : movie.vote_average >= 7.5 ? 'TV-14' : 'TV-PG'}
-                </span>
+                {/* Maturity Rating Badge — Netflix-style colored circle */}
+                {(() => {
+                  const rating = movie.adult ? '18+' : movie.vote_average >= 7.5 ? '15' : '13+';
+                  const bg = rating === '18+' ? '#DC0A0A' : rating === '15' ? '#FB4FAE' : '#4a4a4a';
+                  return (
+                    <span
+                      className="inline-flex items-center justify-center rounded-full w-7 h-7 text-white font-bold text-[10px] flex-shrink-0"
+                      style={{ backgroundColor: bg }}
+                    >
+                      {rating}
+                    </span>
+                  );
+                })()}
 
                 {/* Runtime or Season count */}
                 <span className="text-white/70">

@@ -95,7 +95,8 @@ function buildSearchQueries(options: SearchOptions): string[] {
     if (company) queryParts.push(company);
     queryParts.push(title);
     if (year) queryParts.push(year);
-    queryParts.push('official trailer 4K-');
+    queryParts.push('official trailer 4K');
+
 
     return [queryParts.join(' ')];
 }

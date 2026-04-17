@@ -353,7 +353,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 </button>
 
                 {/* --- Hero Section - Video Background --- */}
-                <div className="relative h-[250px] sm:h-[350px] md:h-[480px] w-full bg-black group overflow-hidden">
+                <div className="relative h-[280px] sm:h-[380px] md:h-[540px] w-full bg-black group overflow-hidden">
 
                     {/* Layer 1: Media (Image or Video) */}
                     <div className="absolute inset-0 z-0 text-[0px]"> {/* text-[0] removes whitespace gaps */}
@@ -437,9 +437,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             height: '100%',
                                             playerVars: {
                                                 autoplay: 1,
+                                                mute: 0,
                                                 modestbranding: 1,
                                                 rel: 0,
                                                 controls: 0,
+                                                iv_load_policy: 3,
+                                                cc_load_policy: 0,
+                                                enablejsapi: 1,
                                                 // Skip first 5s to avoid green-screen warnings
                                                 start: initialTime > 5 ? Math.floor(initialTime) : 5,
                                                 loop: 0,

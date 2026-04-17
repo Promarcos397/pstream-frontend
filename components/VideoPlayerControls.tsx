@@ -672,21 +672,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 if (e.key === 'ArrowLeft') { e.preventDefault(); onTimelineSeek(Math.max(0, progress - 2)); }
                             }}
                         >
-                            {/* Hover tooltip — desktop only */}
+                            {/* Hover tooltip — timestamp only (desktop) */}
                             {!isMobile && isHovering && !isDragging && (
-                                <div className="absolute -top-32 -translate-x-1/2 flex flex-col items-center pointer-events-none z-50 animate-fadeIn" style={{ left: `${hoverPosition}%` }}>
-                                    <div className="w-[180px] aspect-video bg-zinc-900 rounded-md border border-white/20 shadow-2xl overflow-hidden mb-2 relative">
-                                        <img
-                                            src={nextEpisodeData?.stillPath ? `https://image.tmdb.org/t/p/w300${nextEpisodeData.stillPath}` : (window as any).__video_backdrop}
-                                            alt="Preview"
-                                            className="w-full h-full object-cover brightness-75"
-                                        />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                                        <div className="absolute bottom-2 left-2 right-2 text-white font-bold text-[10px] uppercase tracking-widest truncate">
-                                            {title}
-                                        </div>
-                                    </div>
-                                    <div className="bg-black/95 text-white text-[13px] px-3 py-1 rounded-sm font-consolas shadow-xl border border-white/10">
+                                <div className="absolute -top-10 -translate-x-1/2 flex flex-col items-center pointer-events-none z-50" style={{ left: `${hoverPosition}%` }}>
+                                    <div className="bg-black/95 text-white text-[13px] px-3 py-1.5 font-consolas shadow-xl border border-white/10" style={{ borderRadius: 2 }}>
                                         {(() => {
                                             const t = hoverTime;
                                             const h = Math.floor(t / 3600);
@@ -698,14 +687,14 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 </div>
                             )}
 
-                            {/* Track — bigger touch target on mobile (h-10 = 40px, within 44px rule) */}
+                            {/* Track — flat bars matching InfoModal/card style */}
                             <div className={`relative w-full flex items-center ${isMobile ? 'h-10' : 'h-8'}`}>
-                                <div className="absolute left-0 w-full h-[6px] bg-white/20 rounded-full" />
-                                <div className="absolute left-0 h-[6px] bg-white/35 rounded-full" style={{ width: `${buffered}%` }} />
-                                <div className="absolute left-0 h-[6px] bg-[#e50914] rounded-full transition-all" style={{ width: `${displayProgress}%` }} />
-                                {/* Thumb — always visible while dragging, scales on mobile */}
+                                <div className="absolute left-0 w-full h-[4px] bg-white/20" style={{ borderRadius: 0 }} />
+                                <div className="absolute left-0 h-[4px] bg-white/30" style={{ borderRadius: 0, width: `${buffered}%` }} />
+                                <div className="absolute left-0 h-[4px] bg-[#e50914] transition-all" style={{ borderRadius: 0, width: `${displayProgress}%` }} />
+                                {/* Thumb — square on desktop, round on mobile for thumb-friendliness */}
                                 <div
-                                    className={`absolute h-5 w-5 bg-[#e50914] rounded-full shadow-lg -translate-x-1/2 transition-transform ${isMobile || isDragging ? 'scale-100' : 'scale-0 group-hover/timeline:scale-125'}`}
+                                    className={`absolute h-3 w-3 bg-white shadow-lg -translate-x-1/2 transition-transform ${isMobile || isDragging ? 'scale-100 rounded-full' : 'scale-0 group-hover/timeline:scale-125 rounded-[2px]'}`}
                                     style={{ left: `${displayProgress}%` }}
                                 />
                             </div>
