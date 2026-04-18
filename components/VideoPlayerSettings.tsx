@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Episode } from '../types';
-import { ArrowLeftIcon, PlayCircleIcon, CheckIcon, CaretRightIcon, XIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, CheckIcon, CaretRightIcon, XIcon } from '@phosphor-icons/react';
+
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -415,7 +416,7 @@ export const EpisodeExplorer: React.FC<{
                                         />
                                     </div>
 
-                                    {/* Expanded info — Removed the white background circle from play icon */}
+                                    {/* Expanded info */}
                                     {isExpanded && (
                                         <div
                                             className="px-[35px] pb-[28px] flex flex-col md:flex-row gap-5 cursor-pointer group/ep-play"
@@ -425,17 +426,22 @@ export const EpisodeExplorer: React.FC<{
                                                 <div className="relative flex-shrink-0 w-full md:w-[220px]">
                                                     <img
                                                         src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
-                                                        className="w-full h-auto aspect-video object-cover rounded-sm group-hover/ep-play:brightness-75 transition"
+                                                        className="w-full h-auto aspect-video object-cover rounded-sm group-hover/ep-play:brightness-50 transition duration-200"
                                                         alt={ep.name}
                                                     />
-                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/ep-play:opacity-100 transition duration-300">
-                                                        <PlayCircleIcon size={54} weight="fill" className="text-white drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]" />
+                                                    {/* Simple play circle — always shown, bigger on hover */}
+                                                    <div className="absolute inset-0 flex items-center justify-center transition duration-200">
+                                                        <div className="w-12 h-12 rounded-full bg-white/20 border-2 border-white/80 flex items-center justify-center group-hover/ep-play:bg-white/30 group-hover/ep-play:scale-110 transition-all duration-200 shadow-lg">
+                                                            {/* Play triangle */}
+                                                            <div className="w-0 h-0 ml-1" style={{ borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: '14px solid white' }} />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
-                                            <div className="flex-1 flex flex-col">
-                                                <p className="text-sm text-white/60 line-clamp-4 leading-relaxed italic mb-2">"{ep.name}"</p>
-                                                <p className="text-sm text-white/80 line-clamp-6 leading-relaxed bg-white/5 p-3 rounded-sm border-l-2 border-white/20">{ep.overview || 'No description available.'}</p>
+                                            <div className="flex-1 flex flex-col justify-center">
+                                                <p className="text-sm text-white/60 leading-relaxed line-clamp-5">
+                                                    {ep.overview || 'No description available.'}
+                                                </p>
                                             </div>
                                         </div>
                                     )}
@@ -449,16 +455,15 @@ export const EpisodeExplorer: React.FC<{
     );
 
     if (isMobile) {
-
         return (
             <div className="fixed inset-0 z-[120] pointer-events-auto" onClick={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}>
-                <div 
-                    className={`${commonPanelCls} ${activePanel === 'audioSubtitles' ? 'w-[550px]' : 'w-[420px]'} h-[480px] pointer-events-auto`} 
-                    style={{ borderRadius: 0 }} 
+                <div
+                    className={`${commonPanelCls} w-full max-h-[85svh] pointer-events-auto`}
+                    style={{ borderRadius: 0, bottom: 0, right: 0, left: 0 }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className="flex items-center justify-between px-6 py-5 border-b-2 border-white flex-shrink-0">
-                        <span className="text-white text-xl font-bold uppercase">{activePanel === 'seasons' ? 'Seasons' : `Season ${previewSeason}`}</span>
+                    <div className="flex items-center justify-between px-6 py-4 border-b-2 border-white flex-shrink-0">
+                        <span className="text-white text-lg font-bold uppercase">{activePanel === 'seasons' ? 'Seasons' : `Season ${previewSeason}`}</span>
                         <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="w-10 h-10 flex items-center justify-center text-white active:text-white/50"><XIcon size={20} weight="bold" /></button>
                     </div>
                     <div className="overflow-y-auto flex-1">{innerContent}</div>

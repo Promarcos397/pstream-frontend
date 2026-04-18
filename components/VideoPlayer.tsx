@@ -75,6 +75,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [showUI, setShowUI] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
+    const [isVideoReady, setIsVideoReady] = useState(false); // gates subtitle rendering on first canplay
+    const hasPlayedOnceRef = useRef(false); // persists across subtitle track changes (unlike isVideoReady)
     const [loadingMessage, setLoadingMessage] = useState('Finding stream...');
     const [streamUrl, setStreamUrl] = useState<string | null>(null);
     const [streamReferer, setStreamReferer] = useState<string | null>(null);
@@ -100,11 +102,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [seasonList, setSeasonList] = useState<number[]>([]);
     const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState<Episode[]>([]);
 
-    // Reset retry counter when episode/movie changes (declared after TV state to avoid hoisting issue)
+    // Reset retry counter AND subtitle gate when episode/movie changes
     useEffect(() => {
         retryCountRef.current = 0;
         setRetryCount(0);
+        hasPlayedOnceRef.current = false; // force clean subtitle gate for new content
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
+
 
     // Navigation state
     const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers'>('none');
@@ -403,14 +407,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             mediaType !== 'tv' ||
             !nextEpisodeInfo ||
             isBuffering ||
-            duration < 60 ||       // don't trigger on tiny clips
+            duration < 40 ||       // don't trigger on tiny clips
             autoNextFiredRef.current ||
             autoNextDismissedRef.current ||
             settings.autoplayNextEpisode === false
         ) return;
 
         // Formula: appear 60s before end, or 92% through — whichever is later
-        const triggerAt = Math.max(duration - 60, duration * 0.92);
+        const triggerAt = Math.max(duration - 60, duration * 0.95);
         if (currentTime < triggerAt) return;
 
         autoNextFiredRef.current = true;
@@ -738,7 +742,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 video.currentTime = t;
                 console.log(`[VideoPlayer] ▶ Resuming from ${Math.round(t)}s`);
             }
+            // Mark video as ready so subtitles can render
+            setIsVideoReady(true);
+            hasPlayedOnceRef.current = true;
         };
+
+        // Reset ready state whenever stream URL changes (new episode / new source)
+        // but NOT when just caption/subtitle track changes
+        setIsVideoReady(false);
 
         video.addEventListener('canplay', handleCanPlay, { once: true });
         return () => video.removeEventListener('canplay', handleCanPlay);
@@ -1010,8 +1021,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 playsInline
             />
 
-            {/* ── Custom Subtitle Overlay (dialogue-aware left/right positioning) ── */}
-            {subtitleObjectUrl && currentCueText && (() => {
+            {/* ── Custom Subtitle Overlay ── */}
+            {/* Show when: stream is ready (isVideoReady) OR we've played before and are just switching subtitle tracks */}
+            {(isVideoReady || hasPlayedOnceRef.current) && subtitleObjectUrl && currentCueText && (() => {
                 // Dialogue detection: lines starting with '- ' (or '– ')
                 // e.g. "- Hello there\n- Hi!" → two speakers
                 const lines = currentCueText.split(/\n/);

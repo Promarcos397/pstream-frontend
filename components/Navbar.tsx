@@ -52,7 +52,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
     <nav
       className={`fixed top-0 w-full z-[80] transition-all duration-500 
         px-6 md:px-14 lg:px-16
-        ${isSettings ? 'bg-white border-b border-gray-100' : (isScrolled || mobileMenuOpen ? 'bg-[#141414]/90 backdrop-blur-md shadow-2xl' : 'bg-gradient-to-b from-black/60 via-black/20 to-transparent')}
+        ${isSettings ? 'bg-white border-b border-gray-100' : (isScrolled || mobileMenuOpen ? 'bg-[#141414]/100  shadow-2xl' : 'bg-gradient-to-b from-black/60 via-black/20 to-transparent')}
         ${isSettings ? 'pt-4 pb-4' : 'pt-[calc(1rem+env(safe-area-inset-top))] pb-3 md:py-4'}`}
     >
       <div className="flex items-center justify-between">
@@ -60,7 +60,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
           <img
             src={pstreamLogo}
             alt="Pstream"
-            className={`h-4 sm:h-5 md:h-6 lg:h-7 cursor-pointer drop-shadow-md transition-transform hover:scale-105 relative z-10 ${isSettings ? 'brightness-100' : ''}`}
+            className={`h-4 sm:h-5 md:h-6 lg:h-7 cursor-pointer transition-transform hover:scale-105 relative z-10 ${isSettings ? 'brightness-100' : ''}`}
             onClick={() => handleTabClick('home')}
           />
 

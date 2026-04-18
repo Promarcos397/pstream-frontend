@@ -12,6 +12,8 @@ import InfoModalRecommendations from './InfoModalRecommendations';
 import { useMovieData } from '../hooks/useMovieData';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { NetworkPriority } from '../services/NetworkPriority';
+import { MaturityBadge } from './MovieCardBadges';
+
 
 interface InfoModalProps {
     movie: Movie | null;
@@ -71,8 +73,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const [trailerQueue, setTrailerQueue] = useState<string[]>([]);
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
+    const [isTrailerReady, setIsTrailerReady] = useState(false); // true once player actually starts playing
     const isMuted = globalMute;
     const setIsMuted = setGlobalMute;
+    const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Episode / Season State
     const [episodes, setEpisodes] = useState<Episode[]>([]);
@@ -84,6 +88,40 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const [hasVideoEnded, setHasVideoEnded] = useState(false);
     const [replayCount, setReplayCount] = useState(0);
 
+    // ── Spring-from-card animation (FLIP technique) ──────────────────────
+    // On mount we read the card's screen rect, compute the transform that makes
+    // the modal START visually at the card, then transition it to identity.
+    const [springTransform, setSpringTransform] = useState<string>('none');
+    const [springTransition, setSpringTransition] = useState('none');
+
+    useEffect(() => {
+        const rect = (window as any).__last_card_rect as DOMRect | undefined;
+        if (!rect || !modalRef.current) return; // no card rect = no animation, just fade in normally
+
+        // Step 1: measure where the modal actually rendered in the DOM
+        const modalRect = modalRef.current.getBoundingClientRect();
+
+        // Step 2: calculate the scale + translate that makes the modal appear AT the card's position
+        const scaleX = rect.width  / modalRect.width;
+        const scaleY = rect.height / modalRect.height;
+        const tx = rect.left + rect.width  / 2 - (modalRect.left + modalRect.width  / 2);
+        const ty = rect.top  + rect.height / 2 - (modalRect.top  + modalRect.height / 2);
+
+        // Step 3: instantly snap to card position (no transition — happens before browser paints)
+        setSpringTransition('none');
+        setSpringTransform(`translate(${tx}px, ${ty}px) scale(${scaleX}, ${scaleY})`);
+
+        // Step 4: two rAF frames later -- spring to identity (natural modal position)
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                setSpringTransition('transform 0.44s cubic-bezier(0.25, 0.46, 0.45, 0.94)');
+                setSpringTransform('translate(0px, 0px) scale(1, 1)');
+                delete (window as any).__last_card_rect;
+            });
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    // ────────────────────────────────────────────────────────────────────
 
     const [resumeContext, setResumeContext] = useState<{ season: number; episode: number } | null>(null);
     // Lock body scroll when modal is open, restore exactly on close
@@ -166,12 +204,20 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         };
     };
 
+    // Clean up sync interval on unmount
+    useEffect(() => {
+        return () => {
+            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+        };
+    }, []);
+
     useEffect(() => {
         if (movie) {
             // Reset state for new movie
             setImgFailed(false);
             setTrailerQueue([]);
             setIsPlayingTrailer(false);
+            setIsTrailerReady(false);
             setEpisodes([]);
             setSelectedSeason(1);
             setResumeContext(null);
@@ -329,45 +375,49 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     return (
         <div
-            className="fixed inset-0 z-[200] bg-black/70 flex justify-center overflow-y-auto backdrop-blur-md scrollbar-hide animate-fadeIn cursor-default"
+            className="fixed inset-0 z-[200] bg-black/70 flex justify-center overflow-y-auto backdrop-blur-[1px] scrollbar-hide animate-fadeIn cursor-default"
             onClick={handleClose}
         >
             <div
                 ref={modalRef}
-                className={`relative w-full max-w-[950px] bg-[#181818] rounded-2xl shadow-2xl mt-12 md:mt-16 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10
-                    transition-all duration-500 cubic-bezier-spring animate-modal-spring`}
+                className="relative w-full max-w-[950px] bg-[#181818] rounded-2xl shadow-2xl mt-12 md:mt-16 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
+                style={{
+                    transform: springTransform,
+                    transition: springTransition,
+                    transformOrigin: 'center center',
+                    willChange: 'transform',
+                }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <button
-    type="button" // 1. CRITICAL: Tells the browser "Do NOT refresh the page!"
-    onClick={(e) => {
-        e.preventDefault();   // 2. Stops any default browser actions
-        e.stopPropagation();  // 3. Stops the click from "falling through" to the background
-        
-        // If your onClose function expects a time, pass it here. Otherwise, just onClose()
-        onClose(); 
-    }}
-    className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#181818] flex items-center justify-center border-2 border-transparent hover:border-white transition z-50 cursor-pointer"
->
-    <XIcon size={24} className="text-white" />
-</button>
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onClose();
+                    }}
+                    className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#181818] flex items-center justify-center border-2 border-transparent hover:border-white transition z-50 cursor-pointer"
+                >
+                    <XIcon size={24} className="text-white" />
+                </button>
 
                 {/* --- Hero Section - Video Background --- */}
-                <div className="relative h-[280px] sm:h-[380px] md:h-[540px] w-full bg-black group overflow-hidden">
+                <div className="relative h-[300px] sm:h-[400px] md:h-[560px] w-full bg-black group overflow-hidden">
 
-                    {/* Layer 1: Media (Image or Video) */}
-                    <div className="absolute inset-0 z-0 text-[0px]"> {/* text-[0] removes whitespace gaps */}
+                    {/* Layer 1: Backdrop — stays visible until trailer is actively playing */}
+                    <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
-                            className={`w-full h-full object-cover transition-opacity duration-700 ${isPlayingTrailer ? 'opacity-0' : 'opacity-100'}`}
+                            className={`w-full h-full object-cover transition-opacity duration-700 ${isPlayingTrailer && isTrailerReady ? 'opacity-0' : 'opacity-100'}`}
                             alt="modal hero"
                         />
 
-                        {/* Video Layer */}
-                        <div className={`absolute inset-0 transition-opacity duration-1000 ${isPlayingTrailer ? 'opacity-100' : 'opacity-0'}`}>
+                        {/* Video Layer — only fades in once player is ready AND playing */}
+                        <div className={`absolute inset-0 transition-opacity duration-1000 ${isPlayingTrailer && isTrailerReady ? 'opacity-100' : 'opacity-0'}`}>
                             {trailerQueue.length > 0 && (
-                                <div className="w-full h-full scale-[1.35] translate-y-[-15%] pointer-events-none">
+                                <div className="w-full h-full scale-[1.35] translate-y-[-12%] pointer-events-none">
                                     <YouTube
+                                        key={`${trailerQueue[0]}-modal-${replayCount}`}
                                         videoId={trailerQueue[0]}
                                         className="w-full h-full"
                                         onReady={(e) => {
@@ -392,25 +442,37 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             }
                                         }}
                                         onStateChange={(e) => {
-                                            // Progress Sync: Save current time to context in real-time
-                                            try {
-                                                const time = e.target.getCurrentTime();
-                                                const videoId = trailerQueue[0];
-                                                if (time > 0 && videoId && movie) {
-                                                    updateVideoState(movie.id, time, videoId);
-                                                }
-                                            } catch (err) {}
-
-                                            // Stop 2s before the end to prevent YouTube suggestions overlay
                                             const YT_PLAYING = 1;
+                                            const YT_PAUSED = 2;
+
+                                            // Mark trailer ready only when ACTUALLY playing (not just buffering)
+                                            if (e.data === YT_PLAYING && !isTrailerReady) {
+                                                setIsTrailerReady(true);
+                                            }
+
+                                            // Sync interval: save current time to GlobalContext every second while playing
                                             if (e.data === YT_PLAYING) {
+                                                if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+                                                syncIntervalRef.current = setInterval(() => {
+                                                    try {
+                                                        const time = playerRef.current?.getCurrentTime?.();
+                                                        const videoId = trailerQueue[0];
+                                                        if (time > 0 && videoId && movie) {
+                                                            updateVideoState(movie.id, time, videoId);
+                                                        }
+                                                    } catch (_) {}
+                                                }, 1000);
+
+                                                // Early stop: 5s before end to prevent YouTube overlay
                                                 const checkEnd = () => {
                                                     if (!playerRef.current) return;
                                                     try {
                                                         const remaining = playerRef.current.getDuration() - playerRef.current.getCurrentTime();
-                                                        if (remaining <= 2) {
+                                                        if (remaining <= 5) {
+                                                            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
                                                             playerRef.current.pauseVideo();
                                                             setIsPlayingTrailer(false);
+                                                            setIsTrailerReady(false);
                                                             setHasVideoEnded(true);
                                                             return;
                                                         }
@@ -419,13 +481,20 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                 };
                                                 checkEnd();
                                             }
+
+                                            if (e.data === YT_PAUSED) {
+                                                if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+                                            }
                                         }}
                                         onEnd={() => {
+                                            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
                                             setIsPlayingTrailer(false);
+                                            setIsTrailerReady(false);
                                             setHasVideoEnded(true);
                                         }}
                                         onError={(e) => {
                                             console.warn("InfoModal Video error, trying next...", e);
+                                            setIsTrailerReady(false);
                                             setTrailerQueue(prev => {
                                                 const newQueue = prev.slice(1);
                                                 if (newQueue.length === 0) setIsPlayingTrailer(false);
@@ -437,14 +506,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             height: '100%',
                                             playerVars: {
                                                 autoplay: 1,
-                                                mute: 0,
+                                                mute: isMuted ? 1 : 0,
                                                 modestbranding: 1,
                                                 rel: 0,
                                                 controls: 0,
                                                 iv_load_policy: 3,
                                                 cc_load_policy: 0,
                                                 enablejsapi: 1,
-                                                // Skip first 5s to avoid green-screen warnings
                                                 start: initialTime > 5 ? Math.floor(initialTime) : 5,
                                                 loop: 0,
                                             }
@@ -456,6 +524,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
                         {/* Gradient Overlay (Always on top of media) */}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent z-10" />
+
+                        {/* Side gradients to mask video edge bleed */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-[#181818] via-transparent to-[#181818] z-10 pointer-events-none" />
                     </div>
 
                     {/* Layer 2: Content (Buttons, Title) - Always Visible */}
@@ -530,7 +601,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         </div>
                     </div>
 
-                    {/* Layer 3: Mute / Replay button — always visible once trailer has been loaded */}
+                    {/* Layer 3: Mute / Replay button — visible once trailer has loaded */}
                     {(isPlayingTrailer || hasVideoEnded) && (
                         <button
                             onClick={(e) => {
@@ -538,6 +609,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 if (hasVideoEnded) {
                                     // Replay: restart trailer
                                     setHasVideoEnded(false);
+                                    setIsTrailerReady(false);
                                     setIsPlayingTrailer(true);
                                     setReplayCount(c => c + 1);
                                     setTimeout(() => {
@@ -571,13 +643,17 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 <span className="border border-gray-500 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-400 h-fit leading-none font-bold">HD</span>
                             </div>
 
-                            {/* Age & Warning Row */}
+                            {/* Age & Warning Row — using standardized MaturityBadge */}
                             <div className="flex items-center gap-3">
-                                <span className="border border-white/40 bg-transparent text-white px-2 py-0.5 text-sm font-medium uppercase">
-                                    {activeMovie.adult ? '18+' : '13+'}
-                                </span>
-                                {activeMovie.adult && <span className="text-sm text-gray-400">{t('common.maturity.adultDesc')}</span>}
-                                {!activeMovie.adult && <span className="text-sm text-gray-400">{t('common.maturity.teenDesc')}</span>}
+                                <MaturityBadge
+                                    adult={activeMovie.adult}
+                                    voteAverage={activeMovie.vote_average}
+                                    size="md"
+                                />
+                                {activeMovie.adult
+                                    ? <span className="text-sm text-gray-400">{t('common.maturity.adultDesc')}</span>
+                                    : <span className="text-sm text-gray-400">{t('common.maturity.teenDesc')}</span>
+                                }
                             </div>
 
                             <p className="text-white text-sm md:text-[15px] leading-relaxed pt-2">

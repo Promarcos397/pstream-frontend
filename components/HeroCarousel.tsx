@@ -12,6 +12,7 @@ import { getMovieImages, prefetchStream, getExternalIds } from '../services/api'
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
 import { NetworkPriority } from '../services/NetworkPriority';
+import { MaturityBadge } from './MovieCardBadges';
 
 interface HeroCarouselProps {
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
@@ -351,36 +352,36 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         }}
         trailerVideoId={trailerQueue[0]} hasVideoEnded={hasVideoEnded}
       />
-      {/* Mute + Age Rating — row-aligned with the Play/More Info buttons */}
-      <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
-        /* THEME_TOGGLE: HERO_CONTROLS_POSITION - Adjust bottom to move Mute/Age up or down */
-        bottom-[25%] sm:bottom-[21%] md:bottom-[17%]"
-      >
-        {showVideo && isVideoReady && (
-          <button 
-            onClick={() => {
-              if (hasVideoEnded) {
-                setHasVideoEnded(false);
-                setReplayCount(prev => prev + 1);
-                setShowVideo(true);
-              } else {
-                setIsMuted(!isMuted);
-              }
-            }} 
-            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-lg group mr-4 active:scale-90"
-            aria-label={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {hasVideoEnded ? (
-              <ArrowCounterClockwise size={20} className="text-white" />
-            ) : (
-              isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />
-            )}
-          </button>
-        )}
-        <div className="bg-gray-500/40 border-l-[3px] border-gray-300 px-3 md:px-5 min-w-[60px] md:min-w-[90px] flex items-center justify-start h-[40px] md:h-[48px]">
-          <span className="text-white text-sm md:text-lg font-medium drop-shadow-md select-none">{movie.adult ? '18+' : '13+'}</span>
+        {/* Mute + Age Rating — standardized MaturityBadge */}
+        <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
+          bottom-[25%] sm:bottom-[21%] md:bottom-[17%]"
+        >
+          {showVideo && isVideoReady && (
+            <button 
+              onClick={() => {
+                if (hasVideoEnded) {
+                  setHasVideoEnded(false);
+                  setReplayCount(prev => prev + 1);
+                  setShowVideo(true);
+                } else {
+                  setIsMuted(!isMuted);
+                }
+              }} 
+              className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-lg group mr-4 active:scale-90"
+              aria-label={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {hasVideoEnded ? (
+                <ArrowCounterClockwise size={20} className="text-white" />
+              ) : (
+                isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />
+              )}
+            </button>
+          )}
+          {/* Use standardized MaturityBadge — md size for hero prominence */}
+          <div className="mr-4">
+            <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} size="md" />
+          </div>
         </div>
-      </div>
     </div>
   );
 };

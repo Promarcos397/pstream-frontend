@@ -87,18 +87,17 @@ interface SearchOptions {
  * More specific queries first, fallback to simpler ones
  */
 function buildSearchQueries(options: SearchOptions): string[] {
-    const { title, year, company } = options;
+    const { title, year } = options;
 
-    // USER REQUEST: [Production company name + media title + release year + official trailer]
-    // Consolidate into a single, high-precision query to save maximum API quota.
-    const queryParts = [];
-    if (company) queryParts.push(company);
-    queryParts.push(title);
-    if (year) queryParts.push(year);
-    queryParts.push('official trailer 4K');
+    // Primary: "{title} {year} official trailer" — company name removed because
+    // TMDB company data is inconsistent (distributors, sub-studios, wrong language)
+    // and it reliably degrades YouTube match quality.
+    const primary = [title, year, 'official trailer'].filter(Boolean).join(' ');
 
+    // Fallback: without the year, catches movies with wrong release year in TMDB
+    const fallback = `${title} official trailer`;
 
-    return [queryParts.join(' ')];
+    return [primary, fallback];
 }
 
 /**

@@ -1,4 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon } from '@phosphor-icons/react';
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer';
@@ -6,14 +8,20 @@ import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { useNavigate, Link } from 'react-router-dom';
 import YouTube from 'react-youtube';
 import { useGlobalContext } from '../context/GlobalContext';
-import axios from 'axios';
 import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails, fetchTrailers } from '../services/api';
 import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
-import { NetworkPriority } from '../services/NetworkPriority';
-
 import { useIsMobile } from '../hooks/useIsMobile';
+import { MaturityBadge, BadgeOverlay, ProgressIndicator, HoverProgressBar } from './MovieCardBadges';
+
+// Module-level constant: evaluated once, never re-calculated.
+// Used to hard-gate ALL hover logic — zero cost on touch devices.
+const IS_TOUCH_DEVICE = (
+  typeof window !== 'undefined' &&
+  (navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
+);
+
 
 interface MovieCardProps {
   movie: Movie;
@@ -22,95 +30,7 @@ interface MovieCardProps {
   isGrid?: boolean;
 }
 
-const BadgeOverlay: React.FC<{ badge: { text: string; type: string } | null; isBook: boolean }> = React.memo(({ badge, isBook }) => {
-  if (isBook) {
-    return (
-      <div className="absolute top-2 left-2 bg-black/50 border border-white/40 text-white px-2 py-0.5 text-[10px] font-medium uppercase backdrop-blur-sm">
-        Comic
-      </div>
-    );
-  }
-  if (!badge) return null;
 
-  if (badge.type === 'top') {
-    return (
-      <div
-        className="absolute top-0 right-0 z-10 w-[23px] h-[32px] bg-[#E50914] flex flex-col items-center justify-start pt-[2px] pr-[1px] shadow-sm pointer-events-none"
-        style={{ clipPath: 'polygon(100% 0, 100% 100%, 100% 85%, 0 100%, 0 0)' }}
-      >
-        <div className="text-white text-[9px] font-bold tracking-tighter, leading-none mb-[2px]" style={{ fontFamily: "'Niva Bold', sans-serif", letterSpacing: '0.5px' }}>TOP</div>
-        <div className="text-white text-[13px] leading-none" style={{ fontFamily: "'Niva Bold', sans-serif", letterSpacing: '-0.5px' }}>10</div>
-      </div>
-    );
-  }
-  if (badge.type === 'new') {
-    return (
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center">
-        <div className="bg-[#E50914] text-white text-[8px] font-bold px-3 py-[3px] tracking-wider uppercase leading-none">
-          {badge.text}
-        </div>
-      </div>
-    );
-  }
-  if (badge.type === 'upcoming') {
-    return (
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center">
-        <div className="bg-black/70 border border-white/30 text-white text-[8px] font-bold px-3 py-[3px] tracking-wider uppercase leading-none backdrop-blur-sm">
-          {badge.text}
-        </div>
-      </div>
-    );
-  }
-  return null;
-});
-
-// Returns { pct, watchMins, totalMins } from local state
-function getWatchData(movie: Movie, getLastWatchedEpisode: any, getVideoState: any): { pct: number; watchMins: number; totalMins: number } {
-  const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv');
-  if (mediaType === 'tv') {
-    const ep = getLastWatchedEpisode(String(movie.id));
-    if (ep && ep.duration > 0) {
-      return { pct: Math.min(99, (ep.time / ep.duration) * 100), watchMins: Math.round(ep.time / 60), totalMins: Math.round(ep.duration / 60) };
-    }
-  } else {
-    const state = getVideoState(movie.id);
-    if (state && state.duration > 0) {
-      return { pct: Math.min(99, (state.time / state.duration) * 100), watchMins: Math.round(state.time / 60), totalMins: Math.round(state.duration / 60) };
-    }
-  }
-  return { pct: 0, watchMins: 0, totalMins: 0 };
-}
-
-// Thin flat red bar + '11 of 43m' text — matches InfoModal style
-const ProgressIndicator: React.FC<{ movie: Movie; getLastWatchedEpisode: any; getVideoState: any }> = React.memo(({ movie, getLastWatchedEpisode, getVideoState }) => {
-  const { pct, watchMins, totalMins } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
-  if (pct <= 0) return null;
-  return (
-    <div className="absolute bottom-0 left-0 right-0 flex items-center pointer-events-none z-10">
-      <div className="flex-1 h-[3px] bg-white/20" style={{ borderRadius: 0 }}>
-        <div className="h-full bg-[#E50914]" style={{ width: `${pct}%`, borderRadius: 0 }} />
-      </div>
-    </div>
-  );
-});
-
-// Hover-popup version: bar + '11 of 43m' right-aligned text (like Netflix card)
-const HoverProgressBar: React.FC<{ movie: Movie; getLastWatchedEpisode: any; getVideoState: any }> = React.memo(({ movie, getLastWatchedEpisode, getVideoState }) => {
-  const { pct, watchMins, totalMins } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
-  if (pct <= 0) return null;
-  return (
-    <div className="flex items-center gap-2 px-3 pt-1 pb-0">
-      <div className="flex-1 h-[3px] bg-white/20" style={{ borderRadius: 0 }}>
-        <div className="h-full bg-[#e50914] transition-all duration-300" style={{ width: `${pct}%`, borderRadius: 0 }} />
-      </div>
-      {totalMins > 0 && (
-        <span className="text-gray-400/80 text-[11px] whitespace-nowrap flex-shrink-0 font-medium">
-          {watchMins} of {totalMins}m
-        </span>
-      )}
-    </div>
-  );
-});
 
 type MovieRating = 'like' | 'dislike' | 'love';
 const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieRating) => void }> = ({ rating, onRate }) => {
@@ -165,6 +85,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   } = useGlobalContext();
   const [isHovered, setIsHovered] = useState(false);
   const [isPrimed, setIsPrimed] = useState(false); // Immediate visual feedback
+  const [isHoverVideoReady, setIsHoverVideoReady] = useState(false); // backdrop→video gate
+  const hoverSyncRef = React.useRef<NodeJS.Timeout | null>(null);
   const { trailerUrl, setTrailerUrl, playerRef, handleMuteToggle } = useYouTubePlayer();
   // We use our local context destructured vars to avoid any stale closures
   const isMuted = globalMute;
@@ -190,8 +112,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     }
   }, [activeVideoId, isHovered, trailerUrl, movie.id, getVideoState]);
 
+
   // 'center' | 'left' | 'right' - determines expansion direction
   const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
+  // Captured card rect at the moment hover fires — used for fixed popup positioning
+  const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
 
   const isAdded = myList.find(m => m.id === movie.id);
   const timerRef = useRef<any>(null);
@@ -286,90 +211,85 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     return () => { isMounted = false; };
   }, [isVisible, movie.id, movie.media_type, movie.title]);
 
-  // Prefetch stream on hover
-  const handleMouseEnter = (e: React.MouseEvent) => {
-    // Block on any touch-capable device (phones, tablets) regardless of screen width
-    if (navigator.maxTouchPoints > 1 || ('ontouchstart' in window)) return;
+  // Prefetch stream on hover — pointer events only, never on touch
+  // Replaced with onPointerEnter for precise pointer-type detection
+  const handlePointerEnter = (e: React.PointerEvent) => {
+    // Hard gate: touch + pen devices get ZERO hover behavior
+    if (IS_TOUCH_DEVICE) return;
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
 
     const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
     const dateStr = movie.release_date || movie.first_air_date;
     const yearString = dateStr ? dateStr.split('-')[0] : '';
 
     // Determine screen position for smart popup alignment
-    // Use a generous buffer so the popup (≈265px wide, scales 1.1×) never clips
-    let currentPos: 'center' | 'left' | 'right' = 'center';
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
-      const EDGE_BUFFER = 160; // half of popup width at scale
+      const EDGE_BUFFER = 160;
+      let currentPos: 'center' | 'left' | 'right' = 'center';
       if (rect.left < EDGE_BUFFER) currentPos = 'left';
       else if (window.innerWidth - rect.right < EDGE_BUFFER) currentPos = 'right';
       setHoverPosition(currentPos);
     }
 
-    // 1. INSTANT PRE-FETCH: Shared Precision Trailer Logic
+    // Instant pre-fetch: trailer lookup (TMDB-provided keys take priority)
     if (!trailerUrl && !isBook && movie.id) {
-      // First, check if we already have it in the global state (found by a previous hover)
       const savedVideoId = getVideoState(movie.id)?.videoId;
       if (savedVideoId) {
         setTrailerUrl(savedVideoId);
       } else {
         fetchTrailers(movie.id, mediaType).then(keys => {
           if (keys && keys.length > 0) {
-            const firstKey = keys[0];
-            setTrailerUrl(firstKey);
-            // Save to context immediately so InfoModal can grab it without waiting
-            updateVideoState(movie.id, 0, firstKey);
+            setTrailerUrl(keys[0]);
+            updateVideoState(movie.id, 0, keys[0]);
           }
         }).catch(() => {});
       }
     }
 
-    // Immediate visual priming
-    setIsPrimed(true);
-    if (leaveTimerRef.current) {
-      clearTimeout(leaveTimerRef.current);
-      leaveTimerRef.current = null;
-    }
-
-    // 2. VISUAL DELAY: Wait 600ms before expanding and playing
-    timerRef.current = setTimeout(() => {
-      setIsHovered(true);
-
-      // Claim the global stage IMMEDIATELY using the Movie ID
-      setActiveVideoId(String(movie.id));
-
-      const year = yearString ? parseInt(yearString) : undefined;
-      if (year) {
-        prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
-      }
-    }, 600);
-  };
-
-  const handleMouseLeave = () => {
-    setIsPrimed(false);
+    // Cancel any in-flight leave timer so fast re-enters don't flicker
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
-    leaveTimerRef.current = setTimeout(() => {
-      if (isHovered && playerRef.current && trailerUrl) {
-        try {
-          // Safely check if the function exists before calling it
-          const currentTime = playerRef.current?.getCurrentTime?.() || 0;
-          updateVideoState(movie.id, currentTime, trailerUrl);
-        } catch (e) {
-          // Ignore YouTube API readiness errors
-        }
+    // 300ms intent delay before expanding
+    timerRef.current = setTimeout(() => {
+      const rect = cardRef.current?.getBoundingClientRect() ?? null;
+      setHoveredRect(rect);
+      setIsHovered(true);
+      setActiveVideoId(String(movie.id));
+      const year = yearString ? parseInt(yearString) : undefined;
+      if (year) {
+        prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
       }
+    }, 300);
+  };
 
-      setIsHovered(false);
-      setTrailerUrl(null);
-      // ONLY release the claim if this specific card still owns it. 
-      // If the InfoModal opened, it will have stolen the claim, so we leave it alone!
-      setActiveVideoId(prev => prev === String(movie.id) ? null : prev);
-    }, 160);
-      // setIsMuted(true); // Left commented out to prevent global mute ghosting
+  // handlePointerMove intentionally removed — no zone restriction needed.
+  // Leave event handles all collapse logic.
+
+  const handlePointerLeave = () => {
+    // Cancel the enter timer immediately — no popup if user just grazed the card
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // Save trailer progress before collapsing
+    if (isHovered && playerRef.current && trailerUrl) {
+      try {
+        const currentTime = playerRef.current?.getCurrentTime?.() || 0;
+        updateVideoState(movie.id, currentTime, trailerUrl);
+      } catch (_) { }
+    }
+
+    setIsHovered(false);
+    setHoveredRect(null);
+    setTrailerUrl(null);
+    setActiveVideoId(prev => prev === String(movie.id) ? null : prev);
+    setIsHoverVideoReady(false);
+    if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
   };
 
   const getGenreNames = () => {
@@ -377,16 +297,30 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     return movie.genre_ids.map(id => t(`genres.${id}`, { defaultValue: GENRES[id] })).filter(Boolean).slice(0, 3);
   };
 
-  // Dynamic Class Calculation
-  const getPositionClasses = () => {
-    switch (hoverPosition) {
-      case 'left': return { wrapper: 'left-0 translate-x-0', inner: 'origin-left' };
-      case 'right': return { wrapper: 'right-0 translate-x-0', inner: 'origin-right' };
-      default: return { wrapper: 'left-1/2 -translate-x-1/2', inner: 'origin-center' };
+  // Computes position:fixed coordinates for the popup.
+  // position:fixed bypasses ALL parent overflow clipping (overflow-x:scroll, etc.)
+  // so no py-52 hack is needed on the Row strip.
+  const getPopupFixedStyle = (): React.CSSProperties => {
+    if (!hoveredRect) return { display: 'none' };
+    const POPUP_W = 265;
+    const TOP_OFFSET = -72; // ← TUNE THIS: more negative = popup higher above the card
+    let left: number;
+    if (hoverPosition === 'left') {
+      left = hoveredRect.left;
+    } else if (hoverPosition === 'right') {
+      left = hoveredRect.right - POPUP_W;
+    } else {
+      left = hoveredRect.left + hoveredRect.width / 2 - POPUP_W / 2;
     }
+    left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
+    return {
+      position: 'fixed',
+      top: hoveredRect.top + TOP_OFFSET,
+      left,
+      width: POPUP_W,
+      zIndex: 9999,
+    };
   };
-
-  const posClasses = getPositionClasses();
 
   // Handler that saves state to context before opening modal
   const handleOpenModal = (e?: React.MouseEvent) => {
@@ -400,17 +334,17 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     
     const finalTrailerUrl = trailerUrl || getVideoState(movie.id)?.videoId;
 
-    // Pass card coordinates for Spring Effect
-    const rect = cardRef.current?.getBoundingClientRect();
-    const coordinates = rect ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : undefined;
+    // Store the raw DOMRect BEFORE calling onSelect so InfoModal mounts with it ready.
+    // InfoModal reads .left + .top (DOMRect properties, not .x/.y plain object).
+    const rawRect = cardRef.current?.getBoundingClientRect();
+    if (rawRect) {
+      (window as any).__last_card_rect = rawRect;
+    }
 
     if (finalTrailerUrl) {
       updateVideoState(movie.id, currentTime, finalTrailerUrl);
     }
     onSelect(movie, currentTime, finalTrailerUrl);
-
-    // Store coordinates in window for modal to pick up
-    (window as any).__last_card_rect = coordinates;
   };
 
   const handleDirectPlay = (e: React.MouseEvent) => {
@@ -441,15 +375,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   return (
     <div
       ref={cardRef}
-      className={`relative z-10 group/card transition-all duration-300 select-none
-        ${isPrimed ? 'scale-[1.05] z-50 ring-1 ring-white/20' : 'scale-100'}
+      className={`relative z-10 group/card select-none
+        ${isHovered && !IS_TOUCH_DEVICE ? 'z-[999]' : 'z-10'}
         ${isGrid
           ? 'w-full aspect-video cursor-pointer'
           : 'flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.32] cursor-pointer'
         }`}
-      style={{ transformOrigin: 'center center' }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      style={{ touchAction: IS_TOUCH_DEVICE ? 'auto' : 'none' }}
+      onPointerEnter={IS_TOUCH_DEVICE ? undefined : handlePointerEnter}
+      onPointerLeave={IS_TOUCH_DEVICE ? undefined : handlePointerLeave}
       onClick={(e) => { e.preventDefault(); handleOpenModal(e); }}
     >
       <div className="w-full h-full relative rounded-sm overflow-hidden movie-card-glow">
@@ -461,10 +395,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           draggable={false}
         />
 
-        {/* Base Title Overlay */}
+        {/* Base Title Overlay — logo or text title, no gradient */}
         {!isHovered && (
           <>
-            <div className="absolute inset-x-0 bottom-0 min-h-[40%] bg-gradient-to-t from-black/50 via-black/10 to-transparent flex items-end justify-center pb-3 px-3 opacity-100 transition-opacity duration-300">
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-3 px-3">
               {logoUrl ? (
                 <img
                   src={logoUrl}
@@ -486,74 +420,142 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         )}
       </div>
 
-      {/* Flat progress bar anchored to card bottom — only when not hovered */}
-      {!isHovered && <ProgressIndicator movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />}
-
-      {/* Hover Popup - Active on all views */}
-      {isHovered && (
-        <div className={`absolute top-[-20px] md:top-[-30px] lg:top-[-45px] z-[100] transition-all duration-[800ms] ease-out animate-netflix-zoom-${hoverPosition} ${posClasses.wrapper}`}>
+      {/* Flat progress bar — floats BELOW the card with visible gap, no overflow clipping */}
+      {!isHovered && (() => {
+        const state = getVideoState(movie.id);
+        const lastEp = getLastWatchedEpisode(movie.id);
+        const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+        let pct = 0;
+        if (!isTV && state?.time && state?.duration) {
+          pct = Math.min(100, (state.time / state.duration) * 100);
+        } else if (isTV && lastEp) {
+          const epProg = getEpisodeProgress(movie.id, lastEp.season, lastEp.episode);
+          if (epProg?.duration) pct = Math.min(100, (epProg.time / epProg.duration) * 100);
+        }
+        if (pct < 2) return null;
+        return (
+          // Floats 8px below card — slightly bigger gap than before
+          // 10px horizontal inset makes it noticeably shorter than the card width
           <div
-            className={`w-[210px] md:w-[230px] lg:w-[265px] bg-[#141414] rounded-md movie-card-glow overflow-hidden transition-all duration-[800ms] ease-out ring-1 ring-zinc-700/50 ${posClasses.inner}`}
-            onClick={(e) => e.stopPropagation()} // Prevent click from bubbling to base card
+            className="absolute pointer-events-none z-20"
+            style={{ top: 'calc(100% + 12px)', left: '30px', right: '30px' }}
           >
-            {/* Media Container */}
-            <div className="relative h-[147px] md:h-[159px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
-              {(trailerUrl && !isBook) ? (
-                <div className="absolute top-[40%] left-1/2 w-[200%] h-[200%] -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-                  <YouTube
-                    videoId={trailerUrl}
-                    opts={{
-                      height: '100%',
-                      width: '100%',
-                      playerVars: {
-                        autoplay: 1,
-                        controls: 0,
-                        modestbranding: 1,
-                        loop: 1,
-                        playlist: trailerUrl,
-                        disablekb: 1,
-                        fs: 0,
-                        rel: 0,
-                        iv_load_policy: 3,
-                        cc_load_policy: 0,
-                        vq: 'hd1080', // Force HD
-                        start: 5,
-                      }
-                    }}
-                    onReady={(e) => {
-                      playerRef.current = e.target;
-                      if (isMuted) {
-                        e.target.mute();
-                      } else {
-                        e.target.unMute();
-                      }
+            <div className="h-[3px] w-full bg-white/20" style={{ borderRadius: 0 }}>
+              <div
+                className="h-full bg-[#e50914] transition-all duration-300"
+                style={{ width: `${pct}%`, borderRadius: 0 }}
+              />
+            </div>
+          </div>
+        );
+      })()}
 
-                      // Seamless sync from Context - only seek if same video
-                      const savedState = getVideoState(movie.id);
-                      if (savedState && savedState.time > 0 && savedState.videoId === trailerUrl) {
-                        e.target.seekTo(savedState.time, true);
-                      }
-                    }}
-                    onStateChange={(e) => {
-                      // Save progress in real-time so other surfaces (like Modal) can pick up exactly where we are
-                      try {
-                        const time = e.target.getCurrentTime();
-                        if (time > 0 && trailerUrl) {
-                          updateVideoState(movie.id, time, trailerUrl);
-                        }
-                      } catch (err) {}
-                    }}
-                    onError={(e) => { 
-                      console.warn("YouTube blocked playback:", e);
-                      setTrailerUrl(""); // Reset to empty string, matching state type
-                    }}
-                    onEnd={(e) => {
-                      e.target.seekTo(0);
-                      e.target.playVideo();
-                    }}
-                    className="w-full h-full object-cover"
+      {/* Hover Popup — rendered into document.body via portal.
+           Bypasses ALL ancestor stacking contexts and overflow clipping.
+           position:fixed + z-9999 is now truly global. */}
+      {createPortal(
+        <AnimatePresence>
+          {isHovered && !IS_TOUCH_DEVICE && hoveredRect && (
+            <motion.div
+              className="bg-[#141414] rounded-md movie-card-glow overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_8px_40px_rgba(0,0,0,0.85)]"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 8, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.97 }}
+              transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+              style={{
+                ...getPopupFixedStyle(),
+                willChange: 'transform, opacity',
+                transformOrigin: hoverPosition === 'left' ? 'top left' : hoverPosition === 'right' ? 'top right' : 'top center',
+              }}
+            >
+            {/* Media Container — taller to avoid info section getting cut */}
+            <div className="relative h-[155px] md:h-[172px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+
+              {(trailerUrl && !isBook) ? (
+                <>
+                  {/* Backdrop stays visible until trailer is actually playing */}
+                  <img
+                    src={imageSrc}
+                    className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 ${isHoverVideoReady ? 'opacity-0' : 'opacity-100'}`}
+                    alt="preview"
                   />
-                </div>
+                  <div className={`absolute inset-0 transition-opacity duration-700 ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
+                    <div className="absolute top-[40%] left-1/2 w-[200%] h-[200%] -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                      <YouTube
+                        videoId={trailerUrl}
+                        opts={{
+                          height: '100%',
+                          width: '100%',
+                          playerVars: {
+                            autoplay: 1,
+                            controls: 0,
+                            modestbranding: 1,
+                            loop: 1,
+                            playlist: trailerUrl,
+                            disablekb: 1,
+                            fs: 0,
+                            rel: 0,
+                            iv_load_policy: 3,
+                            cc_load_policy: 0,
+                            vq: 'hd1080',
+                            start: 5,
+                          }
+                        }}
+                        onReady={(e) => {
+                          playerRef.current = e.target;
+                          if (isMuted) {
+                            e.target.mute();
+                          } else {
+                            e.target.unMute();
+                          }
+
+                          // Seamless sync: continue from where InfoModal or Hero left off
+                          const savedState = getVideoState(movie.id);
+                          if (savedState && savedState.time > 0 && savedState.videoId === trailerUrl) {
+                            e.target.seekTo(savedState.time, true);
+                          }
+                        }}
+                        onStateChange={(e) => {
+                          const YT_PLAYING = 1;
+                          const YT_PAUSED = 2;
+
+                          // Mark video as ready only when actually playing
+                          if (e.data === YT_PLAYING && !isHoverVideoReady) {
+                            setIsHoverVideoReady(true);
+                          }
+
+                          // Save progress every 1s to GlobalContext
+                          if (e.data === YT_PLAYING) {
+                            if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
+                            hoverSyncRef.current = setInterval(() => {
+                              try {
+                                const time = playerRef.current?.getCurrentTime?.();
+                                if (time > 0 && trailerUrl) {
+                                  updateVideoState(movie.id, time, trailerUrl);
+                                }
+                              } catch (_) {}
+                            }, 1000);
+                          }
+
+                          if (e.data === YT_PAUSED) {
+                            if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
+                          }
+                        }}
+                        onError={(e) => { 
+                          console.warn("YouTube blocked playback:", e);
+                          setTrailerUrl("");
+                          setIsHoverVideoReady(false);
+                        }}
+                        onEnd={(e) => {
+                          e.target.seekTo(0);
+                          e.target.playVideo();
+                        }}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                </>
               ) : (
                 <img
                   src={imageSrc}
@@ -565,7 +567,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               {/* Mute Button - Hide for books */}
               {trailerUrl && !isBook && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleMuteToggle(e); }}
+                  onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
+
                   className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                 >
                   {isMuted ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />}
@@ -592,7 +595,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
             <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
 
             {/* Info Section */}
-            <div className="px-3 pt-2 pb-3 space-y-2.5 bg-[#181818]">
+            <div className="px-3 pt-2.5 pb-4 space-y-3 bg-[#181818]">
+
               {/* Action Buttons Row */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
@@ -643,47 +647,39 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
               {/* Metadata Row */}
               <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
-                {/* Maturity Rating Badge — Netflix-style colored circle */}
-                {(() => {
-                  const rating = movie.adult ? '18+' : movie.vote_average >= 7.5 ? '15' : '13+';
-                  const bg = rating === '18+' ? '#DC0A0A' : rating === '15' ? '#FB4FAE' : '#4a4a4a';
-                  return (
-                    <span
-                      className="inline-flex items-center justify-center rounded-full w-7 h-7 text-white font-bold text-[10px] flex-shrink-0"
-                      style={{ backgroundColor: bg }}
-                    >
-                      {rating}
-                    </span>
-                  );
-                })()}
+                {/* Maturity Rating Badge — from MovieCardBadges */}
+                <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
 
-                {/* Runtime or Season count */}
+              {/* Runtime or Season count */}
                 <span className="text-white/70">
                   {isBook ? (movie.media_type === 'series' ? 'Series' : 'Comic') :
-                    movie.media_type === 'tv' ? `${Math.max(1, Math.ceil((movie.vote_count || 10) / 500))} Seasons` :
-                      movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m` :
-                        `${Math.floor((movie.popularity || 100) / 10 + 80)}m`
+                    movie.media_type === 'tv'
+                      ? (() => { const n = Math.max(1, Math.ceil((movie.vote_count || 10) / 500)); return `${n} ${n === 1 ? 'Season' : 'Seasons'}`; })()
+                      : movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`
+                        : `${Math.floor((movie.popularity || 100) / 10 + 80)}m`
                   }
                 </span>
 
                 {!isBook && <span className="border border-gray-500 text-gray-400 px-1 py-[0.5px] text-[9px] rounded-[2px]">HD</span>}
               </div>
 
-              {/* Genres Row — bullet-separated */}
-              <div className="flex flex-wrap items-center text-[12px] font-medium">
+              {/* Genres Row — bullet-separated, matching Netflix style */}
+              <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
                 {getGenreNames().map((genre, idx) => (
                   <span key={idx} className="flex items-center">
-                    <span className="text-white/80 hover:text-white cursor-default">{genre}</span>
-                    {idx < getGenreNames().length - 1 && <span className="text-gray-500 mx-2 text-[8px]">•</span>}
+                    <span className="text-white/75 hover:text-white cursor-default">{genre}</span>
+                    {idx < getGenreNames().length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
                   </span>
                 ))}
               </div>
             </div>
-          </div>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );
 };
 
-export default MovieCard;
+export default React.memo(MovieCard);

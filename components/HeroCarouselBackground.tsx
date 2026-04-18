@@ -40,6 +40,15 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     replayCount = 0,
     onUpdateState
 }) => {
+    const syncIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    // Clean up sync interval on unmount
+    React.useEffect(() => {
+        return () => {
+            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+        };
+    }, []);
+
     // 1. Sync Mute State — only fire once the player is confirmed ready
     useEffect(() => {
         const player = playerRef.current;
@@ -102,25 +111,69 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                     }
                                 };
                                 playWithRetry();
-                                setIsVideoReady(true);
+                                // Note: setIsVideoReady is deferred to onStateChange YT_PLAYING=1
+                                // so backdrop stays until the player actually starts rendering frames
                             }}
                             onStateChange={(e) => {
+                                const YT_PLAYING = 1;
+                                const YT_PAUSED = 2;
+
                                 // Watchdog: Trigger play if player is stuck in "Cued" or "Unstarted"
                                 if (e.data === 5 || e.data === -1) {
                                     try { e.target.playVideo(); } catch(err) {}
                                 }
 
-                                // Save playback time whenever player pauses or stays steady 
-                                try {
-                                    const time = e.target.getCurrentTime();
-                                    const videoId = trailerQueue[0];
-                                    if (time > 0 && videoId) {
-                                      (window as any).__last_hero_time = time;
-                                      if (onUpdateState && movie.id) {
-                                        onUpdateState(Number(movie.id), time, videoId);
-                                      }
-                                    }
-                                } catch (err) {}
+                                // Mark video ready ONLY when player actually starts rendering
+                                if (e.data === YT_PLAYING && !isVideoReady) {
+                                    setIsVideoReady(true);
+                                }
+
+                                if (e.data === YT_PLAYING) {
+                                    // 1-second sync interval: save time to GlobalContext
+                                    if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+                                    syncIntervalRef.current = setInterval(() => {
+                                        try {
+                                            const time = e.target.getCurrentTime();
+                                            const videoId = trailerQueue[0];
+                                            if (time > 0 && videoId) {
+                                                (window as any).__last_hero_time = time;
+                                                if (onUpdateState && movie.id) {
+                                                    onUpdateState(Number(movie.id), time, videoId);
+                                                }
+                                            }
+                                        } catch (err) {}
+                                    }, 1000);
+
+                                    // Early stop: 5s before end so YouTube overlay never shows
+                                    const checkEnd = () => {
+                                        if (!playerRef.current) return;
+                                        try {
+                                            const remaining = playerRef.current.getDuration() - playerRef.current.getCurrentTime();
+                                            if (remaining <= 5) {
+                                                if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+                                                playerRef.current.pauseVideo();
+                                                setIsVideoReady(false);
+                                                setShowVideo(false);
+                                                if (onVideoEnd) onVideoEnd();
+                                                return;
+                                            }
+                                        } catch (_) {}
+                                        setTimeout(checkEnd, 1000);
+                                    };
+                                    checkEnd();
+                                }
+
+                                if (e.data === YT_PAUSED) {
+                                    if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+                                    // Also save final time on pause
+                                    try {
+                                        const time = e.target.getCurrentTime();
+                                        const videoId = trailerQueue[0];
+                                        if (time > 0 && videoId && onUpdateState && movie.id) {
+                                            onUpdateState(Number(movie.id), time, videoId);
+                                        }
+                                    } catch (_) {}
+                                }
                             }}
                             onEnd={() => {
                                 // Philosophy: No auto-looping. Give user back their room or a choice to Replay.

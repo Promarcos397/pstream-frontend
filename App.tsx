@@ -132,7 +132,6 @@ const App: React.FC = () => {
       if (lastWatched) {
         finalSeason = lastWatched.season;
         finalEpisode = lastWatched.episode;
-        console.log(`[App] 🍿 Resuming last-watched S${finalSeason}E${finalEpisode} for ${movie.name}`);
       } else {
         // Default to S1E1
         finalSeason = 1;

@@ -9,10 +9,9 @@ import { Movie } from '../types';
 
 const CinemaPage: React.FC = () => {
     const { type, id } = useParams<{ type: string; id: string }>();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const { setPageTitle } = useTitle();
-    // Read episode progress from context (covers both local cache + cloud sync)
     const { getLastWatchedEpisode, getVideoState } = useGlobalContext();
 
     const [movie, setMovie] = useState<Movie | null>(null);
@@ -100,7 +99,9 @@ const CinemaPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, type]);
 
-    const handleClose = () => navigate(-1);
+    // Back button: go home with replace so watch URL is removed from history
+    // This prevents the "back = old episode" pollution bug.
+    const handleClose = () => navigate('/', { replace: true });
 
     if (loading) {
         return (

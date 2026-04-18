@@ -22,7 +22,6 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
   const [hasMore, setHasMore] = useState(true);
 
   const rowRef = useRef<HTMLDivElement>(null);
-  const [isHovered, setIsHovered] = useState(false);
 
   // Initial Data Load
   useEffect(() => {
@@ -154,22 +153,23 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
   if (isHidden) return null;
   if (!initialLoad && movies.length === 0) return null;
 
-    return (
+  return (
     <div
-      className="group relative my-3 md:my-4 space-y-1 z-10 hover:z-50 transition-all duration-300 isolate"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className="group relative my-3 md:my-4 space-y-1 z-10"
     >
       {/* Row Title */}
       <div className="flex items-center justify-between px-6 md:px-14 lg:px-16">
         <h2 className="text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit tracking-wide">
           {title}
-          <span className="text-xs text-cyan-500 ml-2 opacity-0 group-hover/title:opacity-100 transition-opacity duration-300 flex items-center font-semibold">
-            {t('rows.exploreAll')} <CaretRightIcon size={14} className="ml-1" />
-          </span>
+          {/* Only show "Explore All" on non-touch */}
+          {!isMobile && (
+            <span className="text-xs text-cyan-500 ml-2 opacity-0 group-hover/title:opacity-100 transition-opacity duration-300 flex items-center font-semibold">
+              {t('rows.exploreAll')} <CaretRightIcon size={14} className="ml-1" />
+            </span>
+          )}
         </h2>
-        {/* Pagination indicator dashes */}
-        {!initialLoad && movies.length > 6 && (
+        {/* Pagination indicator dashes — desktop only */}
+        {!isMobile && !initialLoad && movies.length > 6 && (
           <div className="flex items-center gap-[1.5px] opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             {Array.from({ length: Math.min(Math.ceil(movies.length / 6), 8) }).map((_, i) => (
               <div key={i} className={`h-[1.5px] w-4 rounded-full transition-colors duration-200 ${i === 0 ? 'bg-white/90' : 'bg-white/20'}`} />
@@ -183,14 +183,15 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
         {/* Scroll Container */}
         <div
           ref={rowRef}
-          className={`row-scroll-strip flex overflow-x-scroll scrollbar-hide w-full pointer-events-auto relative z-10 scroll-smooth ${
-            isMobile ? 'py-3 -my-0' : 'py-32 -my-32'
-          }`}
+          className={`row-scroll-strip flex overflow-x-scroll scrollbar-hide w-full pointer-events-auto relative z-10 scroll-smooth`}
           style={{
             WebkitOverflowScrolling: 'touch',
             overscrollBehaviorX: 'contain',
+            // Prevent synthetic mouse events from touch scroll on iOS
+            touchAction: isMobile ? 'pan-x' : undefined,
           }}
         >
+
           {/* Left spacer */}
           <div className="flex-none w-6 md:w-14 lg:w-16 pointer-events-none"></div>
 
@@ -207,7 +208,8 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
             : movies.slice(0, 36).map((movie) => (movie.backdrop_path || movie.poster_path) && (
               <div
                 key={movie.id}
-                className="movie-card-container pointer-events-auto mr-1 md:mr-1.5 lg:mr-2"
+                className="movie-card-container relative pointer-events-auto mr-1 md:mr-1.5 lg:mr-2 overflow-visible"
+                style={{ zIndex: 'auto', touchAction: isMobile ? 'pan-x' : undefined }}
               >
                 <MovieCard movie={movie} onSelect={onSelect} onPlay={onPlay} />
               </div>
@@ -222,22 +224,22 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
         {!isMobile && (
           <>
             <div
-              className={`absolute top-32 bottom-32 left-0 z-50 w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
+              className={`absolute top-0 bottom-0 left-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/80 flex
-                transition-all duration-300 pointer-events-none rounded-r-md
+                transition-opacity duration-300 pointer-events-none rounded-r-md
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
               onClick={() => scroll('left')}
             >
-              <CaretLeftIcon size={36} className="text-white hover:scale-125 transition drop-shadow-lg" />
+              <CaretLeftIcon size={28} className="text-white drop-shadow-lg" />
             </div>
             <div
-              className={`absolute top-32 bottom-32 right-0 z-50 w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
+              className={`absolute top-0 bottom-0 right-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/80 flex
-                transition-all duration-300 pointer-events-none rounded-l-md
+                transition-opacity duration-300 pointer-events-none rounded-l-md
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
               onClick={() => scroll('right')}
             >
-              <CaretRightIcon size={36} className="text-white hover:scale-125 transition drop-shadow-lg" />
+              <CaretRightIcon size={28} className="text-white drop-shadow-lg" />
             </div>
           </>
         )}

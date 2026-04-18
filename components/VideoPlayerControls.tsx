@@ -538,9 +538,15 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
     const toggleVolume = () => { setShowVolume(p => !p); setShowNextEpPopup(false); setActivePanel?.('none'); };
     const toggleNextEp = () => {
-        if (!hasNextEpisode || !nextEpisodeData) return;
-        setShowNextEpPopup(p => !p); setShowVolume(false); setActivePanel?.('none');
+        // If we have episode preview data, show the popup for confirmation
+        if (nextEpisodeData) {
+            setShowNextEpPopup(p => !p); setShowVolume(false); setActivePanel?.('none');
+        } else if (onNextEpisode) {
+            // No popup data — fire immediately (this is the common case)
+            onNextEpisode();
+        }
     };
+
     const toggleSubtitles = () => {
         if (activePanel === 'audioSubtitles') setActivePanel?.('none');
         else { setActivePanel?.('audioSubtitles'); setShowVolume(false); setShowNextEpPopup(false); }

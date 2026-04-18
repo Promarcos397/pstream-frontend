@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CaretUpIcon, CaretDownIcon, PlayIcon, CheckIcon } from '@phosphor-icons/react';
+import { CaretUpIcon, CaretDownIcon, CheckIcon } from '@phosphor-icons/react';
 import { Episode, Movie } from '../types';
 import { IMG_PATH } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -46,19 +46,20 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
     if (mediaType !== 'tv') return null;
 
     return (
-        <div className="mt-10">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl md:text-1xl font-bold text-white">{t('modal.episodes')}</h3>
+        <div className="mt-8">
+            <div className="flex items-center justify-between mb-5">
+                {/* 'Episodes' title — no underline, no border, matches Netflix */}
+                <h3 className="text-xl md:text-2xl font-bold text-white tracking-tight">{t('modal.episodes')}</h3>
 
                 {/* Season Dropdown */}
                 {totalSeasons > 0 && (
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setIsSeasonDropdownOpen(!isSeasonDropdownOpen)}
-                            className="flex items-center bg-[#242424] border border-gray-600 rounded px-3 py-1.5 text-sm font-bold hover:bg-[#333] transition min-w-[120px] justify-between"
+                            className="flex items-center bg-transparent border border-white/30 hover:border-white/70 rounded px-4 py-1.5 text-sm font-bold transition min-w-[130px] justify-between text-white"
                         >
                             {t('player.season')} {selectedSeason}
-                            {isSeasonDropdownOpen ? <CaretUpIcon size={16} className="ml-2" /> : <CaretDownIcon size={16} className="ml-2" />}
+                            {isSeasonDropdownOpen ? <CaretUpIcon size={14} className="ml-2" /> : <CaretDownIcon size={14} className="ml-2" />}
                         </button>
 
                         {isSeasonDropdownOpen && (
@@ -82,7 +83,7 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
                 )}
             </div>
 
-            <div className="space-y-4 max-h-[400px] overflow-y-auto scrollbar-hide pr-2">
+            <div className="space-y-2 max-h-[480px] overflow-y-auto scrollbar-hide pr-1">
                 {loadingEpisodes ? (
                     <div className="flex justify-center py-10"><div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div></div>
                 ) : episodes.length > 0 ? (
@@ -90,24 +91,24 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
                         <div
                             key={ep.id}
                             onClick={() => onPlay(movie, selectedSeason, ep.episode_number)}
-                            className="flex items-center group cursor-pointer p-4 rounded-sm hover:bg-[#333] transition border-b border-gray-800 last:border-0"
+                            className="flex items-start group cursor-pointer p-4 rounded-sm hover:bg-[#2a2a2a] transition border-b border-white/5 last:border-0"
                         >
-                            <div className="text-gray-400 text-xl font-medium w-8 text-center flex-shrink-0 mr-4">
+                            <div className="text-white/50 text-lg font-semibold w-8 text-center flex-shrink-0 mr-4 mt-1">
                                 {ep.episode_number}
                             </div>
-                            <div className="relative w-28 h-16 md:w-36 md:h-20 bg-gray-800 flex-shrink-0 rounded overflow-hidden mr-4">
+                            <div className="relative w-28 h-16 md:w-36 md:h-20 bg-gray-800 flex-shrink-0 rounded-sm overflow-hidden mr-4">
                                 {ep.still_path ? (
-                                    <img src={`${IMG_PATH}${ep.still_path}`} className="w-full h-full object-cover" alt={ep.name} />
+                                    <img src={`${IMG_PATH}${ep.still_path}`} className="w-full h-full object-cover group-hover:brightness-50 transition duration-200" alt={ep.name} />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-600">{t('common.noImage')}</div>
                                 )}
-                                <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition" />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                                    <div className="bg-white/90 rounded-full p-1 shadow-lg">
-                                        <PlayIcon size={16} weight="fill" className="text-black" />
+                                {/* Play circle — always visible, brightens on hover */}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-9 h-9 rounded-full bg-black/30 border border-white/60 flex items-center justify-center group-hover:bg-white/20 group-hover:scale-110 transition-all duration-200 shadow">
+                                        <div className="w-0 h-0 ml-0.5" style={{ borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: '10px solid white' }} />
                                     </div>
                                 </div>
-                                {/* Per-episode progress bar */}
+                                {/* Per-episode progress bar — flat, Midnight Precision */}
                                 {(() => {
                                     const prog = getEpisodeProgress(movie.id, selectedSeason, ep.episode_number);
                                     if (!prog || !prog.duration || prog.time < 5) return null;
@@ -118,21 +119,21 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
                                             <CheckIcon size={10} className="text-white" weight="bold" />
                                         </div>
                                     ) : (
-                                        <div className="absolute bottom-0 left-0 w-full h-[3px] bg-white/20">
+                                        <div className="absolute bottom-0 left-0 w-full h-[3px] bg-white/20" style={{ borderRadius: 0 }}>
                                             <div
-                                                className="h-full bg-[#e50914] transition-all duration-300"
-                                                style={{ width: `${pct}%` }}
+                                                className="h-full bg-[#e50914]"
+                                                style={{ width: `${pct}%`, borderRadius: 0 }}
                                             />
                                         </div>
                                     );
                                 })()}
                             </div>
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 py-0.5">
                                 <div className="flex items-center justify-between mb-1">
-                                    <h4 className="text-white font-bold text-sm md:text-base truncate pr-4">{ep.name}</h4>
-                                    <span className="text-gray-400 text-xs whitespace-nowrap">{ep.runtime ? `${ep.runtime}m` : ''}</span>
+                                    <h4 className="text-white font-semibold text-sm md:text-base truncate pr-4">{ep.name}</h4>
+                                    <span className="text-white/40 text-xs whitespace-nowrap flex-shrink-0">{ep.runtime ? `${ep.runtime}m` : ''}</span>
                                 </div>
-                                <p className={`text-gray-400 text-xs md:text-sm line-clamp-2 leading-relaxed ${isRTL ? 'text-right' : ''}`} dir={isRTL ? 'rtl' : 'ltr'}>
+                                <p className={`text-white/50 text-xs md:text-sm line-clamp-2 leading-relaxed ${isRTL ? 'text-right' : ''}`} dir={isRTL ? 'rtl' : 'ltr'}>
                                     {ep.overview || t('common.noDesc')}
                                 </p>
                             </div>
