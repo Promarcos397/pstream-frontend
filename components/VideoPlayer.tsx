@@ -117,6 +117,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [captions, setCaptions] = useState<{ id: string; label: string; url: string; lang: string }[]>([]);
     const [currentCaption, setCurrentCaption] = useState<string | null>(null);
     const [subtitleObjectUrl, setSubtitleObjectUrl] = useState<string | null>(null);
+    // Subtitle offset in seconds: positive = show later, negative = show earlier
+    const [subtitleOffset, setSubtitleOffset] = useState(0);
     // Dialogue subtitle state: tracks which side the last cue was on
     const speakerSideRef = useRef<'left' | 'right'>('right');
     const [subtitleSide, setSubtitleSide] = useState<'left' | 'center' | 'right'>('center');
@@ -849,6 +851,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 }
                 parsedCuesRef.current = cues;
 
+                // Immediately snap to the cue at current playtime — no waiting for next timeupdate.
+                // This is the "precision" fix: caption is correct the instant you switch tracks.
+                if (isMounted && videoRef.current) {
+                    const now = videoRef.current.currentTime - subtitleOffset;
+                    const immediateCue = cues.find(c => now >= c.start && now <= c.end);
+                    setCurrentCueText(immediateCue?.text || '');
+                }
+
                 // Produce a blob URL and revoke the previous one to prevent memory leaks
                 const { convertSubtitlesToObjectUrl } = await import('../utils/captions');
                 const newUrl = convertSubtitlesToObjectUrl(text);
@@ -875,7 +885,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const update = () => {
             const video = videoRef.current;
             if (!video) return;
-            const t = video.currentTime;
+            const t = video.currentTime - subtitleOffset;
             const cue = parsedCuesRef.current.find(c => t >= c.start && t <= c.end);
             setCurrentCueText(cue ? cue.text : '');
         };
@@ -1197,6 +1207,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 captions={captions}
                 currentCaption={currentCaption}
                 onSubtitleChange={setCurrentCaption}
+                subtitleOffset={subtitleOffset}
+                onSubtitleOffsetChange={setSubtitleOffset}
                 audioTracks={audioTracks}
                 currentAudioTrack={currentAudioTrack}
                 onAudioChange={changeAudioTrack}

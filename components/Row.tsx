@@ -11,7 +11,10 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
   const { t } = useTranslation();
   const { pageSeenIds, registerSeenIds } = useGlobalContext();
   const isMobile = useIsMobile();
-  
+
+  // Minimum vote count to show in any feed — filters out obscure/fan-made content.
+  // Slightly lenient vs search (100) since row context is curated by TMDB sort.
+  const MIN_FEED_VOTE_COUNT = 50;
   // Start movies as empty unless data is provided
   const [movies, setMovies] = useState<Movie[]>([]);
   const [initialLoad, setInitialLoad] = useState(!data && !!fetchUrl);
@@ -52,11 +55,12 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
           const results = await fetchData(fetchUrl);
           if (!isMounted) return;
 
-          // Deduplicate based on global context and filter out missing images
+          // Deduplicate based on global context and filter out missing images + low-quality content
           const uniqueNew = results.filter((m: Movie) => {
              const hasImage = m.backdrop_path || m.poster_path;
              const notSeen = !pageSeenIds.includes(Number(m.id));
-             return hasImage && notSeen;
+             const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
+             return hasImage && notSeen && hasMinVotes;
           });
 
           if (uniqueNew.length < 5) {
@@ -98,7 +102,9 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
       if (newMovies && newMovies.length > 0) {
         setMovies(prev => {
           const existingIds = new Set(prev.map(m => m.id));
-          const uniqueNew = newMovies.filter(m => !existingIds.has(m.id));
+          const uniqueNew = newMovies.filter((m: Movie) =>
+            !existingIds.has(m.id) && (!m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT)
+          );
 
           if (uniqueNew.length === 0) {
             setHasMore(false);

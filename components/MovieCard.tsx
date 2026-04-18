@@ -22,6 +22,10 @@ const IS_TOUCH_DEVICE = (
   (navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
 );
 
+// Module-level registry — only ONE popup open at a time.
+// When card B's 300ms timer fires, it calls this to immediately close card A.
+let activePopupClose: (() => void) | null = null;
+
 
 interface MovieCardProps {
   movie: Movie;
@@ -211,6 +215,21 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     return () => { isMounted = false; };
   }, [isVisible, movie.id, movie.media_type, movie.title]);
 
+  // Collapse popup immediately when page scrolls (popup is fixed, card moves)
+  useEffect(() => {
+    if (!isHovered) return;
+    const onScroll = () => {
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      setIsHovered(false);
+      setHoveredRect(null);
+      setTrailerUrl(null);
+      setIsHoverVideoReady(false);
+      activePopupClose = null;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [isHovered]);
+
   // Prefetch stream on hover — pointer events only, never on touch
   // Replaced with onPointerEnter for precise pointer-type detection
   const handlePointerEnter = (e: React.PointerEvent) => {
@@ -255,15 +274,27 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
     // 300ms intent delay before expanding
     timerRef.current = setTimeout(() => {
+      // Close any other currently-open popup first (one-at-a-time guarantee)
+      if (activePopupClose) {
+        activePopupClose();
+        activePopupClose = null;
+      }
       const rect = cardRef.current?.getBoundingClientRect() ?? null;
       setHoveredRect(rect);
       setIsHovered(true);
       setActiveVideoId(String(movie.id));
+      // Register this card's teardown so another card can close us
+      activePopupClose = () => {
+        setIsHovered(false);
+        setHoveredRect(null);
+        setTrailerUrl(null);
+        setIsHoverVideoReady(false);
+      };
       const year = yearString ? parseInt(yearString) : undefined;
       if (year) {
         prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
       }
-    }, 300);
+    }, 200);
   };
 
   // handlePointerMove intentionally removed — no zone restriction needed.
@@ -275,6 +306,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+
+    // Deregister from global singleton if we were the active popup
+    activePopupClose = null;
 
     // Save trailer progress before collapsing
     if (isHovered && playerRef.current && trailerUrl) {
@@ -433,12 +467,13 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           if (epProg?.duration) pct = Math.min(100, (epProg.time / epProg.duration) * 100);
         }
         if (pct < 2) return null;
+
         return (
           // Floats 8px below card — slightly bigger gap than before
           // 10px horizontal inset makes it noticeably shorter than the card width
           <div
             className="absolute pointer-events-none z-20"
-            style={{ top: 'calc(100% + 12px)', left: '30px', right: '30px' }}
+            style={{ top: 'calc(100% + 8px)', left: '20%', right: '20%' }}
           >
             <div className="h-[3px] w-full bg-white/20" style={{ borderRadius: 0 }}>
               <div
@@ -682,4 +717,4 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   );
 };
 
-export default React.memo(MovieCard);
+export default React.memo(MovieCard);

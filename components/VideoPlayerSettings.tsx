@@ -89,7 +89,9 @@ export const AudioSubPanel: React.FC<{
     currentAudioTrack: number;
     onAudioChange: (trackId: number) => void;
     onClose: () => void;
-}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, onClose }) => {
+    subtitleOffset?: number;
+    onSubtitleOffsetChange?: (offset: number) => void;
+}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange }) => {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
     const [activeLangGroup, setActiveLangGroup] = React.useState<string | null>(null);
@@ -110,11 +112,15 @@ export const AudioSubPanel: React.FC<{
         });
     }, [captions]);
 
-    const rowCls = `flex items-center px-6 ${isMobile ? 'py-3' : 'py-3'} cursor-pointer hover:text-white transition-colors duration-150 select-none group`;
+    const rowCls = `flex items-center px-4 py-2 cursor-pointer hover:text-white transition-colors duration-150 select-none group`;
+
+    const STEP = 0.5; // seconds per +/- press
+    const offsetLabel = subtitleOffset === 0 ? '0.0s' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s`;
+
 
     const renderAudioColumn = () => (
-        <div className="flex flex-col flex-1 border-r border-white/10 min-w-[200px] h-full py-6">
-            <div className="text-white font-bold mb-6 px-8 text-[22px]">
+        <div className="flex flex-col flex-1 border-r border-white/10 min-w-[160px] h-full py-3">
+            <div className="text-white font-bold mb-3 px-4 pt-2 text-sm uppercase tracking-wider text-white/60">
                 Audio
             </div>
             <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
@@ -124,10 +130,10 @@ export const AudioSubPanel: React.FC<{
                         className={`${rowCls} ${currentAudioTrack === track.id ? 'text-white' : 'text-[#b3b3b3]'}`} 
                         onClick={(e) => { e.stopPropagation(); onAudioChange(track.id); }}
                     >
-                        <div className="w-8 flex-shrink-0 flex justify-center">
-                            {currentAudioTrack === track.id && <span className="text-white font-light text-lg">✓</span>}
+                        <div className="w-6 flex-shrink-0 flex justify-center">
+                            {currentAudioTrack === track.id && <span className="text-white font-light text-base">✓</span>}
                         </div>
-                        <span className="text-base truncate">{track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}</span>
+                        <span className="text-sm truncate">{track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}</span>
                     </li>
                 ))}
             </ul>
@@ -135,19 +141,35 @@ export const AudioSubPanel: React.FC<{
     );
 
     const renderSubtitleColumn = () => (
-        <div className="flex flex-col flex-1 min-w-[200px] h-full py-6">
-             <div className="text-white font-bold mb-6 px-8 text-[22px]">
-                Subtitles
-             </div>
+        <div className="flex flex-col flex-1 min-w-[160px] h-full py-3">
+            {/* Header + offset adjuster */}
+            <div className="flex items-center justify-between px-4 pt-2 mb-1 flex-shrink-0">
+                <span className="text-sm uppercase tracking-wider text-white/60 font-bold">Subtitles</span>
+                {onSubtitleOffsetChange && (
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset - STEP).toFixed(1))); }}
+                            className="w-6 h-6 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded transition text-base font-bold leading-none"
+                            title="Earlier (-0.5s)"
+                        >−</button>
+                        <span className="text-xs text-white/60 w-10 text-center font-mono select-none">{offsetLabel}</span>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset + STEP).toFixed(1))); }}
+                            className="w-6 h-6 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded transition text-base font-bold leading-none"
+                            title="Later (+0.5s)"
+                        >+</button>
+                    </div>
+                )}
+            </div>
              <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
                 <li 
                     className={`${rowCls} ${currentCaption === null ? 'text-white' : 'text-[#b3b3b3]'}`} 
                     onClick={(e) => { e.stopPropagation(); onSubtitleChange(null); }}
                 >
-                    <div className="w-8 flex-shrink-0 flex justify-center">
-                        {currentCaption === null && <span className="text-white font-light text-lg">✓</span>}
+                    <div className="w-6 flex-shrink-0 flex justify-center">
+                        {currentCaption === null && <span className="text-white font-light text-base">✓</span>}
                     </div>
-                    <span className="text-base">{t('player.off')}</span>
+                    <span className="text-sm">{t('player.off')}</span>
                 </li>
 
                 {groupedCaptions.map(([langKey, caps]) => {
@@ -164,12 +186,12 @@ export const AudioSubPanel: React.FC<{
                             }}
                         >
                             <div className="flex items-center overflow-hidden">
-                                <div className="w-8 flex-shrink-0 flex justify-center">
-                                    {hasActiveChild && <span className="text-white font-light text-lg">✓</span>}
+                                <div className="w-6 flex-shrink-0 flex justify-center">
+                                    {hasActiveChild && <span className="text-white font-light text-base">✓</span>}
                                 </div>
-                                <span className="text-base truncate">{caps[0].label}</span>
+                                <span className="text-sm truncate">{caps[0].label}</span>
                             </div>
-                            {isMulti && <CaretRightIcon size={14} weight="bold" className="text-[#b3b3b3] group-hover:text-white ml-2 flex-shrink-0" />}
+                            {isMulti && <CaretRightIcon size={12} weight="bold" className="text-[#b3b3b3] group-hover:text-white ml-2 flex-shrink-0" />}
                         </li>
                     );
                 })}
@@ -344,8 +366,8 @@ export const EpisodeExplorer: React.FC<{
         <div className="flex flex-col h-full bg-[#262626] font-sans text-white">
             {activePanel === 'seasons' && (
                 <div className="flex flex-col h-full">
-                    <div className="flex items-center px-[35px] py-[25px] border-b-2 border-white bg-[#262626] flex-shrink-0">
-                        <span className="text-[28px] font-bold">{showTitle || 'Seasons'}</span>
+                    <div className="flex items-center px-6 py-4 border-b-2 border-white bg-[#262626] flex-shrink-0">
+                        <span className="text-[20px] font-bold">{showTitle || 'Seasons'}</span>
                     </div>
                     <div className="overflow-y-auto scroll-list flex-1">
                         {seasonList.map(s => (
@@ -357,9 +379,9 @@ export const EpisodeExplorer: React.FC<{
                                     onSeasonSelect(s); 
                                     setActivePanel('episodes'); 
                                 }} 
-                                className={`relative px-[70px] py-[25px] text-[22px] font-bold transition-colors cursor-pointer border-2 border-transparent hover:bg-white/5 ${selectedSeason === s ? 'border-white bg-[#262626]' : ''}`}
+                                className={`relative px-[50px] py-[14px] text-[18px] font-bold transition-colors cursor-pointer border-2 border-transparent hover:bg-white/5 ${selectedSeason === s ? 'border-white bg-[#262626]' : ''}`}
                             >
-                                {selectedSeason === s && <CheckIcon size={20} weight="bold" className="absolute left-[25px] top-1/2 -translate-y-1/2 text-white" />}
+                                {selectedSeason === s && <CheckIcon size={16} weight="bold" className="absolute left-[18px] top-1/2 -translate-y-1/2 text-white" />}
                                 Season {s}
                             </div>
                         ))}
@@ -370,12 +392,12 @@ export const EpisodeExplorer: React.FC<{
                 <div className="flex flex-col h-full">
                     {/* Clicking the season header goes back to season list */}
                     <div
-                        className="flex items-center gap-3 px-[40px] py-[30px] border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer text-white transition-colors"
+                        className="flex items-center gap-2 px-6 py-3 border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer text-white transition-colors"
                         onClick={(e) => { e.stopPropagation(); setActivePanel('seasons'); }}
                         title="Switch season"
                     >
-                        <ArrowLeftIcon size={24} weight="bold" className="text-white" />
-                        <span className="text-[28px] font-bold">Season {previewSeason}</span>
+                        <ArrowLeftIcon size={18} weight="bold" className="text-white" />
+                        <span className="text-[20px] font-bold">Season {previewSeason}</span>
                     </div>
                     <div ref={episodesContainerRef} className="overflow-y-auto scroll-list flex-1 scrollbar-hide">
                         {currentSeasonEpisodes.map(ep => {
@@ -391,26 +413,26 @@ export const EpisodeExplorer: React.FC<{
                                     className={`transition-colors border-b border-white/5 ${isCurrentlyPlaying || isExpanded ? 'bg-[#121212]' : 'hover:bg-white/5'}`}
                                 >
                                     <div
-                                        className="flex items-center px-[35px] py-[24px] cursor-pointer gap-4"
+                                        className="flex items-center px-6 py-3 cursor-pointer gap-3"
                                         onClick={(e) => { e.stopPropagation(); handleEpisodeClick(ep); }}
                                     >
                                          {/* Episode number */}
-                                        <span className={`flex-shrink-0 ${isMobile ? 'text-2xl w-[45px]' : 'text-xl w-[35px]'} font-bold ${isCurrentlyPlaying ? 'text-[#e50914]' : 'text-white/60'}`}>
+                                        <span className={`flex-shrink-0 ${isMobile ? 'text-xl w-[38px]' : 'text-base w-[28px]'} font-bold ${isCurrentlyPlaying ? 'text-[#e50914]' : 'text-white/60'}`}>
                                             {ep.episode_number}
                                         </span>
                                         {/* Name */}
-                                        <span className={`font-bold flex-1 truncate ${isMobile ? 'text-xl' : 'text-xl'} ${isCurrentlyPlaying ? 'text-white' : 'text-white/90'}`}>
+                                        <span className={`font-bold flex-1 truncate ${isMobile ? 'text-base' : 'text-sm'} ${isCurrentlyPlaying ? 'text-white' : 'text-white/90'}`}>
                                             {ep.name}
                                         </span>
                                         {/* Progress bar */}
                                         {perc > 0 && (
-                                            <div className={`${isMobile ? 'w-[100px] h-1.5' : 'w-[80px] h-[3px]'} bg-white/20 flex-shrink-0 rounded-full overflow-hidden`}>
+                                            <div className={`${isMobile ? 'w-[80px] h-1' : 'w-[60px] h-[3px]'} bg-white/20 flex-shrink-0 rounded-full overflow-hidden`}>
                                                 <div className="h-full bg-red-500 rounded-full" style={{ width: `${Math.min(100, perc)}%` }} />
                                             </div>
                                         )}
                                         {/* Expand/play caret */}
                                         <CaretRightIcon
-                                            size={isMobile ? 20 : 16}
+                                            size={isMobile ? 16 : 13}
                                             weight="bold"
                                             className={`flex-shrink-0 transition-transform text-white/40 ${isExpanded ? 'rotate-90' : ''}`}
                                         />
@@ -419,27 +441,25 @@ export const EpisodeExplorer: React.FC<{
                                     {/* Expanded info */}
                                     {isExpanded && (
                                         <div
-                                            className="px-[35px] pb-[28px] flex flex-col md:flex-row gap-5 cursor-pointer group/ep-play"
+                                            className="px-6 pb-4 flex flex-col md:flex-row gap-4 cursor-pointer group/ep-play"
                                             onClick={(e) => { e.stopPropagation(); onEpisodeSelect(ep); setActivePanel('none'); setExpandedEpisodeId(null); }}
                                         >
                                             {ep.still_path && (
-                                                <div className="relative flex-shrink-0 w-full md:w-[220px]">
+                                                <div className="relative flex-shrink-0 w-full md:w-[180px]">
                                                     <img
                                                         src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
                                                         className="w-full h-auto aspect-video object-cover rounded-sm group-hover/ep-play:brightness-50 transition duration-200"
                                                         alt={ep.name}
                                                     />
-                                                    {/* Simple play circle — always shown, bigger on hover */}
                                                     <div className="absolute inset-0 flex items-center justify-center transition duration-200">
-                                                        <div className="w-12 h-12 rounded-full bg-white/20 border-2 border-white/80 flex items-center justify-center group-hover/ep-play:bg-white/30 group-hover/ep-play:scale-110 transition-all duration-200 shadow-lg">
-                                                            {/* Play triangle */}
-                                                            <div className="w-0 h-0 ml-1" style={{ borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: '14px solid white' }} />
+                                                        <div className="w-9 h-9 rounded-full bg-white/20 border-2 border-white/80 flex items-center justify-center group-hover/ep-play:bg-white/30 group-hover/ep-play:scale-110 transition-all duration-200 shadow-lg">
+                                                            <div className="w-0 h-0 ml-0.5" style={{ borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: '11px solid white' }} />
                                                         </div>
                                                     </div>
                                                 </div>
                                             )}
                                             <div className="flex-1 flex flex-col justify-center">
-                                                <p className="text-sm text-white/60 leading-relaxed line-clamp-5">
+                                                <p className="text-xs text-white/60 leading-relaxed line-clamp-4">
                                                     {ep.overview || 'No description available.'}
                                                 </p>
                                             </div>
@@ -488,7 +508,7 @@ export const EpisodeExplorer: React.FC<{
     return (
         <div
             id="video-panel-shell"
-            className={`${commonPanelCls} ${activePanel === 'audioSubtitles' ? 'w-[550px]' : (activePanel === 'episodes' || activePanel === 'seasons' ? 'w-[850px]' : 'w-[420px]')} h-[480px] lg:h-[75vh]`}
+            className={`${commonPanelCls} ${activePanel === 'audioSubtitles' ? 'w-[480px]' : (activePanel === 'episodes' || activePanel === 'seasons' ? 'w-[700px]' : 'w-[380px]')} h-[420px] lg:h-[65vh]`}
         >
             {innerContent}
         </div>
@@ -514,6 +534,8 @@ interface VideoPlayerSettingsProps {
     captions: Array<{ id: string; label: string; url: string; lang: string }>;
     currentCaption: string | null;
     onSubtitleChange: (url: string | null) => void;
+    subtitleOffset?: number;
+    onSubtitleOffsetChange?: (offset: number) => void;
     audioTracks: Array<{ id: number; name: string; lang: string }>;
     currentAudioTrack: number;
     onAudioChange: (trackId: number) => void;
@@ -535,9 +557,9 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
                 <PanelShell
                     title="Audio & Subtitles"
                     onClose={close}
-                    onHover={() => { /* keep panel open — timer is suspended by onMouseEnter */ }}
-                    onLeave={() => { /* Don't close here — close is handle via the hover timeout in controls */ }}
-                    desktopClass="bottom-16 right-0 w-[400px] lg:w-[550px] h-[480px]"
+                    onHover={() => { /* keep panel open */ }}
+                    onLeave={() => { /* handled via hover timeout in controls */ }}
+                    desktopClass="bottom-16 right-0 w-[380px] lg:w-[480px] h-[380px]"
                 >
                     <AudioSubPanel {...props} onClose={close} />
                 </PanelShell>
