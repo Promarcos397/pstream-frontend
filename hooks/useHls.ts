@@ -52,10 +52,16 @@ function pickEnglishTrackId(tracks: HlsAudioTrack[]): number {
     return tracks[0].id;
 }
 
+/** Detect if current device is likely mobile/tablet for adaptive HLS config */
+function isMobileDevice(): boolean {
+    return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+}
+
 /**
  * Solid Standalone HLS.js Manager Hook
  * Handles lifecycle, error recovery, quality switching, and audio tracks.
  * Auto-selects English audio immediately on MANIFEST_PARSED.
+ * Mobile-optimised: capLevelToPlayerSize, adaptive buffers, low start level.
  */
 export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: UseHlsOptions) => {
     const { streamUrl, isM3U8, autoPlay = true, streamReferer, onManifestParsed, onError, onTokenExpired, onFatalError } = options;
@@ -89,26 +95,47 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
         destroyHls();
 
         if (Hls.isSupported()) {
+            const mobile = isMobileDevice();
+
             const hlsConfig: Partial<Hls['config']> = {
-                maxBufferLength: 30,
-                maxMaxBufferLength: 60,
+                // Buffer: shorter on mobile to reduce RAM usage and initial stall time
+                maxBufferLength:    mobile ? 20 : 30,
+                maxMaxBufferLength: mobile ? 40 : 60,
+                backBufferLength:   mobile ? 15 : 30,
+
                 enableWorker: true,
-                startLevel: -1,
+                lowLatencyMode: false,
+
+                // Start at lowest quality and ramp up — critical for mobile/slow networks.
+                // -1 (auto) starts at the highest quality causing initial stall on slow connections.
+                startLevel: mobile ? 0 : -1,
+
+                // Cap quality to the actual player pixel size — no point loading 1080p
+                // on a 375px-wide phone screen. Massive bandwidth savings.
+                capLevelToPlayerSize: true,
+
+                // ABR: conservative default bandwidth estimate for mobile (2 Mbps),
+                // speeds up quality ramp-up without overshooting on first fragments.
+                abrEwmaDefaultEstimate: mobile ? 500_000 : 2_000_000,
+
+                // Retry thresholds
                 manifestLoadingMaxRetry: 4,
-                levelLoadingMaxRetry: 4,
+                levelLoadingMaxRetry:    4,
+                fragLoadingMaxRetry:     3,
+                fragLoadingRetryDelay:   1000,
             };
 
-            // Inject Referer header on every XHR for IP/referer-locked CDNs (noProxy streams)
-            if (streamReferer) {
-                const referer = streamReferer;
-                (hlsConfig as any).xhrSetup = (xhr: XMLHttpRequest) => {
-                    // Note: setting Referer directly is blocked by browsers for security.
-                    // We set it via a custom header — the CDN usually checks "Referer" or "Origin".
-                    // For same-origin requests this won't be needed, but cross-origin CDNs
-                    // that validate by token (not referer) will work fine without it.
-                    xhr.setRequestHeader('X-Referer', referer);
-                };
-            }
+            // XHR setup: always disable credentials (prevents CORS preflight issues
+            // with cross-origin CDN segments), optionally inject X-Referer header.
+            const referer = streamReferer;
+            (hlsConfig as any).xhrSetup = (xhr: XMLHttpRequest) => {
+                xhr.withCredentials = false;
+                if (referer) {
+                    // Browsers block setting 'Referer' directly — X-Referer is a
+                    // best-effort hint for CDNs that check it (most don't on token URLs).
+                    try { xhr.setRequestHeader('X-Referer', referer); } catch (_) {}
+                }
+            };
 
             const hls = new Hls(hlsConfig as any);
 
@@ -170,7 +197,12 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                 }
 
                 if (onManifestParsed) onManifestParsed();
-                if (autoPlay) video.play().catch(err => console.warn('[useHls] Autoplay blocked:', err));
+                if (autoPlay) {
+                    // Small delay on mobile ensures the video element is ready
+                    // after HLS attaches — prevents silent autoplay failures on iOS/Android
+                    const delay = mobile ? 100 : 0;
+                    setTimeout(() => video.play().catch(err => console.warn('[useHls] Autoplay blocked:', err)), delay);
+                }
             });
 
             hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {

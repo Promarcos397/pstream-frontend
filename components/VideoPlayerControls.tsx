@@ -254,26 +254,26 @@ const NextEpisodePopup: React.FC<{
                 right: isMobile ? 'auto' : -30,
                 left: isMobile ? '50%' : 'auto',
                 transform: isMobile ? 'translateX(-50%)' : 'none',
-                // Responsive width: full-width-minus-padding on mobile, fixed on desktop
-                width: isMobile ? 'calc(100vw - 40px)' : 550,
-                maxWidth: isMobile ? 360 : 550,
-                backgroundColor: '#141414',
-                border: '2px solid #ffffff',
-                boxShadow: '0px 20px 50px rgba(0,0,0,0.9)',
-                borderRadius: isMobile ? 8 : 0,
+                width: isMobile ? 'calc(100vw - 32px)' : 500,
+                maxWidth: isMobile ? 380 : 500,
+                backgroundColor: '#1a1a1a',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0px 25px 80px rgba(0,0,0,0.9)',
+                borderRadius: 16,
                 overflow: 'hidden',
                 zIndex: 100,
-                marginBottom: 12,
+                marginBottom: 16,
             }}
             onClick={(e) => e.stopPropagation()}
         >
             <div style={{
-                backgroundColor: '#262626',
-                padding: isMobile ? '12px 16px' : '16px 22px',
-                fontSize: isMobile ? 16 : 22,
+                backgroundColor: 'rgba(255,255,255,0.03)',
+                padding: isMobile ? '14px 20px' : '18px 24px',
+                fontSize: isMobile ? 18 : 22,
                 fontWeight: 700,
-                borderBottom: '1px solid #000',
-                fontFamily: 'Consolas, monospace',
+                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                fontFamily: 'inherit',
             }}>
                 Next episode
             </div>
@@ -559,8 +559,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     // Display progress: use drag position while dragging for instant feedback
     const displayProgress = isDragging ? dragProgress : progress;
 
-    const btn = 'flex items-center justify-center text-white/80 hover:text-white active:text-white/40 transition-all duration-150 active:scale-90 select-none focus:outline-none rounded-sm p-1.5 hover:scale-110';
-    const btnActive = 'text-white';
+    const btn = 'flex items-center justify-center text-white/70 hover:text-white active:bg-white/10 transition-all duration-200 active:scale-95 select-none focus:outline-none rounded-xl p-2.5';
+    const btnActive = 'text-white bg-white/10';
     const remaining = formatRemaining(currentTime, duration);
 
     // ── Safe-area padding for iOS home bar and notch ───────────────────────
@@ -580,7 +580,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             {/* Background layer for dismissal when panels are open */}
             {isPanelOpen && (
                 <div
-                    className="absolute inset-0 z-10 cursor-default"
+                    className="absolute inset-0 z-10 cursor-default bg-black/20 backdrop-blur-[2px] transition-all"
                     onClick={(e) => {
                         e.stopPropagation();
                         setActivePanel?.('none');
@@ -598,8 +598,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         paddingTop: `max(env(safe-area-inset-top, 0px), 16px)`,
                         paddingLeft: `max(${safeLeft}, 16px)`,
                         paddingRight: `max(${safeRight}, 16px)`,
-                        paddingBottom: 16,
-                        background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%)',
+                        paddingBottom: 24,
+                        background: 'linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 40%, transparent 100%)',
                     }}
                 >
                     {/* Larger back button for better touch target (min 44×44) */}
@@ -638,7 +638,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 onMouseEnter={() => setIsHovering(true)}
                 onMouseLeave={() => setIsHovering(false)}
             >
-                <div className="absolute inset-0 bg-gradient-to-t from-black/98 via-black/60 to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent pointer-events-none" />
 
                 <div
                     className="relative"
@@ -650,10 +650,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     }}
                 >
                     {/* ── Progress bar ── */}
-                    <div className={`flex items-center gap-3 transition-all duration-200 ${isPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                    <div className={`flex items-center gap-4 transition-all duration-300 ${isPanelOpen ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
                         style={{
                             height: isPanelOpen ? 0 : undefined,
-                            marginBottom: isPanelOpen ? 0 : (isMobile ? 12 : 20),
+                            marginBottom: isPanelOpen ? 0 : (isMobile ? 16 : 28),
                             overflow: isPanelOpen ? 'hidden' : undefined,
                         }}
                     >
@@ -693,14 +693,14 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 </div>
                             )}
 
-                            {/* Track — flat bars matching InfoModal/card style */}
-                            <div className={`relative w-full flex items-center ${isMobile ? 'h-10' : 'h-8'}`}>
-                                <div className="absolute left-0 w-full h-[4px] bg-white/20" style={{ borderRadius: 0 }} />
-                                <div className="absolute left-0 h-[4px] bg-white/30" style={{ borderRadius: 0, width: `${buffered}%` }} />
-                                <div className="absolute left-0 h-[4px] bg-[#e50914] transition-all" style={{ borderRadius: 0, width: `${displayProgress}%` }} />
-                                {/* Thumb — square on desktop, round on mobile for thumb-friendliness */}
+                            {/* Track — larger hit target on mobile */}
+                            <div className={`relative w-full flex items-center transition-all duration-200 ${isMobile ? 'h-10' : 'h-8'}`}>
+                                <div className="absolute left-0 w-full h-[3px] bg-white/10 rounded-full" />
+                                <div className="absolute left-0 h-[3px] bg-white/20 rounded-full" style={{ width: `${buffered}%` }} />
+                                <div className="absolute left-0 h-[3.5px] bg-[#e50914] rounded-full transition-all" style={{ width: `${displayProgress}%` }} />
+                                {/* Thumb */}
                                 <div
-                                    className={`absolute h-3 w-3 bg-white shadow-lg -translate-x-1/2 transition-transform ${isMobile || isDragging ? 'scale-100 rounded-full' : 'scale-0 group-hover/timeline:scale-125 rounded-[2px]'}`}
+                                    className={`absolute h-4 w-4 bg-white shadow-2xl -translate-x-1/2 transition-transform border-[3px] border-[#e50914] rounded-full ${isMobile || isDragging || isHovering ? 'scale-100' : 'scale-0'}`}
                                     style={{ left: `${displayProgress}%` }}
                                 />
                             </div>
