@@ -1,6 +1,6 @@
 {
-  "name": "Pstream",
-  "short_name": "Pstream",
+  "name": "P-Stream",
+  "short_name": "P-Stream",
   "description": "Stream movies and TV series — your personal cinema.",
   "start_url": "/",
   "display": "standalone",
@@ -18,13 +18,19 @@
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "categories": ["entertainment"],
