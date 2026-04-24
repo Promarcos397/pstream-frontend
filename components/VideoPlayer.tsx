@@ -1081,11 +1081,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                         backgroundColor: (settings.subtitleBackground as string) !== 'none'
                                             ? 'rgba(0,0,0,0.75)'
                                             : 'transparent',
-                                        textShadow: '0 1px 4px rgba(0,0,0,0.95)',
+                                        textShadow: settings.subtitleEdgeStyle === 'drop-shadow'
+                                            ? '0 1px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8)'
+                                            : settings.subtitleEdgeStyle === 'outline'
+                                                ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
+                                                : 'none',
+                                        filter: settings.subtitleBlur > 0 ? `blur(${settings.subtitleBlur}px)` : undefined,
+                                        opacity: (settings.subtitleOpacity ?? 100) / 100,
                                         marginBottom: i < speakerLines.length - 1 ? '0.2em' : 0,
-                                        // Second line slightly offset to opposite side
                                         alignSelf: i === 1 ? (side === 'left' ? 'flex-end' : 'flex-start') : undefined,
-                                        opacity: i === 1 ? 0.85 : 1,
                                         transform: `translateX(${i === 1 ? (side === 'left' ? '8%' : '-8%') : '0'})`,
                                         transition: 'all 0.2s ease',
                                     }}
@@ -1124,6 +1128,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                     : settings.subtitleEdgeStyle === 'outline'
                                         ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
                                         : 'none',
+                                filter: settings.subtitleBlur > 0 ? `blur(${settings.subtitleBlur}px)` : undefined,
+                                opacity: (settings.subtitleOpacity ?? 100) / 100,
                             }}
                             dangerouslySetInnerHTML={{ __html: currentCueText.replace(/\n/g, '<br/>') }}
                         />

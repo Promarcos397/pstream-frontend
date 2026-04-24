@@ -88,6 +88,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const playerRef = useRef<any>(null);
     const modalRef = useRef<HTMLDivElement>(null);
+    const heroRef = useRef<HTMLDivElement>(null);
     const [hasVideoEnded, setHasVideoEnded] = useState(false);
     const [replayCount, setReplayCount] = useState(0);
 
@@ -251,7 +252,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             if (finalTrailerId) {
                 setTrailerQueue([finalTrailerId]);
                 setIsPlayingTrailer(true);
-                // Also update local state so subsequent opens remember this ID
+                // Only cache the videoId if there's no existing watch progress —
+                // do NOT overwrite time=0, that would clear resume state
                 if (movie.id && !savedState?.videoId) {
                     updateVideoState(movie.id, 0, finalTrailerId);
                 }
@@ -260,10 +262,14 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     if (keys && keys.length > 0) {
                         setTrailerQueue(keys);
                         setIsPlayingTrailer(true);
-                        updateVideoState(movie.id, 0, keys[0]);
+                        // Only register videoId if no prior state exists
+                        if (!getVideoState(movie.id)?.videoId) {
+                            updateVideoState(movie.id, 0, keys[0]);
+                        }
                     }
                 });
             }
+
         }
     }, [movie, trailerId]); // NOTE: intentionally omit getVideoState — its ref changes on every progress tick
 
@@ -351,10 +357,27 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         }
     }, [movie, resumeContext, mediaType]);
 
+    // Hero section scroll-out → pause trailer
+    useEffect(() => {
+        if (!heroRef.current) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry.isIntersecting && playerRef.current && isPlayingTrailer) {
+                    try { playerRef.current.pauseVideo?.(); } catch { }
+                } else if (entry.isIntersecting && playerRef.current && isPlayingTrailer) {
+                    try { playerRef.current.playVideo?.(); } catch { }
+                }
+            },
+            { threshold: 0.05 } // pause once 95% scrolled out
+        );
+        observer.observe(heroRef.current);
+        return () => observer.disconnect();
+    }, [isPlayingTrailer]);
     if (!movie) return null;
 
     const activeMovie = detailedMovie || activeMovieProp;
     const isAdded = myList.find(m => m.id === activeMovieProp.id);
+
 
     const year = (activeMovie.release_date || activeMovie.first_air_date)?.substring(0, 4) || "";
 
@@ -453,7 +476,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 </button>
 
                 {/* --- Hero Section - Video Background --- */}
-                <div className="relative h-[300px] sm:h-[400px] md:h-[560px] w-full bg-black group overflow-hidden">
+                <div ref={heroRef} className="relative h-[300px] sm:h-[400px] md:h-[560px] w-full bg-black group overflow-hidden">
 
                     {/* Layer 1: Backdrop — stays visible until trailer is actively playing */}
                     <div className="absolute inset-0 z-0 text-[0px]">
@@ -557,7 +580,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             height: '100%',
                                             playerVars: {
                                                 autoplay: 1,
-                                                mute: isMuted ? 1 : 0,
+                                                mute: 1,
                                                 modestbranding: 1,
                                                 rel: 0,
                                                 controls: 0,
@@ -715,12 +738,22 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         {/* Right Column: Cast & Genres */}
                         <div className="text-sm space-y-3 pt-2">
                             <div className="flex flex-wrap gap-1">
-                                <span className="text-gray-500">{t('common.cast')}</span>
-                                {cast.slice(0, 3).map((name, i) => (
-                                    <span key={i} className="text-white hover:underline cursor-pointer">{name}{i < cast.slice(0, 3).length - 1 ? ',' : ','}</span>
-                                ))}
-                                {cast.length > 3 && <span className="text-gray-400 italic cursor-pointer hover:underline">{t('modal.more')}</span>}
-                            </div>
+                                    <span className="text-gray-500">{t('common.cast')}</span>
+                                    {cast.slice(0, 3).map((name, i) => (
+                                        <span
+                                            key={i}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onClose();
+                                                navigate(`/search/?q=${encodeURIComponent(name)}`);
+                                            }}
+                                            className="text-white hover:text-[#e50914] cursor-pointer transition-colors"
+                                        >
+                                            {name}{i < cast.slice(0, 3).length - 1 ? ',' : ''}
+                                        </span>
+                                    ))}
+                                    {cast.length > 3 && <span className="text-gray-400 italic cursor-pointer hover:underline">{t('modal.more')}</span>}
+                                </div>
                             {/* Genres — clickable, open BrowseGridPage */}
                             {activeMovie.genres && activeMovie.genres.length > 0 && (
                                 <div className="flex flex-wrap gap-1 items-center">
@@ -764,6 +797,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     <InfoModalRecommendations
                         recommendations={recommendations}
                         onRecommendationClick={handleRecommendationClick}
+                        onPlay={(rec) => onPlay(rec)}
                     />
                 </div>
             </div>

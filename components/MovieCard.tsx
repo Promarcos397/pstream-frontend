@@ -218,7 +218,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   // Collapse popup immediately when page scrolls (popup is fixed, card moves)
   useEffect(() => {
     if (!isHovered) return;
-    const onScroll = () => {
+    const collapse = () => {
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
       setIsHovered(false);
       setHoveredRect(null);
@@ -226,9 +226,19 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       setIsHoverVideoReady(false);
       activePopupClose = null;
     };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener('scroll', collapse, { passive: true });
+    // Alt-tab / app-switch: collapse immediately when window loses focus
+    window.addEventListener('blur', collapse);
+    // Tab visibility: collapse if tab goes hidden
+    const onVisibility = () => { if (document.visibilityState === 'hidden') collapse(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('scroll', collapse);
+      window.removeEventListener('blur', collapse);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [isHovered]);
+
 
   // Prefetch stream on hover — pointer events only, never on touch
   // Replaced with onPointerEnter for precise pointer-type detection
