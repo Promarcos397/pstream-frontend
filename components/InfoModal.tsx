@@ -504,7 +504,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             const forceHD = () => {
                                                 try {
                                                     const levels = e.target.getAvailableQualityLevels?.() || [];
-                                                    const best = ['hd2160', 'hd1440', 'hd1080', 'hd720'].find(q => levels.includes(q)) || 'hd1080';
+                                                    const best = ['hd2160', 'hd1440', 'hd1080', 'hd720'].find(q => levels.includes(q)) || 'highres';
                                                     e.target.setPlaybackQuality(best);
                                                 } catch (_) { }
                                             };

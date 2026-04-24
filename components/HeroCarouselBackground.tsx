@@ -17,7 +17,13 @@ interface HeroCarouselBackgroundProps {
     isHovered: boolean;
     onSyncCheck?: (videoId: string) => number | undefined;
     onVideoEnd?: () => void;
-    youtubeQuality?: 'hd720' | 'hd1080' | 'default';
+    youtubeQuality?:
+  | 'hd720'
+  | 'hd1080'
+  | 'hd1440'
+  | 'hd2160'
+  | 'highres'
+  | 'default';
     replayCount?: number;
     onUpdateState?: (id: number, time: number, videoId: string) => void;
 }
@@ -36,7 +42,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     isHovered,
     onSyncCheck,
     onVideoEnd,
-    youtubeQuality = 'hd1080',
+    youtubeQuality = 'highres',
     replayCount = 0,
     onUpdateState
 }) => {

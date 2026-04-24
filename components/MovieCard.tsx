@@ -82,9 +82,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const { t } = useTranslation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { 
-    myList, toggleList, rateMovie, getMovieRating, getVideoState, 
-    updateVideoState, getEpisodeProgress, getLastWatchedEpisode, 
+  const {
+    myList, toggleList, rateMovie, getMovieRating, getVideoState,
+    updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
     globalMute, setGlobalMute
   } = useGlobalContext();
@@ -273,7 +273,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
             setTrailerUrl(keys[0]);
             updateVideoState(movie.id, 0, keys[0]);
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
 
@@ -373,10 +373,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       e.preventDefault();
       e.stopPropagation();
     }
-    const currentTime = playerRef.current && typeof playerRef.current.getCurrentTime === 'function' 
-      ? playerRef.current.getCurrentTime() 
+    const currentTime = playerRef.current && typeof playerRef.current.getCurrentTime === 'function'
+      ? playerRef.current.getCurrentTime()
       : 0;
-    
+
     const finalTrailerUrl = trailerUrl || getVideoState(movie.id)?.videoId;
 
     // Store the raw DOMRect BEFORE calling onSelect so InfoModal mounts with it ready.
@@ -398,7 +398,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     if (trailerUrl) {
       updateVideoState(movie.id, currentTime, trailerUrl);
     }
-    
+
     if (onPlay) {
       onPlay(movie);
     } else {
@@ -520,218 +520,218 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 transformOrigin: hoverPosition === 'left' ? 'top left' : hoverPosition === 'right' ? 'top right' : 'top center',
               }}
             >
-            {/* Media Container — taller to avoid info section getting cut */}
-            <div className="relative h-[155px] md:h-[172px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+              {/* Media Container — taller to avoid info section getting cut */}
+              <div className="relative h-[155px] md:h-[172px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
 
-              {(trailerUrl && !isBook) ? (
-                <>
-                  {/* Backdrop stays visible until trailer is actually playing */}
+                {(trailerUrl && !isBook) ? (
+                  <>
+                    {/* Backdrop stays visible until trailer is actually playing */}
+                    <img
+                      src={imageSrc}
+                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 ${isHoverVideoReady ? 'opacity-0' : 'opacity-100'}`}
+                      alt="preview"
+                    />
+                    <div className={`absolute inset-0 transition-opacity duration-700 ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
+                      <div className="absolute top-[40%] left-1/2 w-[200%] h-[200%] -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                        <YouTube
+                          videoId={trailerUrl}
+                          opts={{
+                            height: '100%',
+                            width: '100%',
+                            playerVars: {
+                              autoplay: 1,
+                              controls: 0,
+                              modestbranding: 1,
+                              loop: 1,
+                              playlist: trailerUrl,
+                              disablekb: 1,
+                              fs: 0,
+                              rel: 0,
+                              iv_load_policy: 3,
+                              cc_load_policy: 0,
+                              vq: 'highres',
+                              start: 5,
+                            }
+                          }}
+                          onReady={(e) => {
+                            playerRef.current = e.target;
+                            if (isMuted) {
+                              e.target.mute();
+                            } else {
+                              e.target.unMute();
+                            }
+
+                            // Seamless sync: continue from where InfoModal or Hero left off
+                            const savedState = getVideoState(movie.id);
+                            if (savedState && savedState.time > 0 && savedState.videoId === trailerUrl) {
+                              e.target.seekTo(savedState.time, true);
+                            }
+                          }}
+                          onStateChange={(e) => {
+                            const YT_PLAYING = 1;
+                            const YT_PAUSED = 2;
+
+                            // Mark video as ready only when actually playing
+                            if (e.data === YT_PLAYING && !isHoverVideoReady) {
+                              setIsHoverVideoReady(true);
+                            }
+
+                            // Save progress every 1s to GlobalContext
+                            if (e.data === YT_PLAYING) {
+                              if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
+                              hoverSyncRef.current = setInterval(() => {
+                                try {
+                                  const time = playerRef.current?.getCurrentTime?.();
+                                  if (time > 0 && trailerUrl) {
+                                    updateVideoState(movie.id, time, trailerUrl);
+                                  }
+                                } catch (_) { }
+                              }, 1000);
+                            }
+
+                            if (e.data === YT_PAUSED) {
+                              if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
+                            }
+                          }}
+                          onError={(e) => {
+                            console.warn("YouTube blocked playback:", e);
+                            setTrailerUrl("");
+                            setIsHoverVideoReady(false);
+                          }}
+                          onEnd={(e) => {
+                            e.target.seekTo(0);
+                            e.target.playVideo();
+                          }}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
                   <img
                     src={imageSrc}
-                    className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 ${isHoverVideoReady ? 'opacity-0' : 'opacity-100'}`}
+                    className={`w-full h-full object-cover backdrop-pop ${isBook ? 'object-[50%_30%]' : 'object-center'}`}
                     alt="preview"
                   />
-                  <div className={`absolute inset-0 transition-opacity duration-700 ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
-                    <div className="absolute top-[40%] left-1/2 w-[200%] h-[200%] -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-                      <YouTube
-                        videoId={trailerUrl}
-                        opts={{
-                          height: '100%',
-                          width: '100%',
-                          playerVars: {
-                            autoplay: 1,
-                            controls: 0,
-                            modestbranding: 1,
-                            loop: 1,
-                            playlist: trailerUrl,
-                            disablekb: 1,
-                            fs: 0,
-                            rel: 0,
-                            iv_load_policy: 3,
-                            cc_load_policy: 0,
-                            vq: 'hd1080',
-                            start: 5,
-                          }
-                        }}
-                        onReady={(e) => {
-                          playerRef.current = e.target;
-                          if (isMuted) {
-                            e.target.mute();
-                          } else {
-                            e.target.unMute();
-                          }
-
-                          // Seamless sync: continue from where InfoModal or Hero left off
-                          const savedState = getVideoState(movie.id);
-                          if (savedState && savedState.time > 0 && savedState.videoId === trailerUrl) {
-                            e.target.seekTo(savedState.time, true);
-                          }
-                        }}
-                        onStateChange={(e) => {
-                          const YT_PLAYING = 1;
-                          const YT_PAUSED = 2;
-
-                          // Mark video as ready only when actually playing
-                          if (e.data === YT_PLAYING && !isHoverVideoReady) {
-                            setIsHoverVideoReady(true);
-                          }
-
-                          // Save progress every 1s to GlobalContext
-                          if (e.data === YT_PLAYING) {
-                            if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
-                            hoverSyncRef.current = setInterval(() => {
-                              try {
-                                const time = playerRef.current?.getCurrentTime?.();
-                                if (time > 0 && trailerUrl) {
-                                  updateVideoState(movie.id, time, trailerUrl);
-                                }
-                              } catch (_) {}
-                            }, 1000);
-                          }
-
-                          if (e.data === YT_PAUSED) {
-                            if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
-                          }
-                        }}
-                        onError={(e) => { 
-                          console.warn("YouTube blocked playback:", e);
-                          setTrailerUrl("");
-                          setIsHoverVideoReady(false);
-                        }}
-                        onEnd={(e) => {
-                          e.target.seekTo(0);
-                          e.target.playVideo();
-                        }}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <img
-                  src={imageSrc}
-                  className={`w-full h-full object-cover backdrop-pop ${isBook ? 'object-[50%_30%]' : 'object-center'}`}
-                  alt="preview"
-                />
-              )}
-
-              {/* Mute Button - Hide for books */}
-              {trailerUrl && !isBook && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
-
-                  className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
-                >
-                  {isMuted ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />}
-                </button>
-              )}
-
-              <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#181818] to-transparent z-10 pointer-events-none" />
-
-              <div className="absolute bottom-3 left-4 right-12 pointer-events-none z-20">
-                {logoUrl && !imgFailed ? (
-                  <img
-                    src={logoUrl}
-                    alt={movie.title || movie.name}
-                    className={`w-auto object-contain origin-bottom-left drop-shadow-2xl transition-all duration-300 ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
-                    onError={() => setImgFailed(true)}
-                  />
-                ) : (
-                  <h4 className="text-white font-leaner text-4xl line-clamp-2 drop-shadow-md tracking-wide text-center mb-2 leading-none">{movie.title || movie.name}</h4>
                 )}
-              </div>
-            </div>
 
-            {/* Netflix-style hover progress bar: flat, red, '11 of 43m' */}
-            <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
-
-            {/* Info Section */}
-            <div className="px-3 pt-2.5 pb-4 space-y-3 bg-[#181818]">
-
-              {/* Action Buttons Row */}
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  {/* Play/Read/Theater Button */}
-                      {isCinemaOnly && !isBook ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
-                          className="bg-[#6d6d6e] text-white rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95"
-                          title="In Theaters"
-                        >
-                          <TicketIcon size={18} weight="bold" />
-                        </button>
-                      ) : (
-                        <Link
-                          to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="bg-white text-black rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200"
-                          title={isBook ? "Read Now" : "Play"}
-                        >
-                          {isBook ? <BookOpenIcon size={18} weight="fill" /> : <PlayIcon size={22} weight="fill" className="ml-0.5" />}
-                        </Link>
-                      )}
-                  {/* Add to List — subtle animation on state change */}
+                {/* Mute Button - Hide for books */}
+                {trailerUrl && !isBook && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
-                    className={`border-2 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
-                      ${isAdded ? 'border-white bg-white/10 shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'}`}
-                    title={isAdded ? 'Remove from My List' : 'Add to My List'}
+                    onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
+
+                    className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                   >
-                    {isAdded ? <CheckIcon size={16} weight="bold" /> : <PlusIcon size={16} weight="bold" />}
+                    {isMuted ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />}
                   </button>
-                  {/* Rate — Love / Like / Dislike pill */}
-                  <RatingPill
-                    rating={getMovieRating(movie.id)}
-                    onRate={(r) => { rateMovie(movie, r); }}
-                  />
+                )}
+
+                <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#181818] to-transparent z-10 pointer-events-none" />
+
+                <div className="absolute bottom-3 left-4 right-12 pointer-events-none z-20">
+                  {logoUrl && !imgFailed ? (
+                    <img
+                      src={logoUrl}
+                      alt={movie.title || movie.name}
+                      className={`w-auto object-contain origin-bottom-left drop-shadow-2xl transition-all duration-300 ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                      onError={() => setImgFailed(true)}
+                    />
+                  ) : (
+                    <h4 className="text-white font-leaner text-4xl line-clamp-2 drop-shadow-md tracking-wide text-center mb-2 leading-none">{movie.title || movie.name}</h4>
+                  )}
+                </div>
+              </div>
+
+              {/* Netflix-style hover progress bar: flat, red, '11 of 43m' */}
+              <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
+
+              {/* Info Section */}
+              <div className="px-3 pt-2.5 pb-4 space-y-3 bg-[#181818]">
+
+                {/* Action Buttons Row */}
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    {/* Play/Read/Theater Button */}
+                    {isCinemaOnly && !isBook ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
+                        className="bg-[#6d6d6e] text-white rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95"
+                        title="In Theaters"
+                      >
+                        <TicketIcon size={18} weight="bold" />
+                      </button>
+                    ) : (
+                      <Link
+                        to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white text-black rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200"
+                        title={isBook ? "Read Now" : "Play"}
+                      >
+                        {isBook ? <BookOpenIcon size={18} weight="fill" /> : <PlayIcon size={22} weight="fill" className="ml-0.5" />}
+                      </Link>
+                    )}
+                    {/* Add to List — subtle animation on state change */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
+                      className={`border-2 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
+                      ${isAdded ? 'border-white bg-white/10 shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'}`}
+                      title={isAdded ? 'Remove from My List' : 'Add to My List'}
+                    >
+                      {isAdded ? <CheckIcon size={16} weight="bold" /> : <PlusIcon size={16} weight="bold" />}
+                    </button>
+                    {/* Rate — Love / Like / Dislike pill */}
+                    <RatingPill
+                      rating={getMovieRating(movie.id)}
+                      onRate={(r) => { rateMovie(movie, r); }}
+                    />
+                  </div>
+
+                  {/* More Info - Chevron Down */}
+                  <button
+                    onClick={handleOpenModal}
+                    className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
+                    title="More Info"
+                  >
+                    <CaretDownIcon size={18} weight="bold" />
+                  </button>
                 </div>
 
-                {/* More Info - Chevron Down */}
-                <button
-                  onClick={handleOpenModal}
-                  className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
-                  title="More Info"
-                >
-                  <CaretDownIcon size={18} weight="bold" />
-                </button>
-              </div>
+                {/* Metadata Row */}
+                <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
+                  {/* Maturity Rating Badge — from MovieCardBadges */}
+                  <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
 
-              {/* Metadata Row */}
-              <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
-                {/* Maturity Rating Badge — from MovieCardBadges */}
-                <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
-
-              {/* Runtime or Season count */}
-                <span className="text-white/70">
-                  {isBook ? (movie.media_type === 'series' ? 'Series' : 'Comic') :
-                    movie.media_type === 'tv'
-                      ? (() => { const n = Math.max(1, Math.ceil((movie.vote_count || 10) / 500)); return `${n} ${n === 1 ? 'Season' : 'Seasons'}`; })()
-                      : movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`
-                        : `${Math.floor((movie.popularity || 100) / 10 + 80)}m`
-                  }
-                </span>
-
-                {!isBook && <span className="border border-gray-500 text-gray-400 px-1 py-[0.5px] text-[9px] rounded-[2px]">HD</span>}
-              </div>
-
-              {/* Genres Row — clickable, dispatches search */}
-              <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
-                {getGenreNames().map((genre, idx) => (
-                  <span key={idx} className="flex items-center">
-                    <span
-                      className="text-white/75 hover:text-[#e50914] cursor-pointer transition-colors"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePointerLeave();
-                        triggerSearch(navigate, genre);
-                      }}
-                    >{genre}</span>
-                    {idx < getGenreNames().length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
+                  {/* Runtime or Season count */}
+                  <span className="text-white/70">
+                    {isBook ? (movie.media_type === 'series' ? 'Series' : 'Comic') :
+                      movie.media_type === 'tv'
+                        ? (() => { const n = Math.max(1, Math.ceil((movie.vote_count || 10) / 500)); return `${n} ${n === 1 ? 'Season' : 'Seasons'}`; })()
+                        : movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`
+                          : `${Math.floor((movie.popularity || 100) / 10 + 80)}m`
+                    }
                   </span>
-                ))}
-              </div>
 
-            </div>
+                  {!isBook && <span className="border border-gray-500 text-gray-400 px-1 py-[0.5px] text-[9px] rounded-[2px]">HD</span>}
+                </div>
+
+                {/* Genres Row — clickable, dispatches search */}
+                <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
+                  {getGenreNames().map((genre, idx) => (
+                    <span key={idx} className="flex items-center">
+                      <span
+                        className="text-white/75 hover:text-[#e50914] cursor-pointer transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePointerLeave();
+                          triggerSearch(navigate, genre);
+                        }}
+                      >{genre}</span>
+                      {idx < getGenreNames().length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
+                    </span>
+                  ))}
+                </div>
+
+              </div>
             </motion.div>
           )}
         </AnimatePresence>,

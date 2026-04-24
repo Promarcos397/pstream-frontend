@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-type YouTubeQuality = 'hd720' | 'hd1080' | 'default';
+type YouTubeQuality = 'hd720' | 'hd1080' | 'default' | 'hd1440';
 
 interface NetworkQuality {
     quality: YouTubeQuality;
@@ -13,13 +13,13 @@ interface NetworkQuality {
  */
 export const useNetworkQuality = (): NetworkQuality => {
     const [networkQuality, setNetworkQuality] = useState<NetworkQuality>({
-        quality: 'hd1080',
+        quality: 'hd1440',
         isSlowNetwork: false
     });
 
     useEffect(() => {
         const checkNetworkQuality = async () => {
-            let quality: YouTubeQuality = 'hd1080';
+            let quality: YouTubeQuality = 'hd1440';
             let isSlowNetwork = false;
 
             // Check for Capacitor (mobile) - uses global Capacitor.Plugins
