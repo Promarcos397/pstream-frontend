@@ -19,7 +19,8 @@ function sleep(ms: number) {
 let currentKeyIndex = 0;
 let failedKeys = new Set<number>(); // Track keys that have failed this session
 
-const CACHE_KEY = 'Pstream-youtube-cache';
+// v2 = bumped to bust old single-result cache entries (now we need 3)
+const CACHE_KEY = 'Pstream-youtube-cache-v2';
 
 // Shared instance to handle the memory data
 const loadInitialCache = (): [string, string[]][] => {
@@ -174,11 +175,16 @@ export const searchTrailersWithFallback = async (
     options: SearchOptions,
     maxResults: number = 5
 ): Promise<string[]> => {
-    const cacheKey = `${options.title}::${options.year || ''}::${options.type || ''}`;
+    // Cache key includes maxResults — a 1-result cache entry should NOT be served
+    // when the caller now wants 3 results (to pick the 2nd for quality bias)
+    const cacheKey = `${options.title}::${options.year || ''}::${options.type || ''}::${maxResults}`;
 
     // Cache hit — zero quota cost, instant result
     if (resultCache.has(cacheKey)) {
-        return resultCache.get(cacheKey)!;
+        const cached = resultCache.get(cacheKey)!;
+        // Extra safety: if cached array is shorter than requested, refetch
+        if (cached.length >= Math.min(maxResults, 1)) return cached;
+        resultCache.delete(cacheKey);
     }
 
     // In-flight dedup — if the same title is already being searched, share that promise
