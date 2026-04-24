@@ -67,6 +67,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         getLastWatchedEpisode, rateMovie, getMovieRating, getEpisodeProgress
     } = useGlobalContext();
     const { t } = useTranslation();
+    const navigate = useNavigate();
     const [overrideMovie, setOverrideMovie] = useState<Movie | null>(null);
     const activeMovieProp = overrideMovie || movie;
     const { detailedMovie, cast, recommendations, logoUrl, isLoading } = useMovieData(activeMovieProp);
@@ -158,8 +159,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         };
     }, [movie, setActiveVideoId]);
     // Determines media type safely
-    const mediaType = movie
-        ? (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv'
+    const mediaType = activeMovieProp
+        ? (activeMovieProp.media_type || (activeMovieProp.title ? 'movie' : 'tv')) as 'movie' | 'tv'
         : 'movie';
 
     // Cinematic Spring Entry
@@ -300,25 +301,34 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     // Handle Season Change Trigger
     useEffect(() => {
-        if (mediaType === 'tv' && movie) {
-            fetchEpisodes(Number(movie.id), selectedSeason);
+        if (mediaType === 'tv' && activeMovieProp) {
+            fetchEpisodes(Number(activeMovieProp.id), selectedSeason);
         }
     }, [selectedSeason, mediaType, movie, fetchEpisodes]);
 
     useEffect(() => {
-        if (playerRef.current) {
-            if (isMuted) playerRef.current.mute();
-            else playerRef.current.unMute();
-        }
+        // Guard: player may not be attached to DOM yet — YT API throws if called too early
+        try {
+            if (typeof playerRef.current?.mute === 'function') {
+                if (isMuted) playerRef.current.mute();
+                else playerRef.current.unMute();
+            }
+        } catch { /* not yet attached, will sync once onReady fires */ }
     }, [isMuted]);
 
-    // Cinematic: Tab Visibility Pause (Netflix Logic)
+    // Cinematic: Tab Visibility Pause + 30s backdrop reveal
+    const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
     useEffect(() => {
         const handleVisibility = () => {
-            if (document.visibilityState === 'hidden' && playerRef.current) {
-                playerRef.current.pauseVideo?.();
-            } else if (document.visibilityState === 'visible' && isPlayingTrailer && playerRef.current) {
-                playerRef.current.playVideo?.();
+            if (document.visibilityState === 'hidden') {
+                try { playerRef.current?.pauseVideo?.(); } catch { }
+                // 30s: if still hidden → show backdrop UI
+                visibilityTimerRef.current = setTimeout(() => setShowBackdropOverlay(true), 30_000);
+            } else if (document.visibilityState === 'visible' && isPlayingTrailer) {
+                if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+                setShowBackdropOverlay(false);
+                try { playerRef.current?.playVideo?.(); } catch { }
             }
         };
         document.addEventListener('visibilitychange', handleVisibility);
@@ -375,8 +385,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         }
     };
 
-    const savedMovieState = getVideoState(movie.id);
-    const lastEp = mediaType === 'tv' ? getLastWatchedEpisode(movie.id) : null;
+    const savedMovieState = getVideoState(activeMovieProp.id);
+    const lastEp = mediaType === 'tv' ? getLastWatchedEpisode(activeMovieProp.id) : null;
     
     // threshold: 30s for movies, 0s for episodes
     const hasResumeMovie = mediaType === 'movie' && savedMovieState && savedMovieState.time > 30;
@@ -711,11 +721,32 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 ))}
                                 {cast.length > 3 && <span className="text-gray-400 italic cursor-pointer hover:underline">{t('modal.more')}</span>}
                             </div>
-                            {/* Genres — single row, no duplicate */}
-                            <div className="flex flex-wrap gap-1">
-                                <span className="text-gray-500">{t('common.genres')}</span>
-                                <span className="text-white">{genreNames}</span>
-                            </div>
+                            {/* Genres — clickable, open BrowseGridPage */}
+                            {activeMovie.genres && activeMovie.genres.length > 0 && (
+                                <div className="flex flex-wrap gap-1 items-center">
+                                    <span className="text-gray-500">{t('common.genres')}</span>
+                                    {activeMovie.genres.slice(0, 3).map((g, i, arr) => (
+                                        <span
+                                            key={g.id}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onClose();
+                                                navigate(`/browse/genre-${g.id}?title=${encodeURIComponent(g.name)}&url=${encodeURIComponent(`/discover/${mediaType === 'tv' ? 'tv' : 'movie'}?with_genres=${g.id}&sort_by=popularity.desc`)}`);
+                                            }}
+                                            className="text-white hover:text-[#e50914] cursor-pointer transition-colors"
+                                        >
+                                            {g.name}{i < arr.length - 1 ? ',' : ''}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                            {/* Fallback: genre_ids only */}
+                            {(!activeMovie.genres || activeMovie.genres.length === 0) && genreNames && (
+                                <div className="flex flex-wrap gap-1">
+                                    <span className="text-gray-500">{t('common.genres')}</span>
+                                    <span className="text-white">{genreNames}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
 

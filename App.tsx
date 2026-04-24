@@ -31,7 +31,7 @@ const App: React.FC = () => {
   const { query, setQuery, results, isLoading, mode, setMode } = useSearch();
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { setPageTitle } = useTitle();
   const { updateVideoState, getLastWatchedEpisode } = useGlobalContext();
   const { t } = useTranslation();
@@ -54,6 +54,28 @@ const App: React.FC = () => {
       setQuery(urlQuery);
     }
   }, []);
+
+  // Deep-link: restore modal from URL on mount
+  useEffect(() => {
+    const modalId = searchParams.get('modal');
+    const modalType = searchParams.get('type') || 'movie';
+    if (modalId && !selectedMovie) {
+      // Minimal movie stub — InfoModal + useMovieData will fetch the rest
+      setSelectedMovie({ id: Number(modalId), media_type: modalType } as any);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Back-button: if ?modal param disappears from URL, close the modal
+  useEffect(() => {
+    const modalId = searchParams.get('modal');
+    if (!modalId && selectedMovie) {
+      setSelectedMovie(null);
+      setInfoVideoId(undefined);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+
 
   // React Router Scroll Restoration — single scroll-to-top on route change
   useEffect(() => {
@@ -109,6 +131,12 @@ const App: React.FC = () => {
     setInfoInitialTime(time || 0);
     setInfoVideoId(videoId);
     setSelectedMovie(movie);
+    // Push modal state to URL so back button restores context
+    const type = movie.media_type || (movie.title ? 'movie' : 'tv');
+    const next = new URLSearchParams(searchParams);
+    next.set('modal', String(movie.id));
+    next.set('type', type);
+    setSearchParams(next, { replace: false });
   };
 
   const handleCloseModal = (finalTime?: number) => {
@@ -120,6 +148,11 @@ const App: React.FC = () => {
         updateVideoState(selectedMovie.id, finalTime);
       }
     }
+    // Remove modal params from URL
+    const next = new URLSearchParams(searchParams);
+    next.delete('modal');
+    next.delete('type');
+    setSearchParams(next, { replace: true });
   };
 
   const handlePlay = (movie: Movie, season?: number, episode?: number) => {

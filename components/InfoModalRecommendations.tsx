@@ -194,7 +194,7 @@ const InfoModalRecommendations: React.FC<InfoModalRecommendationsProps> = ({
             <h3 className="text-xl md:text-2xl font-bold text-white mb-5">
                 {t('modal.similar', { defaultValue: 'More Like This' })}
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                 {recommendations.map(rec => (
                     <RecCard
                         key={rec.id}
@@ -203,6 +203,7 @@ const InfoModalRecommendations: React.FC<InfoModalRecommendationsProps> = ({
                     />
                 ))}
             </div>
+
         </div>
     );
 };

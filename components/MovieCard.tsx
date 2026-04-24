@@ -422,12 +422,17 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     >
       <div className="w-full h-full relative rounded-sm overflow-hidden movie-card-glow">
         <img
-          src={isGrid ? posterSrc : imageSrc}
+          src={imageSrc}
           className={`w-full h-full object-cover rounded-sm backdrop-pop ${isBook && !isGrid ? 'object-[50%_30%]' : 'object-center'}`}
           alt={movie.name || movie.title}
           loading="lazy"
           draggable={false}
         />
+
+        {/* Gradient overlay in grid mode for logo readability */}
+        {isGrid && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none rounded-sm" />
+        )}
 
         {/* Base Title Overlay — logo or text title, no gradient */}
         {!isHovered && (
