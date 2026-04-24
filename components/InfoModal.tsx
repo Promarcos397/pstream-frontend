@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, TicketIcon, ClockIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
@@ -13,6 +13,7 @@ import { useMovieData } from '../hooks/useMovieData';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { NetworkPriority } from '../services/NetworkPriority';
 import { MaturityBadge } from './MovieCardBadges';
+import { triggerSearch } from '../utils/search';
 
 
 interface InfoModalProps {
@@ -25,44 +26,44 @@ interface InfoModalProps {
 
 type MovieRating = 'like' | 'dislike' | 'love';
 const InfoModalRatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieRating) => void }> = ({ rating, onRate }) => {
-  const [expanded, setExpanded] = useState(false);
-  const CurrentIcon = rating === 'love' ? HeartIcon : rating === 'dislike' ? ThumbsDownIcon : ThumbsUpIcon;
-  return (
-    <div className="relative flex items-center" onMouseEnter={() => setExpanded(true)} onMouseLeave={() => setExpanded(false)}>
-      <div
-        className={`flex items-center overflow-hidden transition-all duration-200 border-2 rounded-full bg-[#2a2a2a]/60
+    const [expanded, setExpanded] = useState(false);
+    const CurrentIcon = rating === 'love' ? HeartIcon : rating === 'dislike' ? ThumbsDownIcon : ThumbsUpIcon;
+    return (
+        <div className="relative flex items-center" onMouseEnter={() => setExpanded(true)} onMouseLeave={() => setExpanded(false)}>
+            <div
+                className={`flex items-center overflow-hidden transition-all duration-200 border-2 rounded-full bg-[#2a2a2a]/60
           ${expanded ? 'border-white/60 px-2 gap-2' : 'border-gray-500 justify-center w-10 h-10 sm:w-12 sm:h-12'}`}
-        style={{ height: expanded ? 48 : undefined }}
-      >
-        {expanded ? (
-          <>
-            {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
-              const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
-              const isActive = rating === r;
-              return (
-                <button
-                  key={r}
-                  onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-125 flex-shrink-0
+                style={{ height: expanded ? 48 : undefined }}
+            >
+                {expanded ? (
+                    <>
+                        {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
+                            const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
+                            const isActive = rating === r;
+                            return (
+                                <button
+                                    key={r}
+                                    onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-125 flex-shrink-0
                     ${isActive ? 'text-white' : 'text-white/60 hover:text-white'}`}
-                  title={r.charAt(0).toUpperCase() + r.slice(1)}
-                >
-                  <Icon size={22} weight={isActive ? 'fill' : 'bold'} />
-                </button>
-              );
-            })}
-          </>
-        ) : (
-          <CurrentIcon size={22} weight={rating ? 'fill' : 'bold'} className={rating ? 'text-white' : 'text-gray-300'} />
-        )}
-      </div>
-    </div>
-  );
+                                    title={r.charAt(0).toUpperCase() + r.slice(1)}
+                                >
+                                    <Icon size={22} weight={isActive ? 'fill' : 'bold'} />
+                                </button>
+                            );
+                        })}
+                    </>
+                ) : (
+                    <CurrentIcon size={22} weight={rating ? 'fill' : 'bold'} className={rating ? 'text-white' : 'text-gray-300'} />
+                )}
+            </div>
+        </div>
+    );
 };
 
 const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, onPlay, trailerId }) => {
-    const { 
-        myList, toggleList, updateVideoState, heroVideoState, 
+    const {
+        myList, toggleList, updateVideoState, heroVideoState,
         globalMute, setGlobalMute, getVideoState, setActiveVideoId,
         getLastWatchedEpisode, rateMovie, getMovieRating, getEpisodeProgress
     } = useGlobalContext();
@@ -106,10 +107,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         const modalRect = modalRef.current.getBoundingClientRect();
 
         // Step 2: calculate the scale + translate that makes the modal appear AT the card's position
-        const scaleX = rect.width  / modalRect.width;
+        const scaleX = rect.width / modalRect.width;
         const scaleY = rect.height / modalRect.height;
-        const tx = rect.left + rect.width  / 2 - (modalRect.left + modalRect.width  / 2);
-        const ty = rect.top  + rect.height / 2 - (modalRect.top  + modalRect.height / 2);
+        const tx = rect.left + rect.width / 2 - (modalRect.left + modalRect.width / 2);
+        const ty = rect.top + rect.height / 2 - (modalRect.top + modalRect.height / 2);
 
         // Step 3: instantly snap to card position (no transition — happens before browser paints)
         setSpringTransition('none');
@@ -123,7 +124,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 delete (window as any).__last_card_rect;
             });
         });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     // ────────────────────────────────────────────────────────────────────
 
@@ -191,11 +192,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const getInitialStyles = () => {
         if (!springRect) return { opacity: 0, transform: 'scale(0.9) translateY(20px)' };
-        
+
         // Match card dimensions exactly for the 'Growing' effect
         const scaleX = springRect.width / 850;
         const scaleY = springRect.height / 500; // Estimated init height
-        
+
         return {
             opacity: 0,
             left: `${springRect.x}px`,
@@ -410,7 +411,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const savedMovieState = getVideoState(activeMovieProp.id);
     const lastEp = mediaType === 'tv' ? getLastWatchedEpisode(activeMovieProp.id) : null;
-    
+
     // threshold: 30s for movies, 0s for episodes
     const hasResumeMovie = mediaType === 'movie' && savedMovieState && savedMovieState.time > 30;
     const hasResumeTV = mediaType === 'tv' && lastEp;
@@ -503,9 +504,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             const forceHD = () => {
                                                 try {
                                                     const levels = e.target.getAvailableQualityLevels?.() || [];
-                                                    const best = ['hd2160','hd1440','hd1080','hd720'].find(q => levels.includes(q)) || 'hd1080';
+                                                    const best = ['hd2160', 'hd1440', 'hd1080', 'hd720'].find(q => levels.includes(q)) || 'hd1080';
                                                     e.target.setPlaybackQuality(best);
-                                                } catch (_) {}
+                                                } catch (_) { }
                                             };
                                             forceHD();
                                             e.target.addEventListener?.('onPlaybackQualityChange', forceHD);
@@ -534,7 +535,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                         if (time > 0 && videoId && movie) {
                                                             updateVideoState(movie.id, time, videoId);
                                                         }
-                                                    } catch (_) {}
+                                                    } catch (_) { }
                                                 }, 1000);
 
                                                 // Early stop: 5s before end to prevent YouTube overlay
@@ -550,7 +551,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                             setHasVideoEnded(true);
                                                             return;
                                                         }
-                                                    } catch (_) {}
+                                                    } catch (_) { }
                                                     setTimeout(checkEnd, 1000);
                                                 };
                                                 checkEnd();
@@ -654,8 +655,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                         {hasResumeTV
                                             ? `Resume E${lastEp?.episode ?? 1}`
                                             : hasResumeMovie
-                                            ? 'Resume'
-                                            : t('hero.play')}
+                                                ? 'Resume'
+                                                : t('hero.play')}
                                     </Link>
                                 );
                             })()}
@@ -738,22 +739,23 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         {/* Right Column: Cast & Genres */}
                         <div className="text-sm space-y-3 pt-2">
                             <div className="flex flex-wrap gap-1">
-                                    <span className="text-gray-500">{t('common.cast')}</span>
-                                    {cast.slice(0, 3).map((name, i) => (
-                                        <span
-                                            key={i}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onClose();
-                                                navigate(`/search/?q=${encodeURIComponent(name)}`);
-                                            }}
-                                            className="text-white hover:text-[#e50914] cursor-pointer transition-colors"
-                                        >
-                                            {name}{i < cast.slice(0, 3).length - 1 ? ',' : ''}
-                                        </span>
-                                    ))}
-                                    {cast.length > 3 && <span className="text-gray-400 italic cursor-pointer hover:underline">{t('modal.more')}</span>}
-                                </div>
+                                <span className="text-gray-500">{t('common.cast')}</span>
+                                {cast.slice(0, 3).map((name, i) => (
+                                    <span
+                                        key={i}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onClose();
+                                            triggerSearch(navigate, name);
+
+                                        }}
+                                        className="text-white hover:text-[#e50914] cursor-pointer transition-colors"
+                                    >
+                                        {name}{i < cast.slice(0, 3).length - 1 ? ',' : ''}
+                                    </span>
+                                ))}
+                                {cast.length > 3 && <span className="text-gray-400 italic cursor-pointer hover:underline">{t('modal.more')}</span>}
+                            </div>
                             {/* Genres — clickable, open BrowseGridPage */}
                             {activeMovie.genres && activeMovie.genres.length > 0 && (
                                 <div className="flex flex-wrap gap-1 items-center">

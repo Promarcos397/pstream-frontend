@@ -47,13 +47,25 @@ const App: React.FC = () => {
     return () => { /* keepalive continues until page unload */ };
   }, []);
 
-  // Sync search query from URL on mount
+  // Sync search query from URL — reactive on location change
   useEffect(() => {
     const urlQuery = searchParams.get('q');
-    if (urlQuery && !query) {
+    if (urlQuery) {
       setQuery(urlQuery);
     }
-  }, []);
+  }, [location.search]);
+
+  // Global search event — fired by cast/genre clicks in InfoModal & MovieCard
+  // Avoids prop-drilling setQuery all the way down the tree
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { query: q } = (e as CustomEvent<{ query: string }>).detail;
+      if (q) setQuery(q);
+    };
+    window.addEventListener('pstream:search', handler);
+    return () => window.removeEventListener('pstream:search', handler);
+  }, [setQuery]);
+
 
   // Deep-link: restore modal from URL on mount
   useEffect(() => {

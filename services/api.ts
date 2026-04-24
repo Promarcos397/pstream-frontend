@@ -162,7 +162,10 @@ export const fetchTrailers = async (id: number | string, type: 'movie' | 'tv'): 
     const details = await getMovieDetails(id, type);
     if (!details) return [];
 
-    const title = details.title || details.name || '';
+    // Always use original_title (English) for YouTube search — localized titles
+    // produce poor results or miss trailers entirely. original_title is always
+    // available in TMDB regardless of the API language setting.
+    const title = details.original_title || details.original_name || details.title || details.name || '';
     const releaseDate = details.release_date || details.first_air_date;
     const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : undefined;
     const company = details.production_companies?.[0]?.name;
@@ -171,15 +174,22 @@ export const fetchTrailers = async (id: number | string, type: 'movie' | 'tv'): 
     // if api.ts is imported inside YouTubeService.
     const { searchTrailersWithFallback } = await import('./YouTubeService');
     
-    // User requested custom precision query on all surfaces
+    // Request 3 results: index[0]=highest-viewed (older SD), index[1]=quality reupload (4K)
+    // This is the strategy: pick [1] or [2] for better quality per user requirement.
     const customTrailers = await searchTrailersWithFallback({
       title,
       year,
       company,
       type
-    }, 1);
+    }, 3);
 
+    // Return [result[1], result[0], ...rest] — prefer 2nd result (quality reupload)
+    // then fall back to 1st if only one result exists
+    if (customTrailers.length >= 2) {
+        return [customTrailers[1], customTrailers[0], ...customTrailers.slice(2)];
+    }
     return customTrailers;
+
   } catch (error) {
     console.error("Error in fetchTrailers:", error);
     return [];

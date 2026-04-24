@@ -14,6 +14,7 @@ import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { MaturityBadge, BadgeOverlay, ProgressIndicator, HoverProgressBar } from './MovieCardBadges';
+import { triggerSearch } from '../utils/search';
 
 // Module-level constant: evaluated once, never re-calculated.
 // Used to hard-gate ALL hover logic — zero cost on touch devices.
@@ -713,15 +714,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 {!isBook && <span className="border border-gray-500 text-gray-400 px-1 py-[0.5px] text-[9px] rounded-[2px]">HD</span>}
               </div>
 
-              {/* Genres Row — bullet-separated, matching Netflix style */}
+              {/* Genres Row — clickable, dispatches search */}
               <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
                 {getGenreNames().map((genre, idx) => (
                   <span key={idx} className="flex items-center">
-                    <span className="text-white/75 hover:text-white cursor-default">{genre}</span>
+                    <span
+                      className="text-white/75 hover:text-[#e50914] cursor-pointer transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePointerLeave();
+                        triggerSearch(navigate, genre);
+                      }}
+                    >{genre}</span>
                     {idx < getGenreNames().length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
                   </span>
                 ))}
               </div>
+
             </div>
             </motion.div>
           )}
