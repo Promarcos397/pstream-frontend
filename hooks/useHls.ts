@@ -220,18 +220,36 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                     const statusCode = (data as any)?.response?.code || (data as any)?.response?.status;
 
                     switch (data.type) {
-                        case Hls.ErrorTypes.NETWORK_ERROR:
-                            // 403 on manifest or segments = token expired or IP blocked
+                        case Hls.ErrorTypes.NETWORK_ERROR: {
+                            // 403/401 = token expired or IP blocked
                             if (statusCode === 403 || statusCode === 401) {
-                                console.warn('[useHls] 403/401 — Token expired or IP blocked, triggering retry...');
+                                console.warn('[useHls] 403/401 — Token expired or IP blocked, triggering cache-bust retry...');
                                 if (onFatalError) onFatalError(data.type, data.details, statusCode);
                                 if (onTokenExpired) onTokenExpired();
                                 return;
                             }
-                            console.log('[useHls] Network error, recovering...');
+                            // 404 on manifest = URL dead (stale prefetch, rotated token, CDN purge)
+                            // 'manifestLoadError' and 'fragLoadError' after HLS max retries are both fatal here.
+                            // Treat them the same as 403: bust cache + ask backend for fresh URLs.
+                            if (statusCode === 404 || data.details === 'manifestLoadError' || data.details === 'manifestParsingError') {
+                                console.warn(`[useHls] ${statusCode || data.details} — manifest dead, triggering cache-bust retry...`);
+                                if (onFatalError) onFatalError(data.type, data.details, statusCode);
+                                if (onTokenExpired) onTokenExpired();
+                                return;
+                            }
+                            // Genuine network error (no status code = offline / timeout) — try HLS recovery once
+                            if (!statusCode) {
+                                console.log('[useHls] Network blip (no status) — attempting HLS recovery...');
+                                if (onFatalError) onFatalError(data.type, data.details, statusCode);
+                                hls.startLoad();
+                                break;
+                            }
+                            // Any other HTTP error (5xx gateway, etc.) — treat as dead URL
+                            console.warn(`[useHls] HTTP ${statusCode} on stream — treating as dead URL, triggering retry...`);
                             if (onFatalError) onFatalError(data.type, data.details, statusCode);
-                            hls.startLoad();
+                            if (onTokenExpired) onTokenExpired();
                             break;
+                        }
 
                         case Hls.ErrorTypes.MEDIA_ERROR:
                             console.log('[useHls] Media error, recovering...');

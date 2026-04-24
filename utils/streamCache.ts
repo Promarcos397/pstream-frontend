@@ -24,9 +24,11 @@ interface CacheKey {
     tmdbId?: string;
 }
 
-// VidZee tokens are IP-locked and short-lived. 8 minutes is enough for intent-to-play
-// while preventing expired tokens being served from prefetch cache.
-const CACHE_TTL_MS = 8 * 60 * 1000;
+// VidZee/VixSrc tokens are IP-locked and expire in 2-5 minutes.
+// 3 minutes provides a hit for quick re-plays while preventing stale token 404s.
+// The warm-prefetch strategy keeps HF Space alive so cold-start re-fetch is fast.
+const CACHE_TTL_MS = 3 * 60 * 1000;
+
 const MAX_CACHE_SIZE = 20;
 
 /**

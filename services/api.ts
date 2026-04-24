@@ -260,52 +260,36 @@ export const prefetchStream = async (
   season: number = 1,
   episode: number = 1,
   imdbId?: string,
-  mode: 'warm' | 'hot' = 'warm'
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _mode: 'warm' | 'hot' = 'warm'   // 'hot' is intentionally no-op — all providers use
+                                    // IP-locked tokens that expire in 2-5min. Caching them
+                                    // via background prefetch always serves stale tokens on play.
+                                    // 'warm' fires the request to keep HF Space alive + prime
+                                    // Redis so the user's actual play request returns in ~1-2s.
 ): Promise<void> => {
   if (!tmdbId) return;
 
   const key = `${tmdbId}-${type}-${season}-${episode}`;
+  if (warmedSet.has(key)) return;
+  warmedSet.add(key);
 
-  // WARM mode: only hit backend once per session per item
-  if (mode === 'warm') {
-    if (warmedSet.has(key)) return;
-    warmedSet.add(key);
-    // Fire-and-forget: just warm the Space + Redis cache, don't await result
-    const params = new URLSearchParams({ tmdbId, type, season: season.toString(), episode: episode.toString(), title: title || '', year: year ? year.toString() : '', imdbId: imdbId || '' });
-    fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, { signal: AbortSignal.timeout(25000) })
-      .catch(() => { /* ignore — prefetch failures are silent */ });
-    console.log(`[Prefetch] 🔥 Warming HF cache for: ${title} (${type})`);
-    return;
-  }
-
-  // HOT mode: fetch + cache result for VideoPlayer instant load
-  const { streamCache } = await import('../utils/streamCache');
-  const cacheKey = { title: title || String(tmdbId), tmdbId, type, season, episode };
-  if (streamCache.get(cacheKey)) {
-    console.log(`[Prefetch] ✅ Already hot-cached: ${title}`);
-    return;
-  }
-
-  try {
-    const params = new URLSearchParams({ tmdbId, type, season: season.toString(), episode: episode.toString(), title: title || '', year: year ? year.toString() : '', imdbId: imdbId || '' });
-    const resp = await fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, { signal: AbortSignal.timeout(20000) });
-    if (!resp.ok) return;
-    const data = await resp.json();
-    if (data?.sources?.length && !data.sources.every((s: any) => s.isEmbed)) {
-      // Only cache if provider is known to have long-lived tokens (not just 15s VixSrc kind)
-      const provider = (data.provider || '').toLowerCase();
-      const isShortLived = provider.includes('vixsrc');
-      if (!isShortLived) {
-        streamCache.set(cacheKey, data); // uses internal CACHE_TTL_MS
-        console.log(`[Prefetch] 🚀 HOT cached: ${title} via ${data.provider}`);
-      } else {
-        console.log(`[Prefetch] ⚠️ Skipping cache for short-lived provider: ${data.provider}`);
-      }
-    }
-  } catch {
-    // silent — prefetch failures never affect UX
-  }
+  // Fire-and-forget: warms HF Space + backend Redis cache.
+  // The backend resolves the stream and stores result in Redis with its own TTL.
+  // When user clicks play, the backend serves from Redis instantly.
+  const params = new URLSearchParams({
+    tmdbId, type,
+    season: season.toString(),
+    episode: episode.toString(),
+    title: title || '',
+    year: year ? year.toString() : '',
+    imdbId: imdbId || ''
+  });
+  fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, { signal: AbortSignal.timeout(25000) })
+    .catch(() => { /* silent — prefetch failures never affect UX */ });
+  console.log(`[Prefetch] 🔥 Warming HF cache for: ${title} (${type})`);
 };
+
+
 
 /**
  * Batch warm-prefetch for history/watchlist items.
