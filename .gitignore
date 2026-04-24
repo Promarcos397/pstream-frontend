@@ -46,4 +46,9 @@ scratch-note.md
 cleanup_locales.py
 localize_all.py
 update_locales.cjs
-SECRETS.local.md
+SECRETS.local.md
+# Dev reference dirs — design assets, screenshots, notes (not source code)
+screeens/
+_dev/
+_resources/
+assets/pstream-logo.png

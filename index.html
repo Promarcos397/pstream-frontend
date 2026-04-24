@@ -11,25 +11,28 @@
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json" />
 
-  <link rel="icon" type="image/png" href="/favicon.png" />
+  <!-- Favicon: SVG (modern browsers) + PNG fallback -->
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link rel="icon" type="image/png" href="/favicon.png" sizes="any" />
 
   <!-- Apple PWA (iOS "Add to Home Screen") -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Pstream" />
+  <!-- Apple touch icon — the square icon shown on home screen -->
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
   <!-- Open Graph / Social -->
   <meta property="og:title" content="Pstream" />
   <meta property="og:description" content="Stream movies and TV series — your personal cinema." />
   <meta property="og:type" content="website" />
+  <meta property="og:image" content="/icon.svg" />
 
   <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&display=swap" rel="stylesheet">
-
 
 </head>
 

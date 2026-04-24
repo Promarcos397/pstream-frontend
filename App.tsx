@@ -24,6 +24,7 @@ import MyListPage from './pages/MyListPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import BrowseGridPage from './pages/BrowseGridPage';
 
 const App: React.FC = () => {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
@@ -187,6 +188,12 @@ const App: React.FC = () => {
     setQuery(newQuery);
   };
 
+  // View All: row title click → /browse/:rowKey?url=...&title=...
+  const handleViewAll = (rowKey: string, fetchUrl: string, title: string) => {
+    const params = new URLSearchParams({ url: fetchUrl, title });
+    navigate(`/browse/${rowKey}?${params.toString()}`);
+  };
+
   if (isWatching) {
     return (
       <Routes>
@@ -195,16 +202,18 @@ const App: React.FC = () => {
     );
   }
 
+
   const mainContent = (
     <div>
       <Routes>
-        <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
+        <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
         <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
         <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} />} />
         <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/settings/*" element={<SettingsPage />} />
+        <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
       </Routes>
     </div>
   );

@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { ListIcon, XIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import SearchBar from './SearchBar';
-import pstreamLogo from '../assets/pstream-logo.png';
+import pstreamWordmark from '../assets/logos/pstream-logo.svg';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { DEFAULT_AVATAR } from '../constants';
 
 interface NavbarProps {
   isScrolled: boolean;
@@ -22,6 +23,10 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const location = useLocation();
   const { settings, user, logout } = useGlobalContext();
   const isSettings = location.pathname.startsWith('/settings');
+  // Only treat as a real custom avatar if user has changed it from the default
+  const rawAvatarUrl = settings.avatarUrl;
+  const avatarUrl = (rawAvatarUrl && rawAvatarUrl !== DEFAULT_AVATAR) ? rawAvatarUrl : null;
+  const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
 
   const navItems = [
     { id: 'home', label: t('nav.home', { defaultValue: 'Home' }) },
@@ -58,9 +63,9 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4 md:space-x-8">
           <img
-            src={pstreamLogo}
+            src={pstreamWordmark}
             alt="Pstream"
-            className={`h-4 sm:h-5 md:h-6 lg:h-7 cursor-pointer transition-transform hover:scale-105 relative z-10 ${isSettings ? 'brightness-100' : ''}`}
+            className={`h-4 sm:h-5 md:h-6 lg:h-7 cursor-pointer transition-transform hover:scale-105 relative z-10`}
             onClick={() => handleTabClick('home')}
           />
 
@@ -112,12 +117,15 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
                       {t('nav.signOut')}
                     </button>
                   ) : (
-                    <div className="w-8 h-8 rounded overflow-hidden shadow-md group-hover/profile:ring-1 ring-white/50 transition-all">
-                      <img
-                        src={settings.avatarUrl || 'https://mir-s3-cdn-cf.behance.net/project_modules/disp/10f13517652934.562bcce9bc38d.png'}
-                        alt="Profile"
-                        className="w-full h-full object-cover"
-                      />
+                    <div
+                      className="w-8 h-8 rounded overflow-hidden shadow-md group-hover/profile:ring-1 ring-white/50 transition-all flex items-center justify-center"
+                      style={{ background: avatarUrl ? undefined : '#E50914' }}
+                    >
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-white font-bold text-sm">{avatarInitial}</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -167,7 +175,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
             </button>
           )}
           <div className="pt-10">
-             <img src={pstreamLogo} alt="Pstream" className="h-7 opacity-40" />
+             <img src={pstreamWordmark} alt="Pstream" className="h-7 opacity-40" />
           </div>
         </div>
       )}

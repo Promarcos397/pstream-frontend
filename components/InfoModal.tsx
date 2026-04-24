@@ -67,7 +67,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         getLastWatchedEpisode, rateMovie, getMovieRating, getEpisodeProgress
     } = useGlobalContext();
     const { t } = useTranslation();
-    const { detailedMovie, cast, recommendations, logoUrl, isLoading } = useMovieData(movie);
+    const [overrideMovie, setOverrideMovie] = useState<Movie | null>(null);
+    const activeMovieProp = overrideMovie || movie;
+    const { detailedMovie, cast, recommendations, logoUrl, isLoading } = useMovieData(activeMovieProp);
     const [imgFailed, setImgFailed] = useState(false);
     const isCinemaOnly = useIsInTheaters(movie);
 
@@ -223,6 +225,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             setResumeContext(null);
             setHasVideoEnded(false);
             setReplayCount(0);
+            setOverrideMovie(null); // clear any previous rec override
 
             const type = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
@@ -261,7 +264,32 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 });
             }
         }
-    }, [movie, trailerId]); // NOTE: intentionally omit getVideoState — its ref changes on every progress tick, which would reset episodes unnecessarily
+    }, [movie, trailerId]); // NOTE: intentionally omit getVideoState — its ref changes on every progress tick
+
+    // When a recommendation is clicked (overrideMovie changes), load its trailers
+    useEffect(() => {
+        if (!overrideMovie) return;
+        const type = (overrideMovie.media_type || (overrideMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+        const savedState = getVideoState(overrideMovie.id);
+        if (savedState?.videoId) {
+            setTrailerQueue([savedState.videoId]);
+            setIsPlayingTrailer(true);
+        } else {
+            fetchTrailers(overrideMovie.id, type).then(keys => {
+                if (keys && keys.length > 0) {
+                    setTrailerQueue(keys);
+                    setIsPlayingTrailer(true);
+                }
+            });
+        }
+        if (type === 'tv') {
+            const saved = getLastWatchedEpisode(overrideMovie.id);
+            if (saved?.season && saved?.episode) {
+                setResumeContext({ season: saved.season, episode: saved.episode });
+                setSelectedSeason(saved.season);
+            }
+        }
+    }, [overrideMovie]);
 
     const fetchEpisodes = useCallback(async (id: number, season: number) => {
         setLoadingEpisodes(true);
@@ -315,8 +343,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     if (!movie) return null;
 
-    const activeMovie = detailedMovie || movie;
-    const isAdded = myList.find(m => m.id === movie.id);
+    const activeMovie = detailedMovie || activeMovieProp;
+    const isAdded = myList.find(m => m.id === activeMovieProp.id);
 
     const year = (activeMovie.release_date || activeMovie.first_air_date)?.substring(0, 4) || "";
 
@@ -331,7 +359,20 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         : activeMovie.genre_ids?.map(id => t(`genres.${id}`)).slice(0, 3).join(', ');
 
     const handleRecommendationClick = (rec: Movie) => {
-        handleClose();
+        // Swap modal content to the clicked recommendation without closing
+        setOverrideMovie(rec);
+        setImgFailed(false);
+        setTrailerQueue([]);
+        setIsPlayingTrailer(false);
+        setIsTrailerReady(false);
+        setEpisodes([]);
+        setSelectedSeason(1);
+        setResumeContext(null);
+        setHasVideoEnded(false);
+        // Scroll modal container back to top
+        if (modalRef.current) {
+            modalRef.current.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     const savedMovieState = getVideoState(movie.id);

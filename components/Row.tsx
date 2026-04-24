@@ -7,7 +7,7 @@ import { fetchData } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) => {
+const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowKey, onViewAll }) => {
   const { t } = useTranslation();
   const { pageSeenIds, registerSeenIds } = useGlobalContext();
   const isMobile = useIsMobile();
@@ -15,6 +15,13 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
   // Minimum vote count to show in any feed — filters out obscure/fan-made content.
   // Slightly lenient vs search (100) since row context is curated by TMDB sort.
   const MIN_FEED_VOTE_COUNT = 50;
+
+  const handleViewAll = () => {
+    if (onViewAll && rowKey && fetchUrl) {
+      onViewAll(rowKey, fetchUrl, title);
+    }
+  };
+  const canViewAll = !!(onViewAll && rowKey && fetchUrl);
   // Start movies as empty unless data is provided
   const [movies, setMovies] = useState<Movie[]>([]);
   const [initialLoad, setInitialLoad] = useState(!data && !!fetchUrl);
@@ -165,10 +172,13 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay }) =>
     >
       {/* Row Title */}
       <div className="flex items-center justify-between px-6 md:px-14 lg:px-16">
-        <h2 className="text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit tracking-wide">
+        <h2
+          className={`text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit tracking-wide ${canViewAll ? 'hover:text-white' : ''}`}
+          onClick={canViewAll ? handleViewAll : undefined}
+        >
           {title}
-          {/* Only show "Explore All" on non-touch */}
-          {!isMobile && (
+          {/* Show "Explore All" on desktop when view-all is wired */}
+          {!isMobile && canViewAll && (
             <span className="text-xs text-cyan-500 ml-2 opacity-0 group-hover/title:opacity-100 transition-opacity duration-300 flex items-center font-semibold">
               {t('rows.exploreAll')} <CaretRightIcon size={14} className="ml-1" />
             </span>

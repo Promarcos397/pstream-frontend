@@ -17,7 +17,7 @@ import { AppSettings } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { DEFAULT_AVATAR } from '../constants';
-import pstreamLogo from '../assets/pstream-logo.png';
+import pstreamLogo from '../assets/logos/pstream-logo.svg';
 
 interface SettingsLayoutProps {
     settings: AppSettings;

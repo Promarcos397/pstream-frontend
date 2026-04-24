@@ -13,6 +13,7 @@ interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
   onPlay: (movie: Movie) => void;
   seekTime?: number;
+  onViewAll?: (rowKey: string, fetchUrl: string, title: string) => void;
 }
 
 // --- Helpers ---
@@ -47,7 +48,7 @@ interface SmartRow {
   data?: Movie[];
 }
 
-const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime }) => {
+const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onViewAll }) => {
   const { myList, continueWatching, getLikedMovies } = useGlobalContext();
   const { t } = useTranslation();
 
@@ -111,6 +112,8 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime }) => {
               data={row.data}
               onSelect={onSelectMovie}
               onPlay={onPlay}
+              rowKey={row.key}
+              onViewAll={onViewAll}
             />
           )
         ))}

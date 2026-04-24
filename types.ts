@@ -67,6 +67,10 @@ export interface RowProps {
   onSelect: (movie: Movie) => void;
   onPlay?: (movie: Movie) => void;
   isLargeRow?: boolean;
+  /** Stable URL-safe key for this row (e.g. 'trending', 'action'). Enables View All. */
+  rowKey?: string;
+  /** Called when user clicks the row title / Explore All. Receives rowKey + fetchUrl + title. */
+  onViewAll?: (rowKey: string, fetchUrl: string, title: string) => void;
 }
 
 export interface AppSettings {

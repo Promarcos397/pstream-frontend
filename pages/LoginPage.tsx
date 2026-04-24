@@ -4,7 +4,7 @@ import { AuthService } from '../services/AuthService';
 import { ArrowLeftIcon, InfoIcon, CopyIcon, DownloadIcon, ShieldCheckIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import logo from '../assets/pstream-logo.png';
+import logo from '../assets/logos/pstream-logo.svg';
 import landingBg from '../assets/landing-bg.png';
 import * as bip39 from 'bip39';
 

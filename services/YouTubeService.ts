@@ -89,12 +89,13 @@ interface SearchOptions {
 function buildSearchQueries(options: SearchOptions): string[] {
     const { title, year } = options;
 
-    // Primary: "{title} {year} official trailer" — company name removed because
-    // TMDB company data is inconsistent (distributors, sub-studios, wrong language)
-    // and it reliably degrades YouTube match quality.
-    const primary = [title, year, 'official trailer'].filter(Boolean).join(' ');
+    // Primary: "{title} {year} official trailer 4K" — 4K keyword biases YouTube toward
+    // higher-quality reuploads. The most-viewed HD version lands at result [0];
+    // the 4K reupload (fewer views but keyword-matched) lands at [1].
+    // Consumer (MovieCard) picks index [1] with fallback to [0].
+    const primary = [title, year, 'official trailer 4K'].filter(Boolean).join(' ');
 
-    // Fallback: without the year, catches movies with wrong release year in TMDB
+    // Fallback: without year or quality — catches titles with wrong TMDB release year.
     const fallback = `${title} official trailer`;
 
     return [primary, fallback];
