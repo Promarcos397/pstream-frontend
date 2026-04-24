@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-const commonPanelCls = "bg-[#1a1a1a]/95 backdrop-blur-md border border-white/10 shadow-[0px_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-fadeIn fixed z-[120] bottom-5 md:bottom-24 right-5 rounded-xl";
+const commonPanelCls = "bg-[#262626] border-2 border-white shadow-[0px_15px_40px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-fadeIn fixed z-[120] bottom-5 md:bottom-24 right-5";
 
 // ─── Shared: compact panel wrapper ────────────────────────────────────────────
 export const PanelShell: React.FC<{
@@ -43,13 +43,8 @@ export const PanelShell: React.FC<{
                 onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             >
                 <div
-                    className={`${commonPanelCls} ${desktopClass || 'w-full max-w-[550px] h-fit max-h-[80svh]'} pointer-events-auto shadow-2xl`}
-                    style={{ 
-                        bottom: 'max(1.25rem, env(safe-area-inset-bottom))', 
-                        left: '1rem', 
-                        right: '1rem',
-                        width: 'auto' 
-                    }}
+                    className={`${commonPanelCls} ${desktopClass || 'w-[90vw] max-w-[550px] max-h-[80svh]'} pointer-events-auto`}
+                    style={{ borderRadius: 0, bottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 flex-shrink-0">
@@ -71,10 +66,11 @@ export const PanelShell: React.FC<{
         <div
             id="video-panel-shell"
             className={`${commonPanelCls} ${desktopClass || 'w-[550px] h-[480px]'}`}
+            style={{ borderRadius: 0 }}
         >
             {showHeader && (
-                 <div className="flex items-center px-8 py-6 border-b border-white/5 bg-[#1a1a1a]/50 flex-shrink-0">
-                    <span className="text-white text-2xl font-bold tracking-tight">{title}</span>
+                 <div className="flex items-center px-8 py-6 border-b-2 border-white bg-[#262626] flex-shrink-0">
+                    <span className="text-white text-2xl font-bold">{title}</span>
                 </div>
             )}
             <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-[#666] scrollbar-track-transparent">
@@ -116,7 +112,7 @@ export const AudioSubPanel: React.FC<{
         });
     }, [captions]);
 
-    const rowCls = `flex items-center px-5 py-3 cursor-pointer hover:bg-white/5 active:bg-white/10 transition-all duration-150 select-none group rounded-md mx-2 my-0.5`;
+    const rowCls = `flex items-center px-4 py-3 cursor-pointer hover:text-white transition-colors duration-150 select-none group`;
 
     const STEP = 0.5; // seconds per +/- press
     const offsetLabel = subtitleOffset === 0 ? '0.0s' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s`;
@@ -245,24 +241,24 @@ export const AudioSubPanel: React.FC<{
 };
 
 // ─── Server Selection menu ────────────────────────────────────────────────
-const ServerPanel: React.FC<{
+export const ServerPanel: React.FC<{
     allSources: any[];
     currentSourceIndex: number;
     onSourceChange: (index: number) => void;
     onClose: () => void;
 }> = ({ allSources, currentSourceIndex, onSourceChange, onClose }) => {
     const isMobile = useIsMobile();
-    const rowCls = `flex items-center justify-between px-5 ${isMobile ? 'py-4' : 'py-3'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition-all rounded-lg select-none mx-2 my-1`;
+    const rowCls = `flex items-center justify-between px-4 ${isMobile ? 'py-4' : 'py-3'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition rounded select-none`;
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full bg-[#262626]">
             {!isMobile && (
-                <div className="px-8 py-5 border-b border-white/5 flex-shrink-0">
-                    <span className="text-white text-xl font-bold tracking-tight">Select Server</span>
-                    <p className="text-xs text-white/40 mt-1">Switch if current server is buffering or offline.</p>
+                <div className="px-8 py-6 border-b border-white/10 flex-shrink-0">
+                    <span className="text-white text-2xl font-bold">Select Streaming Server</span>
+                    <p className="text-sm text-white/40 mt-1">Switch servers if you experience buffering or if the current one is offline.</p>
                 </div>
             )}
-            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent py-2">
+            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-[#555] scrollbar-track-transparent py-2">
                 {allSources.map((source, i) => (
                     <div key={i} className={`${rowCls} ${currentSourceIndex === i ? 'bg-white/10' : ''}`} onClick={() => { onSourceChange(i); onClose(); }}>
                         <div className="flex items-center gap-4 overflow-hidden">
@@ -273,7 +269,7 @@ const ServerPanel: React.FC<{
                                 <span className={`text-base font-bold ${currentSourceIndex === i ? 'text-white' : 'text-white/60'}`}>
                                     {source.provider || `Server ${i + 1}`}
                                 </span>
-                                <span className="text-xs text-white/30 truncate">{source.quality || 'Auto'} • {source.isM3U8 ? 'Adaptive' : 'Direct'}</span>
+                                <span className="text-xs text-white/50 truncate">{source.quality || 'Auto'} • {source.isM3U8 ? 'Adaptive' : 'Direct'}</span>
                             </div>
                         </div>
                     </div>
@@ -291,21 +287,40 @@ export const QualityMenu: React.FC<{
     onClose: () => void;
 }> = ({ qualities, currentQuality, onQualityChange, onClose }) => {
     const isMobile = useIsMobile();
-    const rowCls = `flex items-center justify-between px-6 ${isMobile ? 'py-5' : 'py-4'} cursor-pointer hover:bg-white/10 active:bg-white/20 transition-all rounded-lg select-none mx-2 my-1`;
+    const rowCls = `flex items-center justify-between px-4 ${isMobile ? 'py-4' : 'py-2.5'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition rounded select-none`;
 
     return (
-        <div className="flex flex-col py-2">
-            <div className={`relative ${rowCls} ${currentQuality === -1 ? 'bg-white/10 text-white' : 'text-white/60'}`} onClick={() => { onQualityChange(-1); onClose(); }}>
-                <div className="flex flex-col">
-                    <span className="text-lg font-bold">Auto</span>
-                    {!isMobile && <div className="text-xs opacity-60">Best quality for your connection</div>}
+        <div className="flex flex-col">
+            {/* Auto quality row — needs relative so the inline CheckIcon positions correctly */}
+            <div className={`relative flex items-center gap-3 ${isMobile ? rowCls : 'px-12 py-[18px] border-b border-white/5 bg-[#121212] cursor-default'}`} onClick={() => { onQualityChange(-1); onClose(); }}>
+                {!isMobile && (
+                    <CheckIcon
+                        size={16}
+                        weight="bold"
+                        className={`flex-shrink-0 transition-opacity ${currentQuality === -1 ? 'text-white opacity-100' : 'opacity-0'}`}
+                    />
+                )}
+                <div className="flex flex-col gap-0.5">
+                    <span className={`text-sm font-bold ${currentQuality === -1 ? 'text-white' : 'text-white/60'}`}>Auto</span>
+                    {!isMobile && <div className="text-xs text-white/50">Adjusts automatically</div>}
                 </div>
-                {currentQuality === -1 && <CheckIcon size={20} weight="bold" />}
             </div>
             {qualities.map((q, i) => (
-                <div key={i} className={`${rowCls} ${currentQuality === q.level ? 'bg-white/10 text-white' : 'text-white/60'}`} onClick={() => { onQualityChange(q.level); onClose(); }}>
-                    <span className="text-lg font-bold">{q.height}p</span>
-                    {currentQuality === q.level && <CheckIcon size={20} weight="bold" />}
+                <div
+                    key={i}
+                    className={`relative flex items-center gap-3 ${isMobile ? rowCls : 'px-12 py-[18px] border-b border-white/5 transition-colors cursor-pointer hover:bg-white/5'} ${currentQuality === q.level ? 'bg-white/5' : ''}`}
+                    onClick={() => { onQualityChange(q.level); onClose(); }}
+                >
+                    {!isMobile && (
+                        <CheckIcon
+                            size={16}
+                            weight="bold"
+                            className={`flex-shrink-0 transition-opacity ${currentQuality === q.level ? 'text-white opacity-100' : 'opacity-0'}`}
+                        />
+                    )}
+                    <span className={`text-sm font-bold ${currentQuality === q.level ? 'text-white' : 'text-white/60'}`}>
+                        {q.height > 0 ? `${q.height}p` : 'Unknown'}
+                    </span>
                 </div>
             ))}
         </div>
@@ -367,13 +382,14 @@ export const EpisodeExplorer: React.FC<{
 
 
     const innerContent = (
-        <div className="flex flex-col h-full font-sans text-white">
+        <div className="flex flex-col h-full bg-[#262626] font-sans text-white">
             {activePanel === 'seasons' && (
                 <div className="flex flex-col h-full">
-                    <div className="flex items-center px-6 py-5 border-b border-white/5 flex-shrink-0">
-                        <span className="text-xl font-bold tracking-tight">{showTitle || 'Seasons'}</span>
+                    <div className="flex items-center px-6 py-4 border-b-2 border-white bg-[#262626] flex-shrink-0">
+                        <span className="text-[20px] font-bold">{showTitle || 'Seasons'}</span>
                     </div>
-                    <div className="overflow-y-auto scroll-list flex-1 py-2">
+                    <div className="overflow-y-auto scroll-list flex-1">
+                        {seasonList.map(s => (
                             <div 
                                 key={s} 
                                 onClick={(e) => { 
@@ -382,10 +398,10 @@ export const EpisodeExplorer: React.FC<{
                                     onSeasonSelect(s); 
                                     setActivePanel('episodes'); 
                                 }} 
-                                className={`group flex items-center justify-between px-6 py-4 mx-2 my-1 text-lg font-bold transition-all cursor-pointer rounded-lg hover:bg-white/5 active:scale-[0.98] ${selectedSeason === s ? 'bg-white/10 text-white' : 'text-white/60'}`}
+                                className={`relative px-[50px] py-[14px] text-[18px] font-bold transition-colors cursor-pointer border-2 border-transparent hover:bg-white/5 ${selectedSeason === s ? 'border-white bg-[#262626]' : ''}`}
                             >
-                                <span>Season {s}</span>
-                                {selectedSeason === s && <CheckIcon size={20} weight="bold" />}
+                                {selectedSeason === s && <CheckIcon size={16} weight="bold" className="absolute left-[18px] top-1/2 -translate-y-1/2 text-white" />}
+                                Season {s}
                             </div>
                         ))}
                     </div>
@@ -395,11 +411,12 @@ export const EpisodeExplorer: React.FC<{
                 <div className="flex flex-col h-full">
                     {/* Clicking the season header goes back to season list */}
                     <div
-                        className="flex items-center gap-3 px-6 py-5 border-b border-white/5 flex-shrink-0 cursor-pointer text-white/90 hover:text-white transition-all bg-white/5"
+                        className="flex items-center gap-2 px-6 py-3 border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer text-white transition-colors"
                         onClick={(e) => { e.stopPropagation(); setActivePanel('seasons'); }}
+                        title="Switch season"
                     >
-                        <ArrowLeftIcon size={20} weight="bold" />
-                        <span className="text-xl font-bold tracking-tight">Season {previewSeason}</span>
+                        <ArrowLeftIcon size={18} weight="bold" className="text-white" />
+                        <span className="text-[20px] font-bold">Season {previewSeason}</span>
                     </div>
                     <div ref={episodesContainerRef} className="overflow-y-auto scroll-list flex-1 scrollbar-hide">
                         {currentSeasonEpisodes.map(ep => {
