@@ -24,8 +24,9 @@ interface CacheKey {
     tmdbId?: string;
 }
 
-// VixSrc tokens expire after ~60 minutes. Cache for 45 minutes max to be safe.
-const CACHE_TTL_MS = 45 * 60 * 1000;
+// VidZee tokens are IP-locked and short-lived. 8 minutes is enough for intent-to-play
+// while preventing expired tokens being served from prefetch cache.
+const CACHE_TTL_MS = 8 * 60 * 1000;
 const MAX_CACHE_SIZE = 20;
 
 /**
