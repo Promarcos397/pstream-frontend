@@ -319,29 +319,9 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
         console.warn(`[YouTubeService] Backend fallback failed: ${e.message}`);
     }
 
-    // ── Scraper fallback ─────────────────────────────────────────────────────
-    // When all API keys are exhausted, scrape the public YT search page via the
-    // Giga Backend proxy. This returns video IDs only (no snippet metadata),
-    // so scraped candidates get a neutral score and are used as last resort.
-    try {
-        console.log(`[YouTubeService] 🚀 Using No-API Scraper Fallback for: ${query}`);
-        const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%3D%3D`;
-        const proxyUrl = `${GIGA_URL}/proxy/stream?url=${encodeURIComponent(searchUrl)}`;
-        const response = await axios.get(proxyUrl, { responseType: 'text' });
-
-        const html = response.data;
-        const matches = [...html.matchAll(/"videoId":"([^"]{11})"/g)];
-        if (matches.length > 0) {
-            const ids = [...new Set(matches.map((m: RegExpMatchArray) => m[1]))].slice(0, maxResults);
-            console.log(`[YouTubeService] ✅ Scraper found ${ids.length} videos`);
-            // Scraped results have no metadata — title/channelTitle left empty.
-            // They score neutrally (0) and only win if API returns nothing.
-            return ids.map(id => ({ videoId: id, title: '', channelTitle: '' }));
-        }
-    } catch (e: any) {
-        console.error(`[YouTubeService] Scraper fallback failed: ${e.message}`);
-    }
-
+    // Important: avoid legacy /proxy/stream YouTube scraping fallback.
+    // That route is stream-oriented and can flood logs with 500s on HTML fetches.
+    // Keep trailer lookup quiet here when backend no-key fallback returns empty.
     return [];
 }
 
