@@ -18,6 +18,8 @@ function sleep(ms: number) {
 
 let currentKeyIndex = 0;
 let failedKeys = new Set<number>();
+let allKeysExhaustedUntil = 0;
+const KEY_EXHAUST_COOLDOWN_MS = 15 * 60 * 1000;
 
 // v3 = new scoring-based selection (invalidates old position-based cache entries)
 const CACHE_KEY = 'Pstream-youtube-cache-v3';
@@ -76,12 +78,14 @@ function rotateKey(): boolean {
         }
     }
     console.warn('[YouTubeService] All keys exhausted!');
+    allKeysExhaustedUntil = Date.now() + KEY_EXHAUST_COOLDOWN_MS;
     return false;
 }
 
 export function resetKeys() {
     failedKeys.clear();
     currentKeyIndex = 0;
+    allKeysExhaustedUntil = 0;
 }
 
 // ─── Query Building ───────────────────────────────────────────────────────────
@@ -256,9 +260,14 @@ function scoreCandidate(queryTitle: string, candidate: YTCandidate): number {
  * Falls back to scraper proxy if all API keys are exhausted.
  */
 async function executeSearch(query: string, maxResults: number): Promise<YTCandidate[]> {
+    if (allKeysExhaustedUntil > 0 && Date.now() >= allKeysExhaustedUntil) {
+        // Cooldown window elapsed, allow keys to be retried (daily quotas may have reset).
+        resetKeys();
+    }
+
     const key = YOUTUBE_API_KEYS[currentKeyIndex];
 
-    if (key) {
+    if (key && Date.now() >= allKeysExhaustedUntil) {
         try {
             const response = await axios.get(YOUTUBE_SEARCH_URL, {
                 params: {
@@ -295,13 +304,27 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
         }
     }
 
+    const GIGA_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
+
+    // ── Dedicated backend no-key fallback ─────────────────────────────────────
+    try {
+        const params = new URLSearchParams({ q: query, maxResults: String(maxResults) });
+        const response = await axios.get(`${GIGA_URL}/api/youtube/search?${params.toString()}`);
+        const ids: string[] = Array.isArray(response.data?.videoIds) ? response.data.videoIds : [];
+        if (ids.length > 0) {
+            console.log(`[YouTubeService] ✅ Backend fallback found ${ids.length} videos (${response.data?.source || 'unknown'})`);
+            return ids.map(id => ({ videoId: id, title: '', channelTitle: '' }));
+        }
+    } catch (e: any) {
+        console.warn(`[YouTubeService] Backend fallback failed: ${e.message}`);
+    }
+
     // ── Scraper fallback ─────────────────────────────────────────────────────
     // When all API keys are exhausted, scrape the public YT search page via the
     // Giga Backend proxy. This returns video IDs only (no snippet metadata),
     // so scraped candidates get a neutral score and are used as last resort.
     try {
         console.log(`[YouTubeService] 🚀 Using No-API Scraper Fallback for: ${query}`);
-        const GIGA_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
         const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%3D%3D`;
         const proxyUrl = `${GIGA_URL}/proxy/stream?url=${encodeURIComponent(searchUrl)}`;
         const response = await axios.get(proxyUrl, { responseType: 'text' });

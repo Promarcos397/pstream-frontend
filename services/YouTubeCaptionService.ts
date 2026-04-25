@@ -72,6 +72,13 @@ function parseVTT(vttText: string): CaptionCue[] {
   return cues;
 }
 
+async function fetchCaptionsOnce(videoId: string, lang: string, timeoutMs: number): Promise<Response> {
+  const params = new URLSearchParams({ videoId, lang });
+  return fetch(`${GIGA_BACKEND_URL}/api/youtube/captions?${params.toString()}`, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
+
 export async function getCaptionCues(videoId: string, lang = 'en'): Promise<CaptionCue[] | null> {
   const cacheKey = `${videoId}:${lang}`;
   const cached = cueCache.get(cacheKey);
@@ -80,10 +87,16 @@ export async function getCaptionCues(videoId: string, lang = 'en'): Promise<Capt
   }
 
   try {
-    const params = new URLSearchParams({ videoId, lang });
-    const response = await fetch(`${GIGA_BACKEND_URL}/api/youtube/captions?${params.toString()}`, {
-      signal: AbortSignal.timeout(6000),
-    });
+    // Retry once with a longer timeout. HF cold starts and transient network jitter
+    // can exceed the first request window.
+    let response: Response;
+    try {
+      response = await fetchCaptionsOnce(videoId, lang, 12000);
+    } catch (firstError: any) {
+      const isTimeout = firstError?.name === 'TimeoutError' || /timed out/i.test(firstError?.message || '');
+      if (!isTimeout) throw firstError;
+      response = await fetchCaptionsOnce(videoId, lang, 22000);
+    }
 
     if (!response.ok) {
       cueCache.set(cacheKey, { cues: null, fetchedAt: Date.now() });
