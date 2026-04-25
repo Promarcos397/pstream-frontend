@@ -17,7 +17,6 @@ const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrah
 // Current language (defaults to en-US, updated from settings)
 let currentLanguage = 'en-US';
 
-// Set API language - call this when language setting changes
 export const setApiLanguage = (language: string) => {
   currentLanguage = language;
 };
@@ -38,10 +37,7 @@ const pendingImageRequests: Map<string, Promise<any>> = new Map();
 export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') => {
   const cacheKey = `${type}_${id}`;
 
-  // 1. Return from memory cache if hits
   if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
-
-  // 2. Deduplicate: Use pending promise if already fetching
   if (pendingImageRequests.has(cacheKey)) return pendingImageRequests.get(cacheKey);
 
   const request = (async () => {
@@ -60,7 +56,7 @@ export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') 
           return null;
         }
         retries--;
-        await new Promise(r => setTimeout(r, 500)); // Wait 500ms before retry
+        await new Promise(r => setTimeout(r, 500));
       }
     }
     return null;
@@ -93,7 +89,7 @@ export const getMovieDetails = async (id: number | string, type: 'movie' | 'tv')
 export const getSeasonDetails = async (id: number | string, seasonNumber: number) => {
   try {
     const response = await api.get(`/tv/${id}/season/${seasonNumber}`);
-    return response.data;  // Return full object with .episodes property
+    return response.data;
   } catch (error) {
     console.error(`Error fetching season ${seasonNumber} for tv ${id}:`, error);
     return null;
@@ -135,7 +131,6 @@ export const searchMovies = async (query: string) => {
   }
 };
 
-// Generic fetcher that can handle full URLs (axios ignores baseURL if url is absolute)
 export const fetchData = async (url: string) => {
   try {
     const response = await api.get<TMDBResponse>(url);
@@ -144,51 +139,39 @@ export const fetchData = async (url: string) => {
     console.error("Fetch error", error);
     return [];
   }
-}
+};
 
 /**
- * Fetches a list of available YouTube videos for a given movie or TV show,
- * sorted by priority:
- * 1. Type: Trailer
- * 2. Type: Teaser
- * 3. Type: Clip
- * 4. Type: Featurette
- * 5. Other types
- * 
- * Returns an array of YouTube keys.
+ * Fetch YouTube trailer IDs for a given movie or TV show.
+ *
+ * Uses original_title (always English from TMDB) to avoid localized-title mismatches.
+ * Delegates entirely to YouTubeService's scoring logic — results come back sorted by
+ * relevance + quality score, so index [0] is always the best available candidate.
+ * No TMDB video fallback — TMDB trailer data is unreliable for this use case.
  */
 export const fetchTrailers = async (id: number | string, type: 'movie' | 'tv'): Promise<string[]> => {
   try {
     const details = await getMovieDetails(id, type);
     if (!details) return [];
 
-    // Always use original_title (English) for YouTube search — localized titles
-    // produce poor results or miss trailers entirely. original_title is always
-    // available in TMDB regardless of the API language setting.
+    // Always use original_title (English) — localized titles produce poor YouTube results
     const title = details.original_title || details.original_name || details.title || details.name || '';
     const releaseDate = details.release_date || details.first_air_date;
     const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : undefined;
     const company = details.production_companies?.[0]?.name;
 
-    // We dynamically import the YouTube service to avoid circular dependency
-    // if api.ts is imported inside YouTubeService.
     const { searchTrailersWithFallback } = await import('./YouTubeService');
-    
-    // Request 3 results: index[0]=highest-viewed (older SD), index[1]=quality reupload (4K)
-    // This is the strategy: pick [1] or [2] for better quality per user requirement.
-    const customTrailers = await searchTrailersWithFallback({
+
+    // Request more candidates so the scorer has a real pool to rank from.
+    // The best-scored result will be index [0] — no position swapping needed.
+    const trailers = await searchTrailersWithFallback({
       title,
       year,
       company,
       type
-    }, 3);
+    }, 8);
 
-    // Return [result[1], result[0], ...rest] — prefer 2nd result (quality reupload)
-    // then fall back to 1st if only one result exists
-    if (customTrailers.length >= 2) {
-        return [customTrailers[1], customTrailers[0], ...customTrailers.slice(2)];
-    }
-    return customTrailers;
+    return trailers;
 
   } catch (error) {
     console.error("Error in fetchTrailers:", error);
@@ -204,9 +187,16 @@ export const fetchTrailer = async (id: number | string, type: 'movie' | 'tv'): P
 
 /**
  * Fetch a stream for a given movie or TV show.
- * Detects if it's running in Electron (using direct scraper) or Web (using server API).
  */
-export const getStream = async (title: string, type: 'movie' | 'tv', year?: number, season: number = 1, episode: number = 1, tmdbId?: string, imdbId?: string) => {
+export const getStream = async (
+  title: string,
+  type: 'movie' | 'tv',
+  year?: number,
+  season: number = 1,
+  episode: number = 1,
+  tmdbId?: string,
+  imdbId?: string
+) => {
   try {
     const params = new URLSearchParams({
       tmdbId: tmdbId || '',
@@ -220,7 +210,7 @@ export const getStream = async (title: string, type: 'movie' | 'tv', year?: numb
 
     console.log(`[GigaEngine] Requesting stream (Giga Backend)...`);
     const response = await axios.get(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, {
-        timeout: 30000  // 30s max — HF Space cold start can take ~15-20s
+        timeout: 30000
     });
     return response.data;
   } catch (error: any) {
@@ -235,21 +225,16 @@ export const getStream = async (title: string, type: 'movie' | 'tv', year?: numb
  * Strategy: Two modes depending on trigger:
  *
  * 1. WARM mode (list/history batch prefetch):
- *    - Just calls the backend /api/stream, which primes the Redis cache and warms the HF Space.
- *    - Does NOT store the result in the local streamCache (tokens may expire before user clicks).
+ *    - Calls backend /api/stream to prime Redis cache + keep HF Space warm.
+ *    - Does NOT store in local streamCache (tokens may expire before user clicks).
  *    - Run at most once per TMDB ID per session.
  *
  * 2. HOT mode (hover/InfoModal/90%-of-current-video triggers):
- *    - Fetches AND caches in streamCache for 4 minutes (240s).
- *    - Only runs for providers with long-lived CDN tokens (AutoEmbed, VidZee, 2Embed, VidLink).
- *    - VixSrc tokens (~15min) and VidSrc (~10min) are borderline safe within 4min window.
- *    - On actual Play: cache hit returns instantly; if expired, falls back to fresh fetch.
- *
- * Short-lived token providers (VixSrc) won't poison the cache because the 4min TTL means
- * the url will have expired before the VideoPlayer's 403 retry logic kicks in.
+ *    - Intentionally a no-op — all providers use IP-locked tokens (2-5min TTL).
+ *    - Caching via background prefetch always serves stale tokens at play time.
+ *    - 'warm' fires the request to keep HF Space alive + prime Redis so the
+ *      user's actual play request returns in ~1-2s.
  */
-
-// Track which TMDB IDs we've already warmed this session (avoid redundant calls)
 const warmedSet = new Set<string>();
 
 export const prefetchStream = async (
@@ -261,11 +246,7 @@ export const prefetchStream = async (
   episode: number = 1,
   imdbId?: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _mode: 'warm' | 'hot' = 'warm'   // 'hot' is intentionally no-op — all providers use
-                                    // IP-locked tokens that expire in 2-5min. Caching them
-                                    // via background prefetch always serves stale tokens on play.
-                                    // 'warm' fires the request to keep HF Space alive + prime
-                                    // Redis so the user's actual play request returns in ~1-2s.
+  _mode: 'warm' | 'hot' = 'warm'
 ): Promise<void> => {
   if (!tmdbId) return;
 
@@ -273,9 +254,6 @@ export const prefetchStream = async (
   if (warmedSet.has(key)) return;
   warmedSet.add(key);
 
-  // Fire-and-forget: warms HF Space + backend Redis cache.
-  // The backend resolves the stream and stores result in Redis with its own TTL.
-  // When user clicks play, the backend serves from Redis instantly.
   const params = new URLSearchParams({
     tmdbId, type,
     season: season.toString(),
@@ -284,20 +262,16 @@ export const prefetchStream = async (
     year: year ? year.toString() : '',
     imdbId: imdbId || ''
   });
+
   fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, { signal: AbortSignal.timeout(25000) })
     .catch(() => { /* silent — prefetch failures never affect UX */ });
+
   console.log(`[Prefetch] 🔥 Warming HF cache for: ${title} (${type})`);
 };
-
-
 
 /**
  * Batch warm-prefetch for history/watchlist items.
  * Staggers requests by 1.5s to avoid hammering HF.
- * Call this from App.tsx after user data loads.
- *
- * @param items - Array of {tmdbId, type, title, year, season, episode}
- * @param maxItems - Max items to prefetch (default: 6 — last 3 watched + last 3 in list)
  */
 export const schedulePrefetchQueue = (items: Array<{
   tmdbId: string;
@@ -321,7 +295,7 @@ export const schedulePrefetchQueue = (items: Array<{
         item.imdbId,
         'warm'
       );
-    }, i * 1500); // stagger: 0ms, 1.5s, 3s, 4.5s, 6s, 7.5s
+    }, i * 1500);
   });
   console.log(`[Prefetch] 📋 Queued ${queue.length} warm prefetches`);
 };

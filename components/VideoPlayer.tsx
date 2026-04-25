@@ -93,6 +93,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // Stores the current stream's cache key so the 403 handler can bust it
     const cacheKeyRef = useRef<import('../utils/streamCache').CacheKey | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const reportedSuccessRef = useRef<string | null>(null);
 
     // TV Show state
     const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
@@ -107,6 +108,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         retryCountRef.current = 0;
         setRetryCount(0);
         hasPlayedOnceRef.current = false; // force clean subtitle gate for new content
+        reportedSuccessRef.current = null;
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
 
@@ -353,6 +355,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setError(null);
         setIsBuffering(true);
         setLoadingMessage(`Switching to ${allSources[index].provider || 'Server'}...`);
+        reportedSuccessRef.current = null;
         applyStreamResult([allSources[index]], captions);
     }, [allSources, applyStreamResult, captions]);
 
@@ -657,6 +660,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         },
         onTokenExpired: () => {
+            const activeProvider = allSources[currentSourceIndex]?.provider || 'unknown';
+            reportStreamError({
+                provider: activeProvider,
+                tmdbId: String(movie.id || ''),
+                type: mediaType === 'tv' ? 'tv' : 'movie',
+                season: playingSeasonNumber,
+                episode: currentEpisode,
+                error: 'token-expired-or-ip-blocked',
+                errorCode: 'HLS_TOKEN_EXPIRED'
+            });
             // 403/401: First try cycling to next source in the current source list.
             // Only fall back to a full backend re-fetch if we've exhausted all sources.
             const nextIdx = currentSourceIndex + 1;
@@ -682,6 +695,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         },
         onError: (errMsg) => {
+            const activeProvider = allSources[currentSourceIndex]?.provider || 'unknown';
+            reportStreamError({
+                provider: activeProvider,
+                tmdbId: String(movie.id || ''),
+                type: mediaType === 'tv' ? 'tv' : 'movie',
+                season: playingSeasonNumber,
+                episode: currentEpisode,
+                error: errMsg,
+                errorCode: 'HLS_GENERIC_ERROR'
+            });
             if (currentSourceIndex < allSources.length - 1) {
                 handleSourceChange(currentSourceIndex + 1);
             } else {
@@ -713,6 +736,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             });
         }
     }, [hlsLevels, hlsQuality, hlsAudios, hlsAudio, hlsBuffering, isEmbed, hlsSubtitles]);
+
+    // Report provider success after 10s of uninterrupted playback on a source.
+    useEffect(() => {
+        const activeProvider = allSources[currentSourceIndex]?.provider;
+        if (!activeProvider) return;
+        if (!isPlaying || isBuffering || currentTime < 10) return;
+        if (reportedSuccessRef.current === activeProvider) return;
+
+        reportedSuccessRef.current = activeProvider;
+        reportStreamSuccess(activeProvider);
+    }, [isPlaying, isBuffering, currentTime, allSources, currentSourceIndex]);
 
     // ─── Seek to resume time on load ─────────────────────────────────────────────
     useEffect(() => {

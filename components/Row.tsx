@@ -204,7 +204,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
             WebkitOverflowScrolling: 'touch',
             overscrollBehaviorX: 'contain',
             // Prevent synthetic mouse events from touch scroll on iOS
-            touchAction: isMobile ? 'pan-x' : undefined,
+            touchAction: 'pan-x pan-y',  // allow both axes — never block vertical page scroll
           }}
         >
 
@@ -225,7 +225,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
               <div
                 key={movie.id}
                 className="movie-card-container relative pointer-events-auto mr-1 md:mr-1.5 lg:mr-2 overflow-visible"
-                style={{ zIndex: 'auto', touchAction: isMobile ? 'pan-x' : undefined }}
+                style={{ zIndex: 'auto' }}
               >
                 <MovieCard movie={movie} onSelect={onSelect} onPlay={onPlay} />
               </div>

@@ -12,16 +12,53 @@ import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails, fetchTrailers } from '../services/api';
 import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
-import { useIsMobile } from '../hooks/useIsMobile';
 import { MaturityBadge, BadgeOverlay, ProgressIndicator, HoverProgressBar } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
 
-// Module-level constant: evaluated once, never re-calculated.
-// Used to hard-gate ALL hover logic — zero cost on touch devices.
-const IS_TOUCH_DEVICE = (
-  typeof window !== 'undefined' &&
-  (navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
-);
+// ─── Runtime pointer-type tracker ────────────────────────────────────────────
+// Replaces the old load-time IS_TOUCH_DEVICE sniff.
+//
+// Instead of asking "does this device have a touchscreen?" at startup (which
+// permanently breaks iPad+mouse, Surface, etc.), we watch the actual pointer
+// events the browser fires and update live:
+//
+//   phone / tablet finger   → touchstart fires  → prefersHover = false
+//   desktop / laptop mouse  → pointermove fires  → prefersHover = true
+//   iPad + Magic Mouse      → pointermove fires  → prefersHover = true (switches mid-session)
+//   Surface pen → finger    → touchstart fires   → prefersHover = false (switches back)
+//
+// One module-level listener drives all mounted cards via a subscriber set,
+// so there is exactly one pointermove listener on the page regardless of how
+// many cards are rendered.
+type _PHListener = (v: boolean) => void;
+const _phSubs = new Set<_PHListener>();
+let _prefersHover = false;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointermove', (e: PointerEvent) => {
+    const next = e.pointerType === 'mouse';
+    if (next !== _prefersHover) { _prefersHover = next; _phSubs.forEach(f => f(next)); }
+  }, { passive: true });
+  // mousedown catches the first click before any pointermove has fired
+  window.addEventListener('mousedown', () => {
+    if (!_prefersHover) { _prefersHover = true; _phSubs.forEach(f => f(true)); }
+  }, { passive: true });
+  // touchstart immediately disables hover so the browser owns the gesture fully
+  window.addEventListener('touchstart', () => {
+    if (_prefersHover) { _prefersHover = false; _phSubs.forEach(f => f(false)); }
+  }, { passive: true });
+}
+
+function usePrefersHover(): boolean {
+  const [val, setVal] = useState(_prefersHover);
+  useEffect(() => {
+    setVal(_prefersHover); // sync in case it changed between render and mount
+    _phSubs.add(setVal);
+    return () => { _phSubs.delete(setVal); };
+  }, []);
+  return val;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Module-level registry — only ONE popup open at a time.
 // When card B's 300ms timer fires, it calls this to immediately close card A.
@@ -81,7 +118,7 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
 const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
+  const prefersHover = usePrefersHover();
   const {
     myList, toggleList, rateMovie, getMovieRating, getVideoState,
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
@@ -100,6 +137,13 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
   const [lastSyncTime, setLastSyncTime] = useState(0);
+
+  // Touch scroll detection via native (passive) listeners added in useEffect.
+  // Native passive listeners never block scrolling — React synthetic onTouchStart
+  // can delay scroll commit even when marked passive, so we avoid it entirely.
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const touchDidScroll = useRef(false);
+  const SCROLL_THRESHOLD = 8;
 
   // --- 4. Bidirectional Sync Layer: Modal -> Card ---
   useEffect(() => {
@@ -240,12 +284,36 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     };
   }, [isHovered]);
 
+  // Native passive touch listeners for scroll-vs-tap detection.
+  // Registered via useEffect so they are guaranteed passive — the browser
+  // never waits on them before committing a scroll gesture.
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const onStart = (e: TouchEvent) => {
+      touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      touchDidScroll.current = false;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!touchStartPos.current) return;
+      const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
+      const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
+      if (dx > SCROLL_THRESHOLD || dy > SCROLL_THRESHOLD) touchDidScroll.current = true;
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+    };
+  }, []);
+
 
   // Prefetch stream on hover — pointer events only, never on touch
   // Replaced with onPointerEnter for precise pointer-type detection
   const handlePointerEnter = (e: React.PointerEvent) => {
-    // Hard gate: touch + pen devices get ZERO hover behavior
-    if (IS_TOUCH_DEVICE) return;
+    // Only process when the user is genuinely on mouse/trackpad input
+    if (!prefersHover) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
 
     const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
@@ -373,6 +441,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       e.preventDefault();
       e.stopPropagation();
     }
+
+    // Collapse the hover popup immediately.
+    // Without this, the mouse stays inside the card's hit area after InfoModal opens,
+    // so isHovered never flips and the portal popup hangs over the modal.
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    setIsHovered(false);
+    setHoveredRect(null);
+    activePopupClose = null;
+
     const currentTime = playerRef.current && typeof playerRef.current.getCurrentTime === 'function'
       ? playerRef.current.getCurrentTime()
       : 0;
@@ -421,15 +498,19 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     <div
       ref={cardRef}
       className={`relative z-10 group/card select-none
-        ${isHovered && !IS_TOUCH_DEVICE ? 'z-[999]' : 'z-10'}
+        ${isHovered && prefersHover ? 'z-[999]' : 'z-10'}
         ${isGrid
           ? 'w-full aspect-video cursor-pointer'
           : 'flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.32] cursor-pointer'
         }`}
-      style={{ touchAction: IS_TOUCH_DEVICE ? 'auto' : 'none' }}
-      onPointerEnter={IS_TOUCH_DEVICE ? undefined : handlePointerEnter}
-      onPointerLeave={IS_TOUCH_DEVICE ? undefined : handlePointerLeave}
-      onClick={(e) => { e.preventDefault(); handleOpenModal(e); }}
+      style={prefersHover ? { touchAction: 'none' } : undefined}
+      onPointerEnter={prefersHover ? handlePointerEnter : undefined}
+      onPointerLeave={prefersHover ? handlePointerLeave : undefined}
+      onClick={(e) => {
+        // On touch: suppress if the finger moved (scroll gesture), not a tap
+        if (touchDidScroll.current) { touchDidScroll.current = false; return; }
+        handleOpenModal(e);
+      }}
     >
       <div className="w-full h-full relative rounded-sm overflow-hidden movie-card-glow">
         <img
@@ -506,7 +587,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
            position:fixed + z-9999 is now truly global. */}
       {createPortal(
         <AnimatePresence>
-          {isHovered && !IS_TOUCH_DEVICE && hoveredRect && (
+          {isHovered && prefersHover && hoveredRect && (
             <motion.div
               className="bg-[#141414] rounded-md movie-card-glow overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_8px_40px_rgba(0,0,0,0.85)]"
               onClick={(e) => e.stopPropagation()}
@@ -549,7 +630,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                               rel: 0,
                               iv_load_policy: 3,
                               cc_load_policy: 0,
-                              vq: 'highres',
                               start: 5,
                             }
                           }}
@@ -604,6 +684,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                           }}
                           className="w-full h-full object-cover"
                         />
+                        {/* Transparent shield — covers YouTube's native pause/play overlay */}
+                        <div className="absolute inset-0 z-[1] pointer-events-none" />
                       </div>
                     </div>
                   </>

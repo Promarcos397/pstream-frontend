@@ -19,6 +19,8 @@ export async function reportStreamError(params: {
     provider: string;
     tmdbId?: string;
     type?: string;
+    season?: number;
+    episode?: number;
     error?: string;
     errorCode?: string | number;
 }): Promise<void> {

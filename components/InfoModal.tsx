@@ -500,16 +500,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             if (isMuted) e.target.mute();
                                             else e.target.unMute();
 
-                                            // Force highest available quality
-                                            const forceHD = () => {
-                                                try {
-                                                    const levels = e.target.getAvailableQualityLevels?.() || [];
-                                                    const best = ['hd2160', 'hd1440', 'hd1080', 'hd720'].find(q => levels.includes(q)) || 'highres';
-                                                    e.target.setPlaybackQuality(best);
-                                                } catch (_) { }
-                                            };
-                                            forceHD();
-                                            e.target.addEventListener?.('onPlaybackQualityChange', forceHD);
+                                            // Note: getAvailableQualityLevels / setPlaybackQuality are
+                                            // deprecated no-ops per YouTube IFrame API docs — removed.
+                                            // Quality is determined by YouTube's adaptive logic.
                                             NetworkPriority.setVideoActive(true);
 
                                             if (initialTime > 5) {
@@ -593,6 +586,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                             }
                                         }}
                                     />
+                                    {/* Transparent shield — covers YouTube's native pause/play overlay */}
+                                    <div className="absolute inset-0 z-[1] pointer-events-none" />
                                 </div>
                             )}
                         </div>

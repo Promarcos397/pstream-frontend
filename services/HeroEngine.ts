@@ -36,13 +36,18 @@ export function registerHeroUserDataAccessor(fn: UserDataAccessor) {
 }
 
 // ─── Endpoint pools ───────────────────────────────────────────────────────────
+type HeroPoolItem = {
+  url: () => string;
+  label: string;
+  preferGenres?: number[];
+};
 
 /**
  * Home pool — mixed movies + TV, curated for variety and cinematic feel.
  * Each entry: { url, label, preferGenres? }
  * preferGenres: if the user watches these genre IDs, this slot gets a weight boost.
  */
-const HOME_POOL = [
+const HOME_POOL: HeroPoolItem[] = [
   { url: () => REQUESTS.fetchLoveTheseMovies,          label: 'Critically Loved Movies',     preferGenres: [18, 80] },
   { url: () => REQUESTS.fetchAwardWinningSeries,       label: 'Award-Winning Series',         preferGenres: [18, 10765] },
   { url: () => REQUESTS.fetchExcitingMovies,           label: 'Blockbuster Action',           preferGenres: [28, 878] },
@@ -57,7 +62,7 @@ const HOME_POOL = [
   { url: () => REQUESTS.fetchFamiliarFavorites,        label: 'Fan Favourites',               preferGenres: [28, 12, 878] },
 ];
 
-const MOVIE_POOL = [
+const MOVIE_POOL: HeroPoolItem[] = [
   { url: () => REQUESTS.fetchLoveTheseMovies,          label: 'Critically Loved' },
   { url: () => REQUESTS.fetchExcitingMovies,           label: 'High-Octane' },
   { url: () => REQUESTS.fetchSciFiMovies,              label: 'Sci-Fi' },
@@ -72,7 +77,7 @@ const MOVIE_POOL = [
   { url: () => REQUESTS.fetchUpcoming,                 label: 'Coming Soon' },
 ];
 
-const TV_POOL = [
+const TV_POOL: HeroPoolItem[] = [
   { url: () => REQUESTS.fetchAwardWinningSeries,       label: 'Award Winners' },
   { url: () => REQUESTS.fetchLoveTheseTV,              label: 'Must-Watch TV' },
   { url: () => REQUESTS.fetchBoredomBustersTV,         label: 'Binge-Worthy' },
@@ -137,11 +142,11 @@ function getUserTopGenres(): number[] {
  *    look ±2 slots for a better match. If found within range, shift to it.
  *  - This keeps the selection stable per day while favouring user taste.
  */
-function pickPoolSlot<T extends { preferGenres?: number[] }>(
-  pool: T[],
+function pickPoolSlot(
+  pool: HeroPoolItem[],
   pageType: string,
   userTopGenres: number[]
-): T {
+): HeroPoolItem {
   const n = pool.length;
   // Base index: stable for the day, unique per page
   const baseIdx = hashStr(dayOfYear() + '_' + pageType) % n;
@@ -239,9 +244,10 @@ class HeroEngineService {
 
       let finalVideoId: string | undefined;
       try {
-        const trailers = await searchTrailersWithFallback({ title, year, company, type: mediaType }, 3);
-        // Prefer index[1] (4K reupload) over index[0] (often old SD official)
-        finalVideoId = trailers[1] || trailers[0];
+        // Request a larger pool so the scorer has real candidates to rank.
+        // Index [0] is always the highest-scoring result — no position swap needed.
+        const trailers = await searchTrailersWithFallback({ title, year, company, type: mediaType }, 8);
+        finalVideoId = trailers[0];
       } catch (e) {
         console.warn(`[HeroEngine] Trailer fetch failed for ${title}`, e);
       }

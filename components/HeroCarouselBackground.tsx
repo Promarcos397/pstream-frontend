@@ -89,7 +89,6 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                     >
                         <YouTube
                             key={`${trailerQueue[0]}-${replayCount}`}
-                            videoId={trailerQueue[0]}
                             className="w-full h-full"
                             onReady={(e) => {
                                 playerRef.current = e.target;
@@ -106,12 +105,11 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                 }
 
                                 // FORCE START with Retry logic
+                                // Note: setPlaybackQuality is a deprecated no-op per YouTube IFrame API docs.
+                                // Quality is determined by YouTube's adaptive logic based on viewport/network.
                                 const playWithRetry = () => {
                                     try {
                                         if (e.target.playVideo) e.target.playVideo();
-                                        if (typeof e.target.setPlaybackQuality === 'function') {
-                                            e.target.setPlaybackQuality(youtubeQuality);
-                                        }
                                     } catch (err) {
                                         setTimeout(playWithRetry, 500);
                                     }
@@ -207,15 +205,18 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                                     cc_load_policy: 0,
                                     disablekb: 1,
                                     fs: 0,
-                                    loop: 0, // No auto-looping in the manifest
+                                    loop: 0,
                                     origin: window.location.origin,
                                     widget_referrer: window.location.origin,
-                                    vq: youtubeQuality,
                                     start: 5,
                                     playsinline: 1,
                                 }
                             }}
                         />
+                        {/* Transparent shield — sits in the parent stacking context directly
+                            in front of the iframe, visually covering YouTube's native pause
+                            overlay/play button which we cannot suppress from inside the iframe. */}
+                        <div className="absolute inset-0 z-[1] pointer-events-none" />
                     </div>
                 )}
             </div>
