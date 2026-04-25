@@ -1,4 +1,4 @@
-export const API_KEY = 'c477878444affbf19e4818802309df39';
+export const API_KEY = 'fc5fec3b73d8605daaeb1eb3b91157eb';
 export const BASE_URL = 'https://api.themoviedb.org/3';
 export const IMG_PATH = 'https://image.tmdb.org/t/p/original';
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';

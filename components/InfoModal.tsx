@@ -455,7 +455,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         >
             <div
                 ref={modalRef}
-                className="relative w-full max-w-[950px] bg-[#181818] rounded-2xl shadow-2xl mt-12 md:mt-16 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
+                className="relative w-full max-w-[950px] bg-[#181818] rounded-xl shadow-2xl mt-12 md:mt-16 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
                 style={{
                     transform: springTransform,
                     transition: springTransition,
@@ -595,8 +595,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         {/* Gradient Overlay (Always on top of media) */}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent z-10" />
 
-                        {/* Side gradients to mask video edge bleed */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-[#181818] via-transparent to-[#181818] z-10 pointer-events-none" />
                     </div>
 
                     {/* Layer 2: Content (Buttons, Title) - Always Visible */}
