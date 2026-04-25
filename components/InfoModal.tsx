@@ -15,6 +15,7 @@ import { NetworkPriority } from '../services/NetworkPriority';
 import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
+import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 
 
 interface InfoModalProps {
@@ -101,7 +102,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const [springTransition, setSpringTransition] = useState('none');
     const currentTrailerId = trailerQueue[0] || null;
     const captionsPlaying = isPlayingTrailer && isTrailerReady;
-    const { activeCue } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying);
+    const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
+    const { activeCue } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying, lang);
 
     useEffect(() => {
         const rect = (window as any).__last_card_rect as DOMRect | undefined;
@@ -595,30 +597,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 </div>
                             )}
                         </div>
-                        {activeCue && (
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    bottom: '18%',
-                                    left: '50%',
-                                    transform: 'translateX(-50%)',
-                                    zIndex: 20,
-                                    pointerEvents: 'none',
-                                    textAlign: 'center',
-                                    maxWidth: '80%',
-                                    padding: '6px 14px',
-                                    background: 'rgba(0,0,0,0.72)',
-                                    borderRadius: '6px',
-                                    color: '#ffffff',
-                                    fontFamily: "'Inter', sans-serif",
-                                    fontSize: 'clamp(14px, 1.8vw, 20px)',
-                                    fontWeight: 500,
-                                    lineHeight: 1.4,
-                                    letterSpacing: '0.01em',
-                                    textShadow: '0 1px 3px rgba(0,0,0,0.9)',
-                                    transition: 'opacity 0.15s ease',
-                                }}
-                            >
+                        {subtitlesEnabled && activeCue && (
+                            <div style={overlayStyle}>
                                 {activeCue}
                             </div>
                         )}
