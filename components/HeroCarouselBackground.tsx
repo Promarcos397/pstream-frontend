@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import YouTube from 'react-youtube';
 import { Movie } from '../types';
 import { IMG_PATH } from '../constants';
+import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 
 interface HeroCarouselBackgroundProps {
     movie: Movie;
@@ -47,6 +48,9 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     onUpdateState
 }) => {
     const syncIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+    const currentVideoId = trailerQueue[0] || null;
+    const isCaptionsPlaying = showVideo && isVideoReady;
+    const { activeCue } = useYouTubeCaptions(playerRef, currentVideoId, isCaptionsPlaying);
 
     // Clean up sync interval on unmount
     React.useEffect(() => {
@@ -89,6 +93,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                     >
                         <YouTube
                             key={`${trailerQueue[0]}-${replayCount}`}
+                            videoId={trailerQueue[0]}
                             className="w-full h-full"
                             onReady={(e) => {
                                 playerRef.current = e.target;
@@ -217,6 +222,33 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                             in front of the iframe, visually covering YouTube's native pause
                             overlay/play button which we cannot suppress from inside the iframe. */}
                         <div className="absolute inset-0 z-[1] pointer-events-none" />
+                    </div>
+                )}
+                {activeCue && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            bottom: '18%',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            zIndex: 20,
+                            pointerEvents: 'none',
+                            textAlign: 'center',
+                            maxWidth: '80%',
+                            padding: '6px 14px',
+                            background: 'rgba(0,0,0,0.72)',
+                            borderRadius: '6px',
+                            color: '#ffffff',
+                            fontFamily: "'Inter', sans-serif",
+                            fontSize: 'clamp(14px, 1.8vw, 20px)',
+                            fontWeight: 500,
+                            lineHeight: 1.4,
+                            letterSpacing: '0.01em',
+                            textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+                            transition: 'opacity 0.15s ease',
+                        }}
+                    >
+                        {activeCue}
                     </div>
                 )}
             </div>

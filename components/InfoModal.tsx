@@ -14,6 +14,7 @@ import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { NetworkPriority } from '../services/NetworkPriority';
 import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
+import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 
 
 interface InfoModalProps {
@@ -98,6 +99,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     // the modal START visually at the card, then transition it to identity.
     const [springTransform, setSpringTransform] = useState<string>('none');
     const [springTransition, setSpringTransition] = useState('none');
+    const currentTrailerId = trailerQueue[0] || null;
+    const captionsPlaying = isPlayingTrailer && isTrailerReady;
+    const { activeCue } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying);
 
     useEffect(() => {
         const rect = (window as any).__last_card_rect as DOMRect | undefined;
@@ -591,6 +595,33 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 </div>
                             )}
                         </div>
+                        {activeCue && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '18%',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    zIndex: 20,
+                                    pointerEvents: 'none',
+                                    textAlign: 'center',
+                                    maxWidth: '80%',
+                                    padding: '6px 14px',
+                                    background: 'rgba(0,0,0,0.72)',
+                                    borderRadius: '6px',
+                                    color: '#ffffff',
+                                    fontFamily: "'Inter', sans-serif",
+                                    fontSize: 'clamp(14px, 1.8vw, 20px)',
+                                    fontWeight: 500,
+                                    lineHeight: 1.4,
+                                    letterSpacing: '0.01em',
+                                    textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+                                    transition: 'opacity 0.15s ease',
+                                }}
+                            >
+                                {activeCue}
+                            </div>
+                        )}
 
                         {/* Gradient Overlay (Always on top of media) */}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent z-10" />

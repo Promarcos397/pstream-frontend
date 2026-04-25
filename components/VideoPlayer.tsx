@@ -566,7 +566,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     } catch (e) {}
                 }
 
-                const result = await getStream(title, mediaType === 'tv' ? 'tv' : 'movie', releaseYear, playingSeasonNumber, currentEpisode, String(movie.id || ''), imdbId || '');
+                // ?force=1 on retries — tells backend to bypass Redis so we don't
+                // get the same dead token that caused the 403/410 in the first place.
+                const result = await getStream(
+                    title,
+                    mediaType === 'tv' ? 'tv' : 'movie',
+                    releaseYear,
+                    playingSeasonNumber,
+                    currentEpisode,
+                    String(movie.id || ''),
+                    imdbId || '',
+                    retryCount > 0 // bustCache = true on any retry
+                );
 
                 if (result?.success && result.sources?.length > 0) {
                     const osSubs = await openSubPromise;

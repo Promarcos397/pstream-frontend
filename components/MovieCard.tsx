@@ -14,6 +14,7 @@ import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { MaturityBadge, BadgeOverlay, ProgressIndicator, HoverProgressBar } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
+import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 // Replaces the old load-time IS_TOUCH_DEVICE sniff.
@@ -137,6 +138,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
   const [lastSyncTime, setLastSyncTime] = useState(0);
+  const currentPreviewVideoId = trailerUrl || null;
+  const previewCaptionsPlaying = isHovered && isHoverVideoReady;
+  const { activeCue } = useYouTubeCaptions(playerRef, currentPreviewVideoId, previewCaptionsPlaying);
 
   // Touch scroll detection via native (passive) listeners added in useEffect.
   // Native passive listeners never block scrolling — React synthetic onTouchStart
@@ -688,6 +692,36 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         <div className="absolute inset-0 z-[1] pointer-events-none" />
                       </div>
                     </div>
+                    {/* YouTube caption overlay — custom styled, synced via useYouTubeCaptions */}
+                    {activeCue && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '8%',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          zIndex: 20,
+                          pointerEvents: 'none',
+                          textAlign: 'center',
+                          maxWidth: '88%',
+                          padding: '3px 10px',
+                          background: 'rgba(0,0,0,0.75)',
+                          borderRadius: '4px',
+                          color: '#ffffff',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 'clamp(10px, 1.1vw, 13px)',
+                          fontWeight: 500,
+                          lineHeight: 1.35,
+                          letterSpacing: '0.01em',
+                          textShadow: '0 1px 2px rgba(0,0,0,0.9)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {activeCue}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <img
@@ -695,6 +729,33 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     className={`w-full h-full object-cover backdrop-pop ${isBook ? 'object-[50%_30%]' : 'object-center'}`}
                     alt="preview"
                   />
+                )}
+                {activeCue && trailerUrl && !isBook && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '8%',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      zIndex: 20,
+                      pointerEvents: 'none',
+                      textAlign: 'center',
+                      maxWidth: '88%',
+                      padding: '4px 10px',
+                      background: 'rgba(0,0,0,0.72)',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 'clamp(11px, 1.4vw, 14px)',
+                      fontWeight: 500,
+                      lineHeight: 1.35,
+                      letterSpacing: '0.01em',
+                      textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+                      transition: 'opacity 0.15s ease',
+                    }}
+                  >
+                    {activeCue}
+                  </div>
                 )}
 
                 {/* Mute Button - Hide for books */}

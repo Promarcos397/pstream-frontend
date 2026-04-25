@@ -195,7 +195,8 @@ export const getStream = async (
   season: number = 1,
   episode: number = 1,
   tmdbId?: string,
-  imdbId?: string
+  imdbId?: string,
+  bustCache = false
 ) => {
   try {
     const params = new URLSearchParams({
@@ -207,8 +208,12 @@ export const getStream = async (
       title: title || '',
       year: year ? year.toString() : ''
     });
+    // ?force=1 tells the backend to skip Redis and run a fresh provider race.
+    // Used after a 403/410 when we know the cached URL is dead.
+    if (bustCache) params.set('force', '1');
 
-    console.log(`[GigaEngine] Requesting stream (Giga Backend)...`);
+    const logLabel = bustCache ? '[GigaEngine] 🔥 Force-fresh stream (busting Redis)...' : '[GigaEngine] Requesting stream (Giga Backend)...';
+    console.log(logLabel);
     const response = await axios.get(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, {
         timeout: 30000
     });
