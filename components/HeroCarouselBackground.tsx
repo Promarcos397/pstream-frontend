@@ -28,6 +28,7 @@ interface HeroCarouselBackgroundProps {
   | 'default';
     replayCount?: number;
     onUpdateState?: (id: number, time: number, videoId: string) => void;
+    showBackdropOverlay?: boolean;
 }
 
 const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
@@ -46,7 +47,8 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     onVideoEnd,
     youtubeQuality = 'highres',
     replayCount = 0,
-    onUpdateState
+    onUpdateState,
+    showBackdropOverlay = false
 }) => {
     const syncIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
     const currentVideoId = trailerQueue[0] || null;
@@ -86,7 +88,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
             {/* Background Video Layer - YouTube Trailer (Matching InfoModal Logic) */}
             <div
                 id="hero-video-layer"
-                className={`absolute inset-0 z-0 transition-opacity duration-1000 ${showVideo && isVideoReady ? 'opacity-100' : 'opacity-0'}`}
+                className={`absolute inset-0 z-0 transition-opacity duration-1000 ${(showVideo && isVideoReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}
             >
                 {showVideo && trailerQueue.length > 0 && (
                     <div

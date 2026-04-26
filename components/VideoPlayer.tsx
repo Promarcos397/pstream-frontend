@@ -26,6 +26,7 @@ const FORCE_PROXY_HOST_PATTERNS = [
 ];
 const RETRY_BASE_DELAY_MS = 1200;
 const RETRY_MAX_DELAY_MS = 5000;
+const SOURCE_FAILURE_COOLDOWN_MS = 20 * 1000;
 
 function shouldForceProxy(source: any): boolean {
     const provider = String(source?.provider || '').toLowerCase();
@@ -111,6 +112,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const retryCountRef = useRef(0);
     const [retryCount, setRetryCount] = useState(0);
     const retryCooldownUntilRef = useRef(0);
+    const sourceFailureCooldownRef = useRef<Map<string, number>>(new Map());
     // Stores the current stream's cache key so the 403 handler can bust it
     const cacheKeyRef = useRef<import('../utils/streamCache').CacheKey | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -129,6 +131,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         retryCountRef.current = 0;
         setRetryCount(0);
         retryCooldownUntilRef.current = 0;
+        sourceFailureCooldownRef.current.clear();
         hasPlayedOnceRef.current = false; // force clean subtitle gate for new content
         reportedSuccessRef.current = null;
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
@@ -373,6 +376,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // ─── Manual source change ────────────────────────────────────────────────────
     const handleSourceChange = useCallback((index: number) => {
         if (!allSources[index]) return;
+        const candidate = allSources[index];
+        const sourceKey = `${candidate.providerId || candidate.provider || 'unknown'}::${candidate.url || ''}`;
+        const blockedUntil = sourceFailureCooldownRef.current.get(sourceKey) || 0;
+        if (blockedUntil > Date.now()) {
+            const nextIndex = index + 1;
+            if (allSources[nextIndex]) {
+                handleSourceChange(nextIndex);
+            }
+            return;
+        }
         console.log(`[VideoPlayer] 🔄 Manual server change to: ${allSources[index].provider}`);
         setCurrentSourceIndex(index);
         retryCooldownUntilRef.current = 0;
@@ -697,6 +710,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         onTokenExpired: () => {
             const activeProvider = allSources[currentSourceIndex]?.provider || 'unknown';
             const activeProviderId = allSources[currentSourceIndex]?.providerId;
+            const activeUrl = allSources[currentSourceIndex]?.url || '';
+            const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
+            sourceFailureCooldownRef.current.set(failedSourceKey, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
             reportStreamError({
                 provider: activeProvider,
                 providerId: activeProviderId,
@@ -744,6 +760,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         onError: (errMsg) => {
             const activeProvider = allSources[currentSourceIndex]?.provider || 'unknown';
             const activeProviderId = allSources[currentSourceIndex]?.providerId;
+            const activeUrl = allSources[currentSourceIndex]?.url || '';
+            const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
+            sourceFailureCooldownRef.current.set(failedSourceKey, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
             reportStreamError({
                 provider: activeProvider,
                 providerId: activeProviderId,

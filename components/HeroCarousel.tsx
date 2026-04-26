@@ -40,6 +40,9 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   const [replayCount, setReplayCount] = useState(0); // Forces fresh YouTube mount on replay
   const { isMuted, setIsMuted, playerRef } = useYouTubePlayer(true); // Must start muted to bypass browser autoplay blocks.
   const [videoDimensions, setVideoDimensions] = useState<{ width: string | number, height: string | number }>({ width: '140%', height: '140%' });
+  const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
+  const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backdropForcedRef = useRef(false);
 
   // Refs
   const videoTimerRef = useRef<any>(null);
@@ -50,11 +53,34 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   const [isTabVisible, setIsTabVisible] = useState(true);
   useEffect(() => {
     const handleVisibilityChange = () => {
-      setIsTabVisible(document.visibilityState === 'visible');
+      const visible = document.visibilityState === 'visible';
+      setIsTabVisible(visible);
+      if (!visible) {
+        try { playerRef.current?.pauseVideo?.(); } catch (_) {}
+        if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+        visibilityTimerRef.current = setTimeout(() => {
+          backdropForcedRef.current = true;
+          setShowBackdropOverlay(true);
+        }, 30_000);
+      } else {
+        if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+        backdropForcedRef.current = false;
+        setShowBackdropOverlay(false);
+      }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+    };
   }, []);
+
+  useEffect(() => {
+    if (showVideo && isVideoReady && backdropForcedRef.current && isTabVisible) {
+      backdropForcedRef.current = false;
+      setShowBackdropOverlay(false);
+    }
+  }, [showVideo, isVideoReady, isTabVisible]);
 
   // 2. Viewport Tracking — scroll-based with rAF for buttery smooth response
   const [isOutOfView, setIsOutOfView] = useState(false);
@@ -335,6 +361,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     >
       <HeroCarouselBackground
         movie={movie} showVideo={showVideo} trailerQueue={trailerQueue} isVideoReady={isVideoReady} setIsVideoReady={setIsVideoReady} setTrailerQueue={setTrailerQueue} setShowVideo={setShowVideo} isMuted={isMuted} videoDimensions={videoDimensions} playerRef={playerRef} isHovered={isHovered} replayCount={replayCount}
+        showBackdropOverlay={showBackdropOverlay}
         onSyncCheck={(videoId) => {
           const state = getVideoState(movie.id);
           return state?.videoId === videoId ? state.time : undefined;

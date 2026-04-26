@@ -179,6 +179,7 @@ class HeroEngineService {
   private lockedHeroes: Map<string, HeroPackage> = new Map();
   private isInitializing: Set<string> = new Set();
   private listeners: Set<(pageType: string, hero: HeroPackage) => void> = new Set();
+  private pendingTrailerByMovieId: Map<number, Promise<string | undefined>> = new Map();
 
   async getHero(pageType: string, fetchUrl?: string, genreId?: number): Promise<HeroPackage | null> {
     const cacheKey = genreId ? `${pageType}_${genreId}` : pageType;
@@ -226,35 +227,17 @@ class HeroEngineService {
       const selectedMovie = results[resultIdx];
       const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
-      const [images, externals, details] = await Promise.all([
+      const [images, externals] = await Promise.all([
         getMovieImages(selectedMovie.id, mediaType),
         getExternalIds(selectedMovie.id, mediaType),
-        getMovieDetails(selectedMovie.id, mediaType),
       ]);
 
       const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
       const logoUrl = logo ? `https://image.tmdb.org/t/p/w500${logo.file_path}` : undefined;
       const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
 
-      // Precision trailer fetch — uses original_title + year for best YouTube match
-      const title = movieWithExtras.title || movieWithExtras.name || '';
-      const releaseDate = movieWithExtras.release_date || movieWithExtras.first_air_date;
-      const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : undefined;
-      const company = details?.production_companies?.[0]?.name;
-
-      let finalVideoId: string | undefined;
-      try {
-        // Request a larger pool so the scorer has real candidates to rank.
-        // Index [0] is always the highest-scoring result — no position swap needed.
-        const trailers = await searchTrailersWithFallback({ title, year, company, type: mediaType }, 8);
-        finalVideoId = trailers[0];
-      } catch (e) {
-        console.warn(`[HeroEngine] Trailer fetch failed for ${title}`, e);
-      }
-
       const heroPackage: HeroPackage = {
         movie: movieWithExtras,
-        videoId: finalVideoId,
         logoUrl,
         isReady: true,
         pageType,
@@ -265,6 +248,8 @@ class HeroEngineService {
       this.listeners.forEach(cb => cb(pageType, heroPackage));
 
       // Warm-prefetch the stream so clicking Play is instant
+      const title = movieWithExtras.title || movieWithExtras.name || '';
+      const releaseDate = movieWithExtras.release_date || movieWithExtras.first_air_date;
       prefetchStream(
         title,
         releaseDate ? new Date(releaseDate).getFullYear() : undefined,
@@ -273,6 +258,34 @@ class HeroEngineService {
         1, 1,
         movieWithExtras.imdb_id
       );
+
+      // Non-critical enrichment runs after first hero paint:
+      // trailer resolution and company lookup are deferred so hero appears fast.
+      if (!this.pendingTrailerByMovieId.has(Number(movieWithExtras.id))) {
+        this.pendingTrailerByMovieId.set(Number(movieWithExtras.id), (async () => {
+          try {
+            const details = await getMovieDetails(selectedMovie.id, mediaType);
+            const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : undefined;
+            const company = details?.production_companies?.[0]?.name;
+            const trailers = await searchTrailersWithFallback({ title, year, company, type: mediaType }, 8);
+            return trailers[0];
+          } catch (e) {
+            console.warn(`[HeroEngine] Deferred trailer fetch failed for ${title}`);
+            return undefined;
+          }
+        })());
+      }
+
+      this.pendingTrailerByMovieId.get(Number(movieWithExtras.id))!.then((videoId) => {
+        if (!videoId) return;
+        const current = this.lockedHeroes.get(cacheKey);
+        if (!current || current.movie.id !== movieWithExtras.id || current.videoId === videoId) return;
+        const enriched = { ...current, videoId };
+        this.lockedHeroes.set(cacheKey, enriched);
+        this.listeners.forEach(cb => cb(pageType, enriched));
+      }).finally(() => {
+        this.pendingTrailerByMovieId.delete(Number(movieWithExtras.id));
+      });
 
       return heroPackage;
     } catch (e) {

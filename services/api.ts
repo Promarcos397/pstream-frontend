@@ -33,6 +33,8 @@ api.interceptors.request.use((config) => {
 // --- Intelligent Caching & Deduplication Layer ---
 const imageCache: Map<string, any> = new Map();
 const pendingImageRequests: Map<string, Promise<any>> = new Map();
+const unavailableTrailerUntil = new Map<string, number>();
+const TRAILER_UNAVAILABLE_TTL_MS = 10 * 60 * 1000;
 
 export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') => {
   const cacheKey = `${type}_${id}`;
@@ -151,6 +153,12 @@ export const fetchData = async (url: string) => {
  */
 export const fetchTrailers = async (id: number | string, type: 'movie' | 'tv'): Promise<string[]> => {
   try {
+    const trailerKey = `${type}:${id}`;
+    const blockedUntil = unavailableTrailerUntil.get(trailerKey) || 0;
+    if (blockedUntil > Date.now()) {
+      return [];
+    }
+
     const details = await getMovieDetails(id, type);
     if (!details) return [];
 
@@ -171,10 +179,17 @@ export const fetchTrailers = async (id: number | string, type: 'movie' | 'tv'): 
       type
     }, 8);
 
+    if (!trailers || trailers.length === 0) {
+      unavailableTrailerUntil.set(trailerKey, Date.now() + TRAILER_UNAVAILABLE_TTL_MS);
+      return [];
+    }
+
     return trailers;
 
   } catch (error) {
     console.error("Error in fetchTrailers:", error);
+    const trailerKey = `${type}:${id}`;
+    unavailableTrailerUntil.set(trailerKey, Date.now() + TRAILER_UNAVAILABLE_TTL_MS);
     return [];
   }
 };

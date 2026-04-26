@@ -332,14 +332,19 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     // Cinematic: Tab Visibility Pause + 30s backdrop reveal
     const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
+    const backdropForcedRef = useRef(false);
     useEffect(() => {
         const handleVisibility = () => {
             if (document.visibilityState === 'hidden') {
                 try { playerRef.current?.pauseVideo?.(); } catch { }
                 // 30s: if still hidden → show backdrop UI
-                visibilityTimerRef.current = setTimeout(() => setShowBackdropOverlay(true), 30_000);
+                visibilityTimerRef.current = setTimeout(() => {
+                    backdropForcedRef.current = true;
+                    setShowBackdropOverlay(true);
+                }, 30_000);
             } else if (document.visibilityState === 'visible' && isPlayingTrailer) {
                 if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+                backdropForcedRef.current = false;
                 setShowBackdropOverlay(false);
                 try { playerRef.current?.playVideo?.(); } catch { }
             }
@@ -347,6 +352,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         document.addEventListener('visibilitychange', handleVisibility);
         return () => document.removeEventListener('visibilitychange', handleVisibility);
     }, [isPlayingTrailer]);
+
+    useEffect(() => {
+        if (isPlayingTrailer && isTrailerReady && backdropForcedRef.current) {
+            backdropForcedRef.current = false;
+            setShowBackdropOverlay(false);
+        }
+    }, [isPlayingTrailer, isTrailerReady]);
 
     // Prefetch stream
     useEffect(() => {
@@ -494,7 +506,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         />
 
                         {/* Video Layer — only fades in once player is ready AND playing */}
-                        <div className={`absolute inset-0 transition-opacity duration-1000 ${isPlayingTrailer && isTrailerReady ? 'opacity-100' : 'opacity-0'}`}>
+                        <div className={`absolute inset-0 transition-opacity duration-1000 ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
                             {trailerQueue.length > 0 && (
                                 <div className="w-full h-full scale-[1.35] translate-y-[-12%] pointer-events-none">
                                     <YouTube

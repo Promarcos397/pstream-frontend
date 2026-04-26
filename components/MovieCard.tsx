@@ -541,11 +541,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   src={logoUrl}
                   alt={movie.title || movie.name}
                   onLoad={handleLogoLoad}
-                  className={`w-auto object-contain drop-shadow-2xl transition-all duration-300 ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
+                  className={`w-auto object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.72)] transition-all duration-300 ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
                   draggable={false}
                 />
               ) : (
-                <h3 className={`text-white font-leaner text-center tracking-wide leading-tight drop-shadow-md line-clamp-3 mb-2 w-full px-1 ${isBook ? 'text-2xl' : 'text-xl'}`}>
+                <h3 className={`text-white font-leaner text-center tracking-wide leading-tight drop-shadow-[0_3px_9px_rgba(0,0,0,0.85)] line-clamp-3 mb-2 w-full px-1 ${isBook ? 'text-2xl' : 'text-xl'}`}>
                   {movie.title || movie.name}
                 </h3>
               )}
