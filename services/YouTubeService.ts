@@ -20,6 +20,8 @@ let currentKeyIndex = 0;
 let failedKeys = new Set<number>();
 let allKeysExhaustedUntil = 0;
 const KEY_EXHAUST_COOLDOWN_MS = 15 * 60 * 1000;
+let backendFallbackMutedUntil = 0;
+const BACKEND_FALLBACK_COOLDOWN_MS = 60 * 1000;
 
 // v3 = new scoring-based selection (invalidates old position-based cache entries)
 const CACHE_KEY = 'Pstream-youtube-cache-v3';
@@ -86,6 +88,7 @@ export function resetKeys() {
     failedKeys.clear();
     currentKeyIndex = 0;
     allKeysExhaustedUntil = 0;
+    backendFallbackMutedUntil = 0;
 }
 
 // ─── Query Building ───────────────────────────────────────────────────────────
@@ -307,16 +310,19 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
     const GIGA_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
     // ── Dedicated backend no-key fallback ─────────────────────────────────────
-    try {
-        const params = new URLSearchParams({ q: query, maxResults: String(maxResults) });
-        const response = await axios.get(`${GIGA_URL}/api/youtube/search?${params.toString()}`);
-        const ids: string[] = Array.isArray(response.data?.videoIds) ? response.data.videoIds : [];
-        if (ids.length > 0) {
-            console.log(`[YouTubeService] ✅ Backend fallback found ${ids.length} videos (${response.data?.source || 'unknown'})`);
-            return ids.map(id => ({ videoId: id, title: '', channelTitle: '' }));
+    if (Date.now() >= backendFallbackMutedUntil) {
+        try {
+            const params = new URLSearchParams({ q: query, maxResults: String(maxResults) });
+            const response = await axios.get(`${GIGA_URL}/api/youtube/search?${params.toString()}`);
+            const ids: string[] = Array.isArray(response.data?.videoIds) ? response.data.videoIds : [];
+            if (ids.length > 0) {
+                console.log(`[YouTubeService] ✅ Backend fallback found ${ids.length} videos (${response.data?.source || 'unknown'})`);
+                return ids.map(id => ({ videoId: id, title: '', channelTitle: '' }));
+            }
+        } catch (e: any) {
+            backendFallbackMutedUntil = Date.now() + BACKEND_FALLBACK_COOLDOWN_MS;
+            console.warn(`[YouTubeService] Backend fallback failed: ${e.message}`);
         }
-    } catch (e: any) {
-        console.warn(`[YouTubeService] Backend fallback failed: ${e.message}`);
     }
 
     // Important: avoid legacy /proxy/stream YouTube scraping fallback.
@@ -361,13 +367,15 @@ export const searchTrailersWithFallback = async (
         lastSearchTime = Date.now();
 
         const queries = buildSearchQueries(options);
+        const underQuotaPressure = allKeysExhaustedUntil > Date.now();
+        const effectiveQueries = underQuotaPressure ? queries.slice(0, 2) : queries;
         const seenIds = new Set<string>();
         const allCandidates: YTCandidate[] = [];
 
         // Run queries in order, stopping early if we have enough strong candidates.
         // We continue past the first query because later queries (e.g. unquoted fallback)
         // can surface different high-quality candidates, and scoring will pick the best one.
-        for (const query of queries) {
+        for (const query of effectiveQueries) {
             try {
                 const results = await executeSearch(query, maxResults);
                 for (const candidate of results) {

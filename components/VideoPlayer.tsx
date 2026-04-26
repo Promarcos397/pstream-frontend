@@ -24,6 +24,8 @@ const FORCE_PROXY_HOST_PATTERNS = [
     /digitalassetlaunchpad\.site$/i,
     /startupmomentumengine\.site$/i,
 ];
+const RETRY_BASE_DELAY_MS = 1200;
+const RETRY_MAX_DELAY_MS = 5000;
 
 function shouldForceProxy(source: any): boolean {
     const provider = String(source?.provider || '').toLowerCase();
@@ -108,6 +110,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const MAX_STREAM_RETRIES = 3;
     const retryCountRef = useRef(0);
     const [retryCount, setRetryCount] = useState(0);
+    const retryCooldownUntilRef = useRef(0);
     // Stores the current stream's cache key so the 403 handler can bust it
     const cacheKeyRef = useRef<import('../utils/streamCache').CacheKey | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -125,6 +128,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useEffect(() => {
         retryCountRef.current = 0;
         setRetryCount(0);
+        retryCooldownUntilRef.current = 0;
         hasPlayedOnceRef.current = false; // force clean subtitle gate for new content
         reportedSuccessRef.current = null;
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
@@ -371,6 +375,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!allSources[index]) return;
         console.log(`[VideoPlayer] 🔄 Manual server change to: ${allSources[index].provider}`);
         setCurrentSourceIndex(index);
+        retryCooldownUntilRef.current = 0;
         setError(null);
         setIsBuffering(true);
         setLoadingMessage(`Switching to ${allSources[index].provider || 'Server'}...`);
@@ -691,8 +696,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         },
         onTokenExpired: () => {
             const activeProvider = allSources[currentSourceIndex]?.provider || 'unknown';
+            const activeProviderId = allSources[currentSourceIndex]?.providerId;
             reportStreamError({
                 provider: activeProvider,
+                providerId: activeProviderId,
                 tmdbId: String(movie.id || ''),
                 type: mediaType === 'tv' ? 'tv' : 'movie',
                 season: playingSeasonNumber,
@@ -707,7 +714,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 console.log(`[VideoPlayer] 🔄 403 on source ${currentSourceIndex} → trying source ${nextIdx}`);
                 handleSourceChange(nextIdx);
             } else if (retryCountRef.current < MAX_STREAM_RETRIES) {
+                if (Date.now() < retryCooldownUntilRef.current) {
+                    console.log('[VideoPlayer] ⏸ Retry cooldown active — waiting before backend re-fetch.');
+                    return;
+                }
                 retryCountRef.current += 1;
+                const exponentialDelay = Math.min(RETRY_BASE_DELAY_MS * (2 ** (retryCountRef.current - 1)), RETRY_MAX_DELAY_MS);
+                const jitter = Math.floor(Math.random() * 400);
+                const waitMs = exponentialDelay + jitter;
+                retryCooldownUntilRef.current = Date.now() + waitMs;
                 console.log(`[VideoPlayer] 🔁 All sources failed, busting cache + backend re-fetch #${retryCountRef.current}`);
                 // ⚠️ CRITICAL: Bust the cache so re-fetch doesn't return the same blocked URLs.
                 // The cache has no way to know a URL is 403-blocked (no expiry param).
@@ -717,7 +732,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 }
                 // Reset source index so cycling restarts from 0 on the fresh sources
                 setCurrentSourceIndex(0);
-                setRetryCount(c => c + 1);
+                setTimeout(() => {
+                    setRetryCount(c => c + 1);
+                }, waitMs);
             } else {
                 console.warn(`[VideoPlayer] ❌ Max retries (${MAX_STREAM_RETRIES}) reached — showing error`);
                 setError('Stream unavailable: all sources are temporarily blocked. Please try again in a minute.');
@@ -726,8 +743,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         },
         onError: (errMsg) => {
             const activeProvider = allSources[currentSourceIndex]?.provider || 'unknown';
+            const activeProviderId = allSources[currentSourceIndex]?.providerId;
             reportStreamError({
                 provider: activeProvider,
+                providerId: activeProviderId,
                 tmdbId: String(movie.id || ''),
                 type: mediaType === 'tv' ? 'tv' : 'movie',
                 season: playingSeasonNumber,
@@ -770,12 +789,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // Report provider success after 10s of uninterrupted playback on a source.
     useEffect(() => {
         const activeProvider = allSources[currentSourceIndex]?.provider;
+        const activeProviderId = allSources[currentSourceIndex]?.providerId;
         if (!activeProvider) return;
         if (!isPlaying || isBuffering || currentTime < 10) return;
         if (reportedSuccessRef.current === activeProvider) return;
 
         reportedSuccessRef.current = activeProvider;
-        reportStreamSuccess(activeProvider);
+        reportStreamSuccess(activeProvider, activeProviderId);
     }, [isPlaying, isBuffering, currentTime, allSources, currentSourceIndex]);
 
     // ─── Seek to resume time on load ─────────────────────────────────────────────

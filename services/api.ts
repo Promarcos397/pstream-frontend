@@ -241,6 +241,48 @@ export const getStream = async (
  *      user's actual play request returns in ~1-2s.
  */
 const warmedSet = new Set<string>();
+const PREFETCH_COOLDOWN_MS = 3 * 60 * 1000;
+const PREFETCH_MIN_INTERVAL_MS = 700;
+const PREFETCH_MAX_CONCURRENCY = 2;
+const PREFETCH_QUEUE_LIMIT = 40;
+const prefetchLastQueuedAt = new Map<string, number>();
+const prefetchQueue: Array<{ key: string; run: () => Promise<void>; priority: number }> = [];
+let prefetchActive = 0;
+let prefetchLastStart = 0;
+let prefetchPumpTimer: ReturnType<typeof setTimeout> | null = null;
+
+function enqueuePrefetchTask(key: string, priority: number, run: () => Promise<void>) {
+  if (prefetchQueue.some(task => task.key === key)) return;
+  if (prefetchQueue.length >= PREFETCH_QUEUE_LIMIT) return;
+  prefetchQueue.push({ key, priority, run });
+  prefetchQueue.sort((a, b) => b.priority - a.priority);
+  pumpPrefetchQueue();
+}
+
+function pumpPrefetchQueue() {
+  if (prefetchActive >= PREFETCH_MAX_CONCURRENCY) return;
+  if (prefetchQueue.length === 0) return;
+  if (prefetchPumpTimer) return;
+
+  const elapsed = Date.now() - prefetchLastStart;
+  const wait = Math.max(0, PREFETCH_MIN_INTERVAL_MS - elapsed);
+
+  prefetchPumpTimer = setTimeout(async () => {
+    prefetchPumpTimer = null;
+    if (prefetchActive >= PREFETCH_MAX_CONCURRENCY) return;
+    const next = prefetchQueue.shift();
+    if (!next) return;
+
+    prefetchActive += 1;
+    prefetchLastStart = Date.now();
+    try {
+      await next.run();
+    } finally {
+      prefetchActive = Math.max(0, prefetchActive - 1);
+      pumpPrefetchQueue();
+    }
+  }, wait);
+}
 
 export const prefetchStream = async (
   title: string,
@@ -256,8 +298,11 @@ export const prefetchStream = async (
   if (!tmdbId) return;
 
   const key = `${tmdbId}-${type}-${season}-${episode}`;
+  const now = Date.now();
+  const lastQueuedAt = prefetchLastQueuedAt.get(key) || 0;
+  if (now - lastQueuedAt < PREFETCH_COOLDOWN_MS) return;
+  prefetchLastQueuedAt.set(key, now);
   if (warmedSet.has(key)) return;
-  warmedSet.add(key);
 
   const params = new URLSearchParams({
     tmdbId, type,
@@ -268,10 +313,13 @@ export const prefetchStream = async (
     imdbId: imdbId || ''
   });
 
-  fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, { signal: AbortSignal.timeout(25000) })
-    .catch(() => { /* silent — prefetch failures never affect UX */ });
-
-  console.log(`[Prefetch] 🔥 Warming HF cache for: ${title} (${type})`);
+  const priority = _mode === 'hot' ? 3 : 1;
+  enqueuePrefetchTask(key, priority, async () => {
+    warmedSet.add(key);
+    await fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, { signal: AbortSignal.timeout(25000) })
+      .catch(() => { /* silent — prefetch failures never affect UX */ });
+    console.log(`[Prefetch] 🔥 Warming HF cache for: ${title} (${type})`);
+  });
 };
 
 /**
@@ -288,19 +336,17 @@ export const schedulePrefetchQueue = (items: Array<{
   imdbId?: string;
 }>, maxItems = 6): void => {
   const queue = items.slice(0, maxItems);
-  queue.forEach((item, i) => {
-    setTimeout(() => {
-      prefetchStream(
-        item.title,
-        item.year,
-        item.tmdbId,
-        item.type,
-        item.season || 1,
-        item.episode || 1,
-        item.imdbId,
-        'warm'
-      );
-    }, i * 1500);
+  queue.forEach((item) => {
+    prefetchStream(
+      item.title,
+      item.year,
+      item.tmdbId,
+      item.type,
+      item.season || 1,
+      item.episode || 1,
+      item.imdbId,
+      'warm'
+    );
   });
   console.log(`[Prefetch] 📋 Queued ${queue.length} warm prefetches`);
 };

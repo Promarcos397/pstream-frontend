@@ -17,6 +17,7 @@ const BACKEND = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-p
  */
 export async function reportStreamError(params: {
     provider: string;
+    providerId?: string;
     tmdbId?: string;
     type?: string;
     season?: number;
@@ -41,12 +42,12 @@ export async function reportStreamError(params: {
  * Report a successful stream for a provider.
  * Called by VideoPlayer after 10s of uninterrupted playback.
  */
-export async function reportStreamSuccess(provider: string): Promise<void> {
+export async function reportStreamSuccess(provider: string, providerId?: string): Promise<void> {
     try {
         await fetch(`${BACKEND}/api/stream/report-success`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider }),
+            body: JSON.stringify({ provider, providerId }),
             signal: AbortSignal.timeout(5000),
         });
     } catch {

@@ -128,9 +128,10 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             // XHR setup: always disable credentials (prevents CORS preflight issues
             // with cross-origin CDN segments), optionally inject X-Referer header.
             const referer = streamReferer;
+            const isBackendProxyStream = !!streamUrl && streamUrl.includes('/proxy/stream?url=');
             (hlsConfig as any).xhrSetup = (xhr: XMLHttpRequest) => {
                 xhr.withCredentials = false;
-                if (referer) {
+                if (referer && isBackendProxyStream) {
                     // Browsers block setting 'Referer' directly — X-Referer is a
                     // best-effort hint for CDNs that check it (most don't on token URLs).
                     try { xhr.setRequestHeader('X-Referer', referer); } catch (_) {}
