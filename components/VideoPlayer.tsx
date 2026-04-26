@@ -19,6 +19,24 @@ import { reportStreamError, reportStreamSuccess } from '../services/ProviderHeal
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
+const FORCE_PROXY_HOST_PATTERNS = [
+    /creativeentrepreneurhub\.site$/i,
+    /digitalassetlaunchpad\.site$/i,
+    /startupmomentumengine\.site$/i,
+];
+
+function shouldForceProxy(source: any): boolean {
+    const provider = String(source?.provider || '').toLowerCase();
+    const rawUrl = String(source?.url || '');
+    if (provider.includes('vaplayer')) return true;
+    try {
+        const host = new URL(rawUrl).hostname;
+        return FORCE_PROXY_HOST_PATTERNS.some((pattern) => pattern.test(host));
+    } catch (_) {
+        return false;
+    }
+}
+
 // Child Components
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
@@ -283,12 +301,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         const activeReferer = hlsSource.referer || globalReferer || '';
         let finalUrl = hlsSource.url;
+        const forceProxy = shouldForceProxy(hlsSource);
 
         if (!isEmbedFallback) {
             if (hlsSource.directManifest) {
                 const blob = new Blob([hlsSource.directManifest], { type: 'application/vnd.apple.mpegurl' });
                 finalUrl = URL.createObjectURL(blob);
-            } else if (hlsSource.noProxy) {
+            } else if (hlsSource.noProxy && !forceProxy) {
                 // noProxy: send URL directly to HLS.js (CDN is IP-locked — browser fetch works, server proxy fails)
                 finalUrl = hlsSource.url;
                 console.log(`[VideoPlayer] ⚡ Direct (no-proxy) stream: ${finalUrl.substring(0, 60)}...`);
