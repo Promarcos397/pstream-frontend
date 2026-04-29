@@ -232,14 +232,18 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                             // 404 on manifest = URL dead (stale prefetch, rotated token, CDN purge)
                             // 'manifestLoadError' and 'fragLoadError' after HLS max retries are both fatal here.
                             // Treat them the same as 403: bust cache + ask backend for fresh URLs.
-                            if (statusCode === 404 || data.details === 'manifestLoadError' || data.details === 'manifestParsingError') {
+                            if (statusCode === 404 || data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR) {
                                 console.warn(`[useHls] ${statusCode || data.details} — manifest dead, triggering cache-bust retry...`);
                                 if (onFatalError) onFatalError(data.type, data.details, statusCode);
                                 if (onTokenExpired) onTokenExpired();
                                 return;
                             }
-                            // Genuine network error (no status code = offline / timeout) — try HLS recovery once
+                            // Genuine network error (no status code = offline / timeout).
+                            // IMPORTANT: status 0 on manifestLoadError = CORS block (no ACAO header).
+                            // Don't retry the same blocked URL — treat it as dead and cycle sources.
                             if (!statusCode) {
+                                // status 0 here means genuine offline/timeout (CORS+manifest case
+                                // is already handled above via MANIFEST_LOAD_ERROR → return).
                                 console.log('[useHls] Network blip (no status) — attempting HLS recovery...');
                                 if (onFatalError) onFatalError(data.type, data.details, statusCode);
                                 hls.startLoad();
