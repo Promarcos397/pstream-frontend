@@ -383,15 +383,41 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
             return;
         }
-        console.log(`[VideoPlayer] 🔄 Manual server change to: ${allSources[index].provider}`);
+        console.log(`[VideoPlayer] 🔄 Manual server change to: ${candidate.provider}`);
         setCurrentSourceIndex(index);
         retryCooldownUntilRef.current = 0;
         setError(null);
         setIsBuffering(true);
-        setLoadingMessage(`Switching to ${allSources[index].provider || 'Server'}...`);
+        setLoadingMessage(`Switching to ${candidate.provider || 'Server'}...`);
         reportedSuccessRef.current = null;
-        applyStreamResult([allSources[index]], captions);
-    }, [allSources, applyStreamResult, captions]);
+
+        // ⚠️ Do NOT call applyStreamResult here — it overwrites allSources with a single element,
+        // destroying the remaining sources and breaking subsequent source cycling.
+        // Instead, apply the URL/stream state directly.
+        const isEmbedFallback = !!candidate.isEmbed;
+        setIsEmbed(isEmbedFallback);
+        const activeReferer = candidate.referer || '';
+        const forceProxy = shouldForceProxy(candidate);
+        let finalUrl = candidate.url;
+        if (!isEmbedFallback) {
+            if (candidate.noProxy && !forceProxy) {
+                finalUrl = candidate.url;
+                console.log(`[VideoPlayer] ⚡ Direct (no-proxy) stream: ${finalUrl.substring(0, 60)}...`);
+            } else {
+                let origin = '';
+                try {
+                    const refUrl = activeReferer.startsWith('//') ? `https:${activeReferer}` : activeReferer;
+                    origin = refUrl ? new URL(refUrl).origin : '';
+                } catch (e) {}
+                const headersObj = { referer: activeReferer, origin };
+                finalUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(candidate.url)}&headers=${encodeURIComponent(JSON.stringify(headersObj))}`;
+            }
+        }
+        setStreamUrl(finalUrl);
+        setIsStreamM3U8(!!candidate.isM3U8);
+        setStreamReferer(activeReferer || null);
+        if (isEmbedFallback) setTimeout(() => setIsBuffering(false), 1500);
+    }, [allSources]);
 
     // ─── Episode Selection ──────────────────────────────────────────────────
     const handleEpisodeSelect = useCallback(async (ep: Episode, seasonNum?: number, episodes?: Episode[]) => {
