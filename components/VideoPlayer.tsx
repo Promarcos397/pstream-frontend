@@ -19,19 +19,16 @@ import { reportStreamError, reportStreamSuccess } from '../services/ProviderHeal
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
-const FORCE_PROXY_HOST_PATTERNS = [
-    /creativeentrepreneurhub\.site$/i,
-    /digitalassetlaunchpad\.site$/i,
-    /startupmomentumengine\.site$/i,
-];
+// These CDN hosts can only be reached via proxy — they do NOT block datacenter IPs.
+// VaPlayer/vidzee CDN domains rotate and block datacenter IPs, so they use noProxy:true
+// (direct browser fetch) — do NOT add them here.
+const FORCE_PROXY_HOST_PATTERNS: RegExp[] = [];
 const RETRY_BASE_DELAY_MS = 1200;
 const RETRY_MAX_DELAY_MS = 5000;
 const SOURCE_FAILURE_COOLDOWN_MS = 20 * 1000;
 
 function shouldForceProxy(source: any): boolean {
-    const provider = String(source?.provider || '').toLowerCase();
     const rawUrl = String(source?.url || '');
-    if (provider.includes('vaplayer')) return true;
     try {
         const host = new URL(rawUrl).hostname;
         return FORCE_PROXY_HOST_PATTERNS.some((pattern) => pattern.test(host));
