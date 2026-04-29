@@ -572,15 +572,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         if (pct < 2) return null;
 
         return (
-          // 4px tall, floats 6px below card, 10% horizontal inset for visibility
+          // Floating bar — sits in the 14px padding zone the Row adds when progress exists
           <div
             className="absolute pointer-events-none z-20"
-            style={{ top: 'calc(100% + 6px)', left: '10%', right: '10%' }}
+            style={{ top: 'calc(100% + 4px)', left: '10%', right: '10%' }}
           >
-            <div className="h-[4px] w-full bg-white/25" style={{ borderRadius: 2 }}>
+            <div className="h-[4px] w-full" style={{ background: 'rgba(200,200,200,0.28)', borderRadius: 0 }}>
               <div
-                className="h-full bg-[#e50914] transition-all duration-300"
-                style={{ width: `${pct}%`, borderRadius: 2 }}
+                className="h-full transition-all duration-300"
+                style={{ width: `${pct}%`, background: '#e50914', borderRadius: 0 }}
               />
             </div>
           </div>
@@ -594,7 +594,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         <AnimatePresence>
           {isHovered && prefersHover && hoveredRect && (
             <motion.div
-              className="bg-[#141414] rounded-md movie-card-glow overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_8px_40px_rgba(0,0,0,0.85)]"
+              className="bg-[#141414] rounded-md movie-card-glow overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
               onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, y: 8, scale: 0.94 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -746,7 +746,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   </button>
                 )}
 
-                <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#181818] to-transparent z-10 pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 h-7 bg-gradient-to-t from-[#181818]/70 to-transparent z-10 pointer-events-none" />
 
                 <div className="absolute bottom-3 left-4 right-12 pointer-events-none z-20">
                   {logoUrl && !imgFailed ? (

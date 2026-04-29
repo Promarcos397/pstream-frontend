@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CaretRightIcon, CaretLeftIcon } from '@phosphor-icons/react';
 import { Movie, RowProps } from '../types';
@@ -9,7 +9,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 
 const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowKey, onViewAll }) => {
   const { t } = useTranslation();
-  const { pageSeenIds, registerSeenIds } = useGlobalContext();
+  const { pageSeenIds, registerSeenIds, videoStates, getVideoState, getLastWatchedEpisode } = useGlobalContext();
   const isMobile = useIsMobile();
 
   // Minimum vote count to show in any feed — filters out obscure/fan-made content.
@@ -30,6 +30,22 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
   const [isFetching, setIsFetching] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+
+  // Determine if any card in this row has a progress bar so we can add
+  // paddingBottom ONLY to rows that need it (avoids wasted space in other rows).
+  // Uses getVideoState (movies) and getLastWatchedEpisode (TV shows) from context.
+  const hasAnyProgress = useMemo(() => movies.some(movie => {
+    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+    if (!isTV) {
+      const state = getVideoState(movie.id);
+      if (!state?.time || !state?.duration) return false;
+      return (state.time / state.duration) * 100 >= 2;
+    } else {
+      const last = getLastWatchedEpisode(movie.id);
+      if (!last?.duration) return false;
+      return (last.time / last.duration) * 100 >= 2;
+    }
+  }), [movies, videoStates]);
 
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -205,6 +221,10 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
             overscrollBehaviorX: 'contain',
             // Prevent synthetic mouse events from touch scroll on iOS
             touchAction: 'pan-x pan-y',  // allow both axes — never block vertical page scroll
+            // Extra bottom padding ONLY when this row has cards with progress bars.
+            // overflow-x:scroll implicitly clips overflow-y, which hides the floating
+            // progress bar that sits 6px below each card. This padding makes room for it.
+            paddingBottom: hasAnyProgress ? '8px' : '0px',
           }}
         >
 

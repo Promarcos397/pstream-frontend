@@ -126,8 +126,6 @@ export const ProgressIndicator: React.FC<ProgressProps> = React.memo(({ movie, g
   const { pct } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
   if (pct <= 0) return null;
   return (
-    // Flat red bar just BELOW the card edge — outside the overflow-hidden image wrapper.
-    // bottom: -3px places the 3px bar immediately below the card (not overlapping card art).
     <div
       className="absolute left-0 right-0 h-[3px] pointer-events-none z-20"
       style={{ bottom: '-3px', borderRadius: 0 }}
@@ -145,7 +143,7 @@ export const HoverProgressBar: React.FC<ProgressProps> = React.memo(({ movie, ge
   const { pct, watchMins, totalMins } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
   if (pct <= 0) return null;
   return (
-    <div className="flex items-center gap-2 px-3 pt-1.5 pb-0">
+    <div className="flex items-center gap-2 px-3 pt-2 pb-1 bg-[#181818]">
       <div className="flex-1 h-[3px] bg-white/20" style={{ borderRadius: 0 }}>
         <div
           className="h-full bg-[#e50914] transition-all duration-300"
