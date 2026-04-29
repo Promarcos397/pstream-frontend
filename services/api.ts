@@ -230,7 +230,7 @@ export const getStream = async (
     const logLabel = bustCache ? '[GigaEngine] 🔥 Force-fresh stream (busting Redis)...' : '[GigaEngine] Requesting stream (Giga Backend)...';
     console.log(logLabel);
     const response = await axios.get(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, {
-        timeout: 30000
+        timeout: 50000  // 50s — backend race can take up to 22s (master timeout) + Redis + subs overhead
     });
     return response.data;
   } catch (error: any) {
