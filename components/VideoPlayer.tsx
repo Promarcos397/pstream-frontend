@@ -299,7 +299,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!sources || sources.length === 0) return;
 
         setAllSources(sources);
-        const hlsSource = sources[0];
+
+        // Skip any sources that are in the failure cooldown from a previous attempt.
+        // Without this, a cache-bust re-fetch that returns the same dead URL gets tried again immediately.
+        let startIndex = 0;
+        for (let i = 0; i < sources.length; i++) {
+            const candidate = sources[i];
+            const sourceKey = `${candidate.providerId || candidate.provider || 'unknown'}::${candidate.url || ''}`;
+            const blockedUntil = sourceFailureCooldownRef.current.get(sourceKey) || 0;
+            if (blockedUntil <= Date.now()) {
+                startIndex = i;
+                break;
+            }
+            // All sources are in cooldown — use the one whose cooldown expires soonest
+            if (i === sources.length - 1) {
+                console.warn('[VideoPlayer] All fresh sources are in cooldown — clearing cooldowns and retrying from 0');
+                sourceFailureCooldownRef.current.clear();
+                startIndex = 0;
+            }
+        }
+        if (startIndex > 0) {
+            console.log(`[VideoPlayer] ⏭️ Skipping ${startIndex} cooldown source(s), starting at index ${startIndex}`);
+        }
+        setCurrentSourceIndex(startIndex);
+        const hlsSource = sources[startIndex];
         const isEmbedFallback = !!hlsSource.isEmbed;
         setIsEmbed(isEmbedFallback);
 
