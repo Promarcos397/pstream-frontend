@@ -103,7 +103,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const currentTrailerId = trailerQueue[0] || null;
     const captionsPlaying = isPlayingTrailer && isTrailerReady;
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
-    const { activeCue } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying, lang);
+    const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying, lang);
 
     useEffect(() => {
         const rect = (window as any).__last_card_rect as DOMRect | undefined;
@@ -515,6 +515,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                         className="w-full h-full"
                                         onReady={(e) => {
                                             playerRef.current = e.target;
+                                            // Wire onApiChange via IFrame Player API
+                                            try { e.target.addEventListener('onApiChange', onApiChange); } catch {}
                                             if (isMuted) e.target.mute();
                                             else e.target.unMute();
 

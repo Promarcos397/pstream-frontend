@@ -564,8 +564,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const remaining = formatRemaining(currentTime, duration);
 
     // Responsive progress-bar sizing: thicker track + larger thumb on mobile for touch
-    const trackH  = isMobile ? 'h-[5px]' : 'h-[4px]';
-    const thumbSz = isMobile ? 'h-[18px] w-[18px]' : 'h-3 w-3';
+    const trackH  = isMobile ? 'h-[6px]' : 'h-[8px]';
+    const thumbSz = isMobile ? 'h-[20px] w-[20px]' : 'h-[16px] w-[16px]';
 
     // ── Safe-area padding for iOS home bar and notch ───────────────────────
     // Uses CSS env() so it's dynamic and works in both portrait and landscape

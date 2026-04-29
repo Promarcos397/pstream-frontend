@@ -1383,24 +1383,38 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onSourceChange={handleSourceChange}
             />
 
-            {/* Skip Intro Button */}
+            {/* ── Skip Intro pill ── */}
             {showSkipIntro && activeSkipSegment && (
                 <button
                     onClick={() => {
                         if (videoRef.current) videoRef.current.currentTime = activeSkipSegment.endTime;
                         setShowSkipIntro(false);
                     }}
-                    className="absolute bottom-32 left-8 px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold rounded flex items-center gap-2 transition-all active:scale-95 z-30"
+                    className="absolute z-40 pointer-events-auto flex items-center gap-2 transition-opacity hover:opacity-90 active:scale-95"
+                    style={{
+                        bottom: isMobile ? 90 : 110,
+                        right: isMobile ? 16 : 40,
+                        padding: isMobile ? '9px 20px' : '11px 26px',
+                        background: 'rgba(255,255,255,0.95)',
+                        color: '#000',
+                        border: 'none',
+                        borderRadius: 9999,
+                        fontWeight: 700,
+                        fontSize: isMobile ? 13 : 15,
+                        cursor: 'pointer',
+                        letterSpacing: '0.01em',
+                        fontFamily: 'Consolas, monospace',
+                        boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+                        animation: 'slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+                        whiteSpace: 'nowrap',
+                    }}
                 >
-                    <CaretRightIcon weight="bold" /> Skip Intro
+                    <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, fill: '#000', flexShrink: 0 }}><path d="M8 5v14l11-7z"/></svg>
+                    Skip Intro
                 </button>
             )}
 
-            {/* ── Auto-Next: Two minimal flush buttons, no card ─────────────────────────
-                 "Next Episode" (white, sharp, fill-right animation countdown)
-                 "Keep Watching" (dark gray, left of it)
-                 Both same width. No description, no thumbnail, no red.
-            ─────────────────────────────────────────────────────────────────── */}
+            {/* ── Auto-Next: two Netflix-style pill buttons ────────────────────────── */}
             {autoNextVisible && nextEpisodeInfo && (
                 <div
                     className="absolute z-40 pointer-events-auto"
@@ -1409,57 +1423,60 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         right: isMobile ? 16 : 40,
                         display: 'flex',
                         flexDirection: 'row',
-                        alignItems: 'stretch',
-                        gap: 8,
+                        alignItems: 'center',
+                        gap: 10,
                         animation: 'slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards',
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Keep Watching — dark gray left button */}
+                    {/* Watch Credits — dark semi-transparent pill */}
                     <button
                         onClick={dismissAutoNext}
                         style={{
-                            width: isMobile ? 120 : 148,
-                            height: isMobile ? 38 : 44,
-                            background: 'rgba(38,38,38,0.96)',
-                            color: 'rgba(255,255,255,0.75)',
-                            border: '1px solid rgba(255,255,255,0.12)',
-                            borderRadius: 3,
+                            padding: isMobile ? '9px 18px' : '11px 24px',
+                            background: 'rgba(32,32,32,0.90)',
+                            color: 'rgba(255,255,255,0.85)',
+                            border: '1px solid rgba(255,255,255,0.20)',
+                            borderRadius: 9999,
                             fontWeight: 600,
-                            fontSize: isMobile ? 11 : 12,
+                            fontSize: isMobile ? 12 : 14,
                             cursor: 'pointer',
                             fontFamily: 'Consolas, monospace',
-                            letterSpacing: '0.04em',
+                            letterSpacing: '0.02em',
+                            backdropFilter: 'blur(10px)',
+                            whiteSpace: 'nowrap',
                             transition: 'background 0.15s, color 0.15s',
-                            position: 'relative',
-                            overflow: 'hidden',
                         }}
-                        onMouseEnter={e => { (e.currentTarget.style.background = 'rgba(58,58,58,0.98)'); (e.currentTarget.style.color = '#fff'); }}
-                        onMouseLeave={e => { (e.currentTarget.style.background = 'rgba(38,38,38,0.96)'); (e.currentTarget.style.color = 'rgba(255,255,255,0.75)'); }}
+                        onMouseEnter={e => { (e.currentTarget.style.background = 'rgba(55,55,55,0.96)'); (e.currentTarget.style.color = '#fff'); }}
+                        onMouseLeave={e => { (e.currentTarget.style.background = 'rgba(32,32,32,0.90)'); (e.currentTarget.style.color = 'rgba(255,255,255,0.85)'); }}
                     >
-                        Keep Watching
+                        Watch credits
                     </button>
 
-                    {/* Next Episode — white, sharp corners, fill countdown animation */}
+                    {/* Next Episode — white fill pill with countdown animation */}
                     <button
                         onClick={() => { dismissAutoNext(); handleNextEpisode(); }}
                         style={{
-                            width: isMobile ? 120 : 148,
-                            height: isMobile ? 38 : 44,
-                            background: 'transparent',
-                            color: '#000',
-                            border: 'none',
-                            borderRadius: 3,
-                            fontWeight: 700,
-                            fontSize: isMobile ? 11 : 12,
-                            cursor: 'pointer',
-                            fontFamily: 'Consolas, monospace',
-                            letterSpacing: '0.04em',
                             position: 'relative',
                             overflow: 'hidden',
+                            padding: isMobile ? '9px 20px' : '11px 26px',
+                            background: 'transparent',
+                            color: autoNextCountdown <= 5 ? '#000' : '#fff',
+                            border: 'none',
+                            borderRadius: 9999,
+                            fontWeight: 700,
+                            fontSize: isMobile ? 12 : 14,
+                            cursor: 'pointer',
+                            fontFamily: 'Consolas, monospace',
+                            letterSpacing: '0.02em',
+                            whiteSpace: 'nowrap',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            transition: 'color 0.2s',
                         }}
                     >
-                        {/* Fill animation background — fill from left over countdown seconds */}
+                        {/* Fill animation background — sweeps left-to-right */}
                         <span
                             style={{
                                 position: 'absolute',
@@ -1468,35 +1485,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 transformOrigin: 'left center',
                                 transform: `scaleX(${(10 - autoNextCountdown) / 10})`,
                                 transition: 'transform 0.95s linear',
+                                borderRadius: 9999,
                                 zIndex: 0,
                             }}
                         />
-                        {/* Unfilled background */}
+                        {/* Unfilled pill border */}
                         <span
                             style={{
                                 position: 'absolute',
                                 inset: 0,
-                                background: 'rgba(255,255,255,0.15)',
-                                border: '1px solid rgba(255,255,255,0.5)',
-                                borderRadius: 3,
+                                background: 'rgba(255,255,255,0.12)',
+                                border: '1.5px solid rgba(255,255,255,0.55)',
+                                borderRadius: 9999,
                                 zIndex: 0,
                             }}
                         />
-                        {/* Label — color changes as fill covers it */}
+                        {/* Label */}
                         <span style={{
-                            position: 'relative',
-                            zIndex: 1,
-                            color: autoNextCountdown <= 5 ? '#000' : '#fff',
-                            transition: 'color 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            width: '100%',
-                            height: '100%',
+                            position: 'relative', zIndex: 1,
+                            display: 'flex', alignItems: 'center', gap: 7,
                         }}>
-                            <span>Next Episode</span>
-                            <span style={{ fontSize: isMobile ? 10 : 11, opacity: 0.8 }}>({autoNextCountdown}s)</span>
+                            <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, fill: 'currentColor', flexShrink: 0 }}>
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            Next episode
+                            <span style={{ fontSize: isMobile ? 10 : 11, opacity: 0.75 }}>({autoNextCountdown}s)</span>
                         </span>
                     </button>
                 </div>

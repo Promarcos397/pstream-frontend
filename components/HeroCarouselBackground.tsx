@@ -54,7 +54,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     const currentVideoId = trailerQueue[0] || null;
     const isCaptionsPlaying = showVideo && isVideoReady;
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
-    const { activeCue } = useYouTubeCaptions(playerRef, currentVideoId, isCaptionsPlaying, lang);
+    const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentVideoId, isCaptionsPlaying, lang);
 
     // Clean up sync interval on unmount
     React.useEffect(() => {
@@ -102,6 +102,10 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                             onReady={(e) => {
                                 playerRef.current = e.target;
                                 
+                                // Wire onApiChange via IFrame Player API
+                                // react-youtube doesn't type this prop, so we use addEventListener
+                                try { e.target.addEventListener('onApiChange', onApiChange); } catch {}
+
                                 // FORCE MUTE FIRST: This is critical for browser autoplay bypass
                                 try {
                                     e.target.mute(); 

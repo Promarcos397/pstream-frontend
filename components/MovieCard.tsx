@@ -572,16 +572,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         if (pct < 2) return null;
 
         return (
-          // Floats 8px below card — slightly bigger gap than before
-          // 10px horizontal inset makes it noticeably shorter than the card width
+          // 4px tall, floats 6px below card, 10% horizontal inset for visibility
           <div
             className="absolute pointer-events-none z-20"
-            style={{ top: 'calc(100% + 8px)', left: '20%', right: '20%' }}
+            style={{ top: 'calc(100% + 6px)', left: '10%', right: '10%' }}
           >
-            <div className="h-[3px] w-full bg-white/20" style={{ borderRadius: 0 }}>
+            <div className="h-[4px] w-full bg-white/25" style={{ borderRadius: 2 }}>
               <div
                 className="h-full bg-[#e50914] transition-all duration-300"
-                style={{ width: `${pct}%`, borderRadius: 0 }}
+                style={{ width: `${pct}%`, borderRadius: 2 }}
               />
             </div>
           </div>
