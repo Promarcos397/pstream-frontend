@@ -133,6 +133,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         reportedSuccessRef.current = null;
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
+    // ─── URL deep-link sync ─────────────────────────────────────────────────────
+    // Keep the address bar in sync so users can share/bookmark a specific episode.
+    // Uses replaceState (not pushState) to avoid polluting browser history on every
+    // episode switch. Movies don't need query params — their URL is already canonical.
+    useEffect(() => {
+        if (mediaType !== 'tv') return;
+        const url = new URL(window.location.href);
+        url.searchParams.set('season', String(playingSeasonNumber));
+        url.searchParams.set('episode', String(currentEpisode));
+        window.history.replaceState(null, '', url.toString());
+    }, [mediaType, playingSeasonNumber, currentEpisode]);
 
     // Navigation state
     const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers'>('none');
