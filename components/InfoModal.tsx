@@ -16,6 +16,7 @@ import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
+import { useVideoCover } from '../hooks/useVideoCover';
 
 
 interface InfoModalProps {
@@ -104,6 +105,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const captionsPlaying = isPlayingTrailer && isTrailerReady;
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
     const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying, lang);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const coverDimensions = useVideoCover(containerRef, 1.15);
 
     useEffect(() => {
         const rect = (window as any).__last_card_rect as DOMRect | undefined;
@@ -506,9 +509,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         />
 
                         {/* Video Layer — only fades in once player is ready AND playing */}
-                        <div className={`absolute inset-0 transition-opacity duration-1000 ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
+                        <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
                             {trailerQueue.length > 0 && (
-                                <div className="w-full h-full scale-[1.35] translate-y-[-12%] pointer-events-none">
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                                     <YouTube
                                         key={`${trailerQueue[0]}-modal-${replayCount}`}
                                         videoId={trailerQueue[0]}

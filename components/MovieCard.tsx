@@ -16,6 +16,7 @@ import { MaturityBadge, BadgeOverlay, ProgressIndicator, HoverProgressBar } from
 import { triggerSearch } from '../utils/search';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
+import { useVideoCover } from '../hooks/useVideoCover';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 // Replaces the old load-time IS_TOUCH_DEVICE sniff.
@@ -138,6 +139,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const coverDimensions = useVideoCover(containerRef, 1.15);
   const [lastSyncTime, setLastSyncTime] = useState(0);
   const currentPreviewVideoId = trailerUrl || null;
   const previewCaptionsPlaying = isHovered && isHoverVideoReady;
@@ -617,8 +620,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 ${isHoverVideoReady ? 'opacity-0' : 'opacity-100'}`}
                       alt="preview"
                     />
-                    <div className={`absolute inset-0 transition-opacity duration-700 ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
-                      <div className="absolute top-[40%] left-1/2 w-[200%] h-[200%] -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                    <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                         <YouTube
                           videoId={trailerUrl}
                           opts={{

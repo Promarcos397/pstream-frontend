@@ -107,24 +107,28 @@ export function resetKeys() {
  * for most titles. company is used in scoring instead.
  */
 function buildSearchQueries(options: SearchOptions): string[] {
-    const { title, year } = options;
+    const { title, year, type } = options;
     const clean = title.trim();
 
+    const isTv = type === 'tv';
+    const officialSuffix = isTv ? "tv series official trailer" : "official trailer";
+    const trailerSuffix = isTv ? "tv trailer" : "trailer";
+
     const queries: string[] = [
-        `"${clean}" official trailer`,
-        `"${clean}" trailer`,
-        `${clean} official trailer`,
-        `${clean} trailer`,
+        `"${clean}" ${officialSuffix}`,
+        `"${clean}" ${trailerSuffix}`,
+        `${clean} ${officialSuffix}`,
+        `${clean} ${trailerSuffix}`,
     ];
 
     if (year) {
-        queries.push(`${clean} ${year} official trailer`);
-        queries.push(`${clean} ${year} trailer`);
+        queries.push(`${clean} ${year} ${officialSuffix}`);
+        queries.push(`${clean} ${year} ${trailerSuffix}`);
     }
 
     // 4K as deliberate last resort — only reached when all cleaner queries fail
-    queries.push(`"${clean}" official trailer 4K`);
-    queries.push(`${clean} official trailer 4K`);
+    queries.push(`"${clean}" ${officialSuffix} 4K`);
+    queries.push(`${clean} ${officialSuffix} 4K`);
 
     // Deduplicate while preserving order
     return [...new Set(queries)];
@@ -201,6 +205,24 @@ function scoreCandidate(queryTitle: string, candidate: YTCandidate): number {
     const c = normalizeText(candidate.channelTitle);
 
     let score = 0;
+    // ── Trailer quality signals ──────────────────────────────────────────────
+
+    // Lowered "official" from 20 to 15 to give 4K remasters a fighting chance
+    if (/official\s+trailer/.test(t)) score += 15;
+    else if (/trailer/.test(t)) score += 10;
+
+    if (/final\s+trailer/.test(t)) score += 5;   
+    if (/\bteaser\b/.test(t)) score += 3;
+
+    // Bonus for old classics that got a community upgrade
+    if (/remaster(ed)?/i.test(t) || /restored/i.test(t)) score += 12;
+
+    // Quality/resolution keywords — massive boost to prioritize these
+    if (/\b4k\b/.test(t) || /\b2160p\b/.test(t)) score += 18; 
+    if (/\bhdr\b/.test(t)) score += 8;
+    if (/\bimax\b/.test(t)) score += 6;
+    if (/\b1440p\b/.test(t)) score += 5;
+    if (/\b1080p\b/.test(t)) score += 2;
 
     // ── Title relevance ──────────────────────────────────────────────────────
 

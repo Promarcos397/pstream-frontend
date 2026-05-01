@@ -4,6 +4,7 @@ import { Movie } from '../types';
 import { IMG_PATH } from '../constants';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
+import { useVideoCover } from '../hooks/useVideoCover';
 
 interface HeroCarouselBackgroundProps {
     movie: Movie;
@@ -51,6 +52,8 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     showBackdropOverlay = false
 }) => {
     const syncIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+    const coverDimensions = useVideoCover(containerRef, 1.15);
     const currentVideoId = trailerQueue[0] || null;
     const isCaptionsPlaying = showVideo && isVideoReady;
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
@@ -88,12 +91,13 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
             {/* Background Video Layer - YouTube Trailer (Matching InfoModal Logic) */}
             <div
                 id="hero-video-layer"
-                className={`absolute inset-0 z-0 transition-opacity duration-1000 ${(showVideo && isVideoReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}
+                ref={containerRef}
+                className={`absolute inset-0 z-0 transition-opacity duration-1000 overflow-hidden ${(showVideo && isVideoReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}
             >
                 {showVideo && trailerQueue.length > 0 && (
                     <div
-                        className="absolute top-[-25%] left-1/2 -translate-x-1/2 pointer-events-none z-0 overflow-hidden"
-                        style={{ width: videoDimensions.width, height: videoDimensions.height }}
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0"
+                        style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}
                     >
                         <YouTube
                             key={`${trailerQueue[0]}-${replayCount}`}
