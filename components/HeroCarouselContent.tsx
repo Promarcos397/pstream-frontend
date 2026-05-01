@@ -55,10 +55,10 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                 {/* Logo/Title - Anchored lower, scales down after delay */}
                 <div className={`h-12 sm:h-20 md:h-28 flex items-end mb-3 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.6] sm:scale-[0.65] origin-bottom-left translate-y-8 md:translate-y-6' : ''}`}>
                     {logoUrl && !imgFailed ? (
-                        <img 
-                            src={logoUrl} 
-                            alt={movie?.name || movie?.title || "title logo"} 
-                            className="h-full object-contain drop-shadow-2xl" 
+                        <img
+                            src={logoUrl}
+                            alt={movie?.name || movie?.title || "title logo"}
+                            className="h-full object-contain drop-shadow-2xl"
                             onError={() => setImgFailed(true)}
                         />
                     ) : (
@@ -82,7 +82,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     {isCinemaOnly ? (
                         <button
                             onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 sm:px-8 h-[40px] md:h-[48px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-colors text-[14px] md:text-[17px] gap-2 md:gap-2.5 blur-[0.2px] active:scale-95"
+                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 sm:px-8 h-[34px] md:h-[40px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-colors text-[14px] md:text-[17px] gap-2 md:gap-2.5 blur-[0.2px] active:scale-95"
                         >
                             <TicketIcon weight="bold" className="text-lg md:text-2xl" />
                             <span className="whitespace-nowrap">{t('hero.inTheaters', { defaultValue: 'In Theaters' })}</span>
@@ -90,7 +90,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     ) : (
                         <Link
                             to={`/watch/${movie?.media_type === 'tv' || (!movie?.media_type && !movie?.title) ? 'tv' : 'movie'}/${movie?.id}`}
-                            className="flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[40px] md:h-[48px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[14px] md:text-[17px] gap-2 active:scale-95 shadow-lg"
+                            className="flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[34px] md:h-[40px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[14px] md:text-[17px] gap-2 active:scale-95 shadow-lg"
                         >
                             <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] md:w-6 md:h-6 fill-black">
                                 <polygon points="6,3 20,12 6,21" />
@@ -98,10 +98,10 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                             <span>{t('hero.play')}</span>
                         </Link>
                     )}
-                    
+
                     <button
                         onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                        className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 sm:px-9 h-[40px] md:h-[48px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[14px] md:text-[17px] gap-2 md:gap-2.5 pointer-events-auto blur-[0.2px] active:scale-95"
+                        className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 sm:px-9 h-[34px] md:h-[42px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[14px] md:text-[17px] gap-2 md:gap-2.5 pointer-events-auto blur-[0.2px] active:scale-95"
                     >
                         <InfoIcon weight="bold" className="text-lg md:text-2xl" />
                         <span className="whitespace-nowrap">{t('hero.moreInfo')}</span>
