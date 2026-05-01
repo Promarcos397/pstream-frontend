@@ -106,7 +106,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
     const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying, lang);
     const containerRef = useRef<HTMLDivElement>(null);
-    const coverDimensions = useVideoCover(containerRef, 1.15);
+    const coverDimensions = useVideoCover(containerRef, 1.30);
 
     useEffect(() => {
         const rect = (window as any).__last_card_rect as DOMRect | undefined;

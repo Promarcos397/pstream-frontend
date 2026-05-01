@@ -140,7 +140,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
   const containerRef = useRef<HTMLDivElement>(null);
-  const coverDimensions = useVideoCover(containerRef, 1.15);
+  const coverDimensions = useVideoCover(containerRef, 1.3);
   const [lastSyncTime, setLastSyncTime] = useState(0);
   const currentPreviewVideoId = trailerUrl || null;
   const previewCaptionsPlaying = isHovered && isHoverVideoReady;

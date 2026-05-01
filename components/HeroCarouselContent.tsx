@@ -71,7 +71,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                 {/* Description - Hides after 7 seconds of video play */}
                 <div className={`transition-all duration-700 overflow-hidden ${!showDescription && isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-4 md:mb-6'}`}>
                     <p
-                        className={`text-[12px] sm:text-[13px] md:text-[15px] font-medium text-white/90 line-clamp-2 md:line-clamp-3 drop-shadow-lg leading-relaxed max-w-[90%] sm:max-w-lg transition-all duration-700 ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
+                        className={`text-[12px] sm:text-[13px] md:text-[15px] font-medium text-white/90 line-clamp-2 md:line-clamp-3 leading-relaxed max-w-[90%] sm:max-w-lg transition-all duration-700 ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
                     >
                         {movie?.overview}
                     </p>
@@ -82,7 +82,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     {isCinemaOnly ? (
                         <button
                             onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 sm:px-8 h-[34px] md:h-[40px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-colors text-[14px] md:text-[17px] gap-2 md:gap-2.5 blur-[0.2px] active:scale-95"
+                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 sm:px-8 h-[34px] md:h-[40px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/60 transition-colors text-[14px] md:text-[17px] gap-2 md:gap-2.5  active:scale-95"
                         >
                             <TicketIcon weight="bold" className="text-lg md:text-2xl" />
                             <span className="whitespace-nowrap">{t('hero.inTheaters', { defaultValue: 'In Theaters' })}</span>
@@ -101,7 +101,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 
                     <button
                         onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                        className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 sm:px-9 h-[34px] md:h-[42px] rounded-[4px] font-semibold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[14px] md:text-[17px] gap-2 md:gap-2.5 pointer-events-auto blur-[0.2px] active:scale-95"
+                        className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 sm:px-9 h-[34px] md:h-[42px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[14px] md:text-[17px] gap-2 md:gap-2.5 pointer-events-auto  active:scale-95"
                     >
                         <InfoIcon weight="bold" className="text-lg md:text-2xl" />
                         <span className="whitespace-nowrap">{t('hero.moreInfo')}</span>
