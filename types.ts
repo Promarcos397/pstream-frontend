@@ -3,6 +3,8 @@ export interface Movie {
   id: number | string;
   title?: string;
   name?: string;
+  original_title?: string;
+  original_name?: string;
   poster_path?: string;
   backdrop_path?: string;
   image_url?: string; // For books/manga

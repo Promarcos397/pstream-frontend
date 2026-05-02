@@ -18,6 +18,8 @@ import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
 import { YOUTUBE_DISABLED } from '../services/youtubeDisabled';
+import { useNewPipeTrailer } from '../hooks/useNewPipeTrailer';
+import NativeTrailerPlayer from './NativeTrailerPlayer';
 
 
 interface InfoModalProps {
@@ -109,6 +111,30 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const containerRef = useRef<HTMLDivElement>(null);
     const coverDimensions = useVideoCover(containerRef, 1.42);
 
+    // ── Derives media type — used by NewPipe hook and later logic ─────────────
+    const mediaType = activeMovieProp
+        ? (activeMovieProp.media_type || (activeMovieProp.title ? 'movie' : 'tv')) as 'movie' | 'tv'
+        : 'movie';
+
+    // NewPipe trailer — active when YouTube is disabled
+    const npTitle    = (detailedMovie || activeMovieProp)?.original_title
+                    || (detailedMovie || activeMovieProp)?.original_name
+                    || (detailedMovie || activeMovieProp)?.title
+                    || (detailedMovie || activeMovieProp)?.name
+                    || '';
+    const npYear     = ((detailedMovie || activeMovieProp)?.release_date
+                    || (detailedMovie || activeMovieProp)?.first_air_date
+                    || '').slice(0, 4) || undefined;
+    const npType     = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
+    const newpipe    = useNewPipeTrailer(npTitle || null, npYear, npType, YOUTUBE_DISABLED && isPlayingTrailer);
+
+    // When NewPipe resolves, mark trailer as ready
+    useEffect(() => {
+        if (YOUTUBE_DISABLED && newpipe.streamUrl && !newpipe.loading) {
+            setIsTrailerReady(true);
+        }
+    }, [newpipe.streamUrl, newpipe.loading]);
+
     useEffect(() => {
         const rect = (window as any).__last_card_rect as DOMRect | undefined;
         if (!rect || !modalRef.current) return; // no card rect = no animation, just fade in normally
@@ -170,10 +196,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             setActiveVideoId(null);
         };
     }, [movie, setActiveVideoId]);
-    // Determines media type safely
-    const mediaType = activeMovieProp
-        ? (activeMovieProp.media_type || (activeMovieProp.title ? 'movie' : 'tv')) as 'movie' | 'tv'
-        : 'movie';
 
     // Cinematic Spring Entry
     const [springRect, setSpringRect] = useState<any>(null);
@@ -511,6 +533,22 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
                         {/* Video Layer — only fades in once player is ready AND playing */}
                         <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
+                        {/* NewPipe native trailer (when YouTube disabled) */}
+                            {YOUTUBE_DISABLED && isPlayingTrailer && newpipe.streamUrl && (
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
+                                    <NativeTrailerPlayer
+                                        streamUrl={newpipe.streamUrl}
+                                        subtitleUrl={newpipe.subtitleUrl}
+                                        isMuted={isMuted}
+                                        autoPlay
+                                        className="w-full h-full"
+                                        onReady={() => setIsTrailerReady(true)}
+                                        onEnd={() => { setIsPlayingTrailer(false); setIsTrailerReady(false); setHasVideoEnded(true); }}
+                                        onError={() => { setIsTrailerReady(false); setIsPlayingTrailer(false); }}
+                                    />
+                                </div>
+                            )}
+
                             {!YOUTUBE_DISABLED && trailerQueue.length > 0 && (
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                                     <YouTube

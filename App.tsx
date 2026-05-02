@@ -25,6 +25,8 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import BrowseGridPage from './pages/BrowseGridPage';
+import GhostPage from './pages/GhostPage';
+import { Navigate } from 'react-router-dom';
 
 const App: React.FC = () => {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
@@ -243,6 +245,16 @@ const App: React.FC = () => {
     return (
       <Routes>
         <Route path="/watch/:type/:id" element={<WatchPage />} />
+      </Routes>
+    );
+  }
+
+  // Ghost admin panel — standalone, no nav, no footer
+  if (location.pathname === '/ghost' || location.pathname === '/matrix') {
+    return (
+      <Routes>
+        <Route path="/ghost"  element={<GhostPage />} />
+        <Route path="/matrix" element={<Navigate to="/ghost" replace />} />
       </Routes>
     );
   }

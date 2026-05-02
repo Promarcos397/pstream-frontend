@@ -642,10 +642,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 return;
             }
 
-            // Show a 'still searching' message after 5s (target is ~3-4s on warm Space)
+            // Show a 'still searching' message after 3s (target is ~3-4s on warm Space)
             const slowFetchTimer = setTimeout(() => {
                 setLoadingMessage('Still searching...');
-            }, 5000);
+            }, 3000);
 
             try {
                 const openSubPromise = settings.showSubtitles
@@ -678,11 +678,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     // re-use it in the backend via the Redis key on retry. For now,
                     // we resolve imdbId first with a 300ms head start before stream fetch.
                     new Promise<any>(async (resolveStream) => {
-                        // Give imdbId a 300ms head start — it usually resolves in ~200ms
-                        // If it wins, getStream gets the full imdbId on first try.
+                        // Give imdbId a 100ms head start — it usually resolves in ~150ms from TMDB cache
                         const resolved = await Promise.race([
                             imdbIdPromise,
-                            new Promise(r => setTimeout(r, 300))
+                            new Promise(r => setTimeout(r, 100))
                         ]);
                         const id = typeof resolved === 'string' ? resolved : '';
                         resolveStream(
