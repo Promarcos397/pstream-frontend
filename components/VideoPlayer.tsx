@@ -15,6 +15,8 @@ import { SkipService, SkipSegment } from '../services/SkipService';
 import { NetworkPriority } from '../services/NetworkPriority';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
+import { useTorrentFallback } from '../hooks/useTorrentFallback';
+import { AuthService } from '../services/AuthService';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -114,6 +116,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const cacheKeyRef = useRef<import('../utils/streamCache').CacheKey | null>(null);
     const [error, setError] = useState<string | null>(null);
     const reportedSuccessRef = useRef<string | null>(null);
+
+    // ─── Torrent fallback ──────────────────────────────────────────────────────
+    // Triggered silently after MAX_STREAM_RETRIES, only for logged-in users.
+    const torrent = useTorrentFallback();
+    const [torrentAttempted, setTorrentAttempted] = useState(false);
 
     // TV Show state
     const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
@@ -635,10 +642,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 return;
             }
 
-            // Show a 'still searching' message after 10 seconds to reduce user anxiety
+            // Show a 'still searching' message after 5s (target is ~3-4s on warm Space)
             const slowFetchTimer = setTimeout(() => {
-                setLoadingMessage('Still searching, please wait...');
-            }, 10000);
+                setLoadingMessage('Still searching...');
+            }, 5000);
 
             try {
                 const openSubPromise = settings.showSubtitles
@@ -652,26 +659,46 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                       ).catch(() => [])
                     : Promise.resolve([]);
 
-                let imdbId = movie.imdb_id;
-                if (!imdbId) {
-                    try {
-                        const ext = await getExternalIds(movie.id, mediaType === 'tv' ? 'tv' : 'movie');
-                        if (ext?.imdb_id) imdbId = ext.imdb_id;
-                    } catch (e) {}
-                }
+                // Fire stream fetch and external ID lookup in parallel.
+                // getExternalIds (~400ms TMDB call) used to block getStream — now they race.
+                const imdbIdPromise = movie.imdb_id
+                    ? Promise.resolve(movie.imdb_id)
+                    : getExternalIds(movie.id, mediaType === 'tv' ? 'tv' : 'movie')
+                        .then((ext: any) => ext?.imdb_id || '')
+                        .catch(() => '');
 
                 // ?force=1 on retries — tells backend to bypass Redis so we don't
                 // get the same dead token that caused the 403/410 in the first place.
-                const result = await getStream(
-                    title,
-                    mediaType === 'tv' ? 'tv' : 'movie',
-                    releaseYear,
-                    playingSeasonNumber,
-                    currentEpisode,
-                    String(movie.id || ''),
-                    imdbId || '',
-                    retryCount > 0 // bustCache = true on any retry
-                );
+                const [imdbId, result] = await Promise.all([
+                    imdbIdPromise,
+                    // Start stream fetch immediately — imdbId arrives in parallel
+                    // Backend can still use it if it resolves before the race completes.
+                    // We pass imdbId after both resolve via a two-pass approach:
+                    // First fetch fires without imdbId, then if imdbId lands first we
+                    // re-use it in the backend via the Redis key on retry. For now,
+                    // we resolve imdbId first with a 300ms head start before stream fetch.
+                    new Promise<any>(async (resolveStream) => {
+                        // Give imdbId a 300ms head start — it usually resolves in ~200ms
+                        // If it wins, getStream gets the full imdbId on first try.
+                        const resolved = await Promise.race([
+                            imdbIdPromise,
+                            new Promise(r => setTimeout(r, 300))
+                        ]);
+                        const id = typeof resolved === 'string' ? resolved : '';
+                        resolveStream(
+                            getStream(
+                                title,
+                                mediaType === 'tv' ? 'tv' : 'movie',
+                                releaseYear,
+                                playingSeasonNumber,
+                                currentEpisode,
+                                String(movie.id || ''),
+                                id,
+                                retryCount > 0
+                            )
+                        );
+                    })
+                ]);
 
                 if (result?.success && result.sources?.length > 0) {
                     const osSubs = await openSubPromise;
@@ -692,6 +719,76 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         fetchStream();
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode, retryCount, applyStreamResult]);
+
+    // Reset torrent state when navigating to a new piece of content
+    useEffect(() => {
+        setTorrentAttempted(false);
+        torrent.reset();
+    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
+
+    // ─── Torrent Fallback Trigger ────────────────────────────────────────────────
+    // Fires when torrentAttempted flips to true (set by onTokenExpired/onError above).
+    // Only runs for logged-in users (auth token required for /api/torrent/sources).
+    useEffect(() => {
+        if (!torrentAttempted || !user) return;
+
+        const token = AuthService.getToken();
+        if (!token) {
+            setError('Backup source requires a login. Please sign in and try again.');
+            setIsBuffering(false);
+            return;
+        }
+
+        // Resolve IMDB ID — needed by Torrentio for accurate magnet lookup
+        const imdbId = movie.imdb_id || '';
+        const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
+
+        console.log(`[VideoPlayer] 🧲 Torrent fallback: ${movie.title || movie.name} (${type}) imdb=${imdbId || 'pending'}`);
+
+        torrent.resolve(
+            imdbId || String(movie.id), // fallback to tmdbId if imdb unavailable
+            type,
+            mediaType === 'tv' ? playingSeasonNumber : undefined,
+            mediaType === 'tv' ? currentEpisode : undefined,
+            token
+        ).then(metaJson => {
+            if (!metaJson) {
+                setError('No backup sources found. This title may not be available via torrent.');
+                setIsBuffering(false);
+            }
+            // Actual URL application happens in the next effect below
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [torrentAttempted]);
+
+    // ─── Apply Torrent Stream URL ────────────────────────────────────────────────
+    // Watches for torrent.streamUrl becoming populated, then injects it as a
+    // synthetic source so the existing HLS player pipeline handles it.
+    useEffect(() => {
+        if (!torrent.streamUrl || !torrentAttempted) return;
+
+        console.log(`[VideoPlayer] 🧲 Applying torrent stream: ${torrent.quality} @ ${torrent.seeders} seeders`);
+
+        // The torrent endpoint streams raw MP4 bytes — treat as a non-HLS direct source
+        // The endpoint URL itself is the stream (POST body sent separately by useHls/XHR)
+        const torrentSource = {
+            url:        torrent.streamUrl,
+            quality:    torrent.quality || 'auto',
+            isM3U8:     false,
+            isEmbed:    false,
+            noProxy:    false, // goes through our backend, no extra proxy needed
+            provider:   'Torrent (P2P)',
+            providerId: 'torrent',
+            referer:    '',
+            origin:     '',
+            headers:    {},
+            _type:      'mp4',
+        };
+
+        setLoadingMessage(`P2P source found (${torrent.quality || 'auto'}) — connecting...`);
+        applyStreamResult([torrentSource], [], null);
+        setIsBuffering(true);
+    }, [torrent.streamUrl, torrentAttempted, applyStreamResult]);
 
     // ─── Skip Segments (TV only) ────────────────────────────────────────────────
     useEffect(() => {
@@ -809,9 +906,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     setRetryCount(c => c + 1);
                 }, waitMs);
             } else {
-                console.warn(`[VideoPlayer] ❌ Max retries (${MAX_STREAM_RETRIES}) reached — showing error`);
-                setError('Stream unavailable: all sources are temporarily blocked. Please try again in a minute.');
-                setIsBuffering(false);
+                console.warn(`[VideoPlayer] ❌ Max retries (${MAX_STREAM_RETRIES}) reached`);
+                // If user is logged in and we haven't tried torrent yet, trigger fallback silently
+                if (user && !torrentAttempted) {
+                    console.log('[VideoPlayer] 🧲 Activating torrent fallback...');
+                    setTorrentAttempted(true);
+                    setLoadingMessage('Trying backup source...');
+                    setIsBuffering(true);
+                    setError(null);
+                } else {
+                    setError('Stream unavailable: all sources are temporarily blocked. Please try again in a minute.');
+                    setIsBuffering(false);
+                }
             }
         },
         onError: (errMsg) => {
@@ -832,6 +938,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             });
             if (currentSourceIndex < allSources.length - 1) {
                 handleSourceChange(currentSourceIndex + 1);
+            } else if (user && !torrentAttempted) {
+                console.log('[VideoPlayer] 🧲 All sources errored — activating torrent fallback...');
+                setTorrentAttempted(true);
+                setLoadingMessage('Trying backup source...');
+                setIsBuffering(true);
+                setError(null);
             } else {
                 setError(errMsg);
             }

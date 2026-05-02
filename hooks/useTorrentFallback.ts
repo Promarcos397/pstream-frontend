@@ -2,35 +2,26 @@
  * useTorrentFallback — Silent torrent stream resolver for P-Stream.
  *
  * This hook implements the last-resort streaming pipeline:
- *   1. Regular providers fail 2 times (tracked by parent component)
- *   2. Parent calls resolve(imdbId, type, season?, episode?)
- *   3. Hook POSTs to /api/torrent/stream (login-gated on backend)
- *   4. Backend returns a streaming HTTP URL (byte-pipe from WebTorrent)
- *   5. URL is fed into existing HLS player — user never sees it happening
+ *   1. Regular providers fail (tracked by VideoPlayer)
+ *   2. VideoPlayer calls resolve(imdbId, type, season?, episode?, token)
+ *   3. Hook GETs /api/torrent/sources (Torrentio proxy, auth-gated)
+ *   4. Picks best stream by seeder count
+ *   5. Builds a GET streaming URL with infoHash + token query params
+ *   6. streamUrl is fed into the existing video player — user never sees it
  *
  * Requirements:
  *   - User must be logged in (JWT passed in Authorization header)
- *   - imdbId must be in tt-prefixed format (e.g. "tt1375666")
- *
- * Usage:
- *   const { resolve, streamUrl, loading, error } = useTorrentFallback();
- *
- *   // In your error handler after 2 source failures:
- *   if (failCount >= 2 && user && imdbId) {
- *       resolve(imdbId, 'movie');
- *   }
- *
- *   // Then pass streamUrl to your video player
+ *   - imdbId in tt-prefixed format preferred (e.g. "tt1375666")
  */
 
 import { useState, useCallback, useRef } from 'react';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
+const BACKEND_URL = (import.meta as any).env?.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
-type MediaType = 'movie' | 'tv' | 'film' | 'series';
+type MediaType = 'movie' | 'tv';
 
 interface TorrentFallbackState {
-    streamUrl:  string | null;
+    streamUrl:  string | null;   // full GET URL ready for the video player
     loading:    boolean;
     error:      string | null;
     seeders:    number | null;
@@ -39,10 +30,10 @@ interface TorrentFallbackState {
 
 interface ResolveFn {
     (
-        imdbId:   string,
-        type:     MediaType,
-        season?:  number | string,
-        episode?: number | string,
+        imdbId:    string,
+        type:      MediaType,
+        season?:   number,
+        episode?:  number,
         authToken?: string,
     ): Promise<string | null>;
 }
@@ -57,95 +48,80 @@ export function useTorrentFallback() {
     });
 
     const abortRef = useRef<AbortController | null>(null);
+    // Store auth token so the player can refresh the URL if needed
+    const tokenRef = useRef<string>('');
 
     const resolve: ResolveFn = useCallback(async (imdbId, type, season, episode, authToken) => {
-        // Cancel any pending request
+        // Cancel any in-flight request
         if (abortRef.current) abortRef.current.abort();
         abortRef.current = new AbortController();
+        tokenRef.current = authToken || '';
 
         setState({ streamUrl: null, loading: true, error: null, seeders: null, quality: null });
 
         try {
-            // Step 1: Get sources list from Torrentio proxy
-            const sourcesRes = await fetch(
-                `${BACKEND_URL}/api/torrent/sources?imdbId=${imdbId}&type=${type}` +
-                (season  ? `&season=${season}`   : '') +
-                (episode ? `&episode=${episode}` : ''),
-                {
-                    headers: {
-                        'Authorization': authToken ? `Bearer ${authToken}` : '',
-                    },
-                    signal: abortRef.current.signal,
-                }
-            );
+            // Step 1: Fetch Torrentio source list (auth-gated endpoint on our backend)
+            const params = new URLSearchParams({ imdbId, type });
+            if (season)  params.set('season',  String(season));
+            if (episode) params.set('episode', String(episode));
+
+            const sourcesRes = await fetch(`${BACKEND_URL}/api/torrent/sources?${params}`, {
+                headers: { 'Authorization': authToken ? `Bearer ${authToken}` : '' },
+                signal: abortRef.current.signal,
+            });
 
             if (!sourcesRes.ok) {
-                const err = await sourcesRes.json().catch(() => ({ error: 'Torrent sources unavailable' }));
-                throw new Error(err.error || `HTTP ${sourcesRes.status}`);
+                const body = await sourcesRes.json().catch(() => ({}));
+                throw new Error(body.error || `Torrent sources: HTTP ${sourcesRes.status}`);
             }
 
-            const sourcesData = await sourcesRes.json();
+            const { streams } = await sourcesRes.json();
+            if (!streams?.length) throw new Error('No torrent sources found for this title');
 
-            if (!sourcesData.streams?.length) {
-                throw new Error('No torrent sources found for this title');
-            }
+            // Best source = highest seeder count
+            const best = streams[0];
+            console.log(`[TorrentFallback] ✅ Best: ${best.quality} | ${best.seeders} seeders | hash=${best.infoHash}`);
 
-            const best = sourcesData.streams[0];
+            // Step 2: Build a GET streaming URL.
+            // Backend /api/torrent/stream accepts GET with query params (infoHash, token).
+            // Range requests work because the backend sets Content-Range headers.
+            const streamParams = new URLSearchParams({
+                infoHash: best.infoHash,
+                imdbId,
+                type,
+                token: authToken || '',
+            });
+            if (season)       streamParams.set('season',  String(season));
+            if (episode)      streamParams.set('episode', String(episode));
+            if (best.fileIdx != null) streamParams.set('fileIdx', String(best.fileIdx));
 
-            // Step 2: Build the streaming URL
-            // The backend /api/torrent/stream accepts POST and pipes bytes back.
-            // We construct a URL that the video player can range-request against.
-            // Since video players need a GET URL (not a POST), we pass the magnet
-            // as a query param to a dedicated GET streaming endpoint.
-            //
-            // IMPORTANT: For now we return the backend stream URL with token in header.
-            // The HLS player (hls.js) supports custom headers via xhrSetup.
-            const streamEndpoint = `${BACKEND_URL}/api/torrent/stream`;
+            const streamUrl = `${BACKEND_URL}/api/torrent/stream?${streamParams}`;
 
-            // We store the metadata and let the player component call the endpoint
-            // directly with the POST body + auth header
             setState({
-                streamUrl:  streamEndpoint,
-                loading:    false,
-                error:      null,
-                seeders:    best.seeders,
-                quality:    best.quality,
+                streamUrl,
+                loading:  false,
+                error:    null,
+                seeders:  best.seeders,
+                quality:  best.quality || null,
             });
 
-            // Return the metadata needed to make the POST request
-            return JSON.stringify({
-                endpoint: streamEndpoint,
-                body: {
-                    imdbId,
-                    type,
-                    season:   season  ? parseInt(String(season))  : undefined,
-                    episode:  episode ? parseInt(String(episode)) : undefined,
-                    infoHash: best.infoHash,
-                    fileIdx:  best.fileIdx,
-                },
-                quality:  best.quality,
-                seeders:  best.seeders,
-                title:    best.title,
-            });
+            return JSON.stringify({ streamUrl, quality: best.quality, seeders: best.seeders });
 
         } catch (err: any) {
             if (err.name === 'AbortError') return null;
 
             const msg = err.message || 'Torrent fallback failed';
             setState(prev => ({ ...prev, loading: false, error: msg }));
-            console.warn('[TorrentFallback]', msg);
+            console.warn('[TorrentFallback] ❌', msg);
             return null;
         }
     }, []);
 
     const reset = useCallback(() => {
         if (abortRef.current) abortRef.current.abort();
+        tokenRef.current = '';
         setState({ streamUrl: null, loading: false, error: null, seeders: null, quality: null });
     }, []);
 
-    return {
-        ...state,
-        resolve,
-        reset,
-    };
+    return { ...state, resolve, reset };
 }
