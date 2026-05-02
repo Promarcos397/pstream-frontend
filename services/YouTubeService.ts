@@ -97,11 +97,9 @@ export function resetKeys() {
  * Build a tiered list of search queries from least to most specific.
  *
  * Strategy:
- * - Quoted title first (maximum precision, avoids irrelevant results on short/common titles)
- * - Unquoted fallback (catches titles where quotes return zero results)
- * - Year-qualified fallback (helps disambiguate remakes and reboots)
- * - "4K" as a LAST resort only — helps find quality reuploads when other queries fail,
- *   but degrades relevance for obscure/new titles so it should never be primary.
+ * - Start from a single simple "4K trailer" query (user-friendly baseline)
+ * - Add a tiny set of dynamic fallbacks only when needed
+ * - Keep query count low to reduce API pressure and noisy results
  *
  * company and type are intentionally excluded from queries — they hurt recall
  * for most titles. company is used in scoring instead.
@@ -111,24 +109,26 @@ function buildSearchQueries(options: SearchOptions): string[] {
     const clean = title.trim();
 
     const isTv = type === 'tv';
-    const officialSuffix = isTv ? "tv series official trailer" : "official trailer";
-    const trailerSuffix = isTv ? "tv trailer" : "trailer";
+    const primary = isTv
+        ? `"${clean}" tv show season trailer 4k`
+        : `"${clean}" movie trailer 4k`;
 
-    const queries: string[] = [
-        `"${clean}" ${officialSuffix}`,
-        `"${clean}" ${trailerSuffix}`,
-        `${clean} ${officialSuffix}`,
-        `${clean} ${trailerSuffix}`,
-    ];
+    const queries: string[] = [primary];
+
+    // Dynamic fallbacks: keep simple and resilient when primary query is noisy.
+    queries.push(`"${clean}" official trailer`);
+    queries.push(`"${clean}" trailer`);
 
     if (year) {
-        queries.push(`${clean} ${year} ${officialSuffix}`);
-        queries.push(`${clean} ${year} ${trailerSuffix}`);
+        queries.push(`"${clean}" ${year} official trailer`);
+        queries.push(`"${clean}" ${year} trailer`);
     }
 
-    // 4K as deliberate last resort — only reached when all cleaner queries fail
-    queries.push(`"${clean}" ${officialSuffix} 4K`);
-    queries.push(`${clean} ${officialSuffix} 4K`);
+    if (isTv) {
+        queries.push(`"${clean}" tv show trailer`);
+    } else {
+        queries.push(`"${clean}" movie official trailer`);
+    }
 
     // Deduplicate while preserving order
     return [...new Set(queries)];
@@ -196,33 +196,17 @@ function normalizeText(s: string): string {
 }
 
 /**
- * Score a YouTube candidate against the intended search title.
+ * Score a YouTube candidate against intended title/type.
  * Higher = better match + quality signals.
  */
-function scoreCandidate(queryTitle: string, candidate: YTCandidate): number {
-    const q = normalizeText(queryTitle);
+function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number {
+    const q = normalizeText(options.title);
     const t = normalizeText(candidate.title);
     const c = normalizeText(candidate.channelTitle);
+    const isTv = options.type === 'tv';
+    const isMovie = options.type === 'movie';
 
     let score = 0;
-    // ── Trailer quality signals ──────────────────────────────────────────────
-
-    // Lowered "official" from 20 to 15 to give 4K remasters a fighting chance
-    if (/official\s+trailer/.test(t)) score += 15;
-    else if (/trailer/.test(t)) score += 10;
-
-    if (/final\s+trailer/.test(t)) score += 5;   
-    if (/\bteaser\b/.test(t)) score += 3;
-
-    // Bonus for old classics that got a community upgrade
-    if (/remaster(ed)?/i.test(t) || /restored/i.test(t)) score += 12;
-
-    // Quality/resolution keywords — massive boost to prioritize these
-    if (/\b4k\b/.test(t) || /\b2160p\b/.test(t)) score += 18; 
-    if (/\bhdr\b/.test(t)) score += 8;
-    if (/\bimax\b/.test(t)) score += 6;
-    if (/\b1440p\b/.test(t)) score += 5;
-    if (/\b1080p\b/.test(t)) score += 2;
 
     // ── Title relevance ──────────────────────────────────────────────────────
 
@@ -241,20 +225,32 @@ function scoreCandidate(queryTitle: string, candidate: YTCandidate): number {
         score += qWords.length > 0 ? Math.round((overlap / qWords.length) * 30) : 0;
     }
 
+    // Type-aware relevance: soft guidance (never hard-fail)
+    if (isTv) {
+        if (/\btv\b|\bseries\b|\bseason\b|\bshow\b/.test(t)) score += 12;
+        if (/\bmovie\b|\bfilm\b/.test(t)) score -= 8;
+    } else if (isMovie) {
+        if (/\bmovie\b|\bfilm\b/.test(t)) score += 10;
+        if (/\bseason\b|\bepisode\b|\btv\b|\bseries\b/.test(t)) score -= 8;
+    }
+
     // ── Trailer quality signals ──────────────────────────────────────────────
 
     if (/official\s+trailer/.test(t)) score += 20;
-    else if (/trailer/.test(t)) score += 10;
+    else if (/trailer/.test(t)) score += 12;
 
-    if (/final\s+trailer/.test(t)) score += 5;   // Final trailers are high quality
-    if (/\bteaser\b/.test(t)) score += 3;
+    if (/final\s+trailer/.test(t)) score += 6;
+    if (/\bteaser\b/.test(t)) score += 5;
 
-    // Quality/resolution keywords — these are bonuses, not the primary selection criteria
-    if (/\b4k\b/.test(t) || /\b2160p\b/.test(t)) score += 8;
+    // Bonus for old classics that got a community upgrade
+    if (/remaster(ed)?/i.test(candidate.title) || /restored/i.test(candidate.title)) score += 8;
+
+    // Quality/resolution keywords are secondary to relevance
+    if (/\b4k\b/.test(t) || /\b2160p\b/.test(t)) score += 10;
     if (/\bhdr\b/.test(t)) score += 6;
     if (/\bimax\b/.test(t)) score += 6;
     if (/\b1440p\b/.test(t)) score += 4;
-    if (/\b1080p\b/.test(t)) score += 2;
+    if (/\b1080p\b/.test(t)) score += 3;
 
     // ── Channel trust ────────────────────────────────────────────────────────
 
@@ -424,7 +420,7 @@ export const searchTrailersWithFallback = async (
 
         // Score and sort — best match + quality signals wins
         const scored = allCandidates
-            .map(c => ({ ...c, score: scoreCandidate(options.title, c) }))
+            .map(c => ({ ...c, score: scoreCandidate(options, c) }))
             .sort((a, b) => b.score - a.score);
 
         if (process.env.NODE_ENV === 'development') {
