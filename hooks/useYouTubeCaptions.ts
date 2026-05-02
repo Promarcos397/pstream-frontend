@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, type MutableRefObject } from 'react';
 import { CaptionCue, getCaptionCues, extractTrackLangs } from '../services/YouTubeCaptionService';
+import { YOUTUBE_DISABLED } from '../services/youtubeDisabled';
 
 export function useYouTubeCaptions(
   playerRef: MutableRefObject<any>,
@@ -7,6 +8,11 @@ export function useYouTubeCaptions(
   isPlaying: boolean,
   lang = 'en'
 ) {
+  // ── Kill switch ──────────────────────────────────────────────────────────
+  if (YOUTUBE_DISABLED) {
+    return { activeCue: null, hasCaptions: false, onApiChange: () => {} };
+  }
+
   const [cues, setCues] = useState<CaptionCue[] | null>(null);
   const [activeCue, setActiveCue] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);

@@ -17,6 +17,7 @@ import { triggerSearch } from '../utils/search';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
+import { YOUTUBE_DISABLED } from '../services/youtubeDisabled';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 // Replaces the old load-time IS_TOUCH_DEVICE sniff.
@@ -621,6 +622,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       alt="preview"
                     />
                     <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
+                      {!YOUTUBE_DISABLED && (<>
                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                         <YouTube
                           videoId={trailerUrl}
@@ -695,13 +697,14 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         {/* Transparent shield — covers YouTube's native pause/play overlay */}
                         <div className="absolute inset-0 z-[1] pointer-events-none" />
                       </div>
+                      {/* YouTube caption overlay — driven by useSubtitleStyle (settings-synced) */}
+                      {subtitlesEnabled && activeCue && (
+                        <div style={overlayStyleCompact}>
+                          {activeCue}
+                        </div>
+                      )}
+                      </>)}
                     </div>
-                    {/* YouTube caption overlay — driven by useSubtitleStyle (settings-synced) */}
-                    {subtitlesEnabled && activeCue && (
-                      <div style={overlayStyleCompact}>
-                        {activeCue}
-                      </div>
-                    )}
                   </>
                 ) : (
                   <img
