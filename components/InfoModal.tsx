@@ -17,7 +17,7 @@ import { triggerSearch } from '../utils/search';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
-import { YOUTUBE_DISABLED } from '../services/youtubeDisabled';
+import { YOUTUBE_IFRAME_DISABLED } from '../services/youtubeDisabled';
 import { useNewPipeTrailer } from '../hooks/useNewPipeTrailer';
 import NativeTrailerPlayer from './NativeTrailerPlayer';
 
@@ -126,11 +126,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     || (detailedMovie || activeMovieProp)?.first_air_date
                     || '').slice(0, 4) || undefined;
     const npType     = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
-    const newpipe    = useNewPipeTrailer(npTitle || null, npYear, npType, YOUTUBE_DISABLED && isPlayingTrailer);
+    const newpipe = useNewPipeTrailer(npTitle || null, npYear, npType, YOUTUBE_IFRAME_DISABLED && isPlayingTrailer);
 
-    // When NewPipe resolves, mark trailer as ready
+    // When NewPipe resolves (iframe-disabled mode), mark trailer as ready
     useEffect(() => {
-        if (YOUTUBE_DISABLED && newpipe.streamUrl && !newpipe.loading) {
+        if (YOUTUBE_IFRAME_DISABLED && newpipe.streamUrl && !newpipe.loading) {
             setIsTrailerReady(true);
         }
     }, [newpipe.streamUrl, newpipe.loading]);
@@ -533,8 +533,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
                         {/* Video Layer — only fades in once player is ready AND playing */}
                         <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
-                        {/* NewPipe native trailer (when YouTube disabled) */}
-                            {YOUTUBE_DISABLED && isPlayingTrailer && newpipe.streamUrl && (
+                        {/* NewPipe native stream (when iframes fully disabled — experimental) */}
+                            {YOUTUBE_IFRAME_DISABLED && isPlayingTrailer && newpipe.streamUrl && (
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                                     <NativeTrailerPlayer
                                         streamUrl={newpipe.streamUrl}
@@ -549,7 +549,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 </div>
                             )}
 
-                            {!YOUTUBE_DISABLED && trailerQueue.length > 0 && (
+                            {/* YouTube iframe — primary trailer path (TMDB video keys) */}
+                            {!YOUTUBE_IFRAME_DISABLED && trailerQueue.length > 0 && (
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                                     <YouTube
                                         key={`${trailerQueue[0]}-modal-${replayCount}`}

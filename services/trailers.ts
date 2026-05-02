@@ -14,7 +14,7 @@
  * This file manages the ID-based path (YouTube iframe fallback).
  */
 
-import { YOUTUBE_DISABLED } from './youtubeDisabled';
+import { YOUTUBE_SEARCH_DISABLED } from './youtubeDisabled';
 import { getMovieDetails } from './tmdb';
 import { searchTrailersWithFallback } from './YouTubeService';
 import tmdb from './tmdb';
@@ -48,14 +48,13 @@ export const fetchTrailers = async (
   const trailerKey = `${type}:${id}`;
   if ((unavailableUntil.get(trailerKey) || 0) > Date.now()) return [];
 
-  // When YouTube is fully disabled, try TMDB video keys as iframe fallback.
-  // useNewPipeTrailer hook handles native stream separately.
-  if (YOUTUBE_DISABLED) {
-    const tmdbKeys = await getTmdbTrailerKeys(id, type);
-    if (tmdbKeys.length > 0) return tmdbKeys;
-    // If TMDB also fails, return [] — NativeTrailerPlayer is the primary path
-    return [];
-  }
+  // Primary: TMDB /videos endpoint — free, no YouTube API quota, returns video IDs
+  // for YouTube iframes. Always try this first (fast, reliable).
+  const tmdbKeys = await getTmdbTrailerKeys(id, type);
+  if (tmdbKeys.length > 0) return tmdbKeys;
+
+  // If TMDB has nothing AND YouTube search is disabled, give up
+  if (YOUTUBE_SEARCH_DISABLED) return [];
 
   try {
     const details = await getMovieDetails(id, type);

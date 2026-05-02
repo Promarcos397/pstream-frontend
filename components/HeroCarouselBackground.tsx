@@ -5,7 +5,7 @@ import { IMG_PATH } from '../constants';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
-import { YOUTUBE_DISABLED } from '../services/youtubeDisabled';
+import { YOUTUBE_IFRAME_DISABLED } from '../services/youtubeDisabled';
 import { useNewPipeTrailer } from '../hooks/useNewPipeTrailer';
 import NativeTrailerPlayer from './NativeTrailerPlayer';
 
@@ -62,15 +62,15 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
     const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentVideoId, isCaptionsPlaying, lang);
 
-    // NewPipe trailer resolution (used when YOUTUBE_DISABLED=true)
+    // NewPipe trailer resolution (used when iframes are fully disabled)
     const movieTitle = movie.original_title || movie.original_name || movie.title || movie.name || '';
     const movieYear  = (movie.release_date || (movie as any).first_air_date || '').slice(0, 4) || undefined;
     const mediaType  = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
-    const newpipe    = useNewPipeTrailer(movieTitle, movieYear, mediaType, YOUTUBE_DISABLED && showVideo);
+    const newpipe    = useNewPipeTrailer(movieTitle, movieYear, mediaType, YOUTUBE_IFRAME_DISABLED && showVideo);
 
-    // When NewPipe resolves, mark video as ready
+    // When NewPipe resolves (iframe-disabled mode), mark video as ready
     useEffect(() => {
-        if (YOUTUBE_DISABLED && newpipe.streamUrl && !newpipe.loading) {
+        if (YOUTUBE_IFRAME_DISABLED && newpipe.streamUrl && !newpipe.loading) {
             setIsVideoReady(true);
         }
     }, [newpipe.streamUrl, newpipe.loading]);
@@ -110,8 +110,8 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                 ref={containerRef}
                 className={`absolute inset-0 z-0 transition-opacity duration-1000 overflow-hidden ${(showVideo && isVideoReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}
             >
-                {/* NewPipe native trailer (active when YOUTUBE_DISABLED=true) */}
-                {YOUTUBE_DISABLED && showVideo && newpipe.streamUrl && (
+                {/* NewPipe native stream (when iframes fully disabled — experimental) */}
+                {YOUTUBE_IFRAME_DISABLED && showVideo && newpipe.streamUrl && (
                     <div
                         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0"
                         style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}
@@ -129,8 +129,9 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                     </div>
                 )}
 
-                {/* YouTube trailer (active when YOUTUBE_DISABLED=false) */}
-                {!YOUTUBE_DISABLED && showVideo && trailerQueue.length > 0 && (
+                {/* YouTube iframe — primary working trailer path */}
+                {/* Renders when: iframes enabled (default) AND we have a trailer ID */}
+                {!YOUTUBE_IFRAME_DISABLED && showVideo && trailerQueue.length > 0 && (
                     <div
                         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0"
                         style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}

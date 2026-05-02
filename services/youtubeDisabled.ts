@@ -1,16 +1,21 @@
 /**
  * YouTube Kill Switch — P-Stream
  * ================================
- * Set YOUTUBE_DISABLED = true to mute ALL YouTube functionality:
- *   - Trailer search (YouTubeService)
- *   - Embed player (react-youtube in HeroCarousel, InfoModal, MovieCard)
- *   - Captions polling (useYouTubeCaptions)
- *   - YouTube Caption Service HTTP calls
+ * YOUTUBE_SEARCH_DISABLED = true  → disables YouTube Data API v3 search
+ *   (the expensive quota-consuming path via YouTubeService)
  *
- * Re-enable by setting this to false (or deleting the import in each file).
+ * YOUTUBE_IFRAME_DISABLED = true  → disables YouTube iframe embeds entirely
+ *   (only used if you want NewPipe-only mode, which has proxy/IP-lock issues)
  *
- * WHY: NewPipe service is the active trailer path. YouTube embeds are suspended
- * while we evaluate direct-stream playback via yt-dlp extraction.
+ * Default: search disabled (no API quota burned), iframes ON (TMDB keys work).
+ * NewPipe is still attempted first when NEWPIPE_ENABLED=true.
  */
 
-export const YOUTUBE_DISABLED = true;
+/** Disable YouTube Data API v3 search — saves quota. TMDB keys still usable. */
+export const YOUTUBE_SEARCH_DISABLED = true;
+
+/** Completely disable YouTube iframes — use only when NewPipe is reliable. */
+export const YOUTUBE_IFRAME_DISABLED = false;
+
+/** Legacy alias used in older components */
+export const YOUTUBE_DISABLED = YOUTUBE_SEARCH_DISABLED;
