@@ -15,6 +15,16 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 
+// yt-dlp subtitle URLs come from YouTube's CDN (googlevideo.com) which blocks
+// cross-origin requests from browsers. We proxy them through our backend so
+// the response has proper CORS headers.
+const BACKEND = import.meta.env.VITE_GIGA_BACKEND_URL || '';
+function proxySubtitleUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (!BACKEND) return url; // dev fallback — may not work in browser
+  return `${BACKEND}/proxy/subtitle?url=${encodeURIComponent(url)}`;
+}
+
 interface NativeTrailerPlayerProps {
   streamUrl:    string;
   subtitleUrl?: string | null;
@@ -91,7 +101,7 @@ const NativeTrailerPlayer: React.FC<NativeTrailerPlayerProps> = ({
         {subtitleUrl && (
           <track
             kind="subtitles"
-            src={subtitleUrl}
+            src={proxySubtitleUrl(subtitleUrl) || ''}
             srcLang={lang || 'en'}
             label="English"
             default

@@ -57,10 +57,12 @@ export function setTmdbLanguage(lang: string) {
 const tmdb: AxiosInstance = axios.create({ baseURL: TMDB_BASE_URL });
 
 tmdb.interceptors.request.use((config) => {
+  // Only inject api_key/language if not already present
+  // (prevents duplicate params when callers already include them in the URL)
   config.params = {
-    ...config.params,
-    api_key: getKey(),
+    api_key:  getKey(),
     language: _lang,
+    ...config.params,  // caller params WIN — they can override language per-call
   };
   return config;
 });
@@ -69,11 +71,15 @@ tmdb.interceptors.response.use(
   (res) => res,
   async (err) => {
     const status = err.response?.status;
+    // Key exhausted — rotate to next key and retry once
     if ((status === 401 || status === 403 || status === 429) && _keys.length > 1) {
-      if (rotateKey()) {
-        // Retry once with the new key
-        return tmdb.request(err.config);
-      }
+      if (rotateKey()) return tmdb.request(err.config);
+    }
+    // 502/503 from TMDB — transient gateway error, retry once after 500ms
+    if ((status === 502 || status === 503) && !err.config._retried502) {
+      err.config._retried502 = true;
+      await new Promise(r => setTimeout(r, 500));
+      return tmdb.request(err.config);
     }
     return Promise.reject(err);
   }
