@@ -18,7 +18,7 @@ import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
 import { YOUTUBE_IFRAME_DISABLED } from '../services/youtubeDisabled';
-import { useNewPipeTrailer } from '../hooks/useNewPipeTrailer';
+import { usePipedTrailer } from '../hooks/usePipedTrailer';
 import NativeTrailerPlayer from './NativeTrailerPlayer';
 
 
@@ -125,15 +125,22 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const npYear     = ((detailedMovie || activeMovieProp)?.release_date
                     || (detailedMovie || activeMovieProp)?.first_air_date
                     || '').slice(0, 4) || undefined;
-    const npType     = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
-    const newpipe = useNewPipeTrailer(npTitle || null, npYear, npType, YOUTUBE_IFRAME_DISABLED && isPlayingTrailer);
+    const npType  = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
+    // Piped: giga backend resolves best ID (4K scored) → Piped CDN delivers stream
+    const piped = usePipedTrailer(
+        (detailedMovie || activeMovieProp)?.id,
+        npTitle,
+        npYear || '',
+        npType,
+        YOUTUBE_IFRAME_DISABLED,  // always enabled when iframes are off
+    );
 
-    // When NewPipe resolves (iframe-disabled mode), mark trailer as ready
+    // When Piped resolves, mark trailer as ready
     useEffect(() => {
-        if (YOUTUBE_IFRAME_DISABLED && newpipe.streamUrl && !newpipe.loading) {
+        if (YOUTUBE_IFRAME_DISABLED && piped.streamUrl && !piped.loading) {
             setIsTrailerReady(true);
         }
-    }, [newpipe.streamUrl, newpipe.loading]);
+    }, [piped.streamUrl, piped.loading]);
 
     useEffect(() => {
         const rect = (window as any).__last_card_rect as DOMRect | undefined;
@@ -273,29 +280,34 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 }
             }
 
-            // 3. Load Video (Prioritize Local Sync, then Hero Sync, then Prop, then Fetch)
+            // 3. Load trailer — prioritise: prop > hero sync > TMDB fetch
             const savedState = movie ? getVideoState(movie.id) : null;
-            let finalTrailerId = trailerId || savedState?.videoId;
+            // Only use savedState if it looks like a real YouTube video ID (11 chars alphanum)
+            const isValidVideoId = (id?: string | null) => !!id && /^[a-zA-Z0-9_-]{10,12}$/.test(id);
+            let finalTrailerId = trailerId;
 
-            // Check if Hero currently owns this movie to sync directly from Hero's trailer
+            // Hero sync — pick up trailer already playing in background
             if (!finalTrailerId && heroVideoState.movieId && String(heroVideoState.movieId) === String(movie.id)) {
                 finalTrailerId = heroVideoState.videoId;
+            }
+
+            // Saved state — only if valid (not empty string from a broken session)
+            if (!finalTrailerId && isValidVideoId(savedState?.videoId)) {
+                finalTrailerId = savedState!.videoId;
             }
 
             if (finalTrailerId) {
                 setTrailerQueue([finalTrailerId]);
                 setIsPlayingTrailer(true);
-                // Only cache the videoId if there's no existing watch progress —
-                // do NOT overwrite time=0, that would clear resume state
                 if (movie.id && !savedState?.videoId) {
                     updateVideoState(movie.id, 0, finalTrailerId);
                 }
             } else {
+                // No cached ID — fetch from TMDB (free, no quota)
                 fetchTrailers(movie.id, type).then(keys => {
                     if (keys && keys.length > 0) {
                         setTrailerQueue(keys);
                         setIsPlayingTrailer(true);
-                        // Only register videoId if no prior state exists
                         if (!getVideoState(movie.id)?.videoId) {
                             updateVideoState(movie.id, 0, keys[0]);
                         }
@@ -533,12 +545,14 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
                         {/* Video Layer — only fades in once player is ready AND playing */}
                         <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
-                        {/* NewPipe native stream (when iframes fully disabled — experimental) */}
-                            {YOUTUBE_IFRAME_DISABLED && isPlayingTrailer && newpipe.streamUrl && (
+                        {/* Piped CDN native stream — no YouTube branding */}
+                            {YOUTUBE_IFRAME_DISABLED && piped.streamUrl && (
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                                     <NativeTrailerPlayer
-                                        streamUrl={newpipe.streamUrl}
-                                        subtitleUrl={newpipe.subtitleUrl}
+                                        streamUrl={piped.streamUrl}
+                                        isDASH={piped.isDASH}
+                                        isHLS={piped.isHLS}
+                                        subtitleUrl={piped.subtitleUrl}
                                         isMuted={isMuted}
                                         autoPlay
                                         className="w-full h-full"

@@ -6,7 +6,7 @@ import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
 import { YOUTUBE_IFRAME_DISABLED } from '../services/youtubeDisabled';
-import { useNewPipeTrailer } from '../hooks/useNewPipeTrailer';
+import { usePipedTrailer } from '../hooks/usePipedTrailer';
 import NativeTrailerPlayer from './NativeTrailerPlayer';
 
 interface HeroCarouselBackgroundProps {
@@ -62,18 +62,18 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
     const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentVideoId, isCaptionsPlaying, lang);
 
-    // NewPipe trailer resolution (used when iframes are fully disabled)
-    const movieTitle = movie.original_title || movie.original_name || movie.title || movie.name || '';
-    const movieYear  = (movie.release_date || (movie as any).first_air_date || '').slice(0, 4) || undefined;
+    // Piped trailer: giga backend resolves best ID (4K scored) → Piped CDN delivers
+    const movieTitle = movie.title || movie.name || movie.original_title || movie.original_name || '';
+    const movieYear  = (movie.release_date || (movie as any).first_air_date || '').slice(0, 4);
     const mediaType  = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
-    const newpipe    = useNewPipeTrailer(movieTitle, movieYear, mediaType, YOUTUBE_IFRAME_DISABLED && showVideo);
+    const piped      = usePipedTrailer(movie.id, movieTitle, movieYear, mediaType, YOUTUBE_IFRAME_DISABLED && showVideo);
 
-    // When NewPipe resolves (iframe-disabled mode), mark video as ready
+    // When Piped resolves, mark video as ready
     useEffect(() => {
-        if (YOUTUBE_IFRAME_DISABLED && newpipe.streamUrl && !newpipe.loading) {
+        if (YOUTUBE_IFRAME_DISABLED && piped.streamUrl && !piped.loading) {
             setIsVideoReady(true);
         }
-    }, [newpipe.streamUrl, newpipe.loading]);
+    }, [piped.streamUrl, piped.loading]);
 
     // Clean up sync interval on unmount
     React.useEffect(() => {
@@ -110,15 +110,17 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                 ref={containerRef}
                 className={`absolute inset-0 z-0 transition-opacity duration-1000 overflow-hidden ${(showVideo && isVideoReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}
             >
-                {/* NewPipe native stream (when iframes fully disabled — experimental) */}
-                {YOUTUBE_IFRAME_DISABLED && showVideo && newpipe.streamUrl && (
+                {/* Piped CDN native stream — no YouTube branding */}
+                {YOUTUBE_IFRAME_DISABLED && showVideo && piped.streamUrl && (
                     <div
                         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0"
                         style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}
                     >
                         <NativeTrailerPlayer
-                            streamUrl={newpipe.streamUrl}
-                            subtitleUrl={newpipe.subtitleUrl}
+                            streamUrl={piped.streamUrl}
+                            isDASH={piped.isDASH}
+                            isHLS={piped.isHLS}
+                            subtitleUrl={piped.subtitleUrl}
                             isMuted={isMuted}
                             autoPlay
                             className="w-full h-full"

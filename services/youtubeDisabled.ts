@@ -15,8 +15,8 @@
 export const YOUTUBE_SEARCH_DISABLED = true;
 
 /**
- * Disable YouTube iframes entirely — forces NativeTrailerPlayer (yt-dlp stream).
- * Set to false to fall back to YouTube iframe if NewPipe is unavailable.
+ * Disable YouTube iframes entirely — uses NativeTrailerPlayer instead.
+ * Stream is extracted + proxied through giga-backend (same IP = no 403).
  */
 export const YOUTUBE_IFRAME_DISABLED = true;
 
