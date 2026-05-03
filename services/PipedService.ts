@@ -1,40 +1,29 @@
 /**
  * services/PipedService.ts
  * ─────────────────────────
- * Resolves a YouTube video ID to a playable stream URL via Piped.video —
- * an open-source YouTube debrid network. Their CDN delivers the bytes,
- * so there's no IP-lock and no YouTube branding.
+ * Resolves a YouTube video ID to a playable DASH/HLS stream URL.
  *
- * For regular videos Piped returns a DASH manifest (video + audio muxed
- * by dashjs in the player). HLS is only returned for livestreams.
- *
- * Multiple public instances are tried in order — if one fails or is rate-
- * limited, the next one takes over.
+ * The Piped public API instances block CORS for arbitrary browser origins,
+ * so all Piped API calls are proxied through the giga backend.
+ * The returned DASH manifest URL is on pipedproxy CDN which HAS open CORS
+ * (Piped's own web app requires it), so dashjs can load it directly.
  */
 
-// Public instances from different operators — not just kavin.rocks
-// so a single operator going down doesn't kill everything.
-const PIPED_INSTANCES = [
-  'https://pipedapi.kavin.rocks',           // kavin (most popular)
-  'https://api.piped.projectsegfau.lt',     // projectsegfault
-  'https://piped-api.garudalinux.org',      // garuda linux
-  'https://api.piped.privacydev.net',       // privacydev
-  'https://pipedapi.in.projectsegfau.lt',   // india region
-  'https://pipedapi.adminforge.de',         // adminforge
-];
+const BACKEND = import.meta.env.VITE_GIGA_BACKEND_URL || '';
 
 export interface PipedStream {
-  streamUrl:    string;        // DASH manifest URL (use dashjs) or HLS URL (use hls.js)
-  isDASH:       boolean;       // true → dashjs  |  false → hls.js
-  isHLS:        boolean;       // true → hls.js  |  false → dashjs
-  subtitleUrl:  string | null; // WebVTT subtitle (proxied through Piped CDN)
+  streamUrl:    string;        // DASH manifest URL (dashjs) or HLS URL (hls.js)
+  isDASH:       boolean;
+  isHLS:        boolean;
+  subtitleUrl:  string | null;
   videoId:      string;
-  proxyUrl:     string | null; // Piped proxy base URL for rewrites
+  proxyUrl:     string | null;
 }
 
-// 25-minute module cache (Piped DASH URLs typically expire in ~30 min)
+// Module-level cache — backend already caches for 20 min, this prevents
+// duplicate in-flight requests within the same browser session.
 const _cache = new Map<string, { ts: number; data: PipedStream }>();
-const CACHE_TTL = 25 * 60 * 1000;
+const CACHE_TTL = 18 * 60 * 1000; // 18 min (slightly under backend's 20 min)
 
 function cacheGet(key: string): PipedStream | null {
   const hit = _cache.get(key);
@@ -43,65 +32,37 @@ function cacheGet(key: string): PipedStream | null {
   return hit.data;
 }
 
-async function fetchFromPiped(videoId: string): Promise<any> {
-  let lastErr: any;
-  for (const base of PIPED_INSTANCES) {
-    try {
-      const res = await fetch(`${base}/streams/${videoId}`, {
-        signal: AbortSignal.timeout(8000),
-        headers: { Accept: 'application/json' },
-      });
-      if (!res.ok) { lastErr = new Error(`HTTP ${res.status} from ${base}`); continue; }
-      return await res.json();
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr || new Error('All Piped instances failed');
-}
-
 /**
- * Resolve a YouTube video ID → playable stream via Piped CDN.
- *
- * Response shape from Piped /streams/{videoId}:
- *   dash        — DASH manifest URL (non-null for regular videos ✓)
- *   hls         — HLS manifest URL  (non-null for livestreams only)
- *   videoStreams — array, all entries have videoOnly:true (can't use directly)
- *   audioStreams — separate audio tracks
- *   subtitles   — array of subtitle objects
- *   proxyUrl    — Piped proxy base for URL rewrites
+ * Resolve a YouTube video ID → playable stream via giga backend → Piped CDN.
+ * Giga backend proxies the Piped API call (no CORS issue server-side).
  */
 export async function getPipedStream(videoId: string): Promise<PipedStream> {
   const cached = cacheGet(videoId);
   if (cached) return cached;
 
-  const data = await fetchFromPiped(videoId);
+  if (!BACKEND) throw new Error('VITE_GIGA_BACKEND_URL not set');
 
-  // DASH manifest — present for all regular (non-livestream) YouTube videos
-  const dash: string | null = data.dash || null;
-
-  // HLS manifest — present only for livestreams
-  const hls: string | null = data.hls || null;
-
-  if (!dash && !hls) {
-    throw new Error(`Piped returned no playable manifest for ${videoId}`);
-  }
-
-  // Subtitle — prefer English VTT
-  const subtitles: any[] = data.subtitles || [];
-  const sub = subtitles.find(
-    (s: any) =>
-      (s.code === 'en' || s.code === 'en-US') &&
-      (s.mimeType === 'text/vtt' || s.mimeType === 'application/ttml+xml')
+  const res = await fetch(
+    `${BACKEND}/trailer/stream?videoId=${encodeURIComponent(videoId)}`,
+    { signal: AbortSignal.timeout(15000) }
   );
 
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || `Stream resolve failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+
+  if (!data.streamUrl) throw new Error('Backend returned no stream URL');
+
   const result: PipedStream = {
-    streamUrl:   (dash || hls)!,
-    isDASH:      !!dash,
-    isHLS:       !dash && !!hls,
-    subtitleUrl: sub?.url || null,
+    streamUrl:  data.streamUrl,
+    isDASH:     data.isDASH ?? true,
+    isHLS:      data.isHLS  ?? false,
+    subtitleUrl: data.subtitleUrl ?? null,
     videoId,
-    proxyUrl:    data.proxyUrl || null,
+    proxyUrl:   data.proxyUrl ?? null,
   };
 
   _cache.set(videoId, { ts: Date.now(), data: result });
