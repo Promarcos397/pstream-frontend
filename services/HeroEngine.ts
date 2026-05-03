@@ -2,7 +2,7 @@ import axios from 'axios';
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
 import { getMovieImages, getExternalIds, prefetchStream, getMovieDetails } from './api';
-import { searchTrailersWithFallback } from './YouTubeService';
+import { fetchTrailers } from './trailers';
 
 /**
  * HeroEngine v2 — "Curated Daily"
@@ -264,11 +264,9 @@ class HeroEngineService {
       if (!this.pendingTrailerByMovieId.has(Number(movieWithExtras.id))) {
         this.pendingTrailerByMovieId.set(Number(movieWithExtras.id), (async () => {
           try {
-            const details = await getMovieDetails(selectedMovie.id, mediaType);
-            const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : undefined;
-            const company = details?.production_companies?.[0]?.name;
-            const trailers = await searchTrailersWithFallback({ title, year, company, type: mediaType }, 8);
-            return trailers[0];
+            // Use TMDB /videos (free, no YouTube quota) — returns YouTube video IDs
+            const keys = await fetchTrailers(selectedMovie.id, mediaType);
+            return keys[0] ?? undefined;
           } catch (e) {
             console.warn(`[HeroEngine] Deferred trailer fetch failed for ${title}`);
             return undefined;
