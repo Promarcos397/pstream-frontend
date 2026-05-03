@@ -14,8 +14,11 @@
 /** Disable YouTube Data API v3 search — saves quota. TMDB keys still usable. */
 export const YOUTUBE_SEARCH_DISABLED = true;
 
-/** Completely disable YouTube iframes — use only when NewPipe is reliable. */
-export const YOUTUBE_IFRAME_DISABLED = false;
+/**
+ * Disable YouTube iframes entirely — forces NativeTrailerPlayer (yt-dlp stream).
+ * Set to false to fall back to YouTube iframe if NewPipe is unavailable.
+ */
+export const YOUTUBE_IFRAME_DISABLED = true;
 
-/** Legacy alias used in older components */
+/** Legacy alias */
 export const YOUTUBE_DISABLED = YOUTUBE_SEARCH_DISABLED;
