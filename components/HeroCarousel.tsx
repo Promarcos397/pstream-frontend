@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeakerSlashIcon, SpeakerHighIcon, ArrowCounterClockwise } from '@phosphor-icons/react';
-import { useYouTubePlayer } from '../hooks/useYouTubePlayer';
+import { useVideoPlayer } from '../hooks/useVideoPlayer';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
 import axios from 'axios';
@@ -35,11 +35,35 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   // Smart Video State
   const [trailerQueue, setTrailerQueue] = useState<string[]>([]);
   const [showVideo, setShowVideo] = useState(false);
-  const [isVideoReady, setIsVideoReady] = useState(false);
-  const [hasVideoEnded, setHasVideoEnded] = useState(false);
-  const [replayCount, setReplayCount] = useState(0); // Forces fresh YouTube mount on replay
-  const { isMuted, setIsMuted, playerRef } = useYouTubePlayer(true); // Must start muted to bypass browser autoplay blocks.
-  const [videoDimensions, setVideoDimensions] = useState<{ width: string | number, height: string | number }>({ width: '140%', height: '140%' });
+
+  const player = useVideoPlayer({
+    movieId: movie?.id || 0,
+    videoId: trailerQueue[0] || null,
+    autoSync: true,
+    earlyStop: 3,
+    startMuted: true,
+    onEnded: () => {
+      setHasVideoEnded(true);
+      setShowVideo(false);
+    },
+    onErrored: () => {
+      setTrailerQueue(prev => {
+        const next = prev.slice(1);
+        if (next.length === 0) setShowVideo(false);
+        return next;
+      });
+    },
+  });
+
+  const isVideoReady = player.isReady;
+  const setIsVideoReady = player.setIsReady;
+  const hasVideoEnded = player.hasEnded;
+  const setHasVideoEnded = player.setHasEnded;
+  const [replayCount, setReplayCount] = useState(0); 
+
+  const isMuted = player.isMuted;
+  const setIsMuted = player.setIsMuted;
+  const playerRef = player.playerRef;
   const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
   const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backdropForcedRef = useRef(false);
@@ -247,55 +271,30 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     } catch (e) { if (callback) callback(); }
   };
 
-  // Handle Resize for "Cover" Effect (No Black Bars)
-  useEffect(() => {
-    const handleResize = () => {
-      if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current;
-        const targetAspect = 16 / 9; // YouTube aspect ratio
-        const containerAspect = clientWidth / clientHeight;
-
-        const ZOOM_FACTOR = 1.9; // Extreme zoom to crop YouTube UI off-screen
-
-        if (containerAspect > targetAspect) {
-          // Container is wider than video (Panoramic) -> Match Width, Crop Vertical
-          setVideoDimensions({ width: clientWidth * ZOOM_FACTOR, height: (clientWidth / targetAspect) * ZOOM_FACTOR });
-        } else {
-          // Container is taller than video (Portrait/Box) -> Match Height, Crop Horizontal
-          setVideoDimensions({ width: (clientHeight * targetAspect) * ZOOM_FACTOR, height: clientHeight * ZOOM_FACTOR });
-        }
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    const timer = setTimeout(handleResize, 100); // Initial check
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(timer);
-    };
-  }, []);
-
+  
   // Universal Sync: Listen to global player activity, scrolling, and tabs
   const currentHeroVideoId = movie ? String(movie.id) : null;
-  useEffect(() => {
+useEffect(() => {
     const isSharedConflict = activeVideoId && activeVideoId !== currentHeroVideoId;
     
     if (playerRef.current && isVideoReady && showVideo) {
-      // It should play if: it's on screen AND no other video is playing AND the tab is active
       const shouldPlay = !isOutOfView && !isSharedConflict && isTabVisible;
       
       if (shouldPlay) {
+        // Clear any stale backdrop the visibility timer may have set while modal was open
+        if (backdropForcedRef.current) {
+          backdropForcedRef.current = false;
+          setShowBackdropOverlay(false);
+        }
         try {
           if (typeof playerRef.current?.playVideo === 'function') {
-            // SYNC CHECK ON WAKE: Jump to latest time recorded in context (from Card or Modal)
             const latestState = movie ? getVideoState(movie.id) : null;
             if (latestState && latestState.time > 0 && typeof playerRef.current?.getCurrentTime === 'function') {
               const diff = Math.abs(playerRef.current.getCurrentTime() - latestState.time);
-              if (diff > 2) { // Only seek if significantly out of sync
+              if (diff > 5) {
                 playerRef.current.seekTo(latestState.time, true);
               }
             }
-
             playerRef.current.playVideo();
           }
           if (!isMuted) fadeAudioIn();
@@ -360,8 +359,16 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       }}
     >
       <HeroCarouselBackground
-        movie={movie} showVideo={showVideo} trailerQueue={trailerQueue} isVideoReady={isVideoReady} setIsVideoReady={setIsVideoReady} setTrailerQueue={setTrailerQueue} setShowVideo={setShowVideo} isMuted={isMuted} videoDimensions={videoDimensions} playerRef={playerRef} isHovered={isHovered} replayCount={replayCount}
+        movie={movie} 
+        showVideo={showVideo} 
+        trailerQueue={trailerQueue} 
+        setTrailerQueue={setTrailerQueue} 
+        setShowVideo={setShowVideo} 
+        playerRef={playerRef} 
+        isHovered={isHovered} 
+        replayCount={replayCount}
         showBackdropOverlay={showBackdropOverlay}
+        player={player}
         onSyncCheck={(videoId) => {
           const state = getVideoState(movie.id);
           return state?.videoId === videoId ? state.time : undefined;

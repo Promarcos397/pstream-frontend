@@ -3,21 +3,20 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon } from '@phosphor-icons/react';
-import { useYouTubePlayer } from '../hooks/useYouTubePlayer';
+import { useVideoPlayer } from '../hooks/useVideoPlayer';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { useNavigate, Link } from 'react-router-dom';
 import YouTube from 'react-youtube';
 import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails, fetchTrailers } from '../services/api';
+import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails } from '../services/api';
 import { Movie } from '../types';
 import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { MaturityBadge, BadgeOverlay, ProgressIndicator, HoverProgressBar } from './MovieCardBadges';
-import { triggerSearch } from '../utils/search';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
-import { YOUTUBE_DISABLED } from '../services/youtubeDisabled';
+import { YOUTUBE_IFRAME_DISABLED as YOUTUBE_DISABLED } from '../services/youtubeDisabled';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 // Replaces the old load-time IS_TOUCH_DEVICE sniff.
@@ -131,18 +130,29 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   } = useGlobalContext();
   const [isHovered, setIsHovered] = useState(false);
   const [isPrimed, setIsPrimed] = useState(false); // Immediate visual feedback
-  const [isHoverVideoReady, setIsHoverVideoReady] = useState(false); // backdrop→video gate
-  const hoverSyncRef = React.useRef<NodeJS.Timeout | null>(null);
-  const { trailerUrl, setTrailerUrl, playerRef, handleMuteToggle } = useYouTubePlayer();
-  // We use our local context destructured vars to avoid any stale closures
-  const isMuted = globalMute;
-  const setIsMuted = setGlobalMute;
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
   const containerRef = useRef<HTMLDivElement>(null);
-  const coverDimensions = useVideoCover(containerRef, 1.35);
+  const coverDimensions = useVideoCover(containerRef, 0.50);
   const [lastSyncTime, setLastSyncTime] = useState(0);
+
+  // Smart Video Logic
+  const player = useVideoPlayer({
+    movieId: movie.id,
+    videoId: null, // Will be set via player.videoId or manual prop if needed
+    autoSync: true,
+    earlyStop: 3,
+    loop: true,
+    onErrored: () => {
+      player.setVideoId("");
+      setIsHoverVideoReady(false);
+    }
+  });
+
+  const { videoId: trailerUrl, setVideoId: setTrailerUrl, playerRef, isMuted, setIsMuted } = player;
+  const isHoverVideoReady = player.isReady;
+  const setIsHoverVideoReady = player.setIsReady;
   const currentPreviewVideoId = trailerUrl || null;
   const previewCaptionsPlaying = isHovered && isHoverVideoReady;
   const { overlayStyleCompact, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
@@ -340,16 +350,20 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       setHoverPosition(currentPos);
     }
 
-    // Instant pre-fetch: trailer lookup (TMDB-provided keys take priority)
+    // Trailer lookup: YouTube scored search (no TMDB IDs — low quality)
     if (!trailerUrl && !isBook && movie.id) {
       const savedVideoId = getVideoState(movie.id)?.videoId;
       if (savedVideoId) {
         setTrailerUrl(savedVideoId);
       } else {
-        fetchTrailers(movie.id, mediaType).then(keys => {
-          if (keys && keys.length > 0) {
-            setTrailerUrl(keys[0]);
-            updateVideoState(movie.id, 0, keys[0]);
+        const titleStr = movie.title || movie.name || '';
+        searchTrailersWithFallback(
+          { title: titleStr, year: yearString || undefined, type: mediaType },
+          3,
+        ).then(ids => {
+          if (ids.length > 0) {
+            setTrailerUrl(ids[0]);
+            updateVideoState(movie.id, 0, ids[0]);
           }
         }).catch(() => { });
       }
@@ -361,14 +375,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       timerRef.current = null;
     }
 
-    // 300ms intent delay before expanding
+    // 260ms intent delay — slightly more forgiving than 200ms to filter fast pass-throughs
     timerRef.current = setTimeout(() => {
+      // Velocity guard: if pointer moved quickly (> 1.8 px/ms avg) since enter,
+      // the user is likely sweeping across cards, not deliberately hovering.
+      // We skip the popup and let the next slow hover trigger it instead.
+      const rect = cardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const dx = e.clientX - rect.left - rect.width / 2;
+      const dy = e.clientY - rect.top - rect.height / 2;
+      // If cursor entered from far outside center, it's a fast sweep — bail
+      if (Math.sqrt(dx * dx + dy * dy) > rect.width * 0.7) return;
+
       // Close any other currently-open popup first (one-at-a-time guarantee)
       if (activePopupClose) {
         activePopupClose();
         activePopupClose = null;
       }
-      const rect = cardRef.current?.getBoundingClientRect() ?? null;
       setHoveredRect(rect);
       setIsHovered(true);
       setActiveVideoId(String(movie.id));
@@ -383,7 +406,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       if (year) {
         prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
       }
-    }, 200);
+    }, 350);
   };
 
   // handlePointerMove intentionally removed — no zone restriction needed.
@@ -412,7 +435,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     setTrailerUrl(null);
     setActiveVideoId(prev => prev === String(movie.id) ? null : prev);
     setIsHoverVideoReady(false);
-    if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
   };
 
   const getGenreNames = () => {
@@ -498,11 +520,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
     ? (movie.backdrop_path || movie.poster_path)
-    : `https://image.tmdb.org/t/p/w780${movie.backdrop_path || movie.poster_path}`;
+    : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path || movie.poster_path}`;
 
   const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
     ? movie.poster_path
-    : `https://image.tmdb.org/t/p/w780${movie.poster_path}`;
+    : `https://image.tmdb.org/t/p/w1280${movie.poster_path}`;
 
   return (
     <div
@@ -517,10 +539,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       onPointerEnter={prefersHover ? handlePointerEnter : undefined}
       onPointerLeave={prefersHover ? handlePointerLeave : undefined}
       onClick={(e) => {
-        // On touch: suppress if the finger moved (scroll gesture), not a tap
-        if (touchDidScroll.current) { touchDidScroll.current = false; return; }
-        handleOpenModal(e);
-      }}
+  if (touchDidScroll.current) { touchDidScroll.current = false; return; }
+  handleOpenModal(e);
+}}
     >
       <div className="w-full h-full relative rounded-sm overflow-hidden movie-card-glow">
         <img
@@ -623,86 +644,46 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     />
                     <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
                       {!YOUTUBE_DISABLED && (<>
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
-                        <YouTube
-                          videoId={trailerUrl}
-                          opts={{
-                            height: '100%',
-                            width: '100%',
-                            playerVars: {
-                              autoplay: 1,
-                              controls: 0,
-                              modestbranding: 1,
-                              loop: 1,
-                              playlist: trailerUrl,
-                              disablekb: 1,
-                              fs: 0,
-                              rel: 0,
-                              iv_load_policy: 3,
-                              cc_load_policy: 0,
-                              start: 5,
-                            }
-                          }}
-                          onReady={(e) => {
-                            playerRef.current = e.target;
-                            if (isMuted) {
-                              e.target.mute();
-                            } else {
-                              e.target.unMute();
-                            }
-
-                            // Seamless sync: continue from where InfoModal or Hero left off
-                            const savedState = getVideoState(movie.id);
-                            if (savedState && savedState.time > 0 && savedState.videoId === trailerUrl) {
-                              e.target.seekTo(savedState.time, true);
-                            }
-                          }}
-                          onStateChange={(e) => {
-                            const YT_PLAYING = 1;
-                            const YT_PAUSED = 2;
-
-                            // Mark video as ready only when actually playing
-                            if (e.data === YT_PLAYING && !isHoverVideoReady) {
-                              setIsHoverVideoReady(true);
-                            }
-
-                            // Save progress every 1s to GlobalContext
-                            if (e.data === YT_PLAYING) {
-                              if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
-                              hoverSyncRef.current = setInterval(() => {
-                                try {
-                                  const time = playerRef.current?.getCurrentTime?.();
-                                  if (time > 0 && trailerUrl) {
-                                    updateVideoState(movie.id, time, trailerUrl);
-                                  }
-                                } catch (_) { }
-                              }, 1000);
-                            }
-
-                            if (e.data === YT_PAUSED) {
-                              if (hoverSyncRef.current) clearInterval(hoverSyncRef.current);
-                            }
-                          }}
-                          onError={(e) => {
-                            console.warn("YouTube blocked playback:", e);
-                            setTrailerUrl("");
-                            setIsHoverVideoReady(false);
-                          }}
-                          onEnd={(e) => {
-                            e.target.seekTo(0);
-                            e.target.playVideo();
-                          }}
-                          className="w-full h-full object-cover"
-                        />
-                        {/* Transparent shield — covers YouTube's native pause/play overlay */}
-                        <div className="absolute inset-0 z-[1] pointer-events-none" />
-                      </div>
-                      {/* YouTube caption overlay — driven by useSubtitleStyle (settings-synced) */}
-                      {subtitlesEnabled && activeCue && (
-                        <div style={overlayStyleCompact}>
-                          {activeCue}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
+                          <YouTube
+                            videoId={trailerUrl}
+                            onReady={player.onReady}
+                            onStateChange={(e) => {
+                              player.onStateChange(e);
+                              // Card specific: force ready state on play
+                              if (e.data === 1 && !isHoverVideoReady) {
+                                setIsHoverVideoReady(true);
+                              }
+                            }}
+                            onError={player.onError}
+                            onEnd={player.onEnd}
+                            opts={{
+                              width: '100%',
+                              height: '100%',
+                              playerVars: {
+                                autoplay: 1,
+                                mute: 1,
+                                modestbranding: 1,
+                                rel: 0,
+                                controls: 0,
+                                iv_load_policy: 3,
+                                cc_load_policy: 0,
+                                enablejsapi: 1,
+                                loop: 0,
+                                origin: typeof window !== 'undefined' ? window.location.origin : '',
+                              }
+                            }}
+                            className="w-full h-full object-cover"
+                          />
+                          {/* Transparent shield — covers YouTube's native pause/play overlay */}
+                          <div className="absolute inset-0 z-[1] pointer-events-none" />
                         </div>
-                      )}
+                        {/* YouTube caption overlay — driven by useSubtitleStyle (settings-synced) */}
+                        {subtitlesEnabled && activeCue && (
+                          <div style={overlayStyleCompact}>
+                            {activeCue}
+                          </div>
+                        )}
                       </>)}
                     </div>
                   </>
@@ -756,12 +737,37 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
                 <div className="absolute bottom-3 left-4 right-12 pointer-events-none z-20">
                   {logoUrl && !imgFailed ? (
-                    <img
-                      src={logoUrl}
-                      alt={movie.title || movie.name}
-                      className={`w-auto object-contain origin-bottom-left drop-shadow-2xl transition-all duration-300 ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
-                      onError={() => setImgFailed(true)}
-                    />
+                    <div className="relative inline-flex items-end">
+                      {/* Blurred shadow copy — creates a perfectly logo-shaped dark halo.
+                          Works against any background (white snow, dark sky, etc). */}
+                      {/* Multi-layer premium shadow copy */}
+                      <img
+                        src={logoUrl}
+                        aria-hidden
+                        className={`absolute w-auto object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        style={{
+                          filter: 'blur(4px) brightness(0) opacity(0.8)',
+                          transform: 'translate(1px, 2px) scale(1.01)',
+                          zIndex: 0,
+                        }}
+                      />
+                      <img
+                        src={logoUrl}
+                        aria-hidden
+                        className={`absolute w-auto object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        style={{
+                          filter: 'blur(20px) brightness(0) opacity(0.5)',
+                          transform: 'translate(2px, 4px) scale(1.06)',
+                          zIndex: 0,
+                        }}
+                      />
+                      <img
+                        src={logoUrl}
+                        alt={movie.title || movie.name}
+                        className={`relative w-auto object-contain origin-bottom-left transition-all duration-300 z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        onError={() => setImgFailed(true)}
+                      />
+                    </div>
                   ) : (
                     <h4 className="text-white font-leaner text-4xl line-clamp-2 drop-shadow-md tracking-wide text-center mb-2 leading-none">{movie.title || movie.name}</h4>
                   )}
@@ -828,33 +834,43 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
 
                   {/* Runtime or Season count */}
-                  <span className="text-white/70">
-                    {isBook ? (movie.media_type === 'series' ? 'Series' : 'Comic') :
-                      movie.media_type === 'tv'
-                        ? (() => { const n = Math.max(1, Math.ceil((movie.vote_count || 10) / 500)); return `${n} ${n === 1 ? 'Season' : 'Seasons'}`; })()
-                        : movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`
-                          : `${Math.floor((movie.popularity || 100) / 10 + 80)}m`
+                  {(() => {
+                    if (isBook) return <span className="text-white/70">{movie.media_type === 'series' ? 'Series' : 'Comic'}</span>;
+                    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+                    if (isTV) {
+                      const s = movie.number_of_seasons;
+                      return <span className="text-white/70">{s ? `${s} ${s === 1 ? 'Season' : 'Seasons'}` : 'TV Series'}</span>;
                     }
-                  </span>
+                    if (!movie.runtime) return null; // no fake duration for movies
+                    const h = Math.floor(movie.runtime / 60);
+                    const m = movie.runtime % 60;
+                    const label = h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
+                    return <span className="text-white/70">{label}</span>;
+                  })()}
 
                   {!isBook && <span className="border border-gray-500 text-gray-400 px-1 py-[0.5px] text-[9px] rounded-[2px]">HD</span>}
                 </div>
 
-                {/* Genres Row — clickable, dispatches search */}
+                {/* Genres Row — navigates to genre browse page */}
                 <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
-                  {getGenreNames().map((genre, idx) => (
-                    <span key={idx} className="flex items-center">
-                      <span
-                        className="text-white/75 hover:text-[#e50914] cursor-pointer transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePointerLeave();
-                          triggerSearch(navigate, genre);
-                        }}
-                      >{genre}</span>
-                      {idx < getGenreNames().length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
-                    </span>
-                  ))}
+                  {movie.genre_ids?.slice(0, 3).map((genreId, idx, arr) => {
+                    const genreName = t(`genres.${genreId}`, { defaultValue: GENRES[genreId] });
+                    if (!genreName) return null;
+                    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+                    const basePath = isTV ? '/tv' : '/movies';
+                    return (
+                      <span key={genreId} className="flex items-center">
+                        <span
+                          className="text-white/75 hover:text-white cursor-pointer transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePointerLeave();
+                            navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);                          }}
+                        >{genreName}</span>
+                        {idx < arr.length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
+                      </span>
+                    );
+                  })}
                 </div>
 
               </div>

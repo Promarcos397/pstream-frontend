@@ -1,26 +1,23 @@
 /**
  * hooks/usePipedTrailer.ts
- * ──────────────────────────
- * Resolves a trailer stream in two steps:
  *
- *  Step 1 — ID resolution (giga backend /trailer/resolve)
- *    yt-dlp searches YouTube with 4K-first scoring.
- *    TMDB IDs are passed as fallback candidates (not trusted blindly).
- *    Returns the best scored video ID.
+ * Resolves the best YouTube trailer for a movie/show via:
+ *   YouTubeService.searchTrailersWithFallback (YouTube Data API + local scoring)
  *
- *  Step 2 — Stream resolution (Piped CDN)
- *    Given the video ID, fetch a DASH/HLS manifest from Piped public instances.
- *    Piped delivers the bytes — no YouTube branding, no IP-lock.
+ * The giga backend /trailer/resolve path has been removed — it 500s on HF
+ * because yt-dlp is blocked by datacenter IP filters for YouTube requests.
+ *
+ * TMDB video IDs are intentionally NOT used — they are often low-quality,
+ * wrong, or missing for newer/non-English titles.
+ *
+ * Returns a YouTube embed URL ready for <iframe> or the react-youtube component.
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { getPipedStream, PipedStream } from '../services/PipedService';
-import { fetchTrailers } from '../services/trailers';
-
-const GIGA_BACKEND = import.meta.env.VITE_GIGA_BACKEND_URL || '';
+import { searchTrailersWithFallback } from '../services/YouTubeService';
 
 export interface PipedTrailerResult {
-  streamUrl:   string | null;
+  streamUrl:   string | null;   // YouTube embed URL (https://youtube.com/embed/...)
   isDASH:      boolean;
   isHLS:       boolean;
   subtitleUrl: string | null;
@@ -34,9 +31,30 @@ const EMPTY: PipedTrailerResult = {
   subtitleUrl: null, videoId: null, loading: false, error: null,
 };
 
-// Module-level caches — survive re-renders and modal re-opens
-const _resolved  = new Map<string, PipedTrailerResult>();   // final result
-const _inflight  = new Map<string, Promise<PipedTrailerResult>>(); // dedup parallel calls
+// Module-level cache — survives re-renders and React StrictMode double-invokes
+const _resolved = new Map<string, PipedTrailerResult>();
+const _inflight = new Map<string, Promise<PipedTrailerResult>>();
+
+/** YouTube embed URL with all controls / branding hidden */
+function ytEmbedUrl(videoId: string): string {
+  const p = new URLSearchParams({
+    autoplay:       '1',
+    mute:           '1',
+    controls:       '0',
+    loop:           '1',
+    playlist:       videoId,       // required for loop=1
+    showinfo:       '0',
+    rel:            '0',
+    modestbranding: '1',
+    iv_load_policy: '3',
+    playsinline:    '1',
+    enablejsapi:    '1',
+    origin:         typeof window !== 'undefined' ? window.location.origin : '',
+    color:          'white',
+    disablekb:      '1',
+  });
+  return `https://www.youtube.com/embed/${videoId}?${p}`;
+}
 
 async function resolveTrailer(
   tmdbId:    number | string,
@@ -45,58 +63,26 @@ async function resolveTrailer(
   mediaType: 'movie' | 'tv',
 ): Promise<PipedTrailerResult> {
   const key = `${mediaType}:${tmdbId}`;
-  if (_resolved.has(key))  return _resolved.get(key)!;
-  if (_inflight.has(key))  return _inflight.get(key)!;
+  if (_resolved.has(key)) return _resolved.get(key)!;
+  if (_inflight.has(key)) return _inflight.get(key)!;
 
   const promise = (async (): Promise<PipedTrailerResult> => {
     try {
-      // Step 1a: get TMDB IDs in parallel (used as fallback candidates only)
-      const tmdbIdsPromise = fetchTrailers(tmdbId, mediaType).catch(() => [] as string[]);
+      // YouTube Data API scored search — most reliable source
+      const results = await searchTrailersWithFallback(
+        { title, year: year || undefined, type: mediaType },
+        5,
+      );
 
-      // Step 1b: call giga backend to resolve the best video ID
-      // Uses yt-dlp: searches "title year 4K trailer" first, then "official trailer"
-      let videoId: string | null = null;
-
-      if (GIGA_BACKEND) {
-        try {
-          const tmdbIds = await tmdbIdsPromise;
-          const params = new URLSearchParams({
-            title,
-            year,
-            type: mediaType,
-            ...(tmdbIds.length ? { tmdbIds: tmdbIds.join(',') } : {}),
-          });
-          const res = await fetch(`${GIGA_BACKEND}/trailer/resolve?${params}`, {
-            signal: AbortSignal.timeout(25000), // yt-dlp can be slow
-          });
-          if (res.ok) {
-            const data = await res.json();
-            videoId = data.videoId || null;
-          }
-        } catch (_) {
-          // Backend unavailable — fall through to TMDB IDs
-        }
-      }
-
-      // Fallback: use first TMDB ID if backend gave nothing
-      if (!videoId) {
-        const tmdbIds = await tmdbIdsPromise;
-        videoId = tmdbIds[0] || null;
-      }
-
-      if (!videoId) {
-        return { ...EMPTY, error: 'No trailer found' };
-      }
-
-      // Step 2: fetch DASH/HLS manifest from Piped CDN
-      const piped: PipedStream = await getPipedStream(videoId);
+      const videoId = results[0] || null;
+      if (!videoId) return { ...EMPTY, error: 'No trailer found' };
 
       const result: PipedTrailerResult = {
-        streamUrl:   piped.streamUrl,
-        isDASH:      piped.isDASH,
-        isHLS:       piped.isHLS,
-        subtitleUrl: piped.subtitleUrl,
-        videoId:     piped.videoId,
+        streamUrl:   ytEmbedUrl(videoId),
+        isDASH:      false,
+        isHLS:       false,
+        subtitleUrl: null,
+        videoId,
         loading:     false,
         error:       null,
       };

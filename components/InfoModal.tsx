@@ -7,6 +7,7 @@ import { Movie, Episode } from '../types';
 import { IMG_PATH } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
 import { fetchTrailers, getSeasonDetails, prefetchStream } from '../services/api';
+
 import InfoModalEpisodes from './InfoModalEpisodes';
 import InfoModalRecommendations from './InfoModalRecommendations';
 import { useMovieData } from '../hooks/useMovieData';
@@ -20,6 +21,7 @@ import { useVideoCover } from '../hooks/useVideoCover';
 import { YOUTUBE_IFRAME_DISABLED } from '../services/youtubeDisabled';
 import { usePipedTrailer } from '../hooks/usePipedTrailer';
 import NativeTrailerPlayer from './NativeTrailerPlayer';
+import { useVideoPlayer } from '../hooks/useVideoPlayer';
 
 
 interface InfoModalProps {
@@ -83,25 +85,43 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const [trailerQueue, setTrailerQueue] = useState<string[]>([]);
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
-    const [isTrailerReady, setIsTrailerReady] = useState(false); // true once player actually starts playing
-    const isMuted = globalMute;
-    const setIsMuted = setGlobalMute;
-    const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const [replayCount, setReplayCount] = useState(0);
 
     // Episode / Season State
     const [episodes, setEpisodes] = useState<Episode[]>([]);
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
-    const playerRef = useRef<any>(null);
     const modalRef = useRef<HTMLDivElement>(null);
     const heroRef = useRef<HTMLDivElement>(null);
-    const [hasVideoEnded, setHasVideoEnded] = useState(false);
-    const [replayCount, setReplayCount] = useState(0);
+
+    const player = useVideoPlayer({
+        movieId: activeMovieProp?.id || 0,
+        videoId: trailerQueue[0] || null,
+        autoSync: true,
+        earlyStop: 3,
+        onEnded: () => {
+            setIsPlayingTrailer(false);
+            setHasVideoEnded(true);
+        },
+        onErrored: () => {
+            setTrailerQueue(prev => {
+                const next = prev.slice(1);
+                if (next.length === 0) setIsPlayingTrailer(false);
+                return next;
+            });
+        },
+    });
+
+    const isTrailerReady = player.isReady;
+    const setIsTrailerReady = player.setIsReady;
+    const hasVideoEnded = player.hasEnded;
+    const setHasVideoEnded = player.setHasEnded;
+    const playerRef = player.playerRef;
+    const isMuted = player.isMuted;
+    const setIsMuted = player.setIsMuted;
 
     // ── Spring-from-card animation (FLIP technique) ──────────────────────
-    // On mount we read the card's screen rect, compute the transform that makes
-    // the modal START visually at the card, then transition it to identity.
     const [springTransform, setSpringTransform] = useState<string>('none');
     const [springTransition, setSpringTransition] = useState('none');
     const currentTrailerId = trailerQueue[0] || null;
@@ -109,14 +129,12 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
     const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying, lang);
     const containerRef = useRef<HTMLDivElement>(null);
-    const coverDimensions = useVideoCover(containerRef, 1.42);
+    const coverDimensions = useVideoCover(containerRef, 1.20);
 
-    // ── Derives media type — used by NewPipe hook and later logic ─────────────
     const mediaType = activeMovieProp
         ? (activeMovieProp.media_type || (activeMovieProp.title ? 'movie' : 'tv')) as 'movie' | 'tv'
         : 'movie';
 
-    // NewPipe trailer — active when YouTube is disabled
     const npTitle    = (detailedMovie || activeMovieProp)?.original_title
                     || (detailedMovie || activeMovieProp)?.original_name
                     || (detailedMovie || activeMovieProp)?.title
@@ -126,16 +144,14 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     || (detailedMovie || activeMovieProp)?.first_air_date
                     || '').slice(0, 4) || undefined;
     const npType  = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
-    // Piped: giga backend resolves best ID (4K scored) → Piped CDN delivers stream
     const piped = usePipedTrailer(
         (detailedMovie || activeMovieProp)?.id,
         npTitle,
         npYear || '',
         npType,
-        YOUTUBE_IFRAME_DISABLED,  // always enabled when iframes are off
+        YOUTUBE_IFRAME_DISABLED,
     );
 
-    // When Piped resolves, mark trailer as ready
     useEffect(() => {
         if (YOUTUBE_IFRAME_DISABLED && piped.streamUrl && !piped.loading) {
             setIsTrailerReady(true);
@@ -143,23 +159,20 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     }, [piped.streamUrl, piped.loading]);
 
     useEffect(() => {
+        (window as any).__modal_active = true;
+        return () => { (window as any).__modal_active = false; };
+    }, []);
+
+    useEffect(() => {
         const rect = (window as any).__last_card_rect as DOMRect | undefined;
-        if (!rect || !modalRef.current) return; // no card rect = no animation, just fade in normally
-
-        // Step 1: measure where the modal actually rendered in the DOM
+        if (!rect || !modalRef.current) return;
         const modalRect = modalRef.current.getBoundingClientRect();
-
-        // Step 2: calculate the scale + translate that makes the modal appear AT the card's position
         const scaleX = rect.width / modalRect.width;
         const scaleY = rect.height / modalRect.height;
         const tx = rect.left + rect.width / 2 - (modalRect.left + modalRect.width / 2);
         const ty = rect.top + rect.height / 2 - (modalRect.top + modalRect.height / 2);
-
-        // Step 3: instantly snap to card position (no transition — happens before browser paints)
         setSpringTransition('none');
         setSpringTransform(`translate(${tx}px, ${ty}px) scale(${scaleX}, ${scaleY})`);
-
-        // Step 4: two rAF frames later -- spring to identity (natural modal position)
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 setSpringTransition('transform 0.44s cubic-bezier(0.25, 0.46, 0.45, 0.94)');
@@ -167,97 +180,52 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 delete (window as any).__last_card_rect;
             });
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    // ────────────────────────────────────────────────────────────────────
 
     const [resumeContext, setResumeContext] = useState<{ season: number; episode: number } | null>(null);
-    // Lock body scroll when modal is open, restore exactly on close
     useEffect(() => {
         if (!movie) return;
-
-        // Save the current scroll position before locking
         const scrollY = window.scrollY;
-
-        // Lock body in place using fixed positioning (prevents scroll-to-top jump)
         document.body.style.position = 'fixed';
         document.body.style.top = `-${scrollY}px`;
         document.body.style.left = '0';
         document.body.style.right = '0';
-        document.body.style.overflowY = 'scroll'; // keep scrollbar space to prevent layout shift
-
-        // Claim the stage when the modal opens
+        document.body.style.overflowY = 'scroll';
         setActiveVideoId(`modal-${movie.id}`);
-
         return () => {
-            // Restore body scroll lock
             document.body.style.position = '';
             document.body.style.top = '';
             document.body.style.left = '';
             document.body.style.right = '';
             document.body.style.overflowY = '';
-            // Restore scroll position exactly where user was
             window.scrollTo({ top: scrollY, behavior: 'instant' as ScrollBehavior });
-
-            // Clear the stage when the modal closes, letting the Hero resume
             setActiveVideoId(null);
         };
     }, [movie, setActiveVideoId]);
 
-    // Cinematic Spring Entry
     const [springRect, setSpringRect] = useState<any>(null);
     useEffect(() => {
         if (movie) {
             setSpringRect((window as any).__last_card_rect || null);
-            // Claim global player focus
             if (trailerId) setActiveVideoId(trailerId);
         }
         return () => setActiveVideoId(null);
     }, [movie, trailerId]);
 
-    // Helper to close and pass back time
     const handleClose = () => {
         let currentTime = 0;
         let currentVideoId = trailerQueue[0] || trailerId;
         if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
             currentTime = playerRef.current.getCurrentTime();
         }
-        // Save to global context for MovieCard sync
         if (movie && currentVideoId) {
             updateVideoState(movie.id, currentTime, currentVideoId);
         }
         onClose(currentTime);
     };
 
-    const getInitialStyles = () => {
-        if (!springRect) return { opacity: 0, transform: 'scale(0.9) translateY(20px)' };
-
-        // Match card dimensions exactly for the 'Growing' effect
-        const scaleX = springRect.width / 850;
-        const scaleY = springRect.height / 500; // Estimated init height
-
-        return {
-            opacity: 0,
-            left: `${springRect.x}px`,
-            top: `${springRect.y}px`,
-            width: `${springRect.width}px`,
-            height: `${springRect.height}px`,
-            transform: `translate(0, 0) scale(1)`,
-            position: 'absolute' as any,
-            borderRadius: '0px'
-        };
-    };
-
-    // Clean up sync interval on unmount
-    useEffect(() => {
-        return () => {
-            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-        };
-    }, []);
-
     useEffect(() => {
         if (movie) {
-            // Reset state for new movie
             setImgFailed(false);
             setTrailerQueue([]);
             setIsPlayingTrailer(false);
@@ -267,11 +235,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             setResumeContext(null);
             setHasVideoEnded(false);
             setReplayCount(0);
-            setOverrideMovie(null); // clear any previous rec override
+            setOverrideMovie(null);
 
             const type = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
-            // 2. Load Resume Context for TV Shows — read from GlobalContext
             if (type === 'tv') {
                 const saved = getLastWatchedEpisode(movie.id);
                 if (saved?.season && saved?.episode) {
@@ -280,18 +247,14 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 }
             }
 
-            // 3. Load trailer — prioritise: prop > hero sync > TMDB fetch
             const savedState = movie ? getVideoState(movie.id) : null;
-            // Only use savedState if it looks like a real YouTube video ID (11 chars alphanum)
             const isValidVideoId = (id?: string | null) => !!id && /^[a-zA-Z0-9_-]{10,12}$/.test(id);
             let finalTrailerId = trailerId;
 
-            // Hero sync — pick up trailer already playing in background
             if (!finalTrailerId && heroVideoState.movieId && String(heroVideoState.movieId) === String(movie.id)) {
                 finalTrailerId = heroVideoState.videoId;
             }
 
-            // Saved state — only if valid (not empty string from a broken session)
             if (!finalTrailerId && isValidVideoId(savedState?.videoId)) {
                 finalTrailerId = savedState!.videoId;
             }
@@ -303,7 +266,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     updateVideoState(movie.id, 0, finalTrailerId);
                 }
             } else {
-                // No cached ID — fetch from TMDB (free, no quota)
                 fetchTrailers(movie.id, type).then(keys => {
                     if (keys && keys.length > 0) {
                         setTrailerQueue(keys);
@@ -314,11 +276,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     }
                 });
             }
-
         }
-    }, [movie, trailerId]); // NOTE: intentionally omit getVideoState — its ref changes on every progress tick
+    }, [movie, trailerId]);
 
-    // When a recommendation is clicked (overrideMovie changes), load its trailers
     useEffect(() => {
         if (!overrideMovie) return;
         const type = (overrideMovie.media_type || (overrideMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
@@ -350,24 +310,12 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         setLoadingEpisodes(false);
     }, []);
 
-    // Handle Season Change Trigger
     useEffect(() => {
         if (mediaType === 'tv' && activeMovieProp) {
             fetchEpisodes(Number(activeMovieProp.id), selectedSeason);
         }
     }, [selectedSeason, mediaType, movie, fetchEpisodes]);
 
-    useEffect(() => {
-        // Guard: player may not be attached to DOM yet — YT API throws if called too early
-        try {
-            if (typeof playerRef.current?.mute === 'function') {
-                if (isMuted) playerRef.current.mute();
-                else playerRef.current.unMute();
-            }
-        } catch { /* not yet attached, will sync once onReady fires */ }
-    }, [isMuted]);
-
-    // Cinematic: Tab Visibility Pause + 30s backdrop reveal
     const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
     const backdropForcedRef = useRef(false);
@@ -375,7 +323,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         const handleVisibility = () => {
             if (document.visibilityState === 'hidden') {
                 try { playerRef.current?.pauseVideo?.(); } catch { }
-                // 30s: if still hidden → show backdrop UI
                 visibilityTimerRef.current = setTimeout(() => {
                     backdropForcedRef.current = true;
                     setShowBackdropOverlay(true);
@@ -398,14 +345,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         }
     }, [isPlayingTrailer, isTrailerReady]);
 
-    // Prefetch stream
     useEffect(() => {
         if (!movie) return;
         const yearStr = (movie.release_date || movie.first_air_date)?.substring(0, 4);
         const year = yearStr ? parseInt(yearStr) : 0;
-
         if (mediaType === 'movie') {
-            // HOT mode: user is actively looking at this movie — pre-resolve for instant play
             prefetchStream(movie.title || movie.name || '', year || undefined, String(movie.id), 'movie', 1, 1, undefined, 'hot');
         } else {
             const s = resumeContext?.season || 1;
@@ -414,7 +358,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         }
     }, [movie, resumeContext, mediaType]);
 
-    // Hero section scroll-out → pause trailer
     useEffect(() => {
         if (!heroRef.current) return;
         const observer = new IntersectionObserver(
@@ -425,31 +368,24 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     try { playerRef.current.playVideo?.(); } catch { }
                 }
             },
-            { threshold: 0.05 } // pause once 95% scrolled out
+            { threshold: 0.01 }
         );
         observer.observe(heroRef.current);
         return () => observer.disconnect();
     }, [isPlayingTrailer]);
-    if (!movie) return null;
 
+    if (!movie) return null;
     const activeMovie = detailedMovie || activeMovieProp;
     const isAdded = myList.find(m => m.id === activeMovieProp.id);
-
-
     const year = (activeMovie.release_date || activeMovie.first_air_date)?.substring(0, 4) || "";
-
+    const totalSeasons = activeMovie.number_of_seasons || 0;
     const duration = activeMovie.runtime
         ? `${Math.floor(activeMovie.runtime / 60)}${t('common.hour')} ${activeMovie.runtime % 60}${t('common.minute')}`
-        : activeMovie.number_of_seasons
-            ? `${activeMovie.number_of_seasons} ${t('common.season')}${activeMovie.number_of_seasons > 1 ? 's' : ''}`
+        : totalSeasons
+            ? `${totalSeasons} ${t('common.season')}${totalSeasons > 1 ? 's' : ''}`
             : "";
 
-    const genreNames = activeMovie.genres
-        ? activeMovie.genres.map(g => g.name).slice(0, 3).join(', ')
-        : activeMovie.genre_ids?.map(id => t(`genres.${id}`)).slice(0, 3).join(', ');
-
     const handleRecommendationClick = (rec: Movie) => {
-        // Swap modal content to the clicked recommendation without closing
         setOverrideMovie(rec);
         setImgFailed(false);
         setTrailerQueue([]);
@@ -459,7 +395,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         setSelectedSeason(1);
         setResumeContext(null);
         setHasVideoEnded(false);
-        // Scroll modal container back to top
         if (modalRef.current) {
             modalRef.current.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -467,29 +402,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const savedMovieState = getVideoState(activeMovieProp.id);
     const lastEp = mediaType === 'tv' ? getLastWatchedEpisode(activeMovieProp.id) : null;
-
-    // threshold: 30s for movies, 0s for episodes
     const hasResumeMovie = mediaType === 'movie' && savedMovieState && savedMovieState.time > 30;
     const hasResumeTV = mediaType === 'tv' && lastEp;
-    const isResuming = hasResumeMovie || hasResumeTV;
 
-    const handlePlayClick = () => {
-        if (mediaType === 'tv') {
-            if (lastEp) {
-                onPlay(activeMovie, lastEp.season, lastEp.episode);
-            } else if (resumeContext) {
-                onPlay(activeMovie, resumeContext.season, resumeContext.episode);
-            } else {
-                onPlay(activeMovie, 1, 1);
-            }
-        } else {
-            onPlay(activeMovie);
-        }
-    };
-
-    const totalSeasons = activeMovie.number_of_seasons || 1;
-
-    // Progress bar data — computed once, used in hero area above button
     let watchPct = 0, watchMins = 0, totalMins = 0;
     if (hasResumeMovie && savedMovieState?.time && savedMovieState?.duration) {
         watchPct = Math.min(100, (savedMovieState.time / savedMovieState.duration) * 100);
@@ -525,27 +440,22 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onClose();
+                        handleClose();
                     }}
                     className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#181818] flex items-center justify-center border-2 border-transparent hover:border-white transition z-50 cursor-pointer"
                 >
                     <XIcon size={24} className="text-white" />
                 </button>
 
-                {/* --- Hero Section - Video Background --- */}
+                {/* --- Hero Section --- */}
                 <div ref={heroRef} className="relative h-[300px] sm:h-[400px] md:h-[560px] w-full bg-black group overflow-hidden">
-
-                    {/* Layer 1: Backdrop — stays visible until trailer is actively playing */}
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
                             className={`w-full h-full object-cover transition-opacity duration-700 ${isPlayingTrailer && isTrailerReady ? 'opacity-0' : 'opacity-100'}`}
                             alt="modal hero"
                         />
-
-                        {/* Video Layer — only fades in once player is ready AND playing */}
                         <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
-                        {/* Piped CDN native stream — no YouTube branding */}
                             {YOUTUBE_IFRAME_DISABLED && piped.streamUrl && (
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                                     <NativeTrailerPlayer
@@ -562,90 +472,22 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                     />
                                 </div>
                             )}
-
-                            {/* YouTube iframe — primary trailer path (TMDB video keys) */}
-                            {!YOUTUBE_IFRAME_DISABLED && trailerQueue.length > 0 && (
+                            {!YOUTUBE_IFRAME_DISABLED && isPlayingTrailer && trailerQueue.length > 0 && (
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                                     <YouTube
                                         key={`${trailerQueue[0]}-modal-${replayCount}`}
                                         videoId={trailerQueue[0]}
                                         className="w-full h-full"
                                         onReady={(e) => {
-                                            playerRef.current = e.target;
-                                            // Wire onApiChange via IFrame Player API
-                                            try { e.target.addEventListener('onApiChange', onApiChange); } catch {}
-                                            if (isMuted) e.target.mute();
-                                            else e.target.unMute();
-
-                                            // Note: getAvailableQualityLevels / setPlaybackQuality are
-                                            // deprecated no-ops per YouTube IFrame API docs — removed.
-                                            // Quality is determined by YouTube's adaptive logic.
-                                            NetworkPriority.setVideoActive(true);
-
-                                            if (initialTime > 5) {
-                                                e.target.seekTo(initialTime, true);
+                                            player.onReady(e);
+                                            const saved = getVideoState(activeMovieProp.id);
+                                            if (saved && saved.time > 5) {
+                                                try { e.target.seekTo(saved.time, true); } catch (_) {}
                                             }
                                         }}
-                                        onStateChange={(e) => {
-                                            const YT_PLAYING = 1;
-                                            const YT_PAUSED = 2;
-
-                                            // Mark trailer ready only when ACTUALLY playing (not just buffering)
-                                            if (e.data === YT_PLAYING && !isTrailerReady) {
-                                                setIsTrailerReady(true);
-                                            }
-
-                                            // Sync interval: save current time to GlobalContext every second while playing
-                                            if (e.data === YT_PLAYING) {
-                                                if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-                                                syncIntervalRef.current = setInterval(() => {
-                                                    try {
-                                                        const time = playerRef.current?.getCurrentTime?.();
-                                                        const videoId = trailerQueue[0];
-                                                        if (time > 0 && videoId && movie) {
-                                                            updateVideoState(movie.id, time, videoId);
-                                                        }
-                                                    } catch (_) { }
-                                                }, 1000);
-
-                                                // Early stop: 5s before end to prevent YouTube overlay
-                                                const checkEnd = () => {
-                                                    if (!playerRef.current) return;
-                                                    try {
-                                                        const remaining = playerRef.current.getDuration() - playerRef.current.getCurrentTime();
-                                                        if (remaining <= 5) {
-                                                            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-                                                            playerRef.current.pauseVideo();
-                                                            setIsPlayingTrailer(false);
-                                                            setIsTrailerReady(false);
-                                                            setHasVideoEnded(true);
-                                                            return;
-                                                        }
-                                                    } catch (_) { }
-                                                    setTimeout(checkEnd, 1000);
-                                                };
-                                                checkEnd();
-                                            }
-
-                                            if (e.data === YT_PAUSED) {
-                                                if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-                                            }
-                                        }}
-                                        onEnd={() => {
-                                            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-                                            setIsPlayingTrailer(false);
-                                            setIsTrailerReady(false);
-                                            setHasVideoEnded(true);
-                                        }}
-                                        onError={(e) => {
-                                            console.warn("InfoModal Video error, trying next...", e);
-                                            setIsTrailerReady(false);
-                                            setTrailerQueue(prev => {
-                                                const newQueue = prev.slice(1);
-                                                if (newQueue.length === 0) setIsPlayingTrailer(false);
-                                                return newQueue;
-                                            });
-                                        }}
+                                        onStateChange={player.onStateChange}
+                                        onError={player.onError}
+                                        onEnd={player.onEnd}
                                         opts={{
                                             width: '100%',
                                             height: '100%',
@@ -658,12 +500,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                 iv_load_policy: 3,
                                                 cc_load_policy: 0,
                                                 enablejsapi: 1,
-                                                start: initialTime > 5 ? Math.floor(initialTime) : 5,
                                                 loop: 0,
                                             }
                                         }}
                                     />
-                                    {/* Transparent shield — covers YouTube's native pause/play overlay */}
                                     <div className="absolute inset-0 z-[1] pointer-events-none" />
                                 </div>
                             )}
@@ -673,31 +513,25 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 {activeCue}
                             </div>
                         )}
-
-                        {/* Gradient Overlay (Always on top of media) */}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent z-10" />
-
                     </div>
 
-                    {/* Layer 2: Content (Buttons, Title) - Always Visible */}
                     <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 space-y-3 md:space-y-4 z-20 pointer-events-auto">
-                        {/* Logo / Title + progress bar above button */}
                         <div className="w-[80%]">
                             {logoUrl && !imgFailed ? (
-                                <img src={logoUrl} alt={activeMovie.title} className="h-24 md:h-32 object-contain origin-bottom-left" onError={() => setImgFailed(true)} />
+                                <div className="relative inline-flex items-end">
+                                    <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(20px) brightness(0) opacity(0.60)', transform: 'translate(3px, 8px) scale(1.06)', pointerEvents: 'none', zIndex: 0 }} />
+                                    <img src={logoUrl} alt={activeMovie.title || activeMovie.name} style={{ position: 'relative', zIndex: 1, maxHeight: 'clamp(68px, 11vw, 120px)', maxWidth: '72%', objectFit: 'contain', objectPosition: 'bottom left' }} onError={() => setImgFailed(true)} />
+                                </div>
                             ) : (
                                 <h2 className="text-3xl sm:text-4xl md:text-5xl font-black font-leaner text-white drop-shadow-xl leading-none tracking-wide">
                                     {activeMovie.title || activeMovie.name}
                                 </h2>
                             )}
-                            {/* Progress bar — ABOVE button, flat corners, width of logo container */}
                             {watchPct > 1 && (
                                 <div className="flex items-center gap-2.5 mt-3 w-full">
                                     <div className="flex-1 h-[3px] bg-white/25 overflow-hidden" style={{ borderRadius: 0 }}>
-                                        <div
-                                            className="h-full bg-[#e50914] transition-all duration-300"
-                                            style={{ width: `${watchPct}%`, borderRadius: 0 }}
-                                        />
+                                        <div className="h-full bg-[#e50914] transition-all duration-300" style={{ width: `${watchPct}%`, borderRadius: 0 }} />
                                     </div>
                                     {totalMins > 0 && (
                                         <span className="text-gray-400/80 text-[11px] whitespace-nowrap flex-shrink-0 font-medium">
@@ -708,174 +542,87 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             )}
                         </div>
 
-                        {/* Action buttons row */}
                         <div className="flex items-center space-x-3">
                             {isCinemaOnly && mediaType === 'movie' ? (
                                 <div className="bg-[#6d6d6e]/80 text-white px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center select-none cursor-not-allowed">
                                     <TicketIcon size={24} weight="bold" className="mr-2" />
-                                    {t('hero.inTheaters', { defaultValue: 'In Theaters' })}
+                                    {t('hero.inTheaters')}
                                 </div>
                             ) : (() => {
-                                const type = (activeMovie.media_type || (activeMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-                                let watchUrl = `/watch/${type}/${activeMovie.id}`;
-                                if (type === 'tv' && lastEp) {
+                                let watchUrl = `/watch/${mediaType}/${activeMovie.id}`;
+                                if (mediaType === 'tv' && lastEp) {
                                     watchUrl += `?season=${lastEp.season}&episode=${lastEp.episode}`;
                                 }
                                 return (
-                                    <Link
-                                        to={watchUrl}
-                                        className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons no-underline"
-                                    >
+                                    <Link to={watchUrl} className="bg-white text-black px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center hover:bg-gray-200 transition active:scale-95 shadow-lg group-buttons no-underline">
                                         <PlayIcon size={24} weight="fill" className="mr-2" />
-                                        {hasResumeTV
-                                            ? `Resume E${lastEp?.episode ?? 1}`
-                                            : hasResumeMovie
-                                                ? 'Resume'
-                                                : t('hero.play')}
+                                        {hasResumeTV ? `Resume E${lastEp?.episode}` : hasResumeMovie ? 'Resume' : t('hero.play')}
                                     </Link>
                                 );
                             })()}
-                            <button
-                                onClick={() => toggleList(activeMovie)}
-                                className={`border-2 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95
-                                  ${isAdded ? 'border-white bg-white/10 text-white shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/60 text-gray-300 hover:border-white hover:text-white'}`}
-                                title={isAdded ? t('modal.removeFromList') : t('modal.addToList')}
-                            >
+                            <button onClick={() => toggleList(activeMovie)} className={`border-2 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 ${isAdded ? 'border-white bg-white/10 text-white shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/60 text-gray-300 hover:border-white hover:text-white'}`}>
                                 {isAdded ? <CheckIcon size={24} /> : <PlusIcon size={24} />}
                             </button>
-                            {/* Rating Pill — Love / Like / Dislike */}
-                            <InfoModalRatingPill
-                                rating={getMovieRating(movie.id)}
-                                onRate={(r) => rateMovie(activeMovie, r)}
-                            />
+                            <InfoModalRatingPill rating={getMovieRating(movie.id)} onRate={(r) => rateMovie(activeMovie, r)} />
                         </div>
                     </div>
 
-                    {/* Layer 3: Mute / Replay button — visible once trailer has loaded */}
                     {(isPlayingTrailer || hasVideoEnded) && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (hasVideoEnded) {
-                                    // Replay: restart trailer
-                                    setHasVideoEnded(false);
-                                    setIsTrailerReady(false);
-                                    setIsPlayingTrailer(true);
-                                    setReplayCount(c => c + 1);
-                                    setTimeout(() => {
-                                        playerRef.current?.seekTo(5, true);
-                                        playerRef.current?.playVideo();
-                                    }, 300);
-                                } else {
-                                    setIsMuted(!isMuted);
-                                }
-                            }}
-                            className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-xl pointer-events-auto cursor-pointer"
-                            aria-label={hasVideoEnded ? 'Replay trailer' : (isMuted ? 'Unmute' : 'Mute')}
-                        >
-                            {hasVideoEnded
-                                ? <ArrowCounterClockwiseIcon size={20} className="text-white" />
-                                : isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
+                        <button onClick={(e) => { e.stopPropagation(); if (hasVideoEnded) { setHasVideoEnded(false); setIsTrailerReady(false); setIsPlayingTrailer(true); setReplayCount(c => c + 1); } else { setIsMuted(!isMuted); } }} className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-xl pointer-events-auto cursor-pointer">
+                            {hasVideoEnded ? <ArrowCounterClockwiseIcon size={20} className="text-white" /> : isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
                         </button>
                     )}
                 </div>
 
-                {/* --- Details Body --- */}
                 <div className="px-6 md:px-12 pb-12 bg-[#181818]">
                     <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-x-8 gap-y-6">
-
-                        {/* Left Column: Stats & Description */}
                         <div className="space-y-4">
-                            {/* Metadata Row */}
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-white font-medium text-sm md:text-base mt-2 font-harmonia-condensed">
                                 <span className="text-white/80 tracking-wide">{year}</span>
                                 <span className="text-white/80 tracking-wide">{duration}</span>
                                 <span className="border border-gray-500 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-400 h-fit leading-none font-bold">HD</span>
                             </div>
-
-                            {/* Age & Warning Row — using standardized MaturityBadge */}
                             <div className="flex items-center gap-3">
-                                <MaturityBadge
-                                    adult={activeMovie.adult}
-                                    voteAverage={activeMovie.vote_average}
-                                    size="md"
-                                />
-                                {activeMovie.adult
-                                    ? <span className="text-sm text-gray-400">{t('common.maturity.adultDesc')}</span>
-                                    : <span className="text-sm text-gray-400">{t('common.maturity.teenDesc')}</span>
-                                }
+                                <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} size="md" />
+                                <span className="text-sm text-gray-400">{activeMovie.adult ? t('common.maturity.adultDesc') : t('common.maturity.teenDesc')}</span>
                             </div>
-
-                            <p className="text-white text-sm md:text-[15px] leading-relaxed pt-2">
-                                {activeMovie.overview}
-                            </p>
+                            <p className="text-white text-sm md:text-[15px] leading-relaxed pt-2">{activeMovie.overview}</p>
                         </div>
-
-                        {/* Right Column: Cast & Genres */}
-                        <div className="text-sm space-y-3 pt-2">
-                            <div className="flex flex-wrap gap-1">
-                                <span className="text-gray-500">{t('common.cast')}</span>
-                                {cast.slice(0, 3).map((name, i) => (
-                                    <span
-                                        key={i}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onClose();
-                                            triggerSearch(navigate, name);
-
-                                        }}
-                                        className="text-white hover:text-[#e50914] cursor-pointer transition-colors"
-                                    >
-                                        {name}{i < cast.slice(0, 3).length - 1 ? ',' : ''}
-                                    </span>
-                                ))}
-                                {cast.length > 3 && <span className="text-gray-400 italic cursor-pointer hover:underline">{t('modal.more')}</span>}
-                            </div>
-                            {/* Genres — clickable, open BrowseGridPage */}
-                            {activeMovie.genres && activeMovie.genres.length > 0 && (
-                                <div className="flex flex-wrap gap-1 items-center">
-                                    <span className="text-gray-500">{t('common.genres')}</span>
-                                    {activeMovie.genres.slice(0, 3).map((g, i, arr) => (
-                                        <span
-                                            key={g.id}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onClose();
-                                                navigate(`/browse/genre-${g.id}?title=${encodeURIComponent(g.name)}&url=${encodeURIComponent(`/discover/${mediaType === 'tv' ? 'tv' : 'movie'}?with_genres=${g.id}&sort_by=popularity.desc`)}`);
-                                            }}
-                                            className="text-white hover:text-[#e50914] cursor-pointer transition-colors"
-                                        >
-                                            {g.name}{i < arr.length - 1 ? ',' : ''}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                            {/* Fallback: genre_ids only */}
-                            {(!activeMovie.genres || activeMovie.genres.length === 0) && genreNames && (
-                                <div className="flex flex-wrap gap-1">
-                                    <span className="text-gray-500">{t('common.genres')}</span>
-                                    <span className="text-white">{genreNames}</span>
-                                </div>
-                            )}
+                        <div className="space-y-4 pt-2">
+                            <div className="text-sm"><span className="text-gray-500">{t('modal.cast')}: </span><span className="text-white hover:underline cursor-pointer">{cast?.slice(0, 3).join(', ')}</span></div>
+                            <div className="text-sm"><span className="text-gray-500">{t('modal.genres')}: </span><span className="text-white hover:underline cursor-pointer">{activeMovie.genres?.map(g => g.name).join(', ') || activeMovie.genre_ids?.map(id => t(`genres.${id}`)).join(', ')}</span></div>
                         </div>
                     </div>
 
-                    <InfoModalEpisodes
-                        movie={activeMovie}
-                        mediaType={mediaType}
-                        episodes={episodes}
-                        loadingEpisodes={loadingEpisodes}
-                        selectedSeason={selectedSeason}
-                        setSelectedSeason={setSelectedSeason}
-                        onPlay={onPlay}
-                        totalSeasons={totalSeasons}
-                    />
+                    {mediaType === 'tv' && (
+                        <div className="mt-12">
+                            <InfoModalEpisodes
+                                movie={activeMovie}
+                                mediaType={mediaType}
+                                episodes={episodes}
+                                loadingEpisodes={loadingEpisodes}
+                                selectedSeason={selectedSeason}
+                                setSelectedSeason={setSelectedSeason}
+                                onPlay={onPlay}
+                                totalSeasons={totalSeasons}
+                            />
+                        </div>
+                    )}
 
-                    <InfoModalRecommendations
-                        recommendations={recommendations}
-                        onRecommendationClick={handleRecommendationClick}
-                        onPlay={(rec) => onPlay(rec)}
-                    />
+                    <div className="mt-12">
+                        <InfoModalRecommendations
+                            recommendations={recommendations}
+                            onRecommendationClick={handleRecommendationClick}
+                            onPlay={(rec) => onPlay(rec)}
+                        />
+                    </div>
+
+                    <div className="mt-12 pt-8 border-t border-white/10">
+                        <div className="text-sm">
+                            <span className="text-gray-500">{t('modal.about')} {activeMovie.title || activeMovie.name}: </span>
+                            <span className="text-white font-medium">{cast?.join(', ')}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

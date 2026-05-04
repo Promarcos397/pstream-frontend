@@ -1,31 +1,28 @@
 /**
  * components/NativeTrailerPlayer.tsx
- * ─────────────────────────────────────
- * Plays Piped CDN streams in a native HTML5 <video> element.
  *
- * Piped returns:
- *  - DASH manifest (regular videos) → played via dash.js
- *  - HLS  manifest (livestreams)    → played via hls.js
+ * Renders trailers as either:
+ *  A) YouTube iframe  — when streamUrl is a youtube.com/embed URL (primary path)
+ *  B) Native <video>  — for any future direct mp4/DASH/HLS stream URLs
  *
- * No YouTube branding. No YouTube iframe. Stream delivered by Piped CDN.
+ * YouTube iframe is styled to behave like object-fit:cover — fills the hero
+ * completely with no letterboxing. Controls and branding are hidden via URL
+ * params. pointer-events:none means clicks pass through to P-Stream's own UI.
+ *
+ * The YouTube logo appears briefly (~2s) in the bottom-right but is covered
+ * by the hero gradient overlay so it's not visible to users.
  */
 
 import React, { useRef, useEffect, useState } from 'react';
 import Hls from 'hls.js';
 import type { MediaPlayerClass } from 'dashjs';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
-
-const BACKEND = import.meta.env.VITE_GIGA_BACKEND_URL || '';
-function proxySubtitleUrl(url: string | null | undefined): string | null {
-    if (!url) return null;
-    if (!BACKEND) return url;
-    return `${BACKEND}/proxy/subtitle?url=${encodeURIComponent(url)}`;
-}
+import { useVideoCover } from '../hooks/useVideoCover';
 
 interface NativeTrailerPlayerProps {
     streamUrl:    string;
-    isDASH?:      boolean;   // true → dashjs   (Piped regular videos)
-    isHLS?:       boolean;   // true → hls.js   (Piped livestreams)
+    isDASH?:      boolean;
+    isHLS?:       boolean;
     subtitleUrl?: string | null;
     isMuted:      boolean;
     autoPlay?:    boolean;
@@ -51,23 +48,35 @@ const NativeTrailerPlayer: React.FC<NativeTrailerPlayerProps> = ({
     onEnd,
     onError,
 }) => {
-    const videoRef  = useRef<HTMLVideoElement>(null);
-    const hlsRef    = useRef<Hls | null>(null);
-    const dashRef   = useRef<MediaPlayerClass | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const videoRef     = useRef<HTMLVideoElement>(null);
+    const hlsRef       = useRef<Hls | null>(null);
+    const dashRef      = useRef<MediaPlayerClass | null>(null);
     const [activeCue, setActiveCue] = useState<string | null>(null);
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
 
-    // ── DASH / HLS / plain setup ─────────────────────────────────────────
+    const isYouTube = streamUrl?.includes('youtube.com/embed/');
+    // JS-precise cover sizing — ResizeObserver updates on container resize
+    // zoomBuffer=1.06 slightly overflows to push YouTube watermark off-screen
+    const { width: ytW, height: ytH } = useVideoCover(containerRef, 1.06);
+
+    // ── YouTube iframe path ───────────────────────────────────────────────────
+    useEffect(() => {
+        if (!isYouTube) return;
+        // Signal ready after a short delay (iframe fires no reliable load event)
+        const t = setTimeout(() => onReady?.(), 1500);
+        return () => clearTimeout(t);
+    }, [isYouTube, streamUrl]);
+
+    // ── Native video path (DASH / HLS / mp4) ────────────────────────────────
     useEffect(() => {
         const video = videoRef.current;
-        if (!video || !streamUrl) return;
+        if (!video || !streamUrl || isYouTube) return;
 
-        // Tear down previous players
         hlsRef.current?.destroy();  hlsRef.current  = null;
         dashRef.current?.reset();   dashRef.current = null;
 
         if (isDASH) {
-            // Lazy-load dashjs to keep initial bundle lean
             import('dashjs').then((dashjs) => {
                 const player = dashjs.MediaPlayer().create();
                 player.initialize(video, streamUrl, autoPlay);
@@ -77,26 +86,20 @@ const NativeTrailerPlayer: React.FC<NativeTrailerPlayerProps> = ({
                 player.on(dashjs.MediaPlayer.events['ERROR'], () => onError?.());
                 dashRef.current = player;
             }).catch(() => onError?.());
-
-        } else if (isHLS) {
-            if (Hls.isSupported()) {
-                const hls = new Hls({ maxBufferLength: 30, startLevel: -1 });
-                hls.loadSource(streamUrl);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    if (autoPlay) video.play().catch(() => {});
-                });
-                hls.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) onError?.(); });
-                hlsRef.current = hls;
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // Safari native HLS
-                video.src = streamUrl;
+        } else if (isHLS && Hls.isSupported()) {
+            const hls = new Hls({ maxBufferLength: 30, startLevel: -1 });
+            hls.loadSource(streamUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 if (autoPlay) video.play().catch(() => {});
-            } else {
-                onError?.();
-            }
+            });
+            hls.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) onError?.(); });
+            hlsRef.current = hls;
+        } else if (isHLS && video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = streamUrl;
+            if (autoPlay) video.play().catch(() => {});
         } else {
-            // Plain mp4 fallback
+            // Plain mp4
             video.src = streamUrl;
             if (autoPlay) video.play().catch(() => {});
         }
@@ -105,20 +108,18 @@ const NativeTrailerPlayer: React.FC<NativeTrailerPlayerProps> = ({
             hlsRef.current?.destroy();  hlsRef.current  = null;
             dashRef.current?.reset();   dashRef.current = null;
         };
-    }, [streamUrl, isDASH, isHLS]);
+    }, [streamUrl, isDASH, isHLS, isYouTube]);
 
-    // ── Mute sync ─────────────────────────────────────────────────────────
     useEffect(() => {
         const v = videoRef.current;
         if (v) v.muted = isMuted;
         dashRef.current?.setMute(isMuted);
     }, [isMuted]);
 
-    // ── Subtitle cue tracking ─────────────────────────────────────────────
+    // ── Subtitle cue tracking ─────────────────────────────────────────────────
     useEffect(() => {
         const v = videoRef.current;
         if (!v || !subtitleUrl) return;
-        // Wait a tick for the <track> element to register
         const t = setTimeout(() => {
             const track = v.textTracks[0];
             if (!track) return;
@@ -134,30 +135,62 @@ const NativeTrailerPlayer: React.FC<NativeTrailerPlayerProps> = ({
         return () => clearTimeout(t);
     }, [subtitleUrl, subtitlesEnabled]);
 
-    return (
-        <div className={`relative w-full h-full ${className || ''}`} style={style}>
-            <video
-                ref={videoRef}
-                muted={isMuted}
-                loop={loop}
-                playsInline
-                className="w-full h-full object-cover"
-                onCanPlay={() => !isDASH && onReady?.()}   // DASH fires its own event
-                onEnded={() => onEnd?.()}
-                onError={() => !isDASH && onError?.()}     // DASH fires its own event
-            >
-                {subtitleUrl && (
-                    <track
-                        kind="subtitles"
-                        src={proxySubtitleUrl(subtitleUrl) || ''}
-                        srcLang={lang || 'en'}
-                        label="English"
-                        default
-                    />
-                )}
-            </video>
+    const BACKEND = import.meta.env.VITE_GIGA_BACKEND_URL || '';
+    const proxySub = (u: string | null | undefined) =>
+        u ? (BACKEND ? `${BACKEND}/proxy/subtitle?url=${encodeURIComponent(u)}` : u) : null;
 
-            {subtitlesEnabled && activeCue && (
+    return (
+        <div ref={containerRef} className={`relative w-full h-full ${className || ''}`} style={style}>
+
+            {/* ── YouTube iframe — JS-precise cover fill via useVideoCover ── */}
+            {isYouTube && (
+                <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+                    <iframe
+                        src={streamUrl}
+                        style={{
+                            position:      'absolute',
+                            top:           '50%',
+                            left:          '50%',
+                            width:         ytW ? `${ytW}px` : '100%',
+                            height:        ytH ? `${ytH}px` : '100%',
+                            transform:     'translate(-50%, -50%)',
+                            border:        'none',
+                            pointerEvents: 'none',
+                        }}
+                        allow="autoplay; encrypted-media"
+                        allowFullScreen={false}
+                        title="trailer"
+                        referrerPolicy="strict-origin"
+                    />
+                </div>
+            )}
+
+            {/* ── Native video ── */}
+            {!isYouTube && (
+                <video
+                    ref={videoRef}
+                    muted={isMuted}
+                    loop={loop}
+                    playsInline
+                    className="w-full h-full object-cover"
+                    onCanPlay={() => !isDASH && onReady?.()}
+                    onEnded={() => onEnd?.()}
+                    onError={() => !isDASH && onError?.()}
+                >
+                    {subtitleUrl && (
+                        <track
+                            kind="subtitles"
+                            src={proxySub(subtitleUrl) || ''}
+                            srcLang={lang || 'en'}
+                            label="English"
+                            default
+                        />
+                    )}
+                </video>
+            )}
+
+            {/* ── Subtitle overlay ── */}
+            {!isYouTube && subtitlesEnabled && activeCue && (
                 <div
                     style={{
                         ...overlayStyle,
@@ -168,7 +201,7 @@ const NativeTrailerPlayer: React.FC<NativeTrailerPlayerProps> = ({
                         maxWidth:  '80%',
                         textAlign: 'center',
                         pointerEvents: 'none',
-                        zIndex:    10,
+                        zIndex: 10,
                     }}
                 >
                     {activeCue}

@@ -52,32 +52,52 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
   const MIN_VOTE_COUNT = 50;
 
   const loadPage = useCallback(async (pageNum: number, reset = false) => {
-    if (!fetchUrl) return;
-    pageNum === 1 ? setLoading(true) : setIsLoadingMore(true);
+  if (!fetchUrl) return;
+  pageNum === 1 ? setLoading(true) : setIsLoadingMore(true);
 
-    try {
-      const sep = fetchUrl.includes('?') ? '&' : '?';
-      const res = await fetchData(`${fetchUrl}${sep}page=${pageNum}`) as any;
-      const raw: Movie[] = Array.isArray(res) ? res : (res?.results ?? []);
+  try {
+    const sep = fetchUrl.includes('?') ? '&' : '?';
+    
+    // On first load, fetch 3 pages in parallel to fill the grid
+    const pagesToFetch = reset ? [1, 2, 3] : [pageNum];
+    const results = await Promise.all(
+      pagesToFetch.map(p => fetchData(`${fetchUrl}${sep}page=${p}`))
+    );
+    
+    const raw: Movie[] = results.flatMap((res: any) =>
+      Array.isArray(res) ? res : (res?.results ?? [])
+    );
 
-      const filtered = raw.filter((m: Movie) =>
+    // Deduplicate within the batch
+    const seen = new Set<number>();
+    const filtered = raw.filter((m: Movie) => {
+      if (seen.has(Number(m.id))) return false;
+      seen.add(Number(m.id));
+      return (
         (m.backdrop_path || m.poster_path) &&
         (!m.vote_count || m.vote_count >= MIN_VOTE_COUNT)
       );
+    });
 
-      setItems(prev => {
-        if (reset) return filtered;
-        const seen = new Set(prev.map(m => m.id));
-        return [...prev, ...filtered.filter(m => !seen.has(m.id))];
-      });
-      setHasMore(filtered.length >= 15);
-    } catch (e) {
-      console.error('[BrowseGridPage] fetch error', e);
-    }
+    setItems(prev => {
+      if (reset) return filtered;
+      const prevSeen = new Set(prev.map(m => m.id));
+      return [...prev, ...filtered.filter(m => !prevSeen.has(m.id))];
+    });
 
-    setLoading(false);
-    setIsLoadingMore(false);
-  }, [fetchUrl]);
+    // If we got less than 15 even after 3 pages, there simply isn't more
+    setHasMore(filtered.length >= 15);
+    
+    // Next "load more" starts at page 4
+    if (reset) setPage(3);
+
+  } catch (e) {
+    console.error('[BrowseGridPage] fetch error', e);
+  }
+
+  setLoading(false);
+  setIsLoadingMore(false);
+}, [fetchUrl]);
 
   useEffect(() => {
     setPage(1);
