@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { newPipeSearch, isNewPipeAvailable } from './NewPipeService';
 import { YOUTUBE_DISABLED } from './youtubeDisabled';
+
 
 // Parse YouTube API keys from environment variables to avoid hardcoding
 const YOUTUBE_API_KEYS: string[] = (import.meta.env.VITE_YOUTUBE_API_KEYS || '').split(',').filter(Boolean);
@@ -283,24 +283,6 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
  * Falls back to scraper proxy if all API keys are exhausted.
  */
 async function executeSearch(query: string, maxResults: number): Promise<YTCandidate[]> {
-    // ── 0. NewPipe (yt-dlp) — zero quota, our own infrastructure ────────────
-    if (isNewPipeAvailable()) {
-        try {
-            // Build structured options from raw query string for better scoring
-            const nResults = await newPipeSearch(
-                { title: query, type: query.toLowerCase().includes('season') ? 'tv' : 'movie' },
-                maxResults
-            );
-            if (nResults.length > 0) {
-                console.log(`[YouTubeService] ⚡ NewPipe returned ${nResults.length} results`);
-                // Return with empty title/channel — scoring will use score 0 baseline,
-                // which is fine since NewPipe already scored them server-side.
-                return nResults.map(id => ({ videoId: id, title: '', channelTitle: '' }));
-            }
-        } catch (e: any) {
-            console.warn('[YouTubeService] NewPipe search failed, falling through:', e.message);
-        }
-    }
 
     if (allKeysExhaustedUntil > 0 && Date.now() >= allKeysExhaustedUntil) {
         // Cooldown window elapsed, allow keys to be retried (daily quotas may have reset).
