@@ -2,7 +2,6 @@ import axios from 'axios';
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
 import { getMovieImages, getExternalIds, prefetchStream, getMovieDetails } from './api';
-import { fetchTrailers } from './trailers';
 
 /**
  * HeroEngine v2 — "Curated Daily"
@@ -16,7 +15,6 @@ import { fetchTrailers } from './trailers';
 
 export interface HeroPackage {
   movie: Movie;
-  videoId?: string;
   logoUrl?: string;
   isReady: boolean;
   pageType: string;
@@ -179,7 +177,6 @@ class HeroEngineService {
   private lockedHeroes: Map<string, HeroPackage> = new Map();
   private isInitializing: Set<string> = new Set();
   private listeners: Set<(pageType: string, hero: HeroPackage) => void> = new Set();
-  private pendingTrailerByMovieId: Map<number, Promise<string | undefined>> = new Map();
 
   async getHero(pageType: string, fetchUrl?: string, genreId?: number): Promise<HeroPackage | null> {
     const cacheKey = genreId ? `${pageType}_${genreId}` : pageType;
@@ -258,32 +255,6 @@ class HeroEngineService {
         1, 1,
         movieWithExtras.imdb_id
       );
-
-      // Non-critical enrichment runs after first hero paint:
-      // trailer resolution and company lookup are deferred so hero appears fast.
-      if (!this.pendingTrailerByMovieId.has(Number(movieWithExtras.id))) {
-        this.pendingTrailerByMovieId.set(Number(movieWithExtras.id), (async () => {
-          try {
-            // Use TMDB /videos (free, no YouTube quota) — returns YouTube video IDs
-            const keys = await fetchTrailers(selectedMovie.id, mediaType);
-            return keys[0] ?? undefined;
-          } catch (e) {
-            console.warn(`[HeroEngine] Deferred trailer fetch failed for ${title}`);
-            return undefined;
-          }
-        })());
-      }
-
-      this.pendingTrailerByMovieId.get(Number(movieWithExtras.id))!.then((videoId) => {
-        if (!videoId) return;
-        const current = this.lockedHeroes.get(cacheKey);
-        if (!current || current.movie.id !== movieWithExtras.id || current.videoId === videoId) return;
-        const enriched = { ...current, videoId };
-        this.lockedHeroes.set(cacheKey, enriched);
-        this.listeners.forEach(cb => cb(pageType, enriched));
-      }).finally(() => {
-        this.pendingTrailerByMovieId.delete(Number(movieWithExtras.id));
-      });
 
       return heroPackage;
     } catch (e) {

@@ -226,9 +226,7 @@ const App: React.FC = () => {
   const isSettings = location.pathname.startsWith('/settings');
 
   const handleTabChange = (tab: string) => {
-    setQuery('');
-    if (tab === 'home') navigate('/');
-    else navigate(`/${tab}`);
+    setQuery(''); //fixed "Double History Push" bug
   };
 
   const handleSearchChange = (newQuery: string) => {

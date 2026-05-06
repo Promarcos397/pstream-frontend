@@ -8,16 +8,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import './i18n';
 
-// Force unregister stale Service Workers that are blocking streaming requests
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    for (const registration of registrations) {
-      registration.unregister().then(() => {
-         window.location.reload();
-      });
-    }
-  });
-}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

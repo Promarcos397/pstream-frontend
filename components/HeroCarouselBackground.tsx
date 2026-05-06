@@ -5,10 +5,7 @@ import { IMG_PATH } from '../constants';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
-import { YOUTUBE_IFRAME_DISABLED } from '../services/youtubeDisabled';
-import { usePipedTrailer } from '../hooks/usePipedTrailer';
-import NativeTrailerPlayer from './NativeTrailerPlayer';
-import { useVideoPlayer } from '../hooks/useVideoPlayer';
+import { searchTrailersWithFallback } from '../services/YouTubeService';
 
 interface HeroCarouselBackgroundProps {
     movie: Movie;
@@ -37,36 +34,42 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     movie,
     showVideo,
     trailerQueue,
-    setTrailerQueue,
-    setShowVideo,
-    playerRef,
-    isHovered,
-    onSyncCheck,
-    onVideoEnd,
-    youtubeQuality = 'highres',
+    setTrailerQueue, // Restored
     replayCount = 0,
     onUpdateState,
     showBackdropOverlay = false,
     player
 }) => {
     const containerRef = React.useRef<HTMLDivElement>(null);
-    const coverDimensions = useVideoCover(containerRef, 1.30);
-
+    const coverDimensions = useVideoCover(containerRef, 1.20);
     const currentVideoId = trailerQueue[0] || null;
     const isCaptionsPlaying = showVideo && player.isReady;
     const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
     const { activeCue, onApiChange } = useYouTubeCaptions(player.playerRef, currentVideoId, isCaptionsPlaying, lang);
-
     const movieTitle = movie.title || movie.name || movie.original_title || movie.original_name || '';
     const movieYear  = (movie.release_date || (movie as any).first_air_date || '').slice(0, 4);
     const mediaType  = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
-    const piped      = usePipedTrailer(movie.id, movieTitle, movieYear, mediaType, YOUTUBE_IFRAME_DISABLED && showVideo);
+    const [loadingTrailer, setLoadingTrailer] = React.useState(false);
 
-    useEffect(() => {
-        if (YOUTUBE_IFRAME_DISABLED && piped.streamUrl && !piped.loading) {
-            player.setIsVideoReady?.(true) || player.setIsReady(true);
-        }
-    }, [piped.streamUrl, piped.loading]);
+    React.useEffect(() => {
+        if (trailerQueue.length > 0) return;
+        
+        let mounted = true;
+        setLoadingTrailer(true);
+        searchTrailersWithFallback({
+            title: movieTitle,
+            year: movieYear,
+            type: mediaType
+        }, 5).then((results) => {
+            if (mounted && results.length > 0) {
+                setTrailerQueue(results);
+            }
+        }).finally(() => {
+            if (mounted) setLoadingTrailer(false);
+        });
+
+        return () => { mounted = false; };
+    }, [movieTitle, movieYear, mediaType, showVideo, trailerQueue.length, setTrailerQueue]);
 
     return (
         <>
@@ -85,29 +88,9 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                 ref={containerRef}
                 className={`absolute inset-0 z-0 transition-opacity duration-1000 overflow-hidden ${(showVideo && player.isReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}
             >
-                {/* Piped CDN native stream */}
-                {YOUTUBE_IFRAME_DISABLED && showVideo && piped.streamUrl && (
-                    <div
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0"
-                        style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}
-                    >
-                        <NativeTrailerPlayer
-                            streamUrl={piped.streamUrl}
-                            isDASH={piped.isDASH}
-                            isHLS={piped.isHLS}
-                            subtitleUrl={piped.subtitleUrl}
-                            isMuted={player.isMuted}
-                            autoPlay
-                            className="w-full h-full"
-                            onReady={() => player.setIsReady(true)}
-                            onEnd={() => { player.setIsReady(false); setShowVideo(false); onVideoEnd?.(); }}
-                            onError={() => { player.setIsReady(false); setShowVideo(false); }}
-                        />
-                    </div>
-                )}
 
                 {/* YouTube iframe — primary path */}
-                {!YOUTUBE_IFRAME_DISABLED && showVideo && trailerQueue.length > 0 && (
+                {showVideo && trailerQueue.length > 0 && (
                     <div
                         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0"
                         style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}
@@ -118,11 +101,8 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                             className="w-full h-full"
                             onReady={(e) => {
                                 player.onReady(e);
-                                // Restoration: Sync position if we have a saved state
-                                const syncTime = onSyncCheck?.(trailerQueue[0]);
-                                if (syncTime && syncTime > 0) {
-                                  try { e.target.seekTo(syncTime, true); } catch (_) {}
-                                }
+                                // Manual listener for caption API changes (unsupported prop in react-youtube)
+                                try { e.target.addEventListener('onApiChange', onApiChange); } catch (_) {}
                             }}
                             onStateChange={(e) => {
                                 player.onStateChange(e);
@@ -133,25 +113,9 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                             }}
                             onError={player.onError}
                             onEnd={player.onEnd}
-                            opts={{
-                                width: '100%',
-                                height: '100%',
-                                playerVars: {
-                                    autoplay: 1,
-                                    mute: 1,
-                                    controls: 0,
-                                    showinfo: 0,
-                                    rel: 0,
-                                    modestbranding: 1,
-                                    iv_load_policy: 3,
-                                    playsinline: 1,
-                                    enablejsapi: 1,
-                                    origin: typeof window !== 'undefined' ? window.location.origin : '',
-                                    color: 'white',
-                                    disablekb: 1,
-                                    playlist: trailerQueue[0],
-                                },
-                            }}
+                            opts={player.getYouTubeOpts({
+                                playlist: trailerQueue[0],
+                            })}
                         />
                         <div className="absolute inset-0 z-[1] pointer-events-none" />
                     </div>

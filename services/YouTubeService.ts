@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { YOUTUBE_DISABLED } from './youtubeDisabled';
 
 
 // Parse YouTube API keys from environment variables to avoid hardcoding
@@ -111,59 +110,23 @@ function buildSearchQueries(options: SearchOptions): string[] {
     const clean = title.trim();
 
     const isTv = type === 'tv';
+    
+    // User Preferred Primary Queries (Premium 4K focus)
     const primary = isTv
-        ? `"${clean}" tv show season trailer 4k`
+        ? `"${clean}" ${year || ''} tv show season trailer 4k`.replace(/\s+/g, ' ').trim()
         : `"${clean}" movie trailer 4k`;
 
-    const queries: string[] = [primary];
-
-    // Dynamic fallbacks: keep simple and resilient when primary query is noisy.
-    queries.push(`"${clean}" official trailer`);
-    queries.push(`"${clean}" trailer`);
-
-    if (year) {
-        queries.push(`"${clean}" ${year} official trailer`);
-        queries.push(`"${clean}" ${year} trailer`);
-    }
-
-    if (isTv) {
-        queries.push(`"${clean}" tv show trailer`);
-    } else {
-        queries.push(`"${clean}" movie official trailer`);
-    }
-
-    // Deduplicate while preserving order
-    return [...new Set(queries)];
+    // Testing: Only using the primary query to see if accuracy improves
+    return [primary];
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 
-// Known official / high-quality channels — bump score for these
-const TRUSTED_CHANNEL_PATTERNS = [
-    /official/i,
-    /studios?/i,
-    /entertainment/i,
-    /pictures/i,
-    /marvel/i,
-    /warner/i,
-    /disney/i,
-    /paramount/i,
-    /sony/i,
-    /universal/i,
-    /netflix/i,
-    /amazon/i,
-    /hbo/i,
-    /hulu/i,
-    /apple tv/i,
-    /a24/i,
-    /lionsgate/i,
-    /mgm/i,
-    /20th century/i,
-    /dreamworks/i,
-    /pixar/i,
-    /hdrx/i,     // HDR/4K reupload channels known to post quality content
-    /dolby/i,
-    /imax/i,
+// Temporarily disabled to allow community upscales to compete fairly
+const TRUSTED_CHANNEL_PATTERNS: RegExp[] = [
+    // /official/i,
+    // /studios?/i,
+    // ...
 ];
 
 // Words that strongly suggest the video is NOT a clean official trailer
@@ -183,14 +146,13 @@ const BANLIST_PATTERNS = [
     /movie\s+recap/i,
     /ending\s+explained/i,
     /scene\s+explained/i,
-    /\bclips?\b/i,
-    /\bscene\b/i,
     /behind\s+the\s+scenes/i,
     /featurette/i,
     /interview/i,
     /making\s+of/i,
     /\banalysis\b/i,
-    /top\s+\d+/i,
+    /\bclip\b/i,             // Clips are not trailers
+    /\bshort\s+film\b/i,
 ];
 
 function normalizeText(s: string): string {
@@ -229,11 +191,11 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
 
     // Type-aware relevance: soft guidance (never hard-fail)
     if (isTv) {
-        if (/\btv\b|\bseries\b|\bseason\b|\bshow\b/.test(t)) score += 12;
-        if (/\bmovie\b|\bfilm\b/.test(t)) score -= 8;
+        if (/\btv\b|\bseries\b|\bseason\b|\bshow\b/.test(t)) score += 15;
+        if (/\bmovie\b|\bfilm\b/.test(t)) score -= 25; // Stronger penalty for movie results when looking for TV
     } else if (isMovie) {
-        if (/\bmovie\b|\bfilm\b/.test(t)) score += 10;
-        if (/\bseason\b|\bepisode\b|\btv\b|\bseries\b/.test(t)) score -= 8;
+        if (/\bmovie\b|\bfilm\b/.test(t)) score += 12;
+        if (/\bseason\b|\bepisode\b|\btv\b|\bseries\b/.test(t)) score -= 25; // Stronger penalty for TV results when looking for Movie
     }
 
     // ── Trailer quality signals ──────────────────────────────────────────────
@@ -254,22 +216,29 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     if (/\b1440p\b/.test(t)) score += 4;
     if (/\b1080p\b/.test(t)) score += 3;
 
-    // ── Channel trust ────────────────────────────────────────────────────────
-
+    // ── Channel trust (Temporarily Disabled) ──────────────────────────────────
+    /*
     for (const pattern of TRUSTED_CHANNEL_PATTERNS) {
         if (pattern.test(candidate.channelTitle)) {
             score += 10;
             break; // Only count once
         }
     }
+    */
 
-    // ── Penalize non-trailer content ─────────────────────────────────────────
-
+    // ── Penalize non-trailer content ──────────────────────────────────────────
     for (const pattern of BANLIST_PATTERNS) {
         if (pattern.test(candidate.title)) {
-            score -= 40;
-            break; // One penalty is enough — don't stack
+            score -= 50; // Hard enough that a banlist hit never beats a real trailer
+            break;
         }
+    }
+
+    // ── Deprioritize no-metadata candidates (backend fallback IDs) ─────────────
+    // Backend fallback returns IDs only — no title/channel. Without metadata
+    // they can't be scored properly, so push them behind all real candidates.
+    if (!candidate.title && !candidate.channelTitle) {
+        score -= 100;
     }
 
     return score;
@@ -366,8 +335,6 @@ export const searchTrailersWithFallback = async (
     options: SearchOptions,
     maxResults: number = 5
 ): Promise<string[]> => {
-    // ── Kill switch: YouTube entirely disabled ──────────────────────────────
-    if (YOUTUBE_DISABLED) return [];
 
     const cacheKey = `${options.title}::${options.year || ''}::${options.type || ''}::${maxResults}`;
 
@@ -429,7 +396,7 @@ export const searchTrailersWithFallback = async (
             .map(c => ({ ...c, score: scoreCandidate(options, c) }))
             .sort((a, b) => b.score - a.score);
 
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
             console.log(`[YouTubeService] Scored candidates for "${options.title}":`,
                 scored.slice(0, 5).map(c => `[${c.score}] ${c.title} — ${c.channelTitle}`)
             );

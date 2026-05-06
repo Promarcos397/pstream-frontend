@@ -3,13 +3,11 @@ import { SpeakerSlashIcon, SpeakerHighIcon, ArrowCounterClockwise } from '@phosp
 import { useVideoPlayer } from '../hooks/useVideoPlayer';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
-import axios from 'axios';
 import HeroCarouselBackground from './HeroCarouselBackground';
 import HeroCarouselContent from './HeroCarouselContent';
 import { Movie, TMDBResponse } from '../types';
 import { REQUESTS, LOGO_SIZE } from '../constants';
 import { getMovieImages, prefetchStream, getExternalIds } from '../services/api';
-import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
 import { NetworkPriority } from '../services/NetworkPriority';
 import { MaturityBadge } from './MovieCardBadges';
@@ -41,7 +39,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     videoId: trailerQueue[0] || null,
     autoSync: true,
     earlyStop: 3,
-    startMuted: true,
     onEnded: () => {
       setHasVideoEnded(true);
       setShowVideo(false);
@@ -154,10 +151,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     const applyHeroPackage = (pkg: HeroPackage) => {
       setMovie(pkg.movie);
       if (pkg.logoUrl) setLogoUrl(pkg.logoUrl);
-      if (pkg.videoId) {
-        setTrailerQueue([pkg.videoId]);
-        setHeroVideoState({ movie: pkg.movie, videoId: pkg.videoId, movieId: pkg.movie.id });
-      }
       setLoading(false);
     };
 

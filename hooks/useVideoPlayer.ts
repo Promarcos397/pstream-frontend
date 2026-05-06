@@ -17,15 +17,14 @@ export const useVideoPlayer = ({
   movieId,
   videoId: initialVideoId,
   autoSync = true,
-  earlyStop = 3,
+  earlyStop = 2,
   startMuted = false,
   loop = false,
   onEnded,
   onErrored,
   onProgress,
 }: UseVideoPlayerOptions) => {
-  const { globalMute, setGlobalMute, updateVideoState } = useGlobalContext();
-  const [videoId, setVideoId] = useState<string | null>(initialVideoId);
+  const { globalMute, setGlobalMute, updateVideoState, getVideoState } = useGlobalContext(); const [videoId, setVideoId] = useState<string | null>(initialVideoId);
   const playerRef = useRef<any>(null);
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const checkEndRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,7 +51,7 @@ export const useVideoPlayer = ({
     try {
       if (globalMute) player.mute();
       else player.unMute();
-    } catch (_) {}
+    } catch (_) { }
   }, [globalMute]);
 
   const stopSync = () => {
@@ -71,7 +70,7 @@ export const useVideoPlayer = ({
           updateVideoState(Number(movieId), time, videoId);
         }
         onProgress?.(time);
-      } catch (_) {}
+      } catch (_) { }
     }, 1000);
 
     // Early stop — pause or loop N seconds before end (to avoid YouTube overlays)
@@ -95,7 +94,7 @@ export const useVideoPlayer = ({
                 return;
               }
             }
-          } catch (_) {}
+          } catch (_) { }
           scheduleCheckEnd();
         }, 1000);
       };
@@ -106,14 +105,24 @@ export const useVideoPlayer = ({
   const onReady = (e: any) => {
     playerRef.current = e.target;
     // Add dummy API change listener to wake up captions logic in some browsers
-    try { e.target.addEventListener('onApiChange', () => {}); } catch {}
-    
+    try { e.target.addEventListener('onApiChange', () => { }); } catch { }
+
     try {
       if (startMuted || globalMute) e.target.mute();
       else e.target.unMute();
-    } catch (_) {}
-    
-    try { e.target.playVideo(); } catch (_) {}
+    } catch (_) { }
+
+    // Resume from Global State OR start at 7s offset (skip logos/green-bands)
+    try {
+      const state = movieId ? getVideoState(movieId) : null;
+      const savedTime = (e.target as any).__savedTime || state?.time || 0;
+      const startTime = savedTime > 0 ? savedTime : 7;
+      e.target.seekTo(startTime, true);
+    } catch (_) {
+      try { e.target.seekTo(7, true); } catch (__) { }
+    }
+
+    e.target.playVideo();
   };
 
   const onStateChange = (e: any) => {
@@ -122,7 +131,7 @@ export const useVideoPlayer = ({
 
     // Watchdog: Trigger play if player is stuck in "Cued" (5) or "Unstarted" (-1)
     if (e.data === 5 || e.data === -1) {
-      try { e.target.playVideo(); } catch (_) {}
+      try { e.target.playVideo(); } catch (_) { }
     }
 
     if (e.data === YT_PLAYING) {
@@ -138,7 +147,7 @@ export const useVideoPlayer = ({
         try {
           const time = e.target.getCurrentTime();
           if (time > 0) updateVideoState(Number(movieId), time, videoId);
-        } catch (_) {}
+        } catch (_) { }
       }
     }
   };
@@ -171,5 +180,27 @@ export const useVideoPlayer = ({
     onError,
     onEnd,
     stopSync,
+    getYouTubeOpts: (overrides: any = {}) => ({
+      width: '100%',
+      height: '100%',
+      playerVars: {
+        autoplay: 1,
+        mute: globalMute ? 1 : 0,
+        controls: 0,
+        modestbranding: 1,
+        rel: 0,
+        showinfo: 0,
+        iv_load_policy: 3,
+        cc_load_policy: 0,
+        enablejsapi: 1,
+        playsinline: 1,
+        origin: typeof window !== 'undefined' ? window.location.origin : '',
+        color: 'white',
+        disablekb: 1,
+        playlist: videoId,
+        start: 7, // Premium start: skip the logos/green-bands
+        ...overrides
+      }
+    })
   };
 };

@@ -1,11 +1,10 @@
 {
-  "name": "P-Stream",
-  "short_name": "P-Stream",
-  "description": "Stream movies and TV series — your personal cinema.",
+  "name": "Pstream",
+  "short_name": "Pstream",
+  "description": "Stream your favourite movies and TV series.",
   "start_url": "/",
-  "display": "standalone",
+  "display": "minimal-ui",
   "background_color": "#141414",
-  "theme_color": "#E50914",
   "orientation": "any",
   "icons": [
     {
@@ -33,6 +32,8 @@
       "purpose": "maskable"
     }
   ],
-  "categories": ["entertainment"],
+  "categories": [
+    "entertainment"
+  ],
   "screenshots": []
 }

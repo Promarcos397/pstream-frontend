@@ -12,12 +12,13 @@ export const TitleProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const setPageTitle = useCallback((title: string) => {
         setPageTitleState(title);
-        // Also update the actual window title
-        document.title = `P-Stream${title ? ' - ' + title : ''}`;
+        // Only show the page name, or fallback to "Pstream"
+        document.title = title ? title : 'Pstream';
     }, []);
 
     useEffect(() => {
-        document.title = `P-Stream${pageTitle ? ' - ' + pageTitle : ''}`;
+        // Keep it in sync if state changes
+        document.title = pageTitle ? pageTitle : 'Pstream';
     }, [pageTitle]);
 
     return (

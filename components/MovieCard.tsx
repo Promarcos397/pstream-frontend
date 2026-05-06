@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon } from '@phosphor-icons/react';
+import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import { useVideoPlayer } from '../hooks/useVideoPlayer';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { useNavigate, Link } from 'react-router-dom';
@@ -11,12 +11,11 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails } from '../services/api';
 import { Movie } from '../types';
-import { searchTrailersWithFallback } from '../services/YouTubeService';
-import { MaturityBadge, BadgeOverlay, ProgressIndicator, HoverProgressBar } from './MovieCardBadges';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
-import { YOUTUBE_IFRAME_DISABLED as YOUTUBE_DISABLED } from '../services/youtubeDisabled';
+import { searchTrailersWithFallback } from '../services/YouTubeService';
+import {MaturityBadge, BadgeOverlay, HoverProgressBar} from './MovieCardBadges'
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 // Replaces the old load-time IS_TOUCH_DEVICE sniff.
@@ -134,8 +133,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
   const containerRef = useRef<HTMLDivElement>(null);
-  const coverDimensions = useVideoCover(containerRef, 0.50);
-  const [lastSyncTime, setLastSyncTime] = useState(0);
+  const coverDimensions = useVideoCover(containerRef, 0.95);
+  const [replayCount, setReplayCount] = useState(0);
 
   // Smart Video Logic
   const player = useVideoPlayer({
@@ -143,12 +142,29 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     videoId: null, // Will be set via player.videoId or manual prop if needed
     autoSync: true,
     earlyStop: 3,
-    loop: true,
+    loop: false,
     onErrored: () => {
       player.setVideoId("");
       setIsHoverVideoReady(false);
     }
   });
+
+  const movieTitle = movie.title || movie.name || '';
+  const movieYear  = (movie.release_date || (movie as any).first_air_date || '').slice(0, 4);
+  const mediaType  = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
+  useEffect(() => {
+    if (!isHovered || player.videoId) return;
+
+    let mounted = true;
+    searchTrailersWithFallback({ title: movieTitle, year: movieYear, type: mediaType }, 1)
+      .then(results => {
+        if (mounted && results.length > 0 && !player.videoId) {
+          player.setVideoId(results[0]);
+        }
+      });
+
+    return () => { mounted = false; };
+  }, [isHovered, player.videoId, movieTitle, movieYear, mediaType, player]);
 
   const { videoId: trailerUrl, setVideoId: setTrailerUrl, playerRef, isMuted, setIsMuted } = player;
   const isHoverVideoReady = player.isReady;
@@ -156,7 +172,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const currentPreviewVideoId = trailerUrl || null;
   const previewCaptionsPlaying = isHovered && isHoverVideoReady;
   const { overlayStyleCompact, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
-  const { activeCue } = useYouTubeCaptions(playerRef, currentPreviewVideoId, previewCaptionsPlaying, lang);
+  const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentPreviewVideoId, previewCaptionsPlaying, lang);
 
   // Touch scroll detection via native (passive) listeners added in useEffect.
   // Native passive listeners never block scrolling — React synthetic onTouchStart
@@ -336,7 +352,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     if (!prefersHover) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
 
-    const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
     const dateStr = movie.release_date || movie.first_air_date;
     const yearString = dateStr ? dateStr.split('-')[0] : '';
 
@@ -350,23 +365,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       setHoverPosition(currentPos);
     }
 
-    // Trailer lookup: YouTube scored search (no TMDB IDs — low quality)
-    if (!trailerUrl && !isBook && movie.id) {
-      const savedVideoId = getVideoState(movie.id)?.videoId;
-      if (savedVideoId) {
-        setTrailerUrl(savedVideoId);
-      } else {
-        const titleStr = movie.title || movie.name || '';
-        searchTrailersWithFallback(
-          { title: titleStr, year: yearString || undefined, type: mediaType },
-          3,
-        ).then(ids => {
-          if (ids.length > 0) {
-            setTrailerUrl(ids[0]);
-            updateVideoState(movie.id, 0, ids[0]);
-          }
-        }).catch(() => { });
-      }
+    const year = yearString ? parseInt(yearString) : undefined;
+    if (year) {
+      const mediaType = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
+      prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
     }
 
     // Cancel any in-flight leave timer so fast re-enters don't flicker
@@ -566,7 +568,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   src={logoUrl}
                   alt={movie.title || movie.name}
                   onLoad={handleLogoLoad}
-                  className={`w-auto object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.72)] transition-all duration-300 ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
+                  className={`w-auto object-contain transition-all duration-300 ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
+                  style={{
+                    filter: 'drop-shadow(0 12px 25px rgba(0,0,0,0.5)) drop-shadow(0 4px 5px rgba(0,0,0,0.35))',
+                  }}
                   draggable={false}
                 />
               ) : (
@@ -643,11 +648,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       alt="preview"
                     />
                     <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
-                      {!YOUTUBE_DISABLED && (<>
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                           <YouTube
+                            key={`${trailerUrl}-${replayCount}`}
                             videoId={trailerUrl}
-                            onReady={player.onReady}
+                            onReady={(e) => {
+                              player.onReady(e);
+                              // Manual listener for caption API changes (unsupported prop in react-youtube)
+                              try { e.target.addEventListener('onApiChange', onApiChange); } catch (_) {}
+                            }}
                             onStateChange={(e) => {
                               player.onStateChange(e);
                               // Card specific: force ready state on play
@@ -657,22 +666,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                             }}
                             onError={player.onError}
                             onEnd={player.onEnd}
-                            opts={{
-                              width: '100%',
-                              height: '100%',
-                              playerVars: {
-                                autoplay: 1,
-                                mute: 1,
-                                modestbranding: 1,
-                                rel: 0,
-                                controls: 0,
-                                iv_load_policy: 3,
-                                cc_load_policy: 0,
-                                enablejsapi: 1,
-                                loop: 0,
-                                origin: typeof window !== 'undefined' ? window.location.origin : '',
-                              }
-                            }}
+                            opts={player.getYouTubeOpts()}
                             className="w-full h-full object-cover"
                           />
                           {/* Transparent shield — covers YouTube's native pause/play overlay */}
@@ -684,7 +678,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                             {activeCue}
                           </div>
                         )}
-                      </>)}
                     </div>
                   </>
                 ) : (
@@ -725,11 +718,22 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 {/* Mute Button - Hide for books */}
                 {trailerUrl && !isBook && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
-
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (player.hasEnded) {
+                        player.setHasEnded(false);
+                        setIsHoverVideoReady(false);
+                        setReplayCount(c => c + 1);
+                      } else {
+                        setIsMuted(!isMuted);
+                      }
+                    }}
                     className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                   >
-                    {isMuted ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />}
+                    {player.hasEnded
+                      ? <ArrowCounterClockwiseIcon size={18} className="text-white" />
+                      : isMuted ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
+                    }
                   </button>
                 )}
 

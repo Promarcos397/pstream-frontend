@@ -4,7 +4,6 @@ import { setApiLanguage } from '../services/api';
 import { AuthService, UserProfile } from '../services/AuthService';
 import { DEFAULT_AVATAR } from '../constants';
 import i18n from '../i18n';
-import { prefetchStream } from '../services/api';
 import { usePrefetchQueue } from '../hooks/usePrefetchQueue';
 import Cookies from 'js-cookie';
 
@@ -141,11 +140,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const setGlobalMute = useCallback((mute: boolean) => {
     setGlobalMuteState(mute);
-    const now = new Date();
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const msUntilMidnight = Math.max(0, midnight.getTime() - now.getTime());
-    const daysToMidnight = msUntilMidnight / (1000 * 60 * 60 * 24);
-    Cookies.set('muted_profile', String(mute), { expires: daysToMidnight });
+    Cookies.set('muted_profile', String(mute), { expires: 365 });
   }, []);
 
   const isKidsMode = settings.isKidsMode || false;

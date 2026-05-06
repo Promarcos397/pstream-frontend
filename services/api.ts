@@ -33,8 +33,3 @@ export { getStream, buildTorrentStreamUrl } from './stream';
 
 // ─── Prefetch ─────────────────────────────────────────────────────────────────
 export { prefetchStream, schedulePrefetchQueue } from './prefetch';
-
-// ─── Trailers ─────────────────────────────────────────────────────────────────
-// fetchTrailers now delegates to YouTubeService (which checks NewPipe first).
-// Kept here for backward compat — components can import from api.ts unchanged.
-export { fetchTrailers, fetchTrailer } from './trailers';

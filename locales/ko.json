@@ -43,7 +43,7 @@
         "movie": "영화",
         "season": "시즌",
         "cast": "출연:",
-        "genres": "장르:",
+        "modal.genres": "장르:",
         "maturity": {
             "rated": "등급",
             "adultDesc": "폭력, 언어, 유혈",

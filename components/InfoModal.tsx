@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, TicketIcon, ClockIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import YouTube from 'react-youtube';
 import { Movie, Episode } from '../types';
-import { IMG_PATH } from '../constants';
+import { IMG_PATH, REQUESTS } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
-import { fetchTrailers, getSeasonDetails, prefetchStream } from '../services/api';
+import { getSeasonDetails, prefetchStream } from '../services/api';
 
 import InfoModalEpisodes from './InfoModalEpisodes';
 import InfoModalRecommendations from './InfoModalRecommendations';
@@ -18,9 +18,7 @@ import { triggerSearch } from '../utils/search';
 import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useVideoCover } from '../hooks/useVideoCover';
-import { YOUTUBE_IFRAME_DISABLED } from '../services/youtubeDisabled';
-import { usePipedTrailer } from '../hooks/usePipedTrailer';
-import NativeTrailerPlayer from './NativeTrailerPlayer';
+import { searchTrailersWithFallback } from '../services/YouTubeService';
 import { useVideoPlayer } from '../hooks/useVideoPlayer';
 
 
@@ -144,19 +142,24 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     || (detailedMovie || activeMovieProp)?.first_air_date
                     || '').slice(0, 4) || undefined;
     const npType  = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
-    const piped = usePipedTrailer(
-        (detailedMovie || activeMovieProp)?.id,
-        npTitle,
-        npYear || '',
-        npType,
-        YOUTUBE_IFRAME_DISABLED,
-    );
+    const [fetchedTrailers, setFetchedTrailers] = useState<string[]>([]);
+    const [loadingTrailer, setLoadingTrailer] = useState(false);
 
     useEffect(() => {
-        if (YOUTUBE_IFRAME_DISABLED && piped.streamUrl && !piped.loading) {
-            setIsTrailerReady(true);
-        }
-    }, [piped.streamUrl, piped.loading]);
+        if (!npTitle) return;
+        let mounted = true;
+        setLoadingTrailer(true);
+        setFetchedTrailers([]);
+        searchTrailersWithFallback({ title: npTitle, year: npYear, type: npType }, 5)
+            .then(results => {
+                if (mounted) setFetchedTrailers(results);
+            })
+            .finally(() => {
+                if (mounted) setLoadingTrailer(false);
+            });
+        return () => { mounted = false; };
+    }, [npTitle, npYear, npType]);
+
 
     useEffect(() => {
         (window as any).__modal_active = true;
@@ -265,16 +268,12 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 if (movie.id && !savedState?.videoId) {
                     updateVideoState(movie.id, 0, finalTrailerId);
                 }
-            } else {
-                fetchTrailers(movie.id, type).then(keys => {
-                    if (keys && keys.length > 0) {
-                        setTrailerQueue(keys);
-                        setIsPlayingTrailer(true);
-                        if (!getVideoState(movie.id)?.videoId) {
-                            updateVideoState(movie.id, 0, keys[0]);
-                        }
-                    }
-                });
+            } else if (!loadingTrailer && fetchedTrailers.length > 0) {
+                setTrailerQueue(fetchedTrailers);
+                setIsPlayingTrailer(true);
+                if (!getVideoState(movie.id)?.videoId) {
+                    updateVideoState(movie.id, 0, fetchedTrailers[0]);
+                }
             }
         }
     }, [movie, trailerId]);
@@ -286,13 +285,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         if (savedState?.videoId) {
             setTrailerQueue([savedState.videoId]);
             setIsPlayingTrailer(true);
-        } else {
-            fetchTrailers(overrideMovie.id, type).then(keys => {
-                if (keys && keys.length > 0) {
-                    setTrailerQueue(keys);
-                    setIsPlayingTrailer(true);
-                }
-            });
+        } else if (!loadingTrailer && fetchedTrailers.length > 0) {
+            setTrailerQueue(fetchedTrailers);
+            setIsPlayingTrailer(true);
         }
         if (type === 'tv') {
             const saved = getLastWatchedEpisode(overrideMovie.id);
@@ -456,23 +451,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             alt="modal hero"
                         />
                         <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
-                            {YOUTUBE_IFRAME_DISABLED && piped.streamUrl && (
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
-                                    <NativeTrailerPlayer
-                                        streamUrl={piped.streamUrl}
-                                        isDASH={piped.isDASH}
-                                        isHLS={piped.isHLS}
-                                        subtitleUrl={piped.subtitleUrl}
-                                        isMuted={isMuted}
-                                        autoPlay
-                                        className="w-full h-full"
-                                        onReady={() => setIsTrailerReady(true)}
-                                        onEnd={() => { setIsPlayingTrailer(false); setIsTrailerReady(false); setHasVideoEnded(true); }}
-                                        onError={() => { setIsTrailerReady(false); setIsPlayingTrailer(false); }}
-                                    />
-                                </div>
-                            )}
-                            {!YOUTUBE_IFRAME_DISABLED && isPlayingTrailer && trailerQueue.length > 0 && (
+                            {isPlayingTrailer && trailerQueue.length > 0 && (
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
                                     <YouTube
                                         key={`${trailerQueue[0]}-modal-${replayCount}`}
@@ -480,29 +459,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                         className="w-full h-full"
                                         onReady={(e) => {
                                             player.onReady(e);
-                                            const saved = getVideoState(activeMovieProp.id);
-                                            if (saved && saved.time > 5) {
-                                                try { e.target.seekTo(saved.time, true); } catch (_) {}
-                                            }
+                                            // Manual listener for caption API changes (unsupported prop in react-youtube)
+                                            try { e.target.addEventListener('onApiChange', onApiChange); } catch (_) {}
                                         }}
                                         onStateChange={player.onStateChange}
                                         onError={player.onError}
                                         onEnd={player.onEnd}
-                                        opts={{
-                                            width: '100%',
-                                            height: '100%',
-                                            playerVars: {
-                                                autoplay: 1,
-                                                mute: 1,
-                                                modestbranding: 1,
-                                                rel: 0,
-                                                controls: 0,
-                                                iv_load_policy: 3,
-                                                cc_load_policy: 0,
-                                                enablejsapi: 1,
-                                                loop: 0,
-                                            }
-                                        }}
+                                        opts={player.getYouTubeOpts()}
                                     />
                                     <div className="absolute inset-0 z-[1] pointer-events-none" />
                                 </div>
@@ -520,7 +483,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         <div className="w-[80%]">
                             {logoUrl && !imgFailed ? (
                                 <div className="relative inline-flex items-end">
-                                    <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(20px) brightness(0) opacity(0.60)', transform: 'translate(3px, 8px) scale(1.06)', pointerEvents: 'none', zIndex: 0 }} />
+                                    {/* Dual-layer premium shadow for high-contrast visibility */}
+                                    <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(25px) brightness(0) opacity(0.55)', transform: 'translate(4px, 12px) scale(1.08)', pointerEvents: 'none', zIndex: 0 }} />
+                                    <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(5px) brightness(0) opacity(0.35)', transform: 'translate(2px, 4px) scale(1.02)', pointerEvents: 'none', zIndex: 0 }} />
                                     <img src={logoUrl} alt={activeMovie.title || activeMovie.name} style={{ position: 'relative', zIndex: 1, maxHeight: 'clamp(68px, 11vw, 120px)', maxWidth: '72%', objectFit: 'contain', objectPosition: 'bottom left' }} onError={() => setImgFailed(true)} />
                                 </div>
                             ) : (
@@ -589,8 +554,43 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             <p className="text-white text-sm md:text-[15px] leading-relaxed pt-2">{activeMovie.overview}</p>
                         </div>
                         <div className="space-y-4 pt-2">
-                            <div className="text-sm"><span className="text-gray-500">{t('modal.cast')}: </span><span className="text-white hover:underline cursor-pointer">{cast?.slice(0, 3).join(', ')}</span></div>
-                            <div className="text-sm"><span className="text-gray-500">{t('modal.genres')}: </span><span className="text-white hover:underline cursor-pointer">{activeMovie.genres?.map(g => g.name).join(', ') || activeMovie.genre_ids?.map(id => t(`genres.${id}`)).join(', ')}</span></div>
+                            <div className="text-sm flex flex-wrap gap-x-1">
+                                <span className="text-gray-500 mr-1">{t('common.cast')}</span>
+                                {cast?.slice(0, 3).map((actor, i, arr) => (
+                                    <React.Fragment key={actor}>
+                                        <span 
+                                            onClick={() => {
+                                                handleClose();
+                                                triggerSearch(navigate, actor);
+                                            }}
+                                            className="text-white hover:underline cursor-pointer"
+                                        >
+                                            {actor}
+                                        </span>
+                                        {i < arr.length - 1 ? <span className="text-white">, </span> : null}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                            <div className="text-sm flex flex-wrap gap-x-1">
+                                <span className="text-gray-500 mr-1">{t('common.genres')}</span>
+                                {(activeMovie.genres?.length 
+                                    ? activeMovie.genres.map(g => ({ id: g.id, name: g.name }))
+                                    : activeMovie.genre_ids?.map(id => ({ id, name: t(`genres.${id}`) })) || []
+                                ).map((g, i, arr) => (
+                                  <React.Fragment key={g.id}>
+                                    <span 
+                                      onClick={() => {
+                                        handleClose();
+                                        navigate(`/browse/genre-${g.id}?title=${encodeURIComponent(g.name)}&url=${encodeURIComponent(REQUESTS.fetchByGenre(activeMovie.media_type === 'tv' ? 'tv' : 'movie', g.id))}`);
+                                      }}
+                                      className="text-white hover:underline cursor-pointer"
+                                    >
+                                      {g.name}
+                                    </span>
+                                    {i < arr.length - 1 ? <span className="text-white">, </span> : null}
+                                  </React.Fragment>
+                                ))}
+                            </div>
                         </div>
                     </div>
 

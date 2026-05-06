@@ -81,7 +81,7 @@ const PinGate: React.FC<{ onAuth: () => void }> = ({ onAuth }) => {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_80%,rgba(229,9,20,0.06),transparent)] pointer-events-none" />
 
       <div className={`${s.surface} w-full max-w-sm px-8 py-10 relative`}>
-        {/* Real P-Stream assets */}
+        {/* Pstream assets */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <img src="/p-icon.svg" alt="P-Stream" className="h-8 w-auto" />
           <img src="/pstream-wordmark.svg" alt="pstream" className="h-6 w-auto" />

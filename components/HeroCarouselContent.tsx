@@ -57,15 +57,25 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                 <div className={`relative h-12 sm:h-20 md:h-28 flex items-end mb-3 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.6] sm:scale-[0.65] origin-bottom-left translate-y-8 md:translate-y-6' : ''}`}>
                     {logoUrl && !imgFailed ? (
                         <div className="relative h-full flex items-end">
-                            {/* Blurred shadow copy — brightness(0) turns logo black, blur spreads it.
-                                 Works against any background without guessing gradient position. */}
+                            {/* Dual-layer premium shadow for perfect legibility on any background */}
                             <img
                                 src={logoUrl}
                                 aria-hidden
                                 className="absolute h-full w-auto object-contain object-bottom"
                                 style={{
-                                    filter: 'blur(18px) brightness(0) opacity(0.55)',
-                                    transform: 'translate(2px, 6px) scale(1.06)',
+                                    filter: 'blur(25px) brightness(0) opacity(0.5)',
+                                    transform: 'translate(4px, 12px) scale(1.08)',
+                                    pointerEvents: 'none',
+                                    zIndex: 0,
+                                }}
+                            />
+                            <img
+                                src={logoUrl}
+                                aria-hidden
+                                className="absolute h-full w-auto object-contain object-bottom"
+                                style={{
+                                    filter: 'blur(4px) brightness(0) opacity(0.35)',
+                                    transform: 'translate(2px, 4px) scale(1.02)',
                                     pointerEvents: 'none',
                                     zIndex: 0,
                                 }}
