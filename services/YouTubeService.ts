@@ -113,7 +113,7 @@ function buildSearchQueries(options: SearchOptions): string[] {
     
     // User Preferred Primary Queries (Premium 4K focus)
     const primary = isTv
-        ? `"${clean}" ${year || ''} tv show season trailer 4k`.replace(/\s+/g, ' ').trim()
+        ? `"${clean}" tv show season trailer 4k`
         : `"${clean}" movie trailer 4k`;
 
     // Testing: Only using the primary query to see if accuracy improves

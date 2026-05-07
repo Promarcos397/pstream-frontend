@@ -133,7 +133,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
   const containerRef = useRef<HTMLDivElement>(null);
-  const coverDimensions = useVideoCover(containerRef, 0.95);
+  const coverDimensions = useVideoCover(containerRef, 0.60);
   const [replayCount, setReplayCount] = useState(0);
 
   // Smart Video Logic

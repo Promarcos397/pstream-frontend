@@ -112,19 +112,21 @@ export const useVideoPlayer = ({
       else e.target.unMute();
     } catch (_) { }
 
-    // Resume from Global State OR start at 7s offset (skip logos/green-bands)
+    // Resume from Global State OR explicitly enforce the 7s start
     try {
       const state = movieId ? getVideoState(movieId) : null;
       const savedTime = (e.target as any).__savedTime || state?.time || 0;
-      const startTime = savedTime > 0 ? savedTime : 7;
-      e.target.seekTo(startTime, true);
-    } catch (_) {
-      try { e.target.seekTo(7, true); } catch (__) { }
-    }
+      
+      if (savedTime > 0) {
+        e.target.seekTo(savedTime, true);
+      } else {
+        // Bulletproof the 7-second skip because YouTube often ignores playerVars.start
+        e.target.seekTo(7, true); 
+      }
+    } catch (_) {}
 
     e.target.playVideo();
   };
-
   const onStateChange = (e: any) => {
     const YT_PLAYING = 1;
     const YT_PAUSED = 2;
