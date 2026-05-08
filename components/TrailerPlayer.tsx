@@ -110,11 +110,11 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     }), []);
 
     // Ref pattern to hold latest props so handlers never change reference and interrupt iframe
-    const handlersRef = useRef({ onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId });
-    handlersRef.current = { onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId };
+    const handlersRef = useRef({ onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId, activeVideoId, variant });
+    handlersRef.current = { onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId, activeVideoId, variant };
 
     const handleReady = React.useCallback((e: any) => {
-        const { globalMute, movie, getVideoState, onReady } = handlersRef.current;
+        const { globalMute, movie, getVideoState, onReady, activeVideoId, variant } = handlersRef.current;
         playerRef.current = e.target;
         
         try {
@@ -125,19 +125,28 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         // Resume from where we left off, or skip the green bands
         const savedTime = movie ? (getVideoState(movie.id)?.time || 0) : 0;
         e.target.seekTo(savedTime > 0 ? savedTime : 7, true);
-        e.target.playVideo();
+        
+        const myVideoId = `${variant}-${movie?.id}`;
+        if (activeVideoId === myVideoId) {
+            e.target.playVideo();
+        } else {
+            e.target.pauseVideo();
+        }
 
         onReady?.();
     }, []);
 
     const handleStateChange = React.useCallback((e: any) => {
-        const { movie, updateVideoState, videoId, onProgress } = handlersRef.current;
+        const { movie, updateVideoState, videoId, onProgress, activeVideoId, variant } = handlersRef.current;
         const YT_PLAYING = 1;
         const YT_PAUSED = 2;
 
         // Watchdog: Trigger play if player is stuck in "Cued" (5) or "Unstarted" (-1)
         if (e.data === 5 || e.data === -1) {
-            try { e.target.playVideo(); } catch {}
+            const myVideoId = `${variant}-${movie?.id}`;
+            if (activeVideoId === myVideoId) {
+                try { e.target.playVideo(); } catch {}
+            }
         }
 
         if (!movie) return;

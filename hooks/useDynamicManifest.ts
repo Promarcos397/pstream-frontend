@@ -34,9 +34,11 @@ const seededPick = <T,>(arr: T[], n: number, seed: number): T[] => {
   return [...indices].map(i => arr[i]);
 };
 
+import { getWatchData } from '../components/MovieCardBadges';
+
 export const useDynamicManifest = (pageType: 'home' | 'movie' | 'tv' | 'new_popular', selectedGenreId?: number) => {
   const { t } = useTranslation();
-  const { continueWatching, myList, user, getLikedMovies, clearSeenIds } = useGlobalContext();
+  const { continueWatching, myList, user, getLikedMovies, clearSeenIds, getVideoState, getLastWatchedEpisode } = useGlobalContext();
 
   // Clear deduplication memory whenever the main filter changes
   useEffect(() => {
@@ -53,9 +55,14 @@ export const useDynamicManifest = (pageType: 'home' | 'movie' | 'tv' | 'new_popu
     let myListRow: SmartRow | null = null;
 
     if (continueWatching.length > 0) {
+      const activelyWatching = continueWatching.filter(m => {
+        const watchData = getWatchData(m, getLastWatchedEpisode, getVideoState);
+        return watchData.pct >= 5;
+      });
+
       const filteredHistory = selectedGenreId 
-        ? continueWatching.filter(m => m.genre_ids?.includes(selectedGenreId))
-        : continueWatching;
+        ? activelyWatching.filter(m => m.genre_ids?.includes(selectedGenreId))
+        : activelyWatching;
 
       if (filteredHistory.length > 0) {
         const title = user?.display_name 

@@ -6,6 +6,7 @@ import MovieCard from './MovieCard';
 import { fetchData } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { getWatchData } from './MovieCardBadges';
 
 const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowKey, onViewAll }) => {
   const { t } = useTranslation();
@@ -35,17 +36,8 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
   // paddingBottom ONLY to rows that need it (avoids wasted space in other rows).
   // Uses getVideoState (movies) and getLastWatchedEpisode (TV shows) from context.
   const hasAnyProgress = useMemo(() => movies.some(movie => {
-    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
-    if (!isTV) {
-      const state = getVideoState(movie.id);
-      if (!state?.time || !state?.duration) return false;
-      return (state.time / state.duration) * 100 >= 2;
-    } else {
-      const last = getLastWatchedEpisode(movie.id);
-      if (!last?.duration) return false;
-      return (last.time / last.duration) * 100 >= 2;
-    }
-  }), [movies, videoStates]);
+    return getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0;
+  }), [movies, videoStates, getLastWatchedEpisode, getVideoState]);
 
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -260,22 +252,22 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
         {!isMobile && (
           <>
             <div
-              className={`absolute top-0 bottom-0 left-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
-                bg-transparent hover:bg-[#141414]/80 flex
-                transition-opacity duration-300 pointer-events-none rounded-r-md
+              className={`absolute top-0 bottom-0 left-0 z-[1000]  w-[15px] md:w-[39px] lg:w-[55px] items-center justify-center cursor-pointer
+                bg-transparent hover:bg-[#141414]/70 flex
+                transition-opacity duration-300 pointer-events-none rounded-r-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
               onClick={() => scroll('left')}
             >
-              <CaretLeftIcon size={28} className="text-white drop-shadow-lg" />
+              <CaretLeftIcon size={76} weight="bold" className="text-white drop-shadow-lg" />
             </div>
             <div
-              className={`absolute top-0 bottom-0 right-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
-                bg-transparent hover:bg-[#141414]/80 flex
-                transition-opacity duration-300 pointer-events-none rounded-l-md
+              className={`absolute top-0 bottom-0 right-0 z-[1000] w-[31px] md:w-[63px] lg:w-[79px] items-center justify-center cursor-pointer
+                bg-transparent hover:bg-[#141414]/70 flex
+                transition-opacity duration-300 pointer-events-none rounded-l-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
               onClick={() => scroll('right')}
             >
-              <CaretRightIcon size={28} className="text-white drop-shadow-lg" />
+              <CaretRightIcon size={76} weight="bold" className="text-white drop-shadow-lg" />
             </div>
           </>
         )}

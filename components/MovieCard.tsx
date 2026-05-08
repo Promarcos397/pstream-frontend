@@ -10,7 +10,7 @@ import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails } from '../services/api';
 import { Movie } from '../types';
 import { TrailerPlayer } from './TrailerPlayer';
-import {MaturityBadge, BadgeOverlay, HoverProgressBar} from './MovieCardBadges'
+import {MaturityBadge, BadgeOverlay, HoverProgressBar, getWatchData} from './MovieCardBadges';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 // Replaces the old load-time IS_TOUCH_DEVICE sniff.
@@ -466,7 +466,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         ${isHovered && prefersHover ? 'z-[999]' : 'z-10'}
         ${isGrid
           ? 'w-full aspect-video cursor-pointer'
-          : 'flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.32] cursor-pointer'
+          : 'flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.20] cursor-pointer'
         }`}
       style={prefersHover ? { touchAction: 'none' } : undefined}
       onPointerEnter={prefersHover ? handlePointerEnter : undefined}
@@ -663,8 +663,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 </div>
               </div>
 
-              {/* Netflix-style hover progress bar: flat, red, '11 of 43m' */}
-              <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
+
 
               {/* Info Section */}
               <div className="px-4 pt-4 pb-5 space-y-4 bg-[#181818]">
@@ -739,27 +738,33 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   {!isBook && <span className="border border-gray-500 text-gray-400 px-1 py-[0.5px] text-[9px] rounded-[2px]">HD</span>}
                 </div>
 
-                {/* Genres Row — navigates to genre browse page */}
-                <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
-                  {movie.genre_ids?.slice(0, 3).map((genreId, idx, arr) => {
-                    const genreName = t(`genres.${genreId}`, { defaultValue: GENRES[genreId] });
-                    if (!genreName) return null;
-                    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
-                    const basePath = isTV ? '/tv' : '/movies';
-                    return (
-                      <span key={genreId} className="flex items-center">
-                        <span
-                          className="text-white/75 hover:text-white cursor-pointer transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePointerLeave();
-                            navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);                          }}
-                        >{genreName}</span>
-                        {idx < arr.length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
-                      </span>
-                    );
-                  })}
-                </div>
+                {/* Genres Row or Progress Bar */}
+                {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? (
+                  <div className="pt-0.5 pb-1">
+                    <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
+                    {movie.genre_ids?.slice(0, 3).map((genreId, idx, arr) => {
+                      const genreName = t(`genres.${genreId}`, { defaultValue: GENRES[genreId] });
+                      if (!genreName) return null;
+                      const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+                      return (
+                        <span key={genreId} className="flex items-center">
+                          <span
+                            className="text-white/75 hover:text-white cursor-pointer transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePointerLeave();
+                              navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);
+                            }}
+                          >{genreName}</span>
+                          {idx < arr.length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
 
               </div>
             </motion.div>

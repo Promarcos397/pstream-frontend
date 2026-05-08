@@ -285,22 +285,25 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const savedMovieState = getVideoState(activeMovieProp.id);
     const lastEp = mediaType === 'tv' ? getLastWatchedEpisode(activeMovieProp.id) : null;
-    const hasResumeMovie = mediaType === 'movie' && savedMovieState && savedMovieState.time > 30;
-    const hasResumeTV = mediaType === 'tv' && lastEp;
 
     let watchPct = 0, watchMins = 0, totalMins = 0;
-    if (hasResumeMovie && savedMovieState?.time && savedMovieState?.duration) {
+    if (mediaType === 'movie' && savedMovieState?.time && savedMovieState?.duration) {
         watchPct = Math.min(100, (savedMovieState.time / savedMovieState.duration) * 100);
+        if (watchPct < 5) watchPct = 0;
         watchMins = Math.round(savedMovieState.time / 60);
         totalMins = Math.round(savedMovieState.duration / 60);
-    } else if (hasResumeTV && lastEp) {
+    } else if (mediaType === 'tv' && lastEp) {
         const epProg = getEpisodeProgress(movie.id, lastEp.season, lastEp.episode);
         if (epProg?.duration) {
             watchPct = Math.min(100, (epProg.time / epProg.duration) * 100);
+            if (watchPct < 5) watchPct = 0;
             watchMins = Math.round(epProg.time / 60);
             totalMins = Math.round(epProg.duration / 60);
         }
     }
+
+    const hasResumeMovie = mediaType === 'movie' && watchPct >= 5;
+    const hasResumeTV = mediaType === 'tv' && watchPct >= 5;
 
     return (
         <div

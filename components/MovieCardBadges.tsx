@@ -25,12 +25,12 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({ adult, voteAverage
     : '#F97316'; // orange for 13+
 
   // Tweak 'dim' sizes here to make the circle bigger/smaller
-  const dim = size === 'md' ? 'w-10 h-10 text-[15px]' : 'w-9 h-9 text-[10px]';
+  const dim = size === 'md' ? 'w-10 h-10 text-[18px]' : 'w-9 h-9 text-[14px]';
 
   return (
     <span
       // Tweak 'border-[1.5px]' below to change the stroke thickness
-      className={`inline-flex items-center justify-center rounded-full ${dim} text-white font-bold flex-shrink-0 border-[2px] border-white/90 shadow-sm`}
+      className={`inline-flex items-center justify-center rounded-full ${dim} text-white font-bold flex-shrink-0 border-[2.5px] border-white shadow-sm`}
       style={{ backgroundColor: bg }}
     >
       {rating}
@@ -94,29 +94,31 @@ interface ProgressProps {
   getVideoState: (id: number | string) => { time: number; duration?: number } | undefined;
 }
 
-export function getWatchData(
-  movie: Movie,
-  getLastWatchedEpisode: ProgressProps['getLastWatchedEpisode'],
-  getVideoState: ProgressProps['getVideoState'],
-): { pct: number; watchMins: number; totalMins: number } {
-  const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv');
-  if (mediaType === 'tv') {
-    const ep = getLastWatchedEpisode(String(movie.id));
-    if (ep && ep.duration > 0) {
-      return {
-        pct: Math.min(99, (ep.time / ep.duration) * 100),
-        watchMins: Math.round(ep.time / 60),
-        totalMins: Math.round(ep.duration / 60),
-      };
+export function getWatchData(movie: Movie, getLastWatchedEpisode: any, getVideoState: any) {
+  const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+  if (isTV) {
+    const ep = getLastWatchedEpisode(movie.id);
+    if (ep && ep.duration) {
+      const pct = (ep.time / ep.duration) * 100;
+      if (pct >= 5) {
+        return {
+          pct: Math.min(100, pct),
+          watchMins: Math.round(ep.time / 60),
+          totalMins: Math.round(ep.duration / 60),
+        };
+      }
     }
   } else {
     const state = getVideoState(movie.id);
-    if (state && state.duration && state.duration > 0) {
-      return {
-        pct: Math.min(99, (state.time / state.duration) * 100),
-        watchMins: Math.round(state.time / 60),
-        totalMins: Math.round(state.duration / 60),
-      };
+    if (state && state.duration && state.time > 30) {
+      const pct = (state.time / state.duration) * 100;
+      if (pct >= 5) {
+        return {
+          pct: Math.min(100, pct),
+          watchMins: Math.round(state.time / 60),
+          totalMins: Math.round(state.duration / 60),
+        };
+      }
     }
   }
   return { pct: 0, watchMins: 0, totalMins: 0 };
@@ -145,7 +147,7 @@ export const HoverProgressBar: React.FC<ProgressProps> = React.memo(({ movie, ge
   const { pct, watchMins, totalMins } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
   if (pct <= 0) return null;
   return (
-    <div className="flex items-center gap-2 px-3 pt-2 pb-1 bg-[#181818]">
+    <div className="flex items-center gap-2">
       <div className="flex-1 h-[3px] bg-white/20" style={{ borderRadius: 0 }}>
         <div
           className="h-full bg-[#e50914] transition-all duration-300"
@@ -153,7 +155,7 @@ export const HoverProgressBar: React.FC<ProgressProps> = React.memo(({ movie, ge
         />
       </div>
       {totalMins > 0 && (
-        <span className="text-gray-400/80 text-[11px] whitespace-nowrap flex-shrink-0 font-medium">
+        <span className="text-gray-100 text-[16px] whitespace-nowrap flex-shrink-0 font-medium ">
           {watchMins} of {totalMins}m
         </span>
       )}
