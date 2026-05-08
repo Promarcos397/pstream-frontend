@@ -88,6 +88,25 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         }
     }, [activeVideoId, movie]);
 
+    const playerOpts = React.useMemo(() => ({
+        width: '100%',
+        height: '100%',
+        playerVars: {
+            autoplay: 1,
+            mute: 1, // Always initialize muted to guarantee mobile autoplay
+            controls: 0,
+            modestbranding: 1,
+            rel: 0,
+            showinfo: 0,
+            iv_load_policy: 3,
+            cc_load_policy: 0,
+            enablejsapi: 1,
+            playsinline: 1,
+            disablekb: 1,
+            start: 7 // Premium start strictly enforced
+        }
+    }), []);
+
     if (!movie || !videoId) return null;
 
     const handleReady = (e: any) => {
@@ -147,6 +166,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         onErrored?.();
     };
 
+
     return (
         <div 
             ref={containerRef} 
@@ -160,24 +180,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                     onStateChange={handleStateChange}
                     onEnd={handleEnd}
                     onError={handleError}
-                    opts={{
-                        width: '100%',
-                        height: '100%',
-                        playerVars: {
-                            autoplay: 1,
-                            mute: 1, // Always initialize muted to guarantee mobile autoplay
-                            controls: 0,
-                            modestbranding: 1,
-                            rel: 0,
-                            showinfo: 0,
-                            iv_load_policy: 3,
-                            cc_load_policy: 0,
-                            enablejsapi: 1,
-                            playsinline: 1,
-                            disablekb: 1,
-                            start: 7 // Premium start strictly enforced
-                        }
-                    }}
+                    opts={playerOpts}
                 />
             </div>
         </div>
