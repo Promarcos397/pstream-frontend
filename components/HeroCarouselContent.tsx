@@ -54,37 +54,43 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 
                 {/* Logo/Title - Anchored lower, scales down after delay */}
                 {/* Logo/Title */}
-                <div className={`relative h-12 sm:h-20 md:h-28 flex items-end mb-3 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.6] sm:scale-[0.65] origin-bottom-left translate-y-8 md:translate-y-6' : ''}`}>
+                <div className={`relative flex items-end mb-3 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.6] sm:scale-[0.65] origin-bottom-left translate-y-8 md:translate-y-6' : ''}`}>
                     {logoUrl && !imgFailed ? (
-                        <div className="relative h-full flex items-end">
+                        <div className="relative inline-flex items-end">
                             {/* Dual-layer premium shadow for perfect legibility on any background */}
                             <img
                                 src={logoUrl}
                                 aria-hidden
-                                className="absolute h-full w-auto object-contain object-bottom"
+                                className="absolute object-contain object-bottom"
                                 style={{
                                     filter: 'blur(25px) brightness(0) opacity(0.5)',
                                     transform: 'translate(4px, 12px) scale(1.08)',
                                     pointerEvents: 'none',
                                     zIndex: 0,
+                                    width: '100%', height: '100%', inset: 0
                                 }}
                             />
                             <img
                                 src={logoUrl}
                                 aria-hidden
-                                className="absolute h-full w-auto object-contain object-bottom"
+                                className="absolute object-contain object-bottom"
                                 style={{
                                     filter: 'blur(4px) brightness(0) opacity(0.35)',
                                     transform: 'translate(2px, 4px) scale(1.02)',
                                     pointerEvents: 'none',
                                     zIndex: 0,
+                                    width: '100%', height: '100%', inset: 0
                                 }}
                             />
                             <img
                                 src={logoUrl}
                                 alt={movie?.name || movie?.title || 'title logo'}
-                                className="relative h-full w-auto object-contain object-bottom"
-                                style={{ zIndex: 1 }}
+                                className="relative object-contain object-bottom"
+                                style={{ 
+                                    zIndex: 1,
+                                    maxHeight: 'clamp(85px, 20vw, 210px)', 
+                                    maxWidth: 'clamp(260px, 60vw, 620px)' 
+                                }}
                                 onError={() => setImgFailed(true)}
                             />
                         </div>
