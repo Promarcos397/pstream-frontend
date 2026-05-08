@@ -2,19 +2,14 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
-import { useVideoPlayer } from '../hooks/useVideoPlayer';
-import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { useNavigate, Link } from 'react-router-dom';
-import YouTube from 'react-youtube';
+import { useIsInTheaters } from '../hooks/useIsInTheaters';
+import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails } from '../services/api';
 import { Movie } from '../types';
-import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
-import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
-import { useVideoCover } from '../hooks/useVideoCover';
-import { searchTrailersWithFallback } from '../services/YouTubeService';
+import { TrailerPlayer } from './TrailerPlayer';
 import {MaturityBadge, BadgeOverlay, HoverProgressBar} from './MovieCardBadges'
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
@@ -132,47 +127,19 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const coverDimensions = useVideoCover(containerRef, 0.60);
   const [replayCount, setReplayCount] = useState(0);
+  const [isHoverVideoReady, setIsHoverVideoReady] = useState(false);
+  const [hasVideoEnded, setHasVideoEnded] = useState(false);
+  const [logoFaded, setLogoFaded] = useState(false);
 
-  // Smart Video Logic
-  const player = useVideoPlayer({
-    movieId: movie.id,
-    videoId: null, // Will be set via player.videoId or manual prop if needed
-    autoSync: true,
-    earlyStop: 3,
-    loop: false,
-    onErrored: () => {
-      player.setVideoId("");
-      setIsHoverVideoReady(false);
-    }
-  });
-
-  const movieTitle = movie.title || movie.name || '';
-  const movieYear  = (movie.release_date || (movie as any).first_air_date || '').slice(0, 4);
-  const mediaType  = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
   useEffect(() => {
-    if (!isHovered || player.videoId) return;
-
-    let mounted = true;
-    searchTrailersWithFallback({ title: movieTitle, year: movieYear, type: mediaType }, 1)
-      .then(results => {
-        if (mounted && results.length > 0 && !player.videoId) {
-          player.setVideoId(results[0]);
-        }
-      });
-
-    return () => { mounted = false; };
-  }, [isHovered, player.videoId, movieTitle, movieYear, mediaType, player]);
-
-  const { videoId: trailerUrl, setVideoId: setTrailerUrl, playerRef, isMuted, setIsMuted } = player;
-  const isHoverVideoReady = player.isReady;
-  const setIsHoverVideoReady = player.setIsReady;
-  const currentPreviewVideoId = trailerUrl || null;
-  const previewCaptionsPlaying = isHovered && isHoverVideoReady;
-  const { overlayStyleCompact, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
-  const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentPreviewVideoId, previewCaptionsPlaying, lang);
+    if (isHoverVideoReady && !hasVideoEnded) {
+      const t = setTimeout(() => setLogoFaded(true), 3500);
+      return () => clearTimeout(t);
+    } else {
+      setLogoFaded(false);
+    }
+  }, [isHoverVideoReady, hasVideoEnded]);
 
   // Touch scroll detection via native (passive) listeners added in useEffect.
   // Native passive listeners never block scrolling — React synthetic onTouchStart
@@ -181,22 +148,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const touchDidScroll = useRef(false);
   const SCROLL_THRESHOLD = 8;
 
-  // --- 4. Bidirectional Sync Layer: Modal -> Card ---
-  useEffect(() => {
-    // When the global video claim is released (activeVideoId === null),
-    // and this card is still hovered/alive, we check if we need to catch up
-    if (isHovered && playerRef.current && activeVideoId === null && trailerUrl) {
-      const savedState = getVideoState(movie.id);
-      if (savedState && savedState.time > 0 && savedState.videoId === trailerUrl) {
-        // Sync if the difference is meaningful (> 1s) to avoid unnecessary jitter
-        const currentTime = playerRef.current.getCurrentTime();
-        if (Math.abs(currentTime - savedState.time) > 1) {
-          playerRef.current.seekTo(savedState.time, true);
-        }
-      }
-    }
-  }, [activeVideoId, isHovered, trailerUrl, movie.id, getVideoState]);
-
+  // Bi-directional sync is now handled natively by TrailerPlayer.
 
   // 'center' | 'left' | 'right' - determines expansion direction
   const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
@@ -303,7 +255,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
       setIsHovered(false);
       setHoveredRect(null);
-      setTrailerUrl(null);
       setIsHoverVideoReady(false);
       activePopupClose = null;
     };
@@ -366,8 +317,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     }
 
     const year = yearString ? parseInt(yearString) : undefined;
+    const mediaType = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
+    
     if (year) {
-      const mediaType = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
       prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
     }
 
@@ -396,12 +348,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       }
       setHoveredRect(rect);
       setIsHovered(true);
-      setActiveVideoId(String(movie.id));
+      setActiveVideoId(`card-${movie.id}`);
       // Register this card's teardown so another card can close us
       activePopupClose = () => {
         setIsHovered(false);
         setHoveredRect(null);
-        setTrailerUrl(null);
         setIsHoverVideoReady(false);
       };
       const year = yearString ? parseInt(yearString) : undefined;
@@ -424,18 +375,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     // Deregister from global singleton if we were the active popup
     activePopupClose = null;
 
-    // Save trailer progress before collapsing
-    if (isHovered && playerRef.current && trailerUrl) {
-      try {
-        const currentTime = playerRef.current?.getCurrentTime?.() || 0;
-        updateVideoState(movie.id, currentTime, trailerUrl);
-      } catch (_) { }
-    }
-
     setIsHovered(false);
     setHoveredRect(null);
-    setTrailerUrl(null);
-    setActiveVideoId(prev => prev === String(movie.id) ? null : prev);
+    setActiveVideoId(prev => prev === `card-${movie.id}` ? null : prev);
     setIsHoverVideoReady(false);
   };
 
@@ -449,8 +391,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   // so no py-52 hack is needed on the Row strip.
   const getPopupFixedStyle = (): React.CSSProperties => {
     if (!hoveredRect) return { display: 'none' };
-    const POPUP_W = 265;
-    const TOP_OFFSET = -72; // ← TUNE THIS: more negative = popup higher above the card
+    const POPUP_W = 340;
+    const TOP_OFFSET = -96; // ← TUNE THIS: more negative = popup higher above the card
     let left: number;
     if (hoverPosition === 'left') {
       left = hoveredRect.left;
@@ -484,11 +426,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     setHoveredRect(null);
     activePopupClose = null;
 
-    const currentTime = playerRef.current && typeof playerRef.current.getCurrentTime === 'function'
-      ? playerRef.current.getCurrentTime()
-      : 0;
-
-    const finalTrailerUrl = trailerUrl || getVideoState(movie.id)?.videoId;
+    // Final state sync happens inside handleOpenModal now uses GlobalContext
+    const finalTrailerUrl = getVideoState(movie.id)?.videoId;
 
     // Store the raw DOMRect BEFORE calling onSelect so InfoModal mounts with it ready.
     // InfoModal reads .left + .top (DOMRect properties, not .x/.y plain object).
@@ -497,18 +436,12 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       (window as any).__last_card_rect = rawRect;
     }
 
-    if (finalTrailerUrl) {
-      updateVideoState(movie.id, currentTime, finalTrailerUrl);
-    }
-    onSelect(movie, currentTime, finalTrailerUrl);
+    const savedState = getVideoState(movie.id);
+    onSelect(movie, savedState?.time || 0, savedState?.videoId || undefined);
   };
 
   const handleDirectPlay = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const currentTime = playerRef.current?.getCurrentTime?.() || 0;
-    if (trailerUrl) {
-      updateVideoState(movie.id, currentTime, trailerUrl);
-    }
 
     if (onPlay) {
       onPlay(movie);
@@ -637,109 +570,62 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               }}
             >
               {/* Media Container — taller to avoid info section getting cut */}
-              <div className="relative h-[155px] md:h-[172px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+              <div className="relative h-[190px] md:h-[210px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
 
-                {(trailerUrl && !isBook) ? (
+                {(!isBook) ? (
                   <>
-                    {/* Backdrop stays visible until trailer is actually playing */}
                     <img
                       src={imageSrc}
                       className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 ${isHoverVideoReady ? 'opacity-0' : 'opacity-100'}`}
                       alt="preview"
                     />
-                    <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
-                          <YouTube
-                            key={`${trailerUrl}-${replayCount}`}
-                            videoId={trailerUrl}
-                            onReady={(e) => {
-                              player.onReady(e);
-                              // Manual listener for caption API changes (unsupported prop in react-youtube)
-                              try { e.target.addEventListener('onApiChange', onApiChange); } catch (_) {}
+                    <div className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
+                        <TrailerPlayer 
+                            key={`card-player-${replayCount}`}
+                            movie={movie} 
+                            variant="card"
+                            onReady={() => setIsHoverVideoReady(true)}
+                            onEnded={() => {
+                                setIsHoverVideoReady(false);
+                                setHasVideoEnded(true);
                             }}
-                            onStateChange={(e) => {
-                              player.onStateChange(e);
-                              // Card specific: force ready state on play
-                              if (e.data === 1 && !isHoverVideoReady) {
-                                setIsHoverVideoReady(true);
-                              }
-                            }}
-                            onError={player.onError}
-                            onEnd={player.onEnd}
-                            opts={player.getYouTubeOpts()}
-                            className="w-full h-full object-cover"
-                          />
-                          {/* Transparent shield — covers YouTube's native pause/play overlay */}
-                          <div className="absolute inset-0 z-[1] pointer-events-none" />
-                        </div>
-                        {/* YouTube caption overlay — driven by useSubtitleStyle (settings-synced) */}
-                        {subtitlesEnabled && activeCue && (
-                          <div style={overlayStyleCompact}>
-                            {activeCue}
-                          </div>
-                        )}
+                            onErrored={() => setIsHoverVideoReady(false)}
+                        />
                     </div>
                   </>
                 ) : (
                   <img
                     src={imageSrc}
-                    className={`w-full h-full object-cover backdrop-pop ${isBook ? 'object-[50%_30%]' : 'object-center'}`}
+                    className={`w-full h-full object-cover backdrop-pop object-[50%_30%]`}
                     alt="preview"
                   />
                 )}
-                {activeCue && trailerUrl && !isBook && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: '8%',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      zIndex: 20,
-                      pointerEvents: 'none',
-                      textAlign: 'center',
-                      maxWidth: '88%',
-                      padding: '4px 10px',
-                      background: 'rgba(0,0,0,0.72)',
-                      borderRadius: '6px',
-                      color: '#ffffff',
-                      fontFamily: "'Inter', sans-serif",
-                      fontSize: 'clamp(11px, 1.4vw, 14px)',
-                      fontWeight: 500,
-                      lineHeight: 1.35,
-                      letterSpacing: '0.01em',
-                      textShadow: '0 1px 3px rgba(0,0,0,0.9)',
-                      transition: 'opacity 0.15s ease',
-                    }}
-                  >
-                    {activeCue}
-                  </div>
-                )}
 
                 {/* Mute Button - Hide for books */}
-                {trailerUrl && !isBook && (
+                {!isBook && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (player.hasEnded) {
-                        player.setHasEnded(false);
-                        setIsHoverVideoReady(false);
+                      if (hasVideoEnded) {
+                        setHasVideoEnded(false);
+                        setIsHoverVideoReady(true);
                         setReplayCount(c => c + 1);
                       } else {
-                        setIsMuted(!isMuted);
+                        setGlobalMute(!globalMute);
                       }
                     }}
                     className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                   >
-                    {player.hasEnded
+                    {hasVideoEnded
                       ? <ArrowCounterClockwiseIcon size={18} className="text-white" />
-                      : isMuted ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
+                      : globalMute ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
                     }
                   </button>
                 )}
 
                 <div className="absolute inset-x-0 bottom-0 h-7 bg-gradient-to-t from-[#181818]/70 to-transparent z-10 pointer-events-none" />
 
-                <div className="absolute bottom-3 left-4 right-12 pointer-events-none z-20">
+                <div className={`absolute bottom-3 left-4 right-12 pointer-events-none z-20 transition-opacity duration-1000 ${logoFaded ? 'opacity-0' : 'opacity-100'}`}>
                   {logoUrl && !imgFailed ? (
                     <div className="relative inline-flex items-end">
                       {/* Blurred shadow copy — creates a perfectly logo-shaped dark halo.
@@ -782,8 +668,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
 
               {/* Info Section */}
-              <div className="px-3 pt-2.5 pb-4 space-y-3 bg-[#181818]">
-
+              <div className="px-4 pt-4 pb-5 space-y-4 bg-[#181818]">
                 {/* Action Buttons Row */}
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">

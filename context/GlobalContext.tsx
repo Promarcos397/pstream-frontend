@@ -114,9 +114,9 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const [videoStates, setVideoStates] = useState<{ [key: string]: VideoState }>(() => {
     try {
-      const saved = localStorage.getItem('pstream-video-states');
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
+      localStorage.removeItem('pstream-video-states'); // Clear old cache
+    } catch {}
+    return {};
   });
 
   const [episodeProgress, setEpisodeProgress] = useState<{ [key: string]: EpisodeProgress }>(() => {
@@ -149,7 +149,6 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => { localStorage.setItem('pstream-history', JSON.stringify(continueWatching)); }, [continueWatching]);
   useEffect(() => { localStorage.setItem('pstream-settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { localStorage.setItem('pstream-episode-progress', JSON.stringify(episodeProgress)); }, [episodeProgress]);
-  useEffect(() => { localStorage.setItem('pstream-video-states', JSON.stringify(videoStates)); }, [videoStates]);
   useEffect(() => { localStorage.setItem('pstream-liked', JSON.stringify(likedMovies)); }, [likedMovies]);
 
   const [user, setUser] = useState<UserProfile | null>(null);

@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeakerSlashIcon, SpeakerHighIcon, ArrowCounterClockwise } from '@phosphor-icons/react';
-import { useVideoPlayer } from '../hooks/useVideoPlayer';
+
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
 import HeroCarouselBackground from './HeroCarouselBackground';
 import HeroCarouselContent from './HeroCarouselContent';
 import { Movie, TMDBResponse } from '../types';
 import { REQUESTS, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream, getExternalIds } from '../services/api';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
-import { NetworkPriority } from '../services/NetworkPriority';
 import { MaturityBadge } from './MovieCardBadges';
 
 interface HeroCarouselProps {
@@ -23,44 +21,18 @@ interface HeroCarouselProps {
 }
 
 const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie, genreId, pageType: explicitPageType }) => {
-  const { getVideoState, updateVideoState, setHeroVideoState, heroVideoState, activeVideoId, setActiveVideoId } = useGlobalContext();
+  const { getVideoState, updateVideoState, setHeroVideoState, heroVideoState, activeVideoId, setActiveVideoId, globalMute, setGlobalMute } = useGlobalContext();
   const networkQuality = useNetworkQuality();
   const [movie, setMovie] = useState<Movie | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
-
-  // Smart Video State
-  const [trailerQueue, setTrailerQueue] = useState<string[]>([]);
   const [showVideo, setShowVideo] = useState(false);
 
-  const player = useVideoPlayer({
-    movieId: movie?.id || 0,
-    videoId: trailerQueue[0] || null,
-    autoSync: true,
-    earlyStop: 3,
-    onEnded: () => {
-      setHasVideoEnded(true);
-      setShowVideo(false);
-    },
-    onErrored: () => {
-      setTrailerQueue(prev => {
-        const next = prev.slice(1);
-        if (next.length === 0) setShowVideo(false);
-        return next;
-      });
-    },
-  });
-
-  const isVideoReady = player.isReady;
-  const setIsVideoReady = player.setIsReady;
-  const hasVideoEnded = player.hasEnded;
-  const setHasVideoEnded = player.setHasEnded;
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [hasVideoEnded, setHasVideoEnded] = useState(false);
   const [replayCount, setReplayCount] = useState(0); 
 
-  const isMuted = player.isMuted;
-  const setIsMuted = player.setIsMuted;
-  const playerRef = player.playerRef;
   const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
   const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backdropForcedRef = useRef(false);
@@ -77,7 +49,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       const visible = document.visibilityState === 'visible';
       setIsTabVisible(visible);
       if (!visible) {
-        try { playerRef.current?.pauseVideo?.(); } catch (_) {}
         if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
         visibilityTimerRef.current = setTimeout(() => {
           backdropForcedRef.current = true;
@@ -194,143 +165,32 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     };
   }, [fetchUrl, heroMovie, genreId]);
 
-  // Handle trailer playback timer
+
   useEffect(() => {
-    if (trailerQueue.length > 0) {
-      if (videoTimerRef.current) clearTimeout(videoTimerRef.current);
-      setShowVideo(false);
-      setIsVideoReady(false);
-      setHasVideoEnded(false);
-      
-      const delay = networkQuality.isSlowNetwork ? 2000 : 1000;
-      videoTimerRef.current = setTimeout(() => {
-        setShowVideo(true);
-      }, delay);
-    }
-    return () => { if (videoTimerRef.current) clearTimeout(videoTimerRef.current); };
-  }, [trailerQueue, networkQuality]);
-
-  // Audio Fading Logic
-  const fadeAudioIn = () => {
-    try {
-      const player = playerRef.current;
-      if (!player || isMuted) return;
-
-      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
-
-      let vol = player.volume !== undefined ? player.volume : (player.getVolume?.() / 100 || 0);
-      if (vol > 1) vol = 1;
-
-      fadeIntervalRef.current = setInterval(() => {
-        try {
-          if (vol < 1) {
-            vol += 0.05;
-            if (vol > 1) vol = 1;
-            if (player.setVolume) player.setVolume(vol * 100);
-            else player.volume = vol;
-          } else {
-            clearInterval(fadeIntervalRef.current);
-          }
-        } catch (e) { clearInterval(fadeIntervalRef.current); }
-      }, 50);
-    } catch (e) { }
-  };
-
-  const fadeAudioOut = (callback?: () => void) => {
-    try {
-      const player = playerRef.current;
-      if (!player) {
-        if (callback) callback();
-        return;
-      }
-
-      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
-
-      let vol = player.volume !== undefined ? player.volume : (player.getVolume?.() / 100 || 1);
-
-      fadeIntervalRef.current = setInterval(() => {
-        try {
-          if (vol > 0) {
-            vol -= 0.05;
-            if (vol < 0) vol = 0;
-            if (player.setVolume) player.setVolume(vol * 100);
-            else player.volume = vol;
-          } else {
-            clearInterval(fadeIntervalRef.current);
-            if (callback) callback();
-          }
-        } catch (e) { clearInterval(fadeIntervalRef.current); if (callback) callback(); }
-      }, 35);
-    } catch (e) { if (callback) callback(); }
-  };
-
-  
-  // Universal Sync: Listen to global player activity, scrolling, and tabs
-  const currentHeroVideoId = movie ? String(movie.id) : null;
-useEffect(() => {
-    const isSharedConflict = activeVideoId && activeVideoId !== currentHeroVideoId;
+    if (loading || !movie) return;
     
-    if (playerRef.current && isVideoReady && showVideo) {
-      const shouldPlay = !isOutOfView && !isSharedConflict && isTabVisible;
-      
-      if (shouldPlay) {
-        // Clear any stale backdrop the visibility timer may have set while modal was open
-        if (backdropForcedRef.current) {
-          backdropForcedRef.current = false;
-          setShowBackdropOverlay(false);
-        }
-        try {
-          if (typeof playerRef.current?.playVideo === 'function') {
-            const latestState = movie ? getVideoState(movie.id) : null;
-            if (latestState && latestState.time > 0 && typeof playerRef.current?.getCurrentTime === 'function') {
-              const diff = Math.abs(playerRef.current.getCurrentTime() - latestState.time);
-              if (diff > 5) {
-                playerRef.current.seekTo(latestState.time, true);
-              }
-            }
-            playerRef.current.playVideo();
-          }
-          if (!isMuted) fadeAudioIn();
-          NetworkPriority.setVideoActive(true);
-        } catch (e) { }
-      } else {
-        // FULL PAUSE - Save current time before stopping so Cards/Modal can grab it
-        try {
-          if (movie && typeof playerRef.current?.getCurrentTime === 'function') {
-             const currentTime = playerRef.current.getCurrentTime();
-             const videoId = trailerQueue[0];
-             if (currentTime > 0 && videoId) {
-               updateVideoState(movie.id, currentTime, videoId);
-             }
-          }
-
-          NetworkPriority.setVideoActive(false);
-          if (!isMuted) {
-            // If sound is on, smooth fade out before hitting pause
-            fadeAudioOut(() => {
-              if (typeof playerRef.current?.pauseVideo === 'function') playerRef.current.pauseVideo();
+    // We only mount the TrailerPlayer if the tab is visible and the hero is in view
+    if (isOutOfView || !isTabVisible) {
+        setShowVideo(false);
+        setActiveVideoId(prev => prev === `hero-${movie.id}` ? null : prev);
+    } else {
+        // Delay playing by a short amount (simulating network delay aesthetic)
+        const delay = networkQuality.isSlowNetwork ? 2000 : 1000;
+        const timer = setTimeout(() => {
+            setShowVideo(true);
+            setActiveVideoId(prev => {
+                // If a modal or hover card is already playing (e.g. from page refresh restore), don't steal focus!
+                if (!prev || prev.startsWith('hero-')) {
+                    return `hero-${movie.id}`;
+                }
+                return prev;
             });
-          } else {
-            // If already muted, just pause instantly
-            if (typeof playerRef.current?.pauseVideo === 'function') playerRef.current.pauseVideo();
-          }
-        } catch (e) { }
-      }
+        }, delay);
+        return () => clearTimeout(timer);
     }
-  }, [isOutOfView, isVideoReady, showVideo, isMuted, activeVideoId, currentHeroVideoId, isTabVisible]);
+  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId]);
 
-  // Handle Seek
-  useEffect(() => {
-    if (seekTime && seekTime > 0 && playerRef.current) {
-      try {
-        if (typeof playerRef.current?.seekTo === 'function') playerRef.current.seekTo(seekTime, true);
-        else playerRef.current.currentTime = seekTime;
-        
-        if (typeof playerRef.current?.playVideo === 'function') playerRef.current.playVideo();
-        else playerRef.current.play?.();
-      } catch (e) { }
-    }
-  }, [seekTime]);
+  // Removed custom seek handling since TrailerPlayer does it natively via GlobalContext
 
   if (loading) return (
     <div className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full bg-[#141414] overflow-hidden">
@@ -354,30 +214,18 @@ useEffect(() => {
       <HeroCarouselBackground
         movie={movie} 
         showVideo={showVideo} 
-        trailerQueue={trailerQueue} 
-        setTrailerQueue={setTrailerQueue} 
-        setShowVideo={setShowVideo} 
-        playerRef={playerRef} 
-        isHovered={isHovered} 
         replayCount={replayCount}
         showBackdropOverlay={showBackdropOverlay}
-        player={player}
-        onSyncCheck={(videoId) => {
-          const state = getVideoState(movie.id);
-          return state?.videoId === videoId ? state.time : undefined;
-        }}
-        onVideoEnd={() => { setHasVideoEnded(true); setShowVideo(false); setIsVideoReady(false); }}
-        youtubeQuality={networkQuality.quality}
-        onUpdateState={updateVideoState}
+        onReady={() => setIsVideoReady(true)}
+        onEnded={() => { setHasVideoEnded(true); setShowVideo(false); setIsVideoReady(false); }}
+        onErrored={() => { setShowVideo(false); setIsVideoReady(false); }}
       />
       <HeroCarouselContent
         movie={movie} logoUrl={logoUrl} isVideoReady={isVideoReady} onPlay={onPlay}
-        onSelect={(m, _, videoId) => {
-          const actualTime = typeof playerRef.current?.getCurrentTime === 'function' ? playerRef.current.getCurrentTime() : 0;
-          if (videoId) updateVideoState(m.id, actualTime, videoId);
-          onSelect(m, actualTime, videoId);
+        onSelect={(m, _, __) => {
+          onSelect(m);
         }}
-        trailerVideoId={trailerQueue[0]} hasVideoEnded={hasVideoEnded}
+        hasVideoEnded={hasVideoEnded}
       />
         {/* Mute + Age Rating — standardized MaturityBadge */}
         <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
@@ -391,16 +239,16 @@ useEffect(() => {
                   setReplayCount(prev => prev + 1);
                   setShowVideo(true);
                 } else {
-                  setIsMuted(!isMuted);
+                  setGlobalMute(!globalMute);
                 }
               }} 
               className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-lg group mr-4 active:scale-90"
-              aria-label={isMuted ? 'Unmute' : 'Mute'}
+              aria-label={globalMute ? 'Unmute' : 'Mute'}
             >
               {hasVideoEnded ? (
                 <ArrowCounterClockwise size={20} className="text-white" />
               ) : (
-                isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />
+                globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />
               )}
             </button>
           )}

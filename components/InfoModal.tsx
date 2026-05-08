@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, TicketIcon, ClockIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
-import YouTube from 'react-youtube';
 import { Movie, Episode } from '../types';
 import { IMG_PATH, REQUESTS } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -15,11 +14,7 @@ import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { NetworkPriority } from '../services/NetworkPriority';
 import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
-import { useYouTubeCaptions } from '../hooks/useYouTubeCaptions';
-import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
-import { useVideoCover } from '../hooks/useVideoCover';
-import { searchTrailersWithFallback } from '../services/YouTubeService';
-import { useVideoPlayer } from '../hooks/useVideoPlayer';
+import { TrailerPlayer } from './TrailerPlayer';
 
 
 interface InfoModalProps {
@@ -81,8 +76,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const [imgFailed, setImgFailed] = useState(false);
     const isCinemaOnly = useIsInTheaters(movie);
 
-    const [trailerQueue, setTrailerQueue] = useState<string[]>([]);
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
+    const [hasVideoEnded, setHasVideoEnded] = useState(false);
     const [replayCount, setReplayCount] = useState(0);
 
     // Episode / Season State
@@ -93,73 +88,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const modalRef = useRef<HTMLDivElement>(null);
     const heroRef = useRef<HTMLDivElement>(null);
 
-    const player = useVideoPlayer({
-        movieId: activeMovieProp?.id || 0,
-        videoId: trailerQueue[0] || null,
-        autoSync: true,
-        earlyStop: 3,
-        onEnded: () => {
-            setIsPlayingTrailer(false);
-            setHasVideoEnded(true);
-        },
-        onErrored: () => {
-            setTrailerQueue(prev => {
-                const next = prev.slice(1);
-                if (next.length === 0) setIsPlayingTrailer(false);
-                return next;
-            });
-        },
-    });
-
-    const isTrailerReady = player.isReady;
-    const setIsTrailerReady = player.setIsReady;
-    const hasVideoEnded = player.hasEnded;
-    const setHasVideoEnded = player.setHasEnded;
-    const playerRef = player.playerRef;
-    const isMuted = player.isMuted;
-    const setIsMuted = player.setIsMuted;
-
     // ── Spring-from-card animation (FLIP technique) ──────────────────────
     const [springTransform, setSpringTransform] = useState<string>('none');
     const [springTransition, setSpringTransition] = useState('none');
-    const currentTrailerId = trailerQueue[0] || null;
-    const captionsPlaying = isPlayingTrailer && isTrailerReady;
-    const { overlayStyle, lang, enabled: subtitlesEnabled } = useSubtitleStyle();
-    const { activeCue, onApiChange } = useYouTubeCaptions(playerRef, currentTrailerId, captionsPlaying, lang);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const coverDimensions = useVideoCover(containerRef, 1.20);
 
     const mediaType = activeMovieProp
         ? (activeMovieProp.media_type || (activeMovieProp.title ? 'movie' : 'tv')) as 'movie' | 'tv'
         : 'movie';
-
-    const npTitle = (detailedMovie || activeMovieProp)?.original_title
-        || (detailedMovie || activeMovieProp)?.original_name
-        || (detailedMovie || activeMovieProp)?.title
-        || (detailedMovie || activeMovieProp)?.name
-        || '';
-    const npYear = ((detailedMovie || activeMovieProp)?.release_date
-        || (detailedMovie || activeMovieProp)?.first_air_date
-        || '').slice(0, 4) || undefined;
-    const npType = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
-    const [fetchedTrailers, setFetchedTrailers] = useState<string[]>([]);
-    const [loadingTrailer, setLoadingTrailer] = useState(false);
-
-    useEffect(() => {
-        setFetchedTrailers([]);
-        if (!npTitle) return;
-        
-        let mounted = true;
-        setLoadingTrailer(true);
-        searchTrailersWithFallback({ title: npTitle, year: npYear, type: npType }, 5)
-            .then(results => {
-                if (mounted) setFetchedTrailers(results);
-            })
-            .finally(() => {
-                if (mounted) setLoadingTrailer(false);
-            });
-        return () => { mounted = false; };
-    }, [npTitle, npYear, npType]);
 
 
     useEffect(() => {
@@ -217,27 +152,17 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     }, [movie, trailerId]);
 
     const handleClose = () => {
-        let currentTime = 0;
-        let currentVideoId = trailerQueue[0] || trailerId;
-        if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
-            currentTime = playerRef.current.getCurrentTime();
-        }
-        if (movie && currentVideoId) {
-            updateVideoState(movie.id, currentTime, currentVideoId);
-        }
-        onClose(currentTime);
+        onClose();
     };
 
     useEffect(() => {
         if (movie) {
             setImgFailed(false);
-            setTrailerQueue([]);
             setIsPlayingTrailer(false);
-            setIsTrailerReady(false);
+            setHasVideoEnded(false);
             setEpisodes([]);
             setSelectedSeason(1);
             setResumeContext(null);
-            setHasVideoEnded(false);
             setReplayCount(0);
             setOverrideMovie(null);
 
@@ -250,46 +175,12 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     setSelectedSeason(saved.season);
                 }
             }
-
-            const savedState = movie ? getVideoState(movie.id) : null;
-            const isValidVideoId = (id?: string | null) => !!id && /^[a-zA-Z0-9_-]{10,12}$/.test(id);
-            let finalTrailerId = trailerId;
-
-            if (!finalTrailerId && heroVideoState.movieId && String(heroVideoState.movieId) === String(movie.id)) {
-                finalTrailerId = heroVideoState.videoId;
-            }
-
-            if (!finalTrailerId && isValidVideoId(savedState?.videoId)) {
-                finalTrailerId = savedState!.videoId;
-            }
-
-            if (finalTrailerId) {
-                setTrailerQueue([finalTrailerId]);
-                setIsPlayingTrailer(true);
-                if (movie.id && !savedState?.videoId) {
-                    updateVideoState(movie.id, 0, finalTrailerId);
-                }
-            } else if (!loadingTrailer && fetchedTrailers.length > 0) {
-                setTrailerQueue(fetchedTrailers);
-                setIsPlayingTrailer(true);
-                if (!getVideoState(movie.id)?.videoId) {
-                    updateVideoState(movie.id, 0, fetchedTrailers[0]);
-                }
-            }
         }
-    }, [movie, trailerId]);
+    }, [movie]);
 
     useEffect(() => {
         if (!overrideMovie) return;
         const type = (overrideMovie.media_type || (overrideMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-        const savedState = getVideoState(overrideMovie.id);
-        if (savedState?.videoId) {
-            setTrailerQueue([savedState.videoId]);
-            setIsPlayingTrailer(true);
-        } else if (!loadingTrailer && fetchedTrailers.length > 0) {
-            setTrailerQueue(fetchedTrailers);
-            setIsPlayingTrailer(true);
-        }
         if (type === 'tv') {
             const saved = getLastWatchedEpisode(overrideMovie.id);
             if (saved?.season && saved?.episode) {
@@ -314,61 +205,51 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
-    const backdropForcedRef = useRef(false);
-    useEffect(() => {
-        const handleVisibility = () => {
-            if (document.visibilityState === 'hidden') {
-                try { playerRef.current?.pauseVideo?.(); } catch { }
-                visibilityTimerRef.current = setTimeout(() => {
-                    backdropForcedRef.current = true;
-                    setShowBackdropOverlay(true);
-                }, 30_000);
-            } else if (document.visibilityState === 'visible' && isPlayingTrailer) {
-                if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
-                backdropForcedRef.current = false;
-                setShowBackdropOverlay(false);
-                try { playerRef.current?.playVideo?.(); } catch { }
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibility);
-        return () => document.removeEventListener('visibilitychange', handleVisibility);
-    }, [isPlayingTrailer]);
-
-    useEffect(() => {
-        if (isPlayingTrailer && isTrailerReady && backdropForcedRef.current) {
-            backdropForcedRef.current = false;
-            setShowBackdropOverlay(false);
-        }
-    }, [isPlayingTrailer, isTrailerReady]);
-
+    
+    // Visibility & Scroll Pause Logic
     useEffect(() => {
         if (!movie) return;
-        const yearStr = (movie.release_date || movie.first_air_date)?.substring(0, 4);
-        const year = yearStr ? parseInt(yearStr) : 0;
-        if (mediaType === 'movie') {
-            prefetchStream(movie.title || movie.name || '', year || undefined, String(movie.id), 'movie', 1, 1, undefined, 'hot');
-        } else {
-            const s = resumeContext?.season || 1;
-            const e = resumeContext?.episode || 1;
-            prefetchStream(movie.name || movie.title || '', year || undefined, String(movie.id), 'tv', s, e, undefined, 'hot');
-        }
-    }, [movie, resumeContext, mediaType]);
 
-    useEffect(() => {
-        if (!heroRef.current) return;
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (!entry.isIntersecting && playerRef.current && isPlayingTrailer) {
-                    try { playerRef.current.pauseVideo?.(); } catch { }
-                } else if (entry.isIntersecting && playerRef.current && isPlayingTrailer) {
-                    try { playerRef.current.playVideo?.(); } catch { }
-                }
-            },
-            { threshold: 0.01 }
-        );
-        observer.observe(heroRef.current);
-        return () => observer.disconnect();
-    }, [isPlayingTrailer]);
+        let isVisible = document.visibilityState === 'visible';
+        let isIntersecting = true;
+
+        const updateVideoState = () => {
+            if (isVisible && isIntersecting) {
+                setActiveVideoId(`modal-${movie.id}`);
+            } else {
+                setActiveVideoId(`paused-modal-${movie.id}`);
+            }
+        };
+
+        const handleVisibility = () => {
+            isVisible = document.visibilityState === 'visible';
+            if (!isVisible) {
+                visibilityTimerRef.current = setTimeout(() => {
+                    setShowBackdropOverlay(true);
+                }, 30_000);
+            } else {
+                if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+                setShowBackdropOverlay(false);
+            }
+            updateVideoState();
+        };
+
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        let observer: IntersectionObserver | null = null;
+        if (heroRef.current) {
+            observer = new IntersectionObserver(([entry]) => {
+                isIntersecting = entry.isIntersecting;
+                updateVideoState();
+            }, { threshold: 0.1 });
+            observer.observe(heroRef.current);
+        }
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibility);
+            if (observer) observer.disconnect();
+        };
+    }, [movie, setActiveVideoId]);
 
     if (!movie) return null;
     const activeMovie = detailedMovie || activeMovieProp;
@@ -384,13 +265,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const handleRecommendationClick = (rec: Movie) => {
         setOverrideMovie(rec);
         setImgFailed(false);
-        setTrailerQueue([]);
         setIsPlayingTrailer(false);
-        setIsTrailerReady(false);
+        setHasVideoEnded(false);
         setEpisodes([]);
         setSelectedSeason(1);
         setResumeContext(null);
-        setHasVideoEnded(false);
         if (modalRef.current) {
             modalRef.current.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -448,40 +327,29 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
-                            className={`w-full h-full object-cover transition-opacity duration-700 ${isPlayingTrailer && isTrailerReady ? 'opacity-0' : 'opacity-100'}`}
+                            className={`w-full h-full object-cover transition-opacity duration-700 ${isPlayingTrailer ? 'opacity-0' : 'opacity-100'}`}
                             alt="modal hero"
                         />
-                        <div ref={containerRef} className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && isTrailerReady && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
-                            {isPlayingTrailer && trailerQueue.length > 0 && (
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: coverDimensions.width || '100%', height: coverDimensions.height || '100%' }}>
-                                    <YouTube
-                                        key={`${trailerQueue[0]}-modal-${replayCount}`}
-                                        videoId={trailerQueue[0]}
-                                        className="w-full h-full"
-                                        onReady={(e) => {
-                                            player.onReady(e);
-                                            // Manual listener for caption API changes (unsupported prop in react-youtube)
-                                            try { e.target.addEventListener('onApiChange', onApiChange); } catch (_) { }
-                                        }}
-                                        onStateChange={player.onStateChange}
-                                        onError={player.onError}
-                                        onEnd={player.onEnd}
-                                        opts={player.getYouTubeOpts()}
-                                    />
-                                    <div className="absolute inset-0 z-[1] pointer-events-none" />
-                                </div>
-                            )}
+                        <div className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
+                            <TrailerPlayer 
+                                key={`modal-player-${replayCount}`}
+                                movie={activeMovie} 
+                                variant="modal"
+                                onReady={() => setIsPlayingTrailer(true)}
+                                onEnded={() => {
+                                    setIsPlayingTrailer(false);
+                                    setHasVideoEnded(true);
+                                }}
+                                onErrored={() => {
+                                    setIsPlayingTrailer(false);
+                                }}
+                            />
                         </div>
-                        {subtitlesEnabled && activeCue && (
-                            <div style={overlayStyle}>
-                                {activeCue}
-                            </div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent z-10" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent z-10 pointer-events-none" />
                     </div>
 
                     <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 space-y-3 md:space-y-4 z-20 pointer-events-auto">
-                        <div className="w-[80%]">
+                        <div className="inline-flex flex-col max-w-[80%]">
                             {logoUrl && !imgFailed ? (
                                 <div className="relative inline-flex items-end">
                                     {/* Dual-layer premium shadow for high-contrast visibility */}
@@ -495,12 +363,12 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 </h2>
                             )}
                             {watchPct > 1 && (
-                                <div className="flex items-center gap-2.5 mt-3 w-full">
-                                    <div className="flex-1 h-[3px] bg-white/25 overflow-hidden" style={{ borderRadius: 0 }}>
+                                <div className="relative mt-3 w-full flex items-center">
+                                    <div className="w-full h-[3px] bg-white/25 overflow-hidden" style={{ borderRadius: 0 }}>
                                         <div className="h-full bg-[#e50914] transition-all duration-300" style={{ width: `${watchPct}%`, borderRadius: 0 }} />
                                     </div>
                                     {totalMins > 0 && (
-                                        <span className="text-gray-400/80 text-[11px] whitespace-nowrap flex-shrink-0 font-medium">
+                                        <span className="absolute left-[100%] ml-2.5 text-gray-400/80 text-[11px] whitespace-nowrap font-medium">
                                             {watchMins} of {totalMins}m
                                         </span>
                                     )}
@@ -534,8 +402,17 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     </div>
 
                     {(isPlayingTrailer || hasVideoEnded) && (
-                        <button onClick={(e) => { e.stopPropagation(); if (hasVideoEnded) { setHasVideoEnded(false); setIsTrailerReady(false); setIsPlayingTrailer(true); setReplayCount(c => c + 1); } else { setIsMuted(!isMuted); } }} className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-xl pointer-events-auto cursor-pointer">
-                            {hasVideoEnded ? <ArrowCounterClockwiseIcon size={20} className="text-white" /> : isMuted ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
+                        <button onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (hasVideoEnded) { 
+                                setHasVideoEnded(false); 
+                                setIsPlayingTrailer(true); 
+                                setReplayCount(c => c + 1); 
+                            } else { 
+                                setGlobalMute(!globalMute); 
+                            } 
+                        }} className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-xl pointer-events-auto cursor-pointer">
+                            {hasVideoEnded ? <ArrowCounterClockwiseIcon size={20} className="text-white" /> : globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
                         </button>
                     )}
                 </div>

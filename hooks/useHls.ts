@@ -81,6 +81,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
     }, []);
 
     useEffect(() => {
+        let mediaErrorCount = 0;
         const video = videoRef.current;
         if (!video || !streamUrl || !isM3U8) {
             if (streamUrl && !isM3U8) {
@@ -265,8 +266,15 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                         }
 
                         case Hls.ErrorTypes.MEDIA_ERROR:
-                            console.log('[useHls] Media error, recovering...');
-                            hls.recoverMediaError();
+                            mediaErrorCount++;
+                            if (mediaErrorCount > 3) {
+                                console.error('[useHls] Too many media errors (likely garbage stream). Treating as dead source.');
+                                if (onFatalError) onFatalError(data.type, data.details, statusCode);
+                                if (onTokenExpired) onTokenExpired();
+                            } else {
+                                console.log(`[useHls] Media error, recovering... (Attempt ${mediaErrorCount})`);
+                                hls.recoverMediaError();
+                            }
                             break;
 
                         default:
