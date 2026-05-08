@@ -43,7 +43,9 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Apply zoom based on variant to hide YouTube UI perfectly
-    const zoomFactor = variant === 'card' ? 0.90 : (variant === 'modal' ? 1.10 : 1.10);
+    // NOTE: Values < 1.0 DO NOT zoom out the video! They just shrink the iframe, creating black bars.
+    // We MUST use values > 1.0 (like 1.15) to crop out the YouTube title text and logo.
+    const zoomFactor = variant === 'card' ? 1.05 : (variant === 'modal' ? 1.05 : 1.30);
     const dimensions = useVideoCover(containerRef, zoomFactor);
 
     // Cleanup interval on unmount
@@ -107,9 +109,12 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         }
     }), []);
 
-    if (!movie || !videoId) return null;
+    // Ref pattern to hold latest props so handlers never change reference and interrupt iframe
+    const handlersRef = useRef({ onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId });
+    handlersRef.current = { onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId };
 
-    const handleReady = (e: any) => {
+    const handleReady = React.useCallback((e: any) => {
+        const { globalMute, movie, getVideoState, onReady } = handlersRef.current;
         playerRef.current = e.target;
         
         try {
@@ -118,14 +123,15 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         } catch {}
 
         // Resume from where we left off, or skip the green bands
-        const savedTime = getVideoState(movie.id)?.time || 0;
+        const savedTime = movie ? (getVideoState(movie.id)?.time || 0) : 0;
         e.target.seekTo(savedTime > 0 ? savedTime : 7, true);
         e.target.playVideo();
 
         onReady?.();
-    };
+    }, []);
 
-    const handleStateChange = (e: any) => {
+    const handleStateChange = React.useCallback((e: any) => {
+        const { movie, updateVideoState, videoId, onProgress } = handlersRef.current;
         const YT_PLAYING = 1;
         const YT_PAUSED = 2;
 
@@ -134,13 +140,15 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             try { e.target.playVideo(); } catch {}
         }
 
+        if (!movie) return;
+
         if (e.data === YT_PLAYING) {
             if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
             syncIntervalRef.current = setInterval(() => {
                 try {
                     const time = e.target.getCurrentTime();
                     if (time > 0) {
-                        updateVideoState(movie.id, time, videoId);
+                        updateVideoState(movie.id, time, videoId || undefined);
                         onProgress?.(time);
                     }
                 } catch {}
@@ -151,21 +159,22 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
             try {
                 const time = e.target.getCurrentTime();
-                if (time > 0) updateVideoState(movie.id, time, videoId);
+                if (time > 0) updateVideoState(movie.id, time, videoId || undefined);
             } catch {}
         }
-    };
+    }, []);
 
-    const handleEnd = () => {
+    const handleEnd = React.useCallback(() => {
         if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-        onEnded?.();
-    };
+        handlersRef.current.onEnded?.();
+    }, []);
 
-    const handleError = () => {
+    const handleError = React.useCallback(() => {
         if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-        onErrored?.();
-    };
+        handlersRef.current.onErrored?.();
+    }, []);
 
+    if (!movie || !videoId) return null;
 
     return (
         <div 

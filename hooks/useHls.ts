@@ -119,11 +119,12 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                 // speeds up quality ramp-up without overshooting on first fragments.
                 abrEwmaDefaultEstimate: mobile ? 500_000 : 2_000_000,
 
-                // Retry thresholds
-                manifestLoadingMaxRetry: 4,
-                levelLoadingMaxRetry:    4,
-                fragLoadingMaxRetry:     3,
-                fragLoadingRetryDelay:   1000,
+                // Retry thresholds: reduced drastically to prevent 40s hangs on 500/403 errors
+                // If a level playlist fails, we want it to blacklist and switch variants immediately.
+                manifestLoadingMaxRetry: 1,
+                levelLoadingMaxRetry:    1,
+                fragLoadingMaxRetry:     2,
+                fragLoadingRetryDelay:   500,
             };
 
             // XHR setup: always disable credentials (prevents CORS preflight issues

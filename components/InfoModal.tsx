@@ -5,7 +5,7 @@ import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon
 import { Movie, Episode } from '../types';
 import { IMG_PATH, REQUESTS } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
-import { getSeasonDetails, prefetchStream } from '../services/api';
+import { getSeasonDetails } from '../services/api';
 
 import InfoModalEpisodes from './InfoModalEpisodes';
 import InfoModalRecommendations from './InfoModalRecommendations';
@@ -66,7 +66,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const {
         myList, toggleList, updateVideoState, heroVideoState,
         globalMute, setGlobalMute, getVideoState, setActiveVideoId,
-        getLastWatchedEpisode, rateMovie, getMovieRating, getEpisodeProgress
+        getLastWatchedEpisode, rateMovie, getMovieRating, getEpisodeProgress,
+        clearVideoState
     } = useGlobalContext();
     const { t } = useTranslation();
     const navigate = useNavigate();
@@ -207,14 +208,17 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
     
     // Visibility & Scroll Pause Logic
+    const visibilityRef = useRef({ isVisible: true, isIntersecting: true });
+    
     useEffect(() => {
         if (!movie) return;
 
-        let isVisible = document.visibilityState === 'visible';
-        let isIntersecting = true;
+        visibilityRef.current.isVisible = document.visibilityState === 'visible';
+        // Assume intersecting until observer says otherwise
+        visibilityRef.current.isIntersecting = true; 
 
         const updateVideoState = () => {
-            if (isVisible && isIntersecting) {
+            if (visibilityRef.current.isVisible && visibilityRef.current.isIntersecting) {
                 setActiveVideoId(`modal-${movie.id}`);
             } else {
                 setActiveVideoId(`paused-modal-${movie.id}`);
@@ -222,8 +226,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         };
 
         const handleVisibility = () => {
-            isVisible = document.visibilityState === 'visible';
-            if (!isVisible) {
+            visibilityRef.current.isVisible = document.visibilityState === 'visible';
+            if (!visibilityRef.current.isVisible) {
                 visibilityTimerRef.current = setTimeout(() => {
                     setShowBackdropOverlay(true);
                 }, 30_000);
@@ -235,19 +239,23 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         };
 
         document.addEventListener('visibilitychange', handleVisibility);
-
+        
         let observer: IntersectionObserver | null = null;
         if (heroRef.current) {
+            // Using a slight delay to prevent rapid toggling if the user scrolls quickly past the threshold
             observer = new IntersectionObserver(([entry]) => {
-                isIntersecting = entry.isIntersecting;
+                visibilityRef.current.isIntersecting = entry.isIntersecting;
                 updateVideoState();
-            }, { threshold: 0.1 });
+            }, { threshold: 0.1 }); // Pause when less than 10% is visible
             observer.observe(heroRef.current);
         }
+
+        updateVideoState();
 
         return () => {
             document.removeEventListener('visibilitychange', handleVisibility);
             if (observer) observer.disconnect();
+            if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
         };
     }, [movie, setActiveVideoId]);
 
@@ -301,7 +309,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         >
             <div
                 ref={modalRef}
-                className="relative w-full max-w-[950px] bg-[#181818] rounded-xl shadow-2xl mt-12 md:mt-16 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
+                // TWEAK HERE: Change max-w-[850px] to make narrower/wider. Change mt-6 md:mt-8 to move it up/down on Y-axis.
+                className="relative w-full max-w-[850px] bg-[#181818] rounded-xl shadow-2xl mt-6 md:mt-8 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
                 style={{
                     transform: springTransform,
                     transition: springTransition,
@@ -323,11 +332,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 </button>
 
                 {/* --- Hero Section --- */}
-                <div ref={heroRef} className="relative h-[300px] sm:h-[400px] md:h-[560px] w-full bg-black group overflow-hidden">
+                <div ref={heroRef} className="relative h-[280px] sm:h-[360px] md:h-[490px] w-full bg-black group overflow-hidden">
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
-                            className={`w-full h-full object-cover transition-opacity duration-700 ${isPlayingTrailer ? 'opacity-0' : 'opacity-100'}`}
+                            className={`w-full h-full object-cover scale-[1.05] transition-opacity duration-700 ${isPlayingTrailer ? 'opacity-0' : 'opacity-100'}`}
                             alt="modal hero"
                         />
                         <div className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
@@ -405,6 +414,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         <button onClick={(e) => { 
                             e.stopPropagation(); 
                             if (hasVideoEnded) { 
+                                clearVideoState(activeMovie.id);
                                 setHasVideoEnded(false); 
                                 setIsPlayingTrailer(true); 
                                 setReplayCount(c => c + 1); 
@@ -420,20 +430,20 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 <div className="px-6 md:px-12 pb-12 bg-[#181818]">
                     <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-x-8 gap-y-6">
                         <div className="space-y-4">
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-white font-medium text-sm md:text-base mt-2 font-harmonia-condensed">
-                                <span className="text-white/80 tracking-wide">{year}</span>
-                                <span className="text-white/80 tracking-wide">{duration}</span>
-                                <span className="border border-gray-500 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-400 h-fit leading-none font-bold">HD</span>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-white font-bold text-sm md:text-base mt-2 font-harmonia-condensed">
+                                <span className="text-white tracking-wide">{year}</span>
+                                <span className="text-white tracking-wide">{duration}</span>
+                                <span className="border border-gray-400 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-300 h-fit leading-none font-extrabold">HD</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} size="md" />
-                                <span className="text-sm text-gray-400">{activeMovie.adult ? t('common.maturity.adultDesc') : t('common.maturity.teenDesc')}</span>
+                                <span className="text-sm font-semibold text-gray-200">{activeMovie.adult ? t('common.maturity.adultDesc') : t('common.maturity.teenDesc')}</span>
                             </div>
-                            <p className="text-white text-sm md:text-[15px] leading-relaxed pt-2">{activeMovie.overview}</p>
+                            <p className="text-white font-medium text-sm md:text-[15px] leading-relaxed pt-2">{activeMovie.overview}</p>
                         </div>
                         <div className="space-y-4 pt-2">
                             <div className="text-sm flex flex-wrap gap-x-1">
-                                <span className="text-gray-500 mr-1">{t('common.cast')}</span>
+                                <span className="text-gray-300 font-semibold mr-1">{t('common.cast')}</span>
                                 {cast?.slice(0, 3).map((actor, i, arr) => (
                                     <React.Fragment key={actor}>
                                         <span
@@ -441,16 +451,16 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                 handleClose();
                                                 triggerSearch(navigate, actor);
                                             }}
-                                            className="text-white hover:underline cursor-pointer"
+                                            className="text-white font-semibold hover:underline cursor-pointer"
                                         >
                                             {actor}
                                         </span>
-                                        {i < arr.length - 1 ? <span className="text-white">, </span> : null}
+                                        {i < arr.length - 1 ? <span className="text-white font-semibold">, </span> : null}
                                     </React.Fragment>
                                 ))}
                             </div>
                             <div className="text-sm flex flex-wrap gap-x-1">
-                                <span className="text-gray-500 mr-1">{t('common.genres')}</span>
+                                <span className="text-gray-300 font-semibold mr-1">{t('common.genres')}</span>
                                 {(activeMovie.genres?.length
                                     ? activeMovie.genres.map(g => ({ id: g.id, name: g.name }))
                                     : activeMovie.genre_ids?.map(id => ({ id, name: t(`genres.${id}`) })) || []
@@ -461,11 +471,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                                 handleClose();
                                                 navigate(`/browse/genre-${g.id}?title=${encodeURIComponent(g.name)}&url=${encodeURIComponent(REQUESTS.fetchByGenre(activeMovie.media_type === 'tv' ? 'tv' : 'movie', g.id))}`);
                                             }}
-                                            className="text-white hover:underline cursor-pointer"
+                                            className="text-white font-semibold hover:underline cursor-pointer"
                                         >
                                             {g.name}
                                         </span>
-                                        {i < arr.length - 1 ? <span className="text-white">, </span> : null}
+                                        {i < arr.length - 1 ? <span className="text-white font-semibold">, </span> : null}
                                     </React.Fragment>
                                 ))}
                             </div>
@@ -495,12 +505,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         />
                     </div>
 
-                    <div className="mt-12 pt-8 border-t border-white/10">
-                        <div className="text-sm">
-                            <span className="text-gray-500">{t('modal.about')} {activeMovie.title || activeMovie.name}: </span>
-                            <span className="text-white font-medium">{cast?.join(', ')}</span>
-                        </div>
-                    </div>
+
                 </div>
             </div>
         </div>

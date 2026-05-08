@@ -120,7 +120,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     myList, toggleList, rateMovie, getMovieRating, getVideoState,
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
-    globalMute, setGlobalMute
+    globalMute, setGlobalMute, clearVideoState
   } = useGlobalContext();
   const [isHovered, setIsHovered] = useState(false);
   const [isPrimed, setIsPrimed] = useState(false); // Immediate visual feedback
@@ -319,9 +319,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     const year = yearString ? parseInt(yearString) : undefined;
     const mediaType = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
     
-    if (year) {
-      prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
-    }
+    // Prefetch disabled on hover to prevent aggressive background requests
+    // if (year) {
+    //   prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
+    // }
 
     // Cancel any in-flight leave timer so fast re-enters don't flicker
     if (timerRef.current) {
@@ -355,11 +356,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         setHoveredRect(null);
         setIsHoverVideoReady(false);
       };
-      const year = yearString ? parseInt(yearString) : undefined;
-      if (year) {
-        prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
-      }
-    }, 350);
+      // Removed prefetchStream here to prevent aggressive backend calls on hover
+    }, 500);
   };
 
   // handlePointerMove intentionally removed — no zone restriction needed.
@@ -391,8 +389,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   // so no py-52 hack is needed on the Row strip.
   const getPopupFixedStyle = (): React.CSSProperties => {
     if (!hoveredRect) return { display: 'none' };
-    const POPUP_W = 340;
-    const TOP_OFFSET = -96; // ← TUNE THIS: more negative = popup higher above the card
+    const POPUP_W = 320;
+    const TOP_OFFSET = -88; // ← TUNE THIS: more negative = popup higher above the card
     let left: number;
     if (hoverPosition === 'left') {
       left = hoveredRect.left;
@@ -570,13 +568,13 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               }}
             >
               {/* Media Container — taller to avoid info section getting cut */}
-              <div className="relative h-[190px] md:h-[210px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+              <div className="relative h-[175px] md:h-[190px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
 
                 {(!isBook) ? (
                   <>
                     <img
                       src={imageSrc}
-                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 ${isHoverVideoReady ? 'opacity-0' : 'opacity-100'}`}
+                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 scale-[1.05] ${isHoverVideoReady ? 'opacity-0' : 'opacity-100'}`}
                       alt="preview"
                     />
                     <div className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
@@ -607,6 +605,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     onClick={(e) => {
                       e.stopPropagation();
                       if (hasVideoEnded) {
+                        clearVideoState(movie.id);
                         setHasVideoEnded(false);
                         setIsHoverVideoReady(true);
                         setReplayCount(c => c + 1);

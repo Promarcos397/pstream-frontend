@@ -107,7 +107,11 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
                 cursor-pointer transition-transform duration-300 hover:scale-105 hover:z-40 flex items-end 
                 mr-4 sm:mr-6
                 pointer-events-auto"
-                onClick={() => onSelect(movie)}
+                onClick={(e) => {
+                  const rawRect = e.currentTarget.getBoundingClientRect();
+                  if (rawRect) (window as any).__last_card_rect = rawRect;
+                  onSelect(movie);
+                }}
               >
                 {/* The Number - Now properly positioned to heavily underlap */}
                 <div className="absolute left-[-5%] bottom-0 h-full w-[60%] flex items-end justify-start z-0 pointer-events-none pb-0">

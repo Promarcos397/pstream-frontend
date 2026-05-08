@@ -24,11 +24,13 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({ adult, voteAverage
     : rating === '15' ? '#FB4FAE'
     : '#F97316'; // orange for 13+
 
-  const dim = size === 'md' ? 'w-7 h-7 text-[10px]' : 'w-6 h-6 text-[9px]';
+  // Tweak 'dim' sizes here to make the circle bigger/smaller
+  const dim = size === 'md' ? 'w-10 h-10 text-[15px]' : 'w-9 h-9 text-[10px]';
 
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-full ${dim} text-white font-bold flex-shrink-0 border border-white/70`}
+      // Tweak 'border-[1.5px]' below to change the stroke thickness
+      className={`inline-flex items-center justify-center rounded-full ${dim} text-white font-bold flex-shrink-0 border-[2px] border-white/90 shadow-sm`}
       style={{ backgroundColor: bg }}
     >
       {rating}

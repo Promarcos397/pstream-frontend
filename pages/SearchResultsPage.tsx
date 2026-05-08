@@ -18,22 +18,7 @@ interface SearchResultsPageProps {
 const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, onSelectMovie, onPlay, isLoading, mode, setMode }) => {
   const { t } = useTranslation();
 
-  // Smart Preloading: When results are ready and we aren't loading, pre-warm the cache for top 3 hits
-  React.useEffect(() => {
-    if (!isLoading && results.length > 0 && mode !== 'comic') {
-      const topResults = results.filter(r => r.backdrop_path).slice(0, 3);
-      topResults.forEach((movie, index) => {
-        const type = movie.media_type || (movie.title ? 'movie' : 'tv');
-        const releaseDate = movie.release_date || movie.first_air_date;
-        const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
-        
-        // Staggered prefetch to avoid CPU spikes
-        setTimeout(() => {
-          prefetchStream(movie.title || movie.name || '', year, String(movie.id), type as any);
-        }, index * 1000);
-      });
-    }
-  }, [results, isLoading, mode]);
+  // Removed aggressive localized prefetching for search results
 
   return (
     <div className="pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen">

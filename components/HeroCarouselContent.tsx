@@ -127,7 +127,11 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     )}
 
                     <button
-                        onClick={() => onSelect(movie, undefined, trailerVideoId)}
+                        onClick={(e) => {
+                            const rawRect = e.currentTarget.getBoundingClientRect();
+                            if (rawRect) (window as any).__last_card_rect = rawRect;
+                            onSelect(movie, undefined, trailerVideoId);
+                        }}
                         className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 sm:px-9 h-[34px] md:h-[42px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[14px] md:text-[17px] gap-2 md:gap-2.5 pointer-events-auto  active:scale-95"
                     >
                         <InfoIcon weight="bold" className="text-lg md:text-2xl" />

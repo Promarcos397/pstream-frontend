@@ -3,6 +3,7 @@ import { SpeakerSlashIcon, SpeakerHighIcon, ArrowCounterClockwise } from '@phosp
 
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
+import { useIsMobile } from '../hooks/useIsMobile';
 import HeroCarouselBackground from './HeroCarouselBackground';
 import HeroCarouselContent from './HeroCarouselContent';
 import { Movie, TMDBResponse } from '../types';
@@ -21,8 +22,9 @@ interface HeroCarouselProps {
 }
 
 const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie, genreId, pageType: explicitPageType }) => {
-  const { getVideoState, updateVideoState, setHeroVideoState, heroVideoState, activeVideoId, setActiveVideoId, globalMute, setGlobalMute } = useGlobalContext();
+  const { getVideoState, setHeroVideoState, heroVideoState, activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState } = useGlobalContext();
   const networkQuality = useNetworkQuality();
+  const isMobile = useIsMobile();
   const [movie, setMovie] = useState<Movie | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -169,8 +171,8 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   useEffect(() => {
     if (loading || !movie) return;
     
-    // We only mount the TrailerPlayer if the tab is visible and the hero is in view
-    if (isOutOfView || !isTabVisible) {
+    // We only mount the TrailerPlayer if the tab is visible, the hero is in view, and not on mobile
+    if (isOutOfView || !isTabVisible || isMobile) {
         setShowVideo(false);
         setActiveVideoId(prev => prev === `hero-${movie.id}` ? null : prev);
     } else {
@@ -188,7 +190,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         }, delay);
         return () => clearTimeout(timer);
     }
-  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId]);
+  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId, isMobile]);
 
   // Removed custom seek handling since TrailerPlayer does it natively via GlobalContext
 
@@ -231,10 +233,11 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
           bottom-[25%] sm:bottom-[21%] md:bottom-[17%]"
         >
-          {showVideo && isVideoReady && (
+          {( (showVideo && isVideoReady) || hasVideoEnded ) && (
             <button 
               onClick={() => {
                 if (hasVideoEnded) {
+                  clearVideoState(movie.id);
                   setHasVideoEnded(false);
                   setReplayCount(prev => prev + 1);
                   setShowVideo(true);

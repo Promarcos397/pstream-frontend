@@ -55,34 +55,7 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
   const rows = useDynamicManifest('home');
 
   // --- SMART PRELOADING ENGINE ---
-  useEffect(() => {
-    // 1. Prefetch Top 2 Continue Watching (High Accuracy)
-    if (continueWatching.length > 0) {
-      continueWatching.slice(0, 2).forEach((movie, i) => {
-        const type = getMediaType(movie);
-        const releaseDate = movie.release_date || movie.first_air_date;
-        const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
-        
-        // Staggered delay: 2s and 4s after landing
-        setTimeout(() => {
-          prefetchStream(movie.title || movie.name || '', year, String(movie.id), type);
-        }, 2000 + (i * 2000));
-      });
-    }
-
-    // 2. Prefetch My List items (Medium Accuracy)
-    if (myList.length > 0) {
-      const topList = myList.slice(0, 1);
-      topList.forEach((movie) => {
-        const type = getMediaType(movie);
-        const releaseDate = movie.release_date || movie.first_air_date;
-        const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
-        setTimeout(() => {
-          prefetchStream(movie.title || movie.name || '', year, String(movie.id), type);
-        }, 6000);
-      });
-    }
-  }, [continueWatching, myList]);
+  // Removed: We now use the global usePrefetchQueue hook instead of aggressive localized prefetching.
 
   return (
     <>

@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import Navbar from './Navbar';
+import Footer from './Footer';
 
 import useScroll from '../hooks/useScroll';
 
@@ -37,6 +38,8 @@ const Layout: React.FC<LayoutProps> = ({
       <div className="min-h-screen">
         {children}
       </div>
+
+      {showFooter && <Footer />}
     </div>
   );
 };

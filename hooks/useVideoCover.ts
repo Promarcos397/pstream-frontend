@@ -17,7 +17,7 @@ interface VideoDimensions {
  */
 export function useVideoCover(
   containerRef: RefObject<HTMLElement | null>,
-  zoomBuffer = 1.05,
+  zoomBuffer = 1.00,
 ): VideoDimensions {
   // Boot with a sensible viewport-based estimate so the first render
   // never shows a 0×0 gap before the ResizeObserver fires.
