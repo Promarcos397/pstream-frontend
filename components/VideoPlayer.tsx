@@ -116,6 +116,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const cacheKeyRef = useRef<import('../utils/streamCache').CacheKey | null>(null);
     const [error, setError] = useState<string | null>(null);
     const reportedSuccessRef = useRef<string | null>(null);
+    const prefetchedNextEpsRef = useRef<Set<string>>(new Set());
 
     // ─── Torrent fallback ──────────────────────────────────────────────────────
     // Triggered silently after MAX_STREAM_RETRIES, only for logged-in users.
@@ -370,7 +371,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setStreamUrl(finalUrl);
         setIsStreamM3U8(!!hlsSource.isM3U8);
         setStreamReferer(activeReferer || null);
-        setLoadingMessage('Loading video...');
+        setLoadingMessage(`Loading video from ${hlsSource.provider || 'Server'}...`);
 
         if (subtitles && subtitles.length > 0) {
             const mappedCaptions = subtitles.map((sub: any, index: number) => ({
@@ -822,8 +823,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             episode: nextEp.episode_number,
             tmdbId: String(movie.id)
         };
+        const cacheKeyStr = JSON.stringify(cacheKey);
 
-        if (!streamCache.get(cacheKey)) {
+        if (!streamCache.get(cacheKey) && !prefetchedNextEpsRef.current.has(cacheKeyStr)) {
+            prefetchedNextEpsRef.current.add(cacheKeyStr);
             console.log(`[VideoPlayer] 🔮 Prefetching S${nextSeason}E${nextEp.episode_number} at ${Math.round(progress)}%...`);
             prefetchStream(title, releaseYear || 0, String(movie.id), 'tv', nextSeason, nextEp.episode_number)
                 .catch(() => {});
