@@ -26,6 +26,11 @@ export const useMovieData = (movie: Movie | null): UseMovieDataReturn => {
             return;
         }
 
+        // Clear previous state to prevent ghosting when switching movies
+        setDetailedMovie(null);
+        setCast([]);
+        setRecommendations([]);
+        setLogoUrl(null);
         setIsLoading(true);
 
         const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';

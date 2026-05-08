@@ -133,23 +133,24 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         ? (activeMovieProp.media_type || (activeMovieProp.title ? 'movie' : 'tv')) as 'movie' | 'tv'
         : 'movie';
 
-    const npTitle    = (detailedMovie || activeMovieProp)?.original_title
-                    || (detailedMovie || activeMovieProp)?.original_name
-                    || (detailedMovie || activeMovieProp)?.title
-                    || (detailedMovie || activeMovieProp)?.name
-                    || '';
-    const npYear     = ((detailedMovie || activeMovieProp)?.release_date
-                    || (detailedMovie || activeMovieProp)?.first_air_date
-                    || '').slice(0, 4) || undefined;
-    const npType  = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
+    const npTitle = (detailedMovie || activeMovieProp)?.original_title
+        || (detailedMovie || activeMovieProp)?.original_name
+        || (detailedMovie || activeMovieProp)?.title
+        || (detailedMovie || activeMovieProp)?.name
+        || '';
+    const npYear = ((detailedMovie || activeMovieProp)?.release_date
+        || (detailedMovie || activeMovieProp)?.first_air_date
+        || '').slice(0, 4) || undefined;
+    const npType = mediaType === 'tv' ? 'tv' : 'movie' as 'movie' | 'tv';
     const [fetchedTrailers, setFetchedTrailers] = useState<string[]>([]);
     const [loadingTrailer, setLoadingTrailer] = useState(false);
 
     useEffect(() => {
+        setFetchedTrailers([]);
         if (!npTitle) return;
+        
         let mounted = true;
         setLoadingTrailer(true);
-        setFetchedTrailers([]);
         searchTrailersWithFallback({ title: npTitle, year: npYear, type: npType }, 5)
             .then(results => {
                 if (mounted) setFetchedTrailers(results);
@@ -460,7 +461,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                         onReady={(e) => {
                                             player.onReady(e);
                                             // Manual listener for caption API changes (unsupported prop in react-youtube)
-                                            try { e.target.addEventListener('onApiChange', onApiChange); } catch (_) {}
+                                            try { e.target.addEventListener('onApiChange', onApiChange); } catch (_) { }
                                         }}
                                         onStateChange={player.onStateChange}
                                         onError={player.onError}
@@ -558,7 +559,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 <span className="text-gray-500 mr-1">{t('common.cast')}</span>
                                 {cast?.slice(0, 3).map((actor, i, arr) => (
                                     <React.Fragment key={actor}>
-                                        <span 
+                                        <span
                                             onClick={() => {
                                                 handleClose();
                                                 triggerSearch(navigate, actor);
@@ -573,22 +574,22 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             </div>
                             <div className="text-sm flex flex-wrap gap-x-1">
                                 <span className="text-gray-500 mr-1">{t('common.genres')}</span>
-                                {(activeMovie.genres?.length 
+                                {(activeMovie.genres?.length
                                     ? activeMovie.genres.map(g => ({ id: g.id, name: g.name }))
                                     : activeMovie.genre_ids?.map(id => ({ id, name: t(`genres.${id}`) })) || []
                                 ).map((g, i, arr) => (
-                                  <React.Fragment key={g.id}>
-                                    <span 
-                                      onClick={() => {
-                                        handleClose();
-                                        navigate(`/browse/genre-${g.id}?title=${encodeURIComponent(g.name)}&url=${encodeURIComponent(REQUESTS.fetchByGenre(activeMovie.media_type === 'tv' ? 'tv' : 'movie', g.id))}`);
-                                      }}
-                                      className="text-white hover:underline cursor-pointer"
-                                    >
-                                      {g.name}
-                                    </span>
-                                    {i < arr.length - 1 ? <span className="text-white">, </span> : null}
-                                  </React.Fragment>
+                                    <React.Fragment key={g.id}>
+                                        <span
+                                            onClick={() => {
+                                                handleClose();
+                                                navigate(`/browse/genre-${g.id}?title=${encodeURIComponent(g.name)}&url=${encodeURIComponent(REQUESTS.fetchByGenre(activeMovie.media_type === 'tv' ? 'tv' : 'movie', g.id))}`);
+                                            }}
+                                            className="text-white hover:underline cursor-pointer"
+                                        >
+                                            {g.name}
+                                        </span>
+                                        {i < arr.length - 1 ? <span className="text-white">, </span> : null}
+                                    </React.Fragment>
                                 ))}
                             </div>
                         </div>
