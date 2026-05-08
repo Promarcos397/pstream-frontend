@@ -165,7 +165,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                         height: '100%',
                         playerVars: {
                             autoplay: 1,
-                            mute: globalMute ? 1 : 0,
+                            mute: 1, // Always initialize muted to guarantee mobile autoplay
                             controls: 0,
                             modestbranding: 1,
                             rel: 0,

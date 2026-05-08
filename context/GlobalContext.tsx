@@ -135,7 +135,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const [globalMute, setGlobalMuteState] = useState<boolean>(() => {
     const saved = Cookies.get('muted_profile');
-    return saved === 'true'; 
+    return saved !== undefined ? saved === 'true' : false; // Default to false (unmuted) for new users
   });
 
   const setGlobalMute = useCallback((mute: boolean) => {
