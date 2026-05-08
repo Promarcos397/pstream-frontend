@@ -34,7 +34,6 @@
     "hooks",
     "utils",
     "types",
-    "electron",
     "*.tsx",
     "*.ts"
   ],

@@ -213,53 +213,8 @@ const ReadsPage: React.FC<ReadsPageProps> = ({ onSelectBook, onRead }) => {
     }, []);
 
     const fetchAllSeriesWithIssues = async () => {
-        const electron = (window as any).electron;
-        if (!electron?.cloud?.getSeries || !electron?.cloud?.getIssues) {
-            setLoading(false);
-            return;
-        }
-
-        try {
-            const seriesRes = await electron.cloud.getSeries();
-            if (!seriesRes.success) {
-                setLoading(false);
-                return;
-            }
-
-            // Fetch issues for each series
-            const seriesWithIssues: Series[] = await Promise.all(
-                seriesRes.data.map(async (s: any) => {
-                    try {
-                        const issuesRes = await electron.cloud.getIssues(s.id);
-                        const issues: Issue[] = issuesRes.success
-                            ? issuesRes.data.map((issue: any) => ({
-                                id: issue.google_file_id || issue.id,
-                                title: issue.story_arc || issue.title || `Issue #${issue.issue_number}`,
-                                issueNumber: issue.issue_number?.toString() || '?',
-                                coverUrl: issue.cover_google_id ? `comic://image?id=${issue.cover_google_id}` : null,
-                                seriesId: s.id
-                            }))
-                            : [];
-
-                        return {
-                            id: s.id,
-                            title: s.title,
-                            issues: issues.sort((a: Issue, b: Issue) =>
-                                parseInt(a.issueNumber) - parseInt(b.issueNumber)
-                            )
-                        };
-                    } catch (e) {
-                        return { id: s.id, title: s.title, issues: [] };
-                    }
-                })
-            );
-
-            setSeriesList(seriesWithIssues.filter(s => s.issues.length > 0));
-        } catch (err) {
-            console.error('Failed to load library:', err);
-        } finally {
-            setLoading(false);
-        }
+        // Comic fetching currently disabled
+        setLoading(false);
     };
 
     return (

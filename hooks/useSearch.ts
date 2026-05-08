@@ -58,35 +58,7 @@ export const useSearch = () => {
         const seenIds = new Set<number | string>();
 
         if (mode === 'comic') {
-          // --- COMIC SEARCH (Supabase Cloud Series) ---
-          const electron = (window as any).electron;
-          if (electron?.cloud?.getSeries) {
-            const res = await electron.cloud.getSeries();
-            if (res.success && res.data) {
-              // Filter series by title match
-              const searchLower = trimmedQuery.toLowerCase();
-              const filtered = res.data.filter((series: any) =>
-                series.title?.toLowerCase().includes(searchLower)
-              );
-
-              filtered.forEach((series: any) => {
-                if (!seenIds.has(series.id)) {
-                  seenIds.add(series.id);
-                  processedResults.push({
-                    id: series.id,
-                    title: series.title,
-                    name: series.title,
-                    overview: series.description || '',
-                    poster_path: series.cover_google_id ? `comic://image?id=${series.cover_google_id}` : null,
-                    backdrop_path: series.cover_google_id ? `comic://image?id=${series.cover_google_id}` : null,
-                    media_type: 'series',
-                    vote_average: 9.0,
-                    popularity: series.issue_count || 1
-                  } as Movie);
-                }
-              });
-            }
-          }
+          // Comic search currently disabled
         } else {
           // --- TMDB SEARCH ---
           const rawResults = await searchMovies(trimmedQuery);

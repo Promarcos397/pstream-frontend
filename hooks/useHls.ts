@@ -215,10 +215,18 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             });
 
             hls.on(Hls.Events.ERROR, (event, data) => {
-                if (data.fatal) {
-                    console.error('[useHls] Fatal HLS error:', data.type, data.details, (data as any)?.response?.code);
+                const statusCode = (data as any)?.response?.code || (data as any)?.response?.status;
 
-                    const statusCode = (data as any)?.response?.code || (data as any)?.response?.status;
+                // Fast-fail: Don't wait for HLS.js to retry 4 times if the proxy returns 500 or 403 on manifest
+                if (!data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                    if (statusCode >= 400 && data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
+                        console.warn(`[useHls] Fast-failing manifest HTTP ${statusCode} to skip retry wait...`);
+                        data.fatal = true; // Upgrade to fatal to trigger immediate fallback
+                    }
+                }
+
+                if (data.fatal) {
+                    console.error('[useHls] Fatal HLS error:', data.type, data.details, statusCode);
 
                     switch (data.type) {
                         case Hls.ErrorTypes.NETWORK_ERROR: {
