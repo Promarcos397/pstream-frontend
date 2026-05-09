@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Movie, Episode } from '../types';
 import { getSeasonDetails, getMovieDetails, getStream, getExternalIds, prefetchStream } from '../services/api';
-import Hls from 'hls.js';
 import ISO6391 from 'iso-639-1';
 
 import { useGlobalContext } from '../context/GlobalContext';
@@ -12,7 +10,6 @@ import { useTouchGestures } from '../hooks/useTouchGestures';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
 import { SkipService, SkipSegment } from '../services/SkipService';
-import { NetworkPriority } from '../services/NetworkPriority';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 import { useTorrentFallback } from '../hooks/useTorrentFallback';
