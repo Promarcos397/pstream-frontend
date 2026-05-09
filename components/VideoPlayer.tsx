@@ -1154,8 +1154,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     // ─── UI show/hide ─────────────────────────────────────────────────────────────
     const isControlsHovered = useRef(false);
+    const lastTouchTimeRef = useRef(0);
 
     const showControls = useCallback(() => {
+        // Ignore simulated mouse moves that often follow touch events on mobile
+        if (Date.now() - lastTouchTimeRef.current < 500) return;
+
         setShowUI(true);
         // Don't start a hide timer if a panel is open or mouse is over controls
         if (isControlsHovered.current || activePanel !== 'none') return;
@@ -1179,17 +1183,54 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     const toggleUI = useCallback(() => {
         if (activePanel !== 'none') return;
-        setShowUI(prev => !prev);
-    }, [activePanel]);
+        
+        setShowUI(prev => {
+            const next = !prev;
+            if (next) {
+                // If showing UI, start the inactivity timer
+                // We use a small delay or call showControls directly
+                // but we need to ensure lastTouchTime doesn't block it
+                const now = Date.now();
+                const oldTouch = lastTouchTimeRef.current;
+                lastTouchTimeRef.current = 0; // Temporarily allow
+                showControls();
+                lastTouchTimeRef.current = oldTouch; // Restore
+            } else {
+                // If hiding UI, clear any pending timer
+                if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+            }
+            return next;
+        });
+    }, [activePanel, showControls]);
 
     // ─── Touch Gestures ───────────────────────────────────────────────────────────
     useTouchGestures(containerRef, {
-        onSingleTap: toggleUI,
-        onDoubleTapCenter: () => videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause(),
-        onDoubleTapLeft: () => { if (videoRef.current) videoRef.current.currentTime -= 10; },
-        onDoubleTapRight: () => { if (videoRef.current) videoRef.current.currentTime += 10; },
-        onSwipeLeft: (dist) => { if (videoRef.current) videoRef.current.currentTime += (dist / 10); showControls(); },
-        onSwipeRight: (dist) => { if (videoRef.current) videoRef.current.currentTime -= (dist / 10); showControls(); }
+        onSingleTap: () => {
+            lastTouchTimeRef.current = Date.now();
+            toggleUI();
+        },
+        onDoubleTapCenter: () => {
+            lastTouchTimeRef.current = Date.now();
+            videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
+        },
+        onDoubleTapLeft: () => {
+            lastTouchTimeRef.current = Date.now();
+            if (videoRef.current) videoRef.current.currentTime -= 10;
+        },
+        onDoubleTapRight: () => {
+            lastTouchTimeRef.current = Date.now();
+            if (videoRef.current) videoRef.current.currentTime += 10;
+        },
+        onSwipeLeft: (dist) => {
+            lastTouchTimeRef.current = Date.now();
+            if (videoRef.current) videoRef.current.currentTime += (dist / 10);
+            showControls();
+        },
+        onSwipeRight: (dist) => {
+            lastTouchTimeRef.current = Date.now();
+            if (videoRef.current) videoRef.current.currentTime -= (dist / 10);
+            showControls();
+        }
     });
 
     // ─── Fullscreen toggle ────────────────────────────────────────────────────────

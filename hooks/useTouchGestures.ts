@@ -42,7 +42,7 @@ export function useTouchGestures(
 
     const DOUBLE_TAP_DELAY = 300; // ms
     const SWIPE_THRESHOLD = 50; // px
-    const TAP_THRESHOLD = 10; // max movement for tap
+    const TAP_THRESHOLD = 15; // max movement for tap (increased for mobile)
 
     const shouldIgnoreEvent = (e: TouchEvent) => {
         const target = e.target as HTMLElement;
