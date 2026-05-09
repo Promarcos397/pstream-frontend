@@ -17,6 +17,7 @@ export const PanelShellTouch: React.FC<{
             className="fixed inset-0 z-[120] pointer-events-auto bg-black/60 backdrop-blur-sm"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+            onTouchStart={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
             <div
                 id="video-panel-shell-touch"
@@ -357,7 +358,11 @@ export const EpisodeExplorerTouch: React.FC<{
     );
 
     return (
-        <div className="fixed inset-0 z-[120] pointer-events-auto bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}>
+        <div 
+            className="fixed inset-0 z-[120] pointer-events-auto bg-black/60 backdrop-blur-sm" 
+            onClick={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}
+            onTouchStart={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}
+        >
             <div
                 id="video-panel-shell-touch"
                 className={`${commonPanelCls} w-full max-h-[85svh] rounded-t-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)]`}
