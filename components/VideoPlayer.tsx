@@ -1158,7 +1158,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     const showControls = useCallback(() => {
         // Ignore simulated mouse moves that often follow touch events on mobile
-        if (Date.now() - lastTouchTimeRef.current < 500) return;
+        if (Date.now() - lastTouchTimeRef.current < 900) return;
 
         setShowUI(true);
         // Don't start a hide timer if a panel is open or mouse is over controls
