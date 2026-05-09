@@ -34,14 +34,16 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<any>(null);
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // Zoom crops YouTube chrome. Values must be > 1.0; anything below just creates black bars.
-    const zoomFactor = variant === 'card' ? 1.01 : 1.06;
+    
+    // Zoom crops YouTube chrome.
+    const zoomFactor = variant === 'card' ? 1.10 : 1.10;
     const dimensions = useVideoCover(containerRef, zoomFactor);
 
     // HD Quality Trick: inflate the DOM pixel size so YouTube serves a higher-res stream,
     // then CSS-scale it back down to the correct visual size.
-    const artificialScale = variant === 'card' || variant === 'modal' ? 32 : 1;
+    // Only apply once dimensions are settled — if we inflate before the container has real
+    // dimensions, YouTube initialises at viewport-scale and the quality trick backfires.
+    const artificialScale = (variant === 'card' || variant === 'modal') && dimensions.ready ? 36 : 1;
 
     // Cleanup interval on unmount
     useEffect(() => {
@@ -187,25 +189,29 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             ref={containerRef} 
             className="absolute inset-0 overflow-hidden bg-black pointer-events-none flex items-center justify-center"
         >
-            <div 
-                className="flex-shrink-0" 
-                style={{ 
-                    width: dimensions.width * artificialScale, 
-                    height: dimensions.height * artificialScale,
-                    transform: `scale(${1 / artificialScale})`,
-                    transformOrigin: 'center center'
-                }}
-            >
-                <YouTube
-                    videoId={videoId}
-                    className="w-full h-full"
-                    onReady={handleReady}
-                    onStateChange={handleStateChange}
-                    onEnd={handleEnd}
-                    onError={handleError}
-                    opts={playerOpts}
-                />
-            </div>
+            {/* Don't mount the player until we have real container dimensions — otherwise
+                the artificialScale trick initialises at viewport size, not card size. */}
+            {dimensions.ready && (
+                <div 
+                    className="flex-shrink-0" 
+                    style={{ 
+                        width: dimensions.width * artificialScale, 
+                        height: dimensions.height * artificialScale,
+                        transform: `scale(${1 / artificialScale})`,
+                        transformOrigin: 'center center'
+                    }}
+                >
+                    <YouTube
+                        videoId={videoId}
+                        className="w-full h-full"
+                        onReady={handleReady}
+                        onStateChange={handleStateChange}
+                        onEnd={handleEnd}
+                        onError={handleError}
+                        opts={playerOpts}
+                    />
+                </div>
+            )}
         </div>
     );
 };

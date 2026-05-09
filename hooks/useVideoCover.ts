@@ -3,6 +3,8 @@ import { useState, useEffect, RefObject } from 'react';
 interface VideoDimensions {
   width: number;
   height: number;
+  /** True once ResizeObserver has fired with real container dimensions */
+  ready: boolean;
 }
 
 /**
@@ -19,13 +21,13 @@ export function useVideoCover(
   containerRef: RefObject<HTMLElement | null>,
   zoomBuffer = 1.00,
 ): VideoDimensions {
-  // Boot with a sensible viewport-based estimate so the first render
-  // never shows a 0×0 gap before the ResizeObserver fires.
+  // Start with ready:false so consumers know dimensions haven't been confirmed yet.
+  // We still provide a viewport-based fallback width/height for non-scaled rendering.
   const [dimensions, setDimensions] = useState<VideoDimensions>(() => {
-    if (typeof window === 'undefined') return { width: 1920, height: 1080 };
+    if (typeof window === 'undefined') return { width: 1920, height: 1080, ready: false };
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    return computeCover(vw, vh, zoomBuffer);
+    return { ...computeCover(vw, vh, zoomBuffer), ready: false };
   });
 
   useEffect(() => {
@@ -40,7 +42,9 @@ export function useVideoCover(
       if (cw <= 0 || ch <= 0) return;
       const next = computeCover(cw, ch, zoomBuffer);
       setDimensions(prev =>
-        prev.width === next.width && prev.height === next.height ? prev : next,
+        prev.ready && prev.width === next.width && prev.height === next.height
+          ? prev
+          : { ...next, ready: true },
       );
     };
 
@@ -55,7 +59,7 @@ export function useVideoCover(
 }
 
 /** Core cover math — exported so callers can pre-compute without a ref */
-export function computeCover(cw: number, ch: number, zoomBuffer: number): VideoDimensions {
+export function computeCover(cw: number, ch: number, zoomBuffer: number): Omit<VideoDimensions, 'ready'> {
   const RATIO = 16 / 9; // target video aspect ratio
   const containerRatio = cw / ch;
 
