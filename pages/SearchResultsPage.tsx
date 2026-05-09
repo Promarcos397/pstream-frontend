@@ -2,7 +2,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
 import MovieCard from '../components/MovieCard';
-import { prefetchStream } from '../services/api';
 import { SearchMode } from '../hooks/useSearch';
 
 interface SearchResultsPageProps {
@@ -31,7 +30,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-4 gap-y-8 animate-pulse">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-3 gap-y-6 animate-pulse">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="aspect-video bg-[#222] rounded-sm border border-white/5 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
@@ -39,7 +38,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
           ))}
         </div>
       ) : results.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-4 gap-y-8">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-3 gap-y-6">
           {results.map(movie => (
             movie.backdrop_path && (
               <MovieCard key={movie.id} movie={movie} onSelect={onSelectMovie} onPlay={onPlay} isGrid={true} />

@@ -54,6 +54,8 @@ const App: React.FC = () => {
     const urlQuery = searchParams.get('q');
     if (urlQuery) {
       setQuery(urlQuery);
+    } else {
+      setQuery('');
     }
   }, [location.search]);
 
@@ -283,7 +285,6 @@ const App: React.FC = () => {
           setSearchQuery={handleSearchChange}
           activeTab={activeTab}
           setActiveTab={handleTabChange}
-          showFooter={!query}
         >
           {query.trim().length > 0 ? (
             <SearchResultsPage

@@ -93,6 +93,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [volume, setVolume] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
     const [showUI, setShowUI] = useState(true);
+    const showUIRef = useRef(true);
+    useEffect(() => { showUIRef.current = showUI; }, [showUI]);
+
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
     const [isVideoReady, setIsVideoReady] = useState(false); // gates subtitle rendering on first canplay
@@ -305,9 +308,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         onDoubleTapLeft: () => { if (videoRef.current) videoRef.current.currentTime -= 10; },
         onDoubleTapRight: () => { if (videoRef.current) videoRef.current.currentTime += 10; },
         onSingleTap: () => { 
-            // Only toggle HUD if no panel is active. If a panel is active, we might want it to stay.
-            // But user said: "When you click, it just reveals the video controls, and when you click again, it hides them."
-            setShowUI(v => !v); 
+            // Ignore if we click on a button or something that prevents default, handled by touch gesture?
+            if (activePanel !== 'none') {
+                setActivePanel('none');
+                return;
+            }
+            if (showUIRef.current) {
+                setShowUI(false);
+                if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+            } else {
+                showControls();
+            }
         },
     });
 
@@ -1218,7 +1229,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             className={`fixed z-[100] flex flex-col font-sans select-none overflow-hidden bg-black ${isPseudoFullscreen ? 'inset-0' : (isFullscreen ? '' : 'inset-0')}`}
             style={isPseudoFullscreen ? { position: 'fixed', zIndex: 9999 } : {}}
             onMouseMove={showControls}
-            onTouchStart={showControls}
             // Double-click on the video container = toggle fullscreen (desktop)
             onDoubleClick={(e) => {
                 // Ignore double-clicks on control buttons

@@ -6,6 +6,7 @@ import Row from '../components/Row';
 import TopTenRow from '../components/TopTenRow';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useDynamicManifest } from '../hooks/useDynamicManifest';
+import { useTasteEngine } from '../hooks/useTasteEngine';
 
 interface PageProps {
   onSelectMovie: (movie: Movie) => void;
@@ -29,6 +30,8 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie }) => {
   }, []);
 
   const rows = useDynamicManifest('new_popular'); // Use dedicated massive layout for New & Popular
+  const { getRecommendedGenres } = useTasteEngine();
+  const topGenres = getRecommendedGenres();
 
   return (
     <div className="min-h-screen bg-[#141414]">
@@ -41,6 +44,15 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie }) => {
         <div className="px-6 md:px-14 lg:px-20 mt-2 mb-2">
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white drop-shadow-md">{t('nav.newPopular')}</h1>
         </div>
+
+        {/* --- Taste Engine Row --- */}
+        {topGenres.length > 0 && (
+          <Row
+            title="Recommended For You"
+            fetchUrl={REQUESTS.fetchByGenre('movie', topGenres[0])}
+            onSelect={onSelectMovie}
+          />
+        )}
 
         {/* Dynamic Rows with Comics integration */}
         {rows.slice(0, 3).map(row => (

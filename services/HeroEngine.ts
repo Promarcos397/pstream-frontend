@@ -26,7 +26,7 @@ export interface HeroPackage {
 type UserDataAccessor = () => {
   continueWatching?: Movie[];
   myList?: Movie[];
-  likedMovies?: Record<string, { genre_ids?: number[] }>;
+  likedMovies?: Record<string, { genre_ids?: number[], rating?: string, movie?: Movie }>;
 };
 let _getUserData: UserDataAccessor = () => ({});
 export function registerHeroUserDataAccessor(fn: UserDataAccessor) {
@@ -123,7 +123,15 @@ function getUserTopGenres(): number[] {
   // History carries more weight than wishlist; liked carries highest weight
   continueWatching.forEach(m => add(m.genre_ids, 2));
   myList.forEach(m => add(m.genre_ids, 1));
-  Object.values(likedMovies).forEach(entry => add(entry.genre_ids, 3));
+  Object.values(likedMovies).forEach((entry: any) => {
+    const rating = entry.rating;
+    const gids = entry.movie?.genre_ids || entry.genre_ids;
+    if (rating === 'dislike') {
+      add(gids, -3); // Punish disliked genres heavily
+    } else {
+      add(gids, 3);  // Reward liked genres heavily
+    }
+  });
 
   return [...tally.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -214,24 +222,58 @@ class HeroEngineService {
       console.log(`[HeroEngine] Curating "${slotLabel}" for ${cacheKey}...`);
 
       const response = await axios.get<TMDBResponse>(url);
-      const results = (response.data.results || []).filter(m => m.backdrop_path);
+      const results = (response.data.results || []).filter(m => m.backdrop_path && m.vote_count >= 300);
 
       if (results.length === 0) throw new Error(`No results for "${slotLabel}"`);
 
       // Pick a result within the endpoint — use a per-result daily hash so
       // we don't always pick #0 from the same trending list.
-      const resultIdx = hashStr(dayOfYear() + '_result_' + cacheKey) % results.length;
-      const selectedMovie = results[resultIdx];
-      const mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+      const startIdx = hashStr(dayOfYear() + '_result_' + cacheKey) % results.length;
+      
+      let selectedMovie: any = null;
+      let logoUrl: string | undefined;
+      let externals: any;
+      let movieWithExtras: any;
+      let mediaType: 'movie' | 'tv' = 'movie';
 
-      const [images, externals] = await Promise.all([
-        getMovieImages(selectedMovie.id, mediaType),
-        getExternalIds(selectedMovie.id, mediaType),
-      ]);
+      // ── The "Logo Guarantee" Engine ──────────────────────────────────────
+      // Try up to 5 items in the list. The first one with a transparent English
+      // logo gets the Hero spot. This guarantees a premium visual appearance.
+      for (let attempt = 0; attempt < Math.min(5, results.length); attempt++) {
+        const idx = (startIdx + attempt) % results.length;
+        const candidate = results[idx];
+        const candidateType = (candidate.media_type || (candidate.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
-      const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
-      const logoUrl = logo ? `https://image.tmdb.org/t/p/w500${logo.file_path}` : undefined;
-      const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
+        const [images, exts] = await Promise.all([
+          getMovieImages(candidate.id, candidateType),
+          getExternalIds(candidate.id, candidateType),
+        ]);
+
+        const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+        if (logo) {
+          selectedMovie = candidate;
+          mediaType = candidateType;
+          logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+          externals = exts;
+          movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
+          break; // Found a movie with a beautiful logo! Stop searching.
+        }
+      }
+
+      // ── Fallback ─────────────────────────────────────────────────────────
+      // If we miraculously failed to find a logo after 5 attempts, just use
+      // the first original pick as a last resort, but it shouldn't happen often
+      // due to the vote_count >= 300 filter ensuring mainstream content.
+      if (!selectedMovie) {
+        selectedMovie = results[startIdx];
+        mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+        externals = await getExternalIds(selectedMovie.id, mediaType);
+        movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
+        // Attempt one last desperate logo fetch
+        const images = await getMovieImages(selectedMovie.id, mediaType);
+        const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+        if (logo) logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+      }
 
       const heroPackage: HeroPackage = {
         movie: movieWithExtras,

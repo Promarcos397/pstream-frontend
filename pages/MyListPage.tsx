@@ -5,6 +5,9 @@ import { Movie } from '../types';
 import MovieCard from '../components/MovieCard';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
 import { PlaylistIcon } from '@phosphor-icons/react';
+import Row from '../components/Row';
+import { REQUESTS } from '../constants';
+import { useTasteEngine } from '../hooks/useTasteEngine';
 
 interface PageProps {
   onSelectMovie: (movie: Movie) => void;
@@ -35,11 +38,15 @@ const MY_LIST_GENRES = [
 ];
 
 const MyListPage: React.FC<PageProps> = ({ onSelectMovie }) => {
-  const { myList, isKidsMode } = useGlobalContext();
+  const { myList, isKidsMode, getLikedMovies } = useGlobalContext();
   const { t } = useTranslation();
   const [filter, setFilter] = useState<FilterType>('all');
   const [sort, setSort] = useState<SortType>('date_added');
   const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
+
+  const { getRecommendedGenres, getDislikedMovies } = useTasteEngine();
+  const topGenres = getRecommendedGenres();
+  const dislikedMovies = getDislikedMovies();
 
   const processedList = useMemo(() => {
     let list = [...myList];
@@ -129,6 +136,27 @@ const MyListPage: React.FC<PageProps> = ({ onSelectMovie }) => {
           </div>
         )}
       </div>
+
+      {/* --- Taste Engine Sections --- */}
+      {!isKidsMode && (
+        <div className="pb-16 space-y-8">
+          {topGenres.length > 0 && (
+            <Row
+              title="Recommended For You"
+              fetchUrl={REQUESTS.fetchByGenre('movie', topGenres[0])}
+              onSelect={onSelectMovie}
+            />
+          )}
+
+          {dislikedMovies.length > 0 && (
+            <Row
+              title="Hidden & Disliked"
+              data={dislikedMovies}
+              onSelect={onSelectMovie}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 };

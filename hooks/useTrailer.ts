@@ -1,23 +1,19 @@
 import { useState, useEffect } from 'react';
-import { searchTrailersWithFallback } from '../services/YouTubeService';
+import { searchTrailerWithMeta } from '../services/YouTubeService';
 import { useGlobalContext } from '../context/GlobalContext';
 import { Movie } from '../types';
 
-/**
- * useTrailer
- * ──────────
- * A unified headless hook to fetch, cache, and provide YouTube Trailer IDs.
- * It strictly prefers the GlobalContext cache to ensure zero-latency loading 
- * when switching between UI components.
- */
+/** Fetches and caches the best trailer for a movie, with teaser detection. */
 export const useTrailer = (movie: Movie | null) => {
     const { getVideoState, updateVideoState } = useGlobalContext();
     const [videoId, setVideoId] = useState<string | null>(null);
+    const [isTeaser, setIsTeaser] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (!movie) {
             setVideoId(null);
+            setIsTeaser(false);
             return;
         }
 
@@ -25,6 +21,7 @@ export const useTrailer = (movie: Movie | null) => {
         const cachedState = getVideoState(movie.id);
         if (cachedState?.videoId) {
             setVideoId(cachedState.videoId);
+            // isTeaser stays false for cached entries (teaserCache is in-memory only)
             return;
         }
 
@@ -41,13 +38,13 @@ export const useTrailer = (movie: Movie | null) => {
             return;
         }
 
-        searchTrailersWithFallback({ title, year, type: type as 'movie' | 'tv' }, 1)
-            .then(results => {
-                if (mounted && results.length > 0) {
-                    const foundId = results[0];
-                    setVideoId(foundId);
+        searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv' })
+            .then(result => {
+                if (mounted && result) {
+                    setVideoId(result.videoId);
+                    setIsTeaser(result.isTeaser);
                     // Proactively cache it so other components are aware instantly
-                    updateVideoState(movie.id, 0, foundId);
+                    updateVideoState(movie.id, 0, result.videoId);
                 }
             })
             .finally(() => {
@@ -57,5 +54,5 @@ export const useTrailer = (movie: Movie | null) => {
         return () => { mounted = false; };
     }, [movie, getVideoState, updateVideoState]);
 
-    return { videoId, isLoading };
+    return { videoId, isTeaser, isLoading };
 };

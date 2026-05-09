@@ -181,10 +181,32 @@ export const getReleaseDates = async (id: number | string, type: 'movie' | 'tv')
 
 export const searchMovies = async (query: string) => {
   try {
-    const { data } = await tmdb.get('/search/multi', {
-      params: { query, include_adult: false },
+    // Triple-Threat Search: Query Multi, Movie, and TV endpoints simultaneously
+    const [multiRes, movieRes, tvRes] = await Promise.all([
+      tmdb.get('/search/multi', { params: { query, include_adult: false } }).catch(() => ({ data: { results: [] } })),
+      tmdb.get('/search/movie', { params: { query, include_adult: false } }).catch(() => ({ data: { results: [] } })),
+      tmdb.get('/search/tv', { params: { query, include_adult: false } }).catch(() => ({ data: { results: [] } })),
+    ]);
+
+    // Merge and deduplicate
+    const allResults = [
+      ...(multiRes.data.results || []),
+      ...(movieRes.data.results || []),
+      ...(tvRes.data.results || [])
+    ];
+
+    const uniqueMap = new Map();
+    allResults.forEach(item => {
+      if (!uniqueMap.has(item.id)) {
+        // Enforce media_type since /movie and /tv endpoints don't always include it
+        if (!item.media_type) {
+          item.media_type = item.title ? 'movie' : 'tv';
+        }
+        uniqueMap.set(item.id, item);
+      }
     });
-    return data.results || [];
+
+    return Array.from(uniqueMap.values());
   } catch (e) {
     console.error('[TMDB] Search error:', e);
     return [];

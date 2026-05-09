@@ -16,15 +16,8 @@ interface TrailerPlayerProps {
 }
 
 /**
- * TrailerPlayer
- * ─────────────
- * The unified YouTube playback engine.
- * Completely replaces `useVideoPlayer`, `InfoModal` custom hooks, and `MovieCard` custom hooks.
- * 
- * Features:
- * 1. Self-Fetching: Uses `useTrailer` to fetch/read from cache automatically.
- * 2. Self-Scaling: Uses `useVideoCover` to crop YouTube UI perfectly.
- * 3. Self-Syncing: Automatically writes playback progress to the GlobalContext.
+ * TrailerPlayer — unified YouTube playback engine.
+ * Self-fetching (useTrailer), self-scaling (useVideoCover), self-syncing (GlobalContext).
  */
 export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({ 
     movie, 
@@ -35,18 +28,20 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     onProgress
 }) => {
     const { globalMute } = useGlobalContext();
-    const { videoId } = useTrailer(movie);
+    const { videoId, isTeaser } = useTrailer(movie);
     const { getVideoState, updateVideoState } = useGlobalContext();
     
     const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<any>(null);
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Apply zoom based on variant to hide YouTube UI perfectly
-    // NOTE: Values < 1.0 DO NOT zoom out the video! They just shrink the iframe, creating black bars.
-    // We MUST use values > 1.0 (like 1.15) to crop out the YouTube title text and logo.
-    const zoomFactor = variant === 'card' ? 1.05 : (variant === 'modal' ? 1.05 : 1.30);
+    // Zoom crops YouTube chrome. Values must be > 1.0; anything below just creates black bars.
+    const zoomFactor = variant === 'card' ? 1.01 : 1.06;
     const dimensions = useVideoCover(containerRef, zoomFactor);
+
+    // HD Quality Trick: inflate the DOM pixel size so YouTube serves a higher-res stream,
+    // then CSS-scale it back down to the correct visual size.
+    const artificialScale = variant === 'card' || variant === 'modal' ? 32 : 1;
 
     // Cleanup interval on unmount
     useEffect(() => {
@@ -95,7 +90,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         height: '100%',
         playerVars: {
             autoplay: 1,
-            mute: 1, // Always initialize muted to guarantee mobile autoplay
+            mute: 1,
             controls: 0,
             modestbranding: 1,
             rel: 0,
@@ -105,16 +100,16 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             enablejsapi: 1,
             playsinline: 1,
             disablekb: 1,
-            start: 7 // Premium start strictly enforced
+            start: 15
         }
     }), []);
 
     // Ref pattern to hold latest props so handlers never change reference and interrupt iframe
-    const handlersRef = useRef({ onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId, activeVideoId, variant });
-    handlersRef.current = { onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId, activeVideoId, variant };
+    const handlersRef = useRef({ onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId, activeVideoId, variant, isTeaser });
+    handlersRef.current = { onReady, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId, activeVideoId, variant, isTeaser };
 
     const handleReady = React.useCallback((e: any) => {
-        const { globalMute, movie, getVideoState, onReady, activeVideoId, variant } = handlersRef.current;
+        const { globalMute, movie, getVideoState, onReady, activeVideoId, variant, isTeaser } = handlersRef.current;
         playerRef.current = e.target;
         
         try {
@@ -122,9 +117,11 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             else e.target.unMute();
         } catch {}
 
-        // Resume from where we left off, or skip the green bands
+        // Resume from where we left off, or use content-aware skip:
+        // Teasers are short (~60-90s), so only skip 5s. Full trailers skip 15s.
+        const defaultSkip = isTeaser ? 5 : 15;
         const savedTime = movie ? (getVideoState(movie.id)?.time || 0) : 0;
-        e.target.seekTo(savedTime > 0 ? savedTime : 7, true);
+        e.target.seekTo(savedTime > 0 ? savedTime : defaultSkip, true);
         
         const myVideoId = `${variant}-${movie?.id}`;
         if (activeVideoId === myVideoId) {
@@ -190,7 +187,15 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             ref={containerRef} 
             className="absolute inset-0 overflow-hidden bg-black pointer-events-none flex items-center justify-center"
         >
-            <div className="flex-shrink-0" style={{ width: dimensions.width, height: dimensions.height }}>
+            <div 
+                className="flex-shrink-0" 
+                style={{ 
+                    width: dimensions.width * artificialScale, 
+                    height: dimensions.height * artificialScale,
+                    transform: `scale(${1 / artificialScale})`,
+                    transformOrigin: 'center center'
+                }}
+            >
                 <YouTube
                     videoId={videoId}
                     className="w-full h-full"

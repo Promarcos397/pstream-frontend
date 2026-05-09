@@ -39,6 +39,8 @@ const loadInitialCache = (): [string, string[]][] => {
 };
 
 const resultCache = new Map<string, string[]>(loadInitialCache());
+// In-memory set of videoIds that won because they are teasers (not persisted — resets on reload)
+const teaserCache = new Set<string>();
 
 function saveCache() {
     try {
@@ -108,28 +110,13 @@ export function resetKeys() {
 function buildSearchQueries(options: SearchOptions): string[] {
     const { title, year, type } = options;
     const clean = title.trim();
-
-    const isTv = type === 'tv';
-    
-    // User Preferred Primary Queries (Premium 4K focus)
-    const primary = isTv
-        ? `"${clean}" tv show season trailer 4k`
-        : `"${clean}" movie trailer 4k`;
-
-    // Testing: Only using the primary query to see if accuracy improves
-    return [primary];
+    const yearTerm = year ? ` ${year}` : '';
+    const typeTerm = type === 'tv' ? 'tv series' : 'movie';
+    return [`"${clean}"${yearTerm} ${typeTerm} trailer`];
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 
-// Temporarily disabled to allow community upscales to compete fairly
-const TRUSTED_CHANNEL_PATTERNS: RegExp[] = [
-    // /official/i,
-    // /studios?/i,
-    // ...
-];
-
-// Words that strongly suggest the video is NOT a clean official trailer
 const BANLIST_PATTERNS = [
     /fan[\s-]?made/i,
     /\breaction\b/i,
@@ -189,57 +176,33 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
         score += qWords.length > 0 ? Math.round((overlap / qWords.length) * 30) : 0;
     }
 
-    // Type-aware relevance: soft guidance (never hard-fail)
+    // Type signal: soft guidance, never hard-fail
     if (isTv) {
         if (/\btv\b|\bseries\b|\bseason\b|\bshow\b/.test(t)) score += 15;
-        if (/\bmovie\b|\bfilm\b/.test(t)) score -= 25; // Stronger penalty for movie results when looking for TV
+        if (/\bmovie\b|\bfilm\b/.test(t)) score -= 25;
     } else if (isMovie) {
         if (/\bmovie\b|\bfilm\b/.test(t)) score += 12;
-        if (/\bseason\b|\bepisode\b|\btv\b|\bseries\b/.test(t)) score -= 25; // Stronger penalty for TV results when looking for Movie
+        if (/\bseason\b|\bepisode\b|\btv\b|\bseries\b/.test(t)) score -= 25;
     }
 
     // ── Trailer quality signals ──────────────────────────────────────────────
-
-    if (/official\s+trailer/.test(t)) score += 20;
-    else if (/trailer/.test(t)) score += 12;
-
-    if (/final\s+trailer/.test(t)) score += 6;
-    if (/\bteaser\b/.test(t)) score += 5;
-
-    // Bonus for old classics that got a community upgrade
-    if (/remaster(ed)?/i.test(candidate.title) || /restored/i.test(candidate.title)) score += 8;
+    
+    if (/\btrailer\b/.test(t)) score += 12;
+    if (/\bteaser\b/.test(t)) score += 12;
 
     // Quality/resolution keywords are secondary to relevance
-    if (/\b4k\b/.test(t) || /\b2160p\b/.test(t)) score += 10;
-    if (/\bhdr\b/.test(t)) score += 6;
-    if (/\bimax\b/.test(t)) score += 6;
-    if (/\b1440p\b/.test(t)) score += 4;
-    if (/\b1080p\b/.test(t)) score += 3;
+    if (/\b4k\b/.test(t)) score += 20;
+    if (/\bhdr\b/.test(t)) score += 16;
+    if (/\bimax\b/.test(t)) score += 16;
+    if (/\bblu[\s-]?ray\b/.test(t)) score += 16;
 
-    // ── Channel trust (Temporarily Disabled) ──────────────────────────────────
-    /*
-    for (const pattern of TRUSTED_CHANNEL_PATTERNS) {
-        if (pattern.test(candidate.channelTitle)) {
-            score += 10;
-            break; // Only count once
-        }
-    }
-    */
-
-    // ── Penalize non-trailer content ──────────────────────────────────────────
+    // Penalize non-trailer content
     for (const pattern of BANLIST_PATTERNS) {
-        if (pattern.test(candidate.title)) {
-            score -= 50; // Hard enough that a banlist hit never beats a real trailer
-            break;
-        }
+        if (pattern.test(candidate.title)) { score -= 50; break; }
     }
 
-    // ── Deprioritize no-metadata candidates (backend fallback IDs) ─────────────
-    // Backend fallback returns IDs only — no title/channel. Without metadata
-    // they can't be scored properly, so push them behind all real candidates.
-    if (!candidate.title && !candidate.channelTitle) {
-        score -= 100;
-    }
+    // No-metadata candidates (backend fallback) can't be scored — push them last
+    if (!candidate.title && !candidate.channelTitle) score -= 100;
 
     return score;
 }
@@ -271,7 +234,7 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
                     maxResults,
                     relevanceLanguage: 'en',
                     videoEmbeddable: 'true',
-                    videoDefinition: 'high', // Filter to HD-capable videos at search level
+                    videoDefinition: 'high',
                 }
             });
 
@@ -315,9 +278,6 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
         }
     }
 
-    // Important: avoid legacy /proxy/stream YouTube scraping fallback.
-    // That route is stream-oriented and can flood logs with 500s on HTML fetches.
-    // Keep trailer lookup quiet here when backend no-key fallback returns empty.
     return [];
 }
 
@@ -331,6 +291,11 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
  *
  * Returns video IDs sorted by score descending. The caller should use index [0].
  */
+export interface TrailerResult {
+    videoId: string;
+    isTeaser: boolean;
+}
+
 export const searchTrailersWithFallback = async (
     options: SearchOptions,
     maxResults: number = 5
@@ -403,6 +368,17 @@ export const searchTrailersWithFallback = async (
         }
 
         const videoIds = scored.map(c => c.videoId).slice(0, maxResults);
+
+        // Track which winning video was a teaser so useTrailer can adjust skip time
+        if (scored.length > 0) {
+            const winner = scored[0];
+            if (/\bteaser\b/i.test(winner.title) && !/\btrailer\b/i.test(winner.title)) {
+                teaserCache.add(winner.videoId);
+            } else {
+                teaserCache.delete(winner.videoId);
+            }
+        }
+
         resultCache.set(cacheKey, videoIds);
         saveCache();
         return videoIds;
@@ -412,6 +388,25 @@ export const searchTrailersWithFallback = async (
     const result = await searchPromise;
     inFlight.delete(cacheKey);
     return result;
+};
+
+/**
+ * Like searchTrailersWithFallback but returns the top result with metadata.
+ * Used by useTrailer to surface isTeaser so TrailerPlayer can adjust skip time.
+ */
+export const searchTrailerWithMeta = async (
+    options: SearchOptions
+): Promise<TrailerResult | null> => {
+    const ids = await searchTrailersWithFallback(options, 5);
+    if (ids.length === 0) return null;
+    // Re-fetch the scored list from cache to get the title of the winner
+    const cacheKey = `${options.title}::${options.year || ''}::${options.type || ''}::5`;
+    // Winner is the first id; detect teaser from candidate title if still in the result cache
+    // We don't persist titles in cache, so we use the query title as a heuristic
+    // The real detection: if the winner's score came primarily from 'teaser', flag it
+    // Since we can't re-read per-candidate titles post-cache, we flag via a secondary teaser cache
+    const winnerIsTeaser = teaserCache.has(ids[0]);
+    return { videoId: ids[0], isTeaser: winnerIsTeaser };
 };
 
 // ─── Backward Compatibility ───────────────────────────────────────────────────

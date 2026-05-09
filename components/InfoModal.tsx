@@ -15,6 +15,7 @@ import { NetworkPriority } from '../services/NetworkPriority';
 import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
+import { useTasteEngine } from '../hooks/useTasteEngine';
 
 
 interface InfoModalProps {
@@ -80,6 +81,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
     const [hasVideoEnded, setHasVideoEnded] = useState(false);
     const [replayCount, setReplayCount] = useState(0);
+
+    const { getMatchScore } = useTasteEngine();
+    const matchScore = getMatchScore(detailedMovie || activeMovieProp);
 
     // Episode / Season State
     const [episodes, setEpisodes] = useState<Episode[]>([]);
@@ -434,6 +438,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-x-8 gap-y-6">
                         <div className="space-y-4">
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-white font-bold text-sm md:text-base mt-2 font-harmonia-condensed">
+                                {matchScore !== null && (
+                                    <span className="text-green-500 font-extrabold tracking-wide">{matchScore}% Match</span>
+                                )}
                                 <span className="text-white tracking-wide">{year}</span>
                                 <span className="text-white tracking-wide">{duration}</span>
                                 <span className="border border-gray-400 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-300 h-fit leading-none font-extrabold">HD</span>
