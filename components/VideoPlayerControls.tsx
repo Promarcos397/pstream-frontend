@@ -46,7 +46,6 @@ interface VideoPlayerControlsProps {
     currentCaption?: string | null;
     allSources?: any[];
     currentSourceIndex?: number;
-    onSourceChange?: (index: number) => void;
     qualities?: Array<{ height: number; bitrate: number; level: number }>;
     currentQuality?: number;
     onQualityChange?: (level: number) => void;
@@ -54,6 +53,8 @@ interface VideoPlayerControlsProps {
     showUI: boolean;
     activePanel?: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers';
     setActivePanel?: (panel: any) => void;
+    onInteraction?: () => void;
+    onControlsHoverChange?: (isHovered: boolean) => void;
     nextEpisodeData?: {
         episodeNumber: number;
         name: string;
@@ -89,7 +90,8 @@ const VolumePopup: React.FC<{
     isMuted: boolean;
     isMobile: boolean;
     onVolumeChange: (v: number) => void;
-}> = ({ volume, isMuted, isMobile, onVolumeChange }) => {
+    onInteraction?: () => void;
+}> = ({ volume, isMuted, isMobile, onVolumeChange, onInteraction }) => {
     const trackRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const effective = isMuted ? 0 : volume;
@@ -118,6 +120,7 @@ const VolumePopup: React.FC<{
         const onMove = (e: MouseEvent | TouchEvent) => {
             const pt = 'touches' in e ? e.touches[0] : e as MouseEvent;
             onVolumeChange(isMobile ? getVolH(pt.clientX) : getVolV(pt.clientY));
+            onInteraction?.();
         };
         const onUp = () => setIsDragging(false);
         window.addEventListener('mousemove', onMove);
@@ -152,7 +155,9 @@ const VolumePopup: React.FC<{
                     marginBottom: 8,
                     boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
                 }}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); onInteraction?.(); }}
+                onTouchStart={(e) => { e.stopPropagation(); onInteraction?.(); }}
+                onTouchEnd={(e) => e.stopPropagation()}
             >
                 <div
                     ref={trackRef}
@@ -211,7 +216,9 @@ const VolumePopup: React.FC<{
                 paddingBottom: 20,
                 zIndex: 100,
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onInteraction?.(); }}
+            onTouchStart={(e) => { e.stopPropagation(); onInteraction?.(); }}
+            onTouchEnd={(e) => e.stopPropagation()}
         >
             <div
                 ref={trackRef}
@@ -251,7 +258,8 @@ const NextEpisodePopup: React.FC<{
     data: NonNullable<VideoPlayerControlsProps['nextEpisodeData']>;
     isMobile: boolean;
     onPlay: () => void;
-}> = ({ data, isMobile, onPlay }) => {
+    onInteraction?: () => void;
+}> = ({ data, isMobile, onPlay, onInteraction }) => {
     const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w780';
     const imgSrc = data.stillPath ? `${TMDB_IMAGE_BASE}${data.stillPath}` : null;
 
@@ -274,7 +282,9 @@ const NextEpisodePopup: React.FC<{
                 zIndex: 100,
                 marginBottom: 12,
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onInteraction?.(); }}
+            onTouchStart={(e) => { e.stopPropagation(); onInteraction?.(); }}
+            onTouchEnd={(e) => e.stopPropagation()}
         >
             <div style={{
                 backgroundColor: '#262626',
@@ -453,6 +463,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     onSubtitlesClick, onEpisodesClick,
     showUI, onClose,
     activePanel = 'none', setActivePanel,
+    onInteraction, onControlsHoverChange,
     nextEpisodeData,
 }) => {
     const isMobile = useIsMobile();
@@ -472,6 +483,15 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup;
 
     const ICON_SIZE = isMobile ? 34 : 30;
+
+    useEffect(() => {
+        onControlsHoverChange?.(isHovering || isDragging);
+    }, [isHovering, isDragging, onControlsHoverChange]);
+
+    const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+        e.stopPropagation();
+        onInteraction?.();
+    };
 
     // ── Global touch/mouse drag for timeline scrubbing ─────────────────────
     // Mirrors legacy useProgressBar — listeners on document so drag works
@@ -600,7 +620,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         setShowVolume(false);
                         setShowNextEpPopup(false);
                     }}
-                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchStart={handleTouchStart}
                     onTouchEnd={(e) => {
                         e.stopPropagation();
                         setActivePanel?.('none');
@@ -621,7 +641,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         paddingBottom: 16,
                         background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%)',
                     }}
-                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchStart={handleTouchStart}
                     onTouchEnd={(e) => e.stopPropagation()}
                 >
                     {/* Larger back button for better touch target (min 44×44) */}
@@ -650,7 +670,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 >
                     <button
                         onClick={(e) => { e.stopPropagation(); onSeek(-10); triggerSeekFlash('left'); }}
-                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchStart={handleTouchStart}
                         onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 64, height: 64 }}
@@ -660,7 +680,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
-                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchStart={handleTouchStart}
                         onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 80, height: 80 }}
@@ -670,7 +690,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onSeek(10); triggerSeekFlash('right'); }}
-                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchStart={handleTouchStart}
                         onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 64, height: 64 }}
@@ -695,7 +715,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 id="video-controls-container"
                 className={`absolute inset-x-0 bottom-0 z-30 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                 onClick={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
+                onTouchStart={handleTouchStart}
                 onTouchEnd={(e) => e.stopPropagation()}
                 onMouseEnter={() => setIsHovering(true)}
                 onMouseLeave={() => setIsHovering(false)}
@@ -794,9 +814,9 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                     {/* Volume */}
                                     <div className="relative">
                                         {showVolume && (
-                                            <VolumePopup volume={volume} isMuted={isMuted} isMobile={false} onVolumeChange={onVolumeChange} />
+                                            <VolumePopup volume={volume} isMuted={isMuted} isMobile={false} onVolumeChange={onVolumeChange} onInteraction={onInteraction} />
                                         )}
-                                        <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
+                                        <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} onTouchStart={handleTouchStart} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
                                             {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} /> : <SpeakerHighIcon size={ICON_SIZE} />}
                                         </button>
                                     </div>
@@ -851,6 +871,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                             data={nextEpisodeData}
                                             isMobile={isMobile}
                                             onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }}
+                                            onInteraction={onInteraction}
                                         />
                                     )}
                                     <button

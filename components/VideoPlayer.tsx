@@ -1412,6 +1412,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 hasNextEpisode={!!nextEpisodeInfo}
                 onNextEpisode={handleNextEpisode}
                 showNextEp={!!nextEpisodeInfo}
+                onInteraction={showControls}
+                onControlsHoverChange={(h) => isControlsHovered.current = h}
                 onSubtitlesClick={() => setActivePanel(p => p === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
                 currentCaption={currentCaption}
                 onEpisodesClick={mediaType === 'tv'
