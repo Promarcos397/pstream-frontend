@@ -41,9 +41,14 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
 
     // HD Quality Trick: inflate the DOM pixel size so YouTube serves a higher-res stream,
     // then CSS-scale it back down to the correct visual size.
-    // Only inflate once ResizeObserver has confirmed real container dimensions — until then
-    // scale=1 so the player renders immediately at normal size and starts loading.
+    // scale=1 initially so the player starts loading immediately without any gate.
+    // Once ResizeObserver confirms real container dimensions, we remount the player
+    // at scale=36 (via key change) so YouTube re-initializes at HD dimensions.
     const artificialScale = (variant === 'card' || variant === 'modal') && dimensions.ready ? 36 : 1;
+
+    // Changing this key forces YouTube to remount exactly once when dimensions settle.
+    // Without this, the iframe just gets CSS-scaled but YouTube never re-requests HD.
+    const playerKey = `${videoId}-${variant}-${dimensions.ready ? 'hd' : 'sd'}`;
 
     // Cleanup interval on unmount
     useEffect(() => {
@@ -202,6 +207,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                 }}
             >
                 <YouTube
+                    key={playerKey}
                     videoId={videoId}
                     className="w-full h-full"
                     onReady={handleReady}
