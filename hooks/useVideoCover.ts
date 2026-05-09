@@ -52,7 +52,25 @@ export function useVideoCover(
 
     const ro = new ResizeObserver(() => requestAnimationFrame(recalculate));
     ro.observe(el);
-    return () => ro.disconnect();
+
+    // Fallback: if ResizeObserver fires when the element has no layout yet (0×0),
+    // it won't re-fire and ready stays false forever — trailer never mounts.
+    // Force ready=true after 400ms using whatever dimensions we have.
+    const fallbackTimer = setTimeout(() => {
+      setDimensions(prev => {
+        if (prev.ready) return prev;
+        // Use actual element size if available, else keep the viewport-based fallback
+        const el = containerRef.current;
+        const cw = el?.clientWidth || prev.width;
+        const ch = el?.clientHeight || prev.height;
+        return { ...computeCover(cw > 0 ? cw : prev.width, ch > 0 ? ch : prev.height, zoomBuffer), ready: true };
+      });
+    }, 400);
+
+    return () => {
+      ro.disconnect();
+      clearTimeout(fallbackTimer);
+    };
   }, [containerRef, zoomBuffer]);
 
   return dimensions;

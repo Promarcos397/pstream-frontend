@@ -83,7 +83,7 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
     >
       <div
         className={`flex items-center gap-1 overflow-hidden transition-all duration-200 border-2 rounded-full bg-[#2a2a2a]/80
-          ${expanded ? 'border-white/60 px-2 gap-2' : 'border-gray-500 justify-center w-8 h-8 md:w-9 md:h-9'}`}
+          ${expanded ? 'border-white/60 px-4 gap-4' : 'border-gray-500 justify-center w-8 h-8 md:w-9 md:h-9'}`}
         style={{ height: expanded ? 36 : undefined }}
       >
         {expanded ? (
@@ -99,13 +99,13 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
                     ${isActive ? 'text-white' : 'text-white/60 hover:text-white'}`}
                   title={r.charAt(0).toUpperCase() + r.slice(1)}
                 >
-                  <Icon size={16} weight={isActive ? 'fill' : 'bold'} />
+                  <Icon size={24} weight={isActive ? 'fill' : 'bold'} />
                 </button>
               );
             })}
           </>
         ) : (
-          <CurrentIcon size={16} weight={rating ? 'fill' : 'bold'} className={rating ? 'text-white' : 'text-white'} />
+          <CurrentIcon size={24} weight={rating ? 'fill' : 'bold'} className={rating ? 'text-white' : 'text-white'} />
         )}
       </div>
     </div>
@@ -389,7 +389,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   // so no py-52 hack is needed on the Row strip.
   const getPopupFixedStyle = (): React.CSSProperties => {
     if (!hoveredRect) return { display: 'none' };
-    const POPUP_W = 320;
+    const POPUP_W = 336;
     const TOP_OFFSET = -88; // ← TUNE THIS: more negative = popup higher above the card
     let left: number;
     if (hoverPosition === 'left') {
@@ -568,7 +568,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               }}
             >
               {/* Media Container — taller to avoid info section getting cut */}
-              <div className="relative h-[175px] md:h-[190px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+              <div className="relative w-[336px] h-[189px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
 
                 {(!isBook) ? (
                   <>
@@ -616,8 +616,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                   >
                     {hasVideoEnded
-                      ? <ArrowCounterClockwiseIcon size={18} className="text-white" />
-                      : globalMute ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
+                      ? <ArrowCounterClockwiseIcon size={24} className="text-white" />
+                      : globalMute ? <SpeakerSlashIcon size={24} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
                     }
                   </button>
                 )}
@@ -666,10 +666,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
 
               {/* Info Section */}
-              <div className="px-4 pt-4 pb-5 space-y-4 bg-[#181818]">
+              <div className="px-4 pt-8 pb-5 space-y-4 bg-[#181818]">
                 {/* Action Buttons Row */}
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-4">
                     {/* Play/Read/Theater Button */}
                     {isCinemaOnly && !isBook ? (
                       <button
@@ -696,7 +696,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       ${isAdded ? 'border-white bg-white/10 shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'}`}
                       title={isAdded ? 'Remove from My List' : 'Add to My List'}
                     >
-                      {isAdded ? <CheckIcon size={16} weight="bold" /> : <PlusIcon size={16} weight="bold" />}
+                      {isAdded ? <CheckIcon size={24} weight="bold" /> : <PlusIcon size={24} weight="bold" />}
                     </button>
                     {/* Rate — Love / Like / Dislike pill */}
                     <RatingPill
@@ -735,7 +735,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     return <span className="text-white/70">{label}</span>;
                   })()}
 
-                  {!isBook && <span className="border border-gray-500 text-gray-400 px-1 py-[0.5px] text-[9px] rounded-[2px]">HD</span>}
+                  {!isBook && <span className="border border-gray-300 text-gray-200 px-1 py-[2px] text-[14px] font-bold rounded-[2px] ml-3">HD</span>}
                 </div>
 
                 {/* Genres Row or Progress Bar */}
@@ -752,14 +752,14 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       return (
                         <span key={genreId} className="flex items-center">
                           <span
-                            className="text-white/75 hover:text-white cursor-pointer transition-colors"
+                            className="text-grey-400 hover:text-white cursor-pointer transition-colors"
                             onClick={(e) => {
                               e.stopPropagation();
                               handlePointerLeave();
                               navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);
                             }}
                           >{genreName}</span>
-                          {idx < arr.length - 1 && <span className="text-gray-500 mx-1.5 text-[8px] leading-none">•</span>}
+                          {idx < arr.length - 1 && <span className="text-gray-500 mx-1.5 text-[16px] leading-none">•</span>}
                         </span>
                       );
                     })}
