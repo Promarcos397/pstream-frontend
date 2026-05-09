@@ -779,7 +779,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                         {/* LEFT GROUP */}
                         <div className={`flex items-center gap-5 md:gap-8`}>
-                            {!isMobile && (
+                            {!isMobile ? (
                                 <>
                                     {/* Desktop: play | rewind | ff | volume */}
                                     <button onClick={handlePlayPause} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
