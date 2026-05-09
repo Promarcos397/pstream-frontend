@@ -466,7 +466,7 @@ export const EpisodeExplorer: React.FC<{
                                             {ep.still_path && (
                                                 <div className="relative flex-shrink-0 w-full md:w-[180px]">
                                                     <img
-                                                        src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
+                                                        src={`https://image.tmdb.org/t/p/w780${ep.still_path}`}
                                                         className="w-full h-auto aspect-video object-cover rounded-sm group-hover/ep-play:brightness-50 transition duration-200"
                                                         alt={ep.name}
                                                     />

@@ -142,7 +142,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
                 <img
                   src={movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://')
                     ? movie.poster_path
-                    : `https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                    : `https://image.tmdb.org/t/p/w780${movie.poster_path}`}
                   className="absolute right-0 bottom-0 h-full w-[60%] md:w-[55%] object-cover object-top rounded-sm shadow-[0_0_15px_rgba(0,0,0,0.5)] z-10"
                   alt={movie.title || movie.name}
                   loading="lazy"

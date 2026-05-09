@@ -252,7 +252,7 @@ const NextEpisodePopup: React.FC<{
     isMobile: boolean;
     onPlay: () => void;
 }> = ({ data, isMobile, onPlay }) => {
-    const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w400';
+    const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w780';
     const imgSrc = data.stillPath ? `${TMDB_IMAGE_BASE}${data.stillPath}` : null;
 
     return (
