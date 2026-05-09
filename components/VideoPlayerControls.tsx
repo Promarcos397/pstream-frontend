@@ -625,6 +625,38 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 </div>
             )}
 
+            {/* ── CENTER: Mobile Playback Controls ── */}
+            {isMobile && (
+                <div
+                    className={`absolute inset-0 z-30 flex items-center justify-center gap-10 transition-opacity duration-300 pointer-events-none ${showUI ? 'opacity-100' : 'opacity-0'}`}
+                >
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onSeek(-10); triggerSeekFlash('left'); }}
+                        className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
+                        style={{ width: 64, height: 64 }}
+                        aria-label="Rewind 10s"
+                    >
+                        <ArrowCounterClockwiseIcon size={44} weight="bold" />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
+                        className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
+                        style={{ width: 80, height: 80 }}
+                        aria-label={isPlaying ? 'Pause' : 'Play'}
+                    >
+                        {isPlaying ? <PauseIcon size={64} weight="fill" /> : <PlayIcon size={64} weight="fill" />}
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onSeek(10); triggerSeekFlash('right'); }}
+                        className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
+                        style={{ width: 64, height: 64 }}
+                        aria-label="Fast-forward 10s"
+                    >
+                        <ArrowClockwiseIcon size={44} weight="bold" />
+                    </button>
+                </div>
+            )}
+
             {/* ── TOP: Back button (desktop only, top-left) ── */}
             {!isMobile && (
                 <div className={`absolute top-0 left-0 z-40 px-8 pt-8 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
@@ -717,36 +749,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     <div className="flex items-center justify-between relative">
 
                         {/* LEFT GROUP */}
-                        <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-5 md:gap-8'}`}>
-                            {isMobile ? (
-                                <>
-                                    {/* Mobile: seek back | play | seek fwd */}
-                                    <button
-                                        onClick={() => { onSeek(-10); triggerSeekFlash('left'); }}
-                                        className={btn}
-                                        style={{ minWidth: 44, minHeight: 44 }}
-                                        aria-label="Rewind 10s"
-                                    >
-                                        <ArrowCounterClockwiseIcon size={ICON_SIZE} />
-                                    </button>
-                                    <button
-                                        onClick={handlePlayPause}
-                                        className={btn}
-                                        style={{ minWidth: 44, minHeight: 44 }}
-                                        aria-label={isPlaying ? 'Pause' : 'Play'}
-                                    >
-                                        {isPlaying ? <PauseIcon size={ICON_SIZE} weight="fill" /> : <PlayIcon size={ICON_SIZE} weight="fill" />}
-                                    </button>
-                                    <button
-                                        onClick={() => { onSeek(10); triggerSeekFlash('right'); }}
-                                        className={btn}
-                                        style={{ minWidth: 44, minHeight: 44 }}
-                                        aria-label="Fast-forward 10s"
-                                    >
-                                        <ArrowClockwiseIcon size={ICON_SIZE} />
-                                    </button>
-                                </>
-                            ) : (
+                        <div className={`flex items-center gap-5 md:gap-8`}>
+                            {!isMobile && (
                                 <>
                                     {/* Desktop: play | rewind | ff | volume */}
                                     <button onClick={handlePlayPause} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
