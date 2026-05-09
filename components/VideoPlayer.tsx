@@ -1161,13 +1161,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }, 3500);
     }, [activePanel]);
 
-    // When panel opens, cancel the hide timer
+    // When panel state changes:
+    // If open: keep UI visible and clear hide timer
+    // If closed: trigger showControls to start the 3.5s hide timer
     useEffect(() => {
         if (activePanel !== 'none') {
             if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
             setShowUI(true);
+        } else {
+            showControls();
         }
-    }, [activePanel]);
+    }, [activePanel, showControls]);
 
     const toggleUI = useCallback(() => {
         if (activePanel !== 'none') return;
