@@ -41,8 +41,8 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
 
     // HD Quality Trick: inflate the DOM pixel size so YouTube serves a higher-res stream,
     // then CSS-scale it back down to the correct visual size.
-    // Only apply once dimensions are settled — if we inflate before the container has real
-    // dimensions, YouTube initialises at viewport-scale and the quality trick backfires.
+    // Only inflate once ResizeObserver has confirmed real container dimensions — until then
+    // scale=1 so the player renders immediately at normal size and starts loading.
     const artificialScale = (variant === 'card' || variant === 'modal') && dimensions.ready ? 36 : 1;
 
     // Cleanup interval on unmount
@@ -189,29 +189,28 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             ref={containerRef} 
             className="absolute inset-0 overflow-hidden bg-black pointer-events-none flex items-center justify-center"
         >
-            {/* Don't mount the player until we have real container dimensions — otherwise
-                the artificialScale trick initialises at viewport size, not card size. */}
-            {dimensions.ready && (
-                <div 
-                    className="flex-shrink-0" 
-                    style={{ 
-                        width: dimensions.width * artificialScale, 
-                        height: dimensions.height * artificialScale,
-                        transform: `scale(${1 / artificialScale})`,
-                        transformOrigin: 'center center'
-                    }}
-                >
-                    <YouTube
-                        videoId={videoId}
-                        className="w-full h-full"
-                        onReady={handleReady}
-                        onStateChange={handleStateChange}
-                        onEnd={handleEnd}
-                        onError={handleError}
-                        opts={playerOpts}
-                    />
-                </div>
-            )}
+            {/* Always mount the player — never gate on dimensions.ready.
+                artificialScale is 1 until dimensions settle, then jumps to 36
+                for the quality trick. The player starts loading immediately. */}
+            <div 
+                className="flex-shrink-0" 
+                style={{ 
+                    width: dimensions.width * artificialScale, 
+                    height: dimensions.height * artificialScale,
+                    transform: `scale(${1 / artificialScale})`,
+                    transformOrigin: 'center center'
+                }}
+            >
+                <YouTube
+                    videoId={videoId}
+                    className="w-full h-full"
+                    onReady={handleReady}
+                    onStateChange={handleStateChange}
+                    onEnd={handleEnd}
+                    onError={handleError}
+                    opts={playerOpts}
+                />
+            </div>
         </div>
     );
 };
