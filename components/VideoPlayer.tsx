@@ -1449,6 +1449,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     captions={captions}
                     currentCaption={currentCaption}
                     onSubtitleChange={setCurrentCaption}
+                    subtitleOffset={subtitleOffset}
+                    onSubtitleOffsetChange={setSubtitleOffset}
                     audioTracks={audioTracks}
                     currentAudioTrack={currentAudioTrack}
                     onAudioChange={changeAudioTrack}

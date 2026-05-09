@@ -108,6 +108,29 @@ export const AudioSubPanelTouch: React.FC<{
                 </ul>
             ) : (
                 <div className="flex flex-col flex-1 overflow-hidden">
+                    {onSubtitleOffsetChange && (
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-white/5 shrink-0">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-bold text-white">Sync Subtitles</span>
+                                <span className="text-xs text-white/50">{subtitleOffset === 0 ? 'Default timing' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s delay`}</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-black/40 rounded-full p-1">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset - 0.5).toFixed(1))); }}
+                                    className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 rounded-full transition font-bold text-xl"
+                                    title="Show Earlier"
+                                >−</button>
+                                <span className="text-sm text-white font-mono w-12 text-center select-none font-bold">
+                                    {subtitleOffset === 0 ? '0.0s' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s`}
+                                </span>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset + 0.5).toFixed(1))); }}
+                                    className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 rounded-full transition font-bold text-xl"
+                                    title="Show Later"
+                                >+</button>
+                            </div>
+                        </div>
+                    )}
                     <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
                         <li 
                             className={`${rowCls} ${currentCaption === null ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
@@ -400,6 +423,8 @@ interface VideoPlayerSettingsTouchProps {
     captions: Array<{ id: string; label: string; url: string; lang: string }>;
     currentCaption: string | null;
     onSubtitleChange: (url: string | null) => void;
+    subtitleOffset?: number;
+    onSubtitleOffsetChange?: (offset: number) => void;
     audioTracks: Array<{ id: number; name: string; lang: string }>;
     currentAudioTrack: number;
     onAudioChange: (trackId: number) => void;
