@@ -44,7 +44,13 @@ export function useTouchGestures(
     const SWIPE_THRESHOLD = 50; // px
     const TAP_THRESHOLD = 10; // max movement for tap
 
+    const shouldIgnoreEvent = (e: TouchEvent) => {
+        const target = e.target as HTMLElement;
+        return target.closest('#video-controls-container') || target.closest('button') || target.closest('.subtitle-overlay');
+    };
+
     const handleTouchStart = useCallback((e: TouchEvent) => {
+        if (shouldIgnoreEvent(e)) return;
         const touch = e.touches[0];
         touchState.current.startX = touch.clientX;
         touchState.current.startY = touch.clientY;
@@ -52,6 +58,7 @@ export function useTouchGestures(
     }, []);
 
     const handleTouchEnd = useCallback((e: TouchEvent) => {
+        if (shouldIgnoreEvent(e)) return;
         const touch = e.changedTouches[0];
         const element = ref.current;
         if (!element) return;

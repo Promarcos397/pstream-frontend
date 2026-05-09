@@ -43,6 +43,7 @@ export const PanelShell: React.FC<{
                 onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             >
                 <div
+                    id="video-panel-shell"
                     className={`${commonPanelCls} ${desktopClass || 'w-[90vw] max-w-[550px] max-h-[80svh]'} pointer-events-auto`}
                     style={{ borderRadius: 0, bottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
                     onClick={(e) => e.stopPropagation()}
@@ -460,11 +461,11 @@ export const EpisodeExplorer: React.FC<{
                                     {/* Expanded info */}
                                     {isExpanded && (
                                         <div
-                                            className="px-6 pb-4 flex flex-col md:flex-row gap-4 cursor-pointer group/ep-play"
+                                            className="px-6 pb-4 flex flex-col items-center md:items-start md:flex-row gap-4 cursor-pointer group/ep-play"
                                             onClick={(e) => { e.stopPropagation(); onEpisodeSelect(ep); setActivePanel('none'); setExpandedEpisodeId(null); }}
                                         >
                                             {ep.still_path && (
-                                                <div className="relative flex-shrink-0 w-full md:w-[180px]">
+                                                <div className="relative flex-shrink-0 w-full max-w-[240px] md:max-w-none md:w-[180px]">
                                                     <img
                                                         src={`https://image.tmdb.org/t/p/w780${ep.still_path}`}
                                                         className="w-full h-auto aspect-video object-cover rounded-sm group-hover/ep-play:brightness-50 transition duration-200"
@@ -497,6 +498,7 @@ export const EpisodeExplorer: React.FC<{
         return (
             <div className="fixed inset-0 z-[120] pointer-events-auto" onClick={(e) => { if (e.target === e.currentTarget) onClose ? onClose() : setActivePanel('none'); }}>
                 <div
+                    id="video-panel-shell"
                     className={`${commonPanelCls} w-full max-h-[85svh] pointer-events-auto`}
                     style={{ borderRadius: 0, bottom: 0, right: 0, left: 0 }}
                     onClick={(e) => e.stopPropagation()}
