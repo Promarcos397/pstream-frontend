@@ -1111,6 +1111,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
         const vid = videoRef.current;
         vid?.addEventListener('timeupdate', update);
+        
+        // Immediately run an update when this effect fires (e.g. if subtitleOffset changed while paused)
+        update();
+
         return () => vid?.removeEventListener('timeupdate', update);
     }, [subtitleObjectUrl, subtitleOffset]);
 
