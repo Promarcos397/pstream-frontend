@@ -142,6 +142,62 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         reportedSuccessRef.current = null;
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
+    // ─── Fullscreen toggle ────────────────────────────────────────────────────────
+    const toggleFullscreen = useCallback(() => {
+        const el = containerRef.current as any;
+        const doc = document as any;
+
+        // On iPhone (where requestFullscreen on DIV often fails), we use Pseudo-Fullscreen
+        const isIPhone = /iPhone/i.test(navigator.userAgent);
+        
+        if (isFullscreen || isPseudoFullscreen) {
+            const hasFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement);
+            
+            if (hasFs) {
+                if (doc.exitFullscreen) doc.exitFullscreen().catch(() => {});
+                else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+                else if (doc.msExitFullscreen) doc.msExitFullscreen();
+            }
+            
+            setIsFullscreen(false);
+            setIsPseudoFullscreen(false);
+            try { (screen.orientation as any)?.unlock?.(); } catch (e) {}
+        } else {
+            if (el?.requestFullscreen) {
+                el.requestFullscreen().then(() => {
+                    if ((screen.orientation as any)?.lock) (screen.orientation as any).lock('landscape').catch(() => {});
+                }).catch(() => {});
+            } else if (el?.webkitRequestFullscreen) {
+                el.webkitRequestFullscreen();
+            } else if (isIPhone) {
+                // iPhone Fallback: Use Fixed position "Pseudo-Fullscreen" to keep our UI
+                setIsPseudoFullscreen(true);
+            } else if ((videoRef.current as any)?.webkitEnterFullscreen) {
+                // Last resort: native video fullscreen
+                (videoRef.current as any).webkitEnterFullscreen();
+            }
+            setIsFullscreen(true);
+        }
+    }, [isFullscreen, isPseudoFullscreen]);
+
+    // ─── Track fullscreen state changes from browser ──────────────────────────────
+    useEffect(() => {
+        const handleFsChange = () => {
+            const doc = document as any;
+            setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement));
+        };
+        document.addEventListener('fullscreenchange', handleFsChange);
+        document.addEventListener('webkitfullscreenchange', handleFsChange);
+        document.addEventListener('mozfullscreenchange', handleFsChange);
+        document.addEventListener('MSFullscreenChange', handleFsChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFsChange);
+            document.removeEventListener('webkitfullscreenchange', handleFsChange);
+            document.removeEventListener('mozfullscreenchange', handleFsChange);
+            document.removeEventListener('MSFullscreenChange', handleFsChange);
+        };
+    }, []);
+
     // ─── URL deep-link sync ─────────────────────────────────────────────────────
     // Keep the address bar in sync so users can share/bookmark a specific episode.
     // Uses replaceState (not pushState) to avoid polluting browser history on every
@@ -510,7 +566,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             switch (e.key) {
                 case 'Escape':
                     e.preventDefault();
-                    if (onClose) onClose();
+                    if (isFullscreen || isPseudoFullscreen) {
+                        toggleFullscreen();
+                    } else if (onClose) {
+                        onClose();
+                    }
                     break;
                 case ' ':
                 case 'k':
@@ -561,7 +621,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode]);
+    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen]);
 
     // ─── Fetch Stream ───────────────────────────────────────────────────────────
     useEffect(() => {
@@ -1233,57 +1293,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     });
 
-    // ─── Fullscreen toggle ────────────────────────────────────────────────────────
-    const toggleFullscreen = useCallback(() => {
-        const el = containerRef.current as any;
-        const doc = document as any;
-
-        // On iPhone (where requestFullscreen on DIV often fails), we use Pseudo-Fullscreen
-        const isIPhone = /iPhone/i.test(navigator.userAgent);
-        
-        if (isFullscreen || isPseudoFullscreen) {
-            if (doc.exitFullscreen) doc.exitFullscreen();
-            else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
-            else if (doc.msExitFullscreen) doc.msExitFullscreen();
-            
-            setIsFullscreen(false);
-            setIsPseudoFullscreen(false);
-            try { (screen.orientation as any)?.unlock?.(); } catch (e) {}
-        } else {
-            if (el?.requestFullscreen) {
-                el.requestFullscreen().then(() => {
-                    if ((screen.orientation as any)?.lock) (screen.orientation as any).lock('landscape').catch(() => {});
-                }).catch(() => {});
-            } else if (el?.webkitRequestFullscreen) {
-                el.webkitRequestFullscreen();
-            } else if (isIPhone) {
-                // iPhone Fallback: Use Fixed position "Pseudo-Fullscreen" to keep our UI
-                setIsPseudoFullscreen(true);
-            } else if ((videoRef.current as any)?.webkitEnterFullscreen) {
-                // Last resort: native video fullscreen
-                (videoRef.current as any).webkitEnterFullscreen();
-            }
-            setIsFullscreen(true);
-        }
-    }, [isFullscreen, isPseudoFullscreen]);
-
-    // ─── Track fullscreen state changes from browser ──────────────────────────────
-    useEffect(() => {
-        const handleFsChange = () => {
-            const doc = document as any;
-            setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement));
-        };
-        document.addEventListener('fullscreenchange', handleFsChange);
-        document.addEventListener('webkitfullscreenchange', handleFsChange);
-        document.addEventListener('mozfullscreenchange', handleFsChange);
-        document.addEventListener('MSFullscreenChange', handleFsChange);
-        return () => {
-            document.removeEventListener('fullscreenchange', handleFsChange);
-            document.removeEventListener('webkitfullscreenchange', handleFsChange);
-            document.removeEventListener('mozfullscreenchange', handleFsChange);
-            document.removeEventListener('MSFullscreenChange', handleFsChange);
-        };
-    }, []);
 
     return (
         <div
