@@ -63,13 +63,22 @@ interface VideoPlayerControlsProps {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const formatTime = (time: number, duration: number): string => {
+    if (isNaN(time)) return '0:00';
+    const h = Math.floor(time / 3600);
+    const m = Math.floor((time % 3600) / 60);
+    const s = Math.floor(time % 60);
+    if (duration >= 3600) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
 const formatRemaining = (currentTime: number, duration: number): string => {
     if (!duration || isNaN(duration)) return '';
     const remaining = Math.max(0, duration - currentTime);
     const h = Math.floor(remaining / 3600);
     const m = Math.floor((remaining % 3600) / 60);
     const s = Math.floor(remaining % 60);
-    if (h > 0) return `-${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    if (duration >= 3600) return `-${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     return `-${m}:${s.toString().padStart(2, '0')}`;
 };
 
@@ -710,6 +719,9 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             overflow: isPanelOpen ? 'hidden' : undefined,
                         }}
                     >
+                        {/* Current time */}
+                        <span className="text-white text-xs font-consolas tabular-nums flex-shrink-0 select-none min-w-[50px] text-left">{formatTime(currentTime, duration)}</span>
+
                         <div
                             ref={timelineRef}
                             className="relative flex-1 cursor-pointer group/timeline"
@@ -789,6 +801,35 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         </button>
                                     </div>
                                 </>
+                            ) : (
+                                <>
+                                    {/* Mobile Left: Episodes & Subtitles */}
+                                    {isTV && onEpisodesClick && (
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
+                                                className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
+                                                style={{ minWidth: 44, minHeight: 44 }}
+                                                aria-label="Episode Explorer"
+                                            >
+                                                <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'regular'} />
+                                            </button>
+                                        </div>
+                                    )}
+                                    {onSubtitlesClick && (
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
+                                                className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
+                                                style={{ minWidth: 44, minHeight: 44 }}
+                                                aria-label="Subtitles & Audio"
+                                                title="Subtitles (S)"
+                                            >
+                                                <SubtitlesIcon size={ICON_SIZE} weight={activePanel === 'audioSubtitles' ? 'fill' : 'regular'} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
 
@@ -823,13 +864,12 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 </div>
                             )}
 
-                            {/* Subtitles & Audio */}
-                            {onSubtitlesClick && (
+                            {/* Subtitles & Audio (Desktop) */}
+                            {!isMobile && onSubtitlesClick && (
                                 <div className="relative">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
                                         className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
-                                        style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                                         aria-label="Subtitles & Audio"
                                         title="Subtitles (S)"
                                     >
@@ -838,13 +878,12 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 </div>
                             )}
 
-                            {/* Episodes — TV only */}
-                            {isTV && onEpisodesClick && (
+                            {/* Episodes — TV only (Desktop) */}
+                            {!isMobile && isTV && onEpisodesClick && (
                                 <div className="relative">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
                                         className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
-                                        style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                                         aria-label="Episode Explorer"
                                     >
                                         <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'regular'} />
