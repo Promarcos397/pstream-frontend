@@ -46,7 +46,7 @@ export function useTouchGestures(
 
     const shouldIgnoreEvent = (e: TouchEvent) => {
         const target = e.target as HTMLElement;
-        return target.closest('#video-controls-container') || target.closest('button') || target.closest('.subtitle-overlay');
+        return target.closest('#video-controls-container') || target.closest('#video-panel-shell') || target.closest('#video-panel-shell-touch') || target.closest('.no-gesture') || target.closest('button') || target.closest('.subtitle-overlay');
     };
 
     const handleTouchStart = useCallback((e: TouchEvent) => {

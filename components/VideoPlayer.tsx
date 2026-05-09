@@ -39,6 +39,7 @@ function shouldForceProxy(source: any): boolean {
 // Child Components
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
+import VideoPlayerSettingsTouch from './VideoPlayerSettingsTouch';
 import { CaretRightIcon } from '@phosphor-icons/react';
 
 interface VideoPlayerProps {
@@ -1424,39 +1425,71 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     : undefined}
             />
 
-            <VideoPlayerSettings
-                activePanel={activePanel}
-                setActivePanel={setActivePanel}
-                seasonList={seasonList}
-                currentSeasonEpisodes={currentSeasonEpisodes}
-                selectedSeason={browsedSeasonNumber}
-                currentEpisode={currentEpisode}
-                playingSeason={playingSeasonNumber}
-                showId={movie.id}
-                onSeasonSelect={(s) => {
-                    setBrowsedSeasonNumber(s);
-                    // Load season episodes when switching seasons in the explorer
-                    getSeasonDetails(String(movie.id), s).then(data => {
-                        if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);
-                    }).catch(() => {});
-                    setActivePanel('episodes');
-                }}
-                onEpisodeSelect={handleEpisodeSelect}
-                qualities={qualityLevels}
-                currentQuality={currentQualityLevel}
-                onQualityChange={changeQuality}
-                captions={captions}
-                currentCaption={currentCaption}
-                onSubtitleChange={setCurrentCaption}
-                subtitleOffset={subtitleOffset}
-                onSubtitleOffsetChange={setSubtitleOffset}
-                audioTracks={audioTracks}
-                currentAudioTrack={currentAudioTrack}
-                onAudioChange={changeAudioTrack}
-                allSources={allSources}
-                currentSourceIndex={currentSourceIndex}
-                onSourceChange={handleSourceChange}
-            />
+            {isMobile ? (
+                <VideoPlayerSettingsTouch
+                    activePanel={activePanel}
+                    setActivePanel={setActivePanel}
+                    seasonList={seasonList}
+                    currentSeasonEpisodes={currentSeasonEpisodes}
+                    selectedSeason={browsedSeasonNumber}
+                    currentEpisode={currentEpisode}
+                    playingSeason={playingSeasonNumber}
+                    showId={movie.id}
+                    onSeasonSelect={(s) => {
+                        setBrowsedSeasonNumber(s);
+                        getSeasonDetails(String(movie.id), s).then(data => {
+                            if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);
+                        }).catch(() => {});
+                        setActivePanel('episodes');
+                    }}
+                    onEpisodeSelect={handleEpisodeSelect}
+                    qualities={qualityLevels}
+                    currentQuality={currentQualityLevel}
+                    onQualityChange={changeQuality}
+                    captions={captions}
+                    currentCaption={currentCaption}
+                    onSubtitleChange={setCurrentCaption}
+                    audioTracks={audioTracks}
+                    currentAudioTrack={currentAudioTrack}
+                    onAudioChange={changeAudioTrack}
+                    allSources={allSources}
+                    currentSourceIndex={currentSourceIndex}
+                    onSourceChange={handleSourceChange}
+                />
+            ) : (
+                <VideoPlayerSettings
+                    activePanel={activePanel}
+                    setActivePanel={setActivePanel}
+                    seasonList={seasonList}
+                    currentSeasonEpisodes={currentSeasonEpisodes}
+                    selectedSeason={browsedSeasonNumber}
+                    currentEpisode={currentEpisode}
+                    playingSeason={playingSeasonNumber}
+                    showId={movie.id}
+                    onSeasonSelect={(s) => {
+                        setBrowsedSeasonNumber(s);
+                        getSeasonDetails(String(movie.id), s).then(data => {
+                            if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);
+                        }).catch(() => {});
+                        setActivePanel('episodes');
+                    }}
+                    onEpisodeSelect={handleEpisodeSelect}
+                    qualities={qualityLevels}
+                    currentQuality={currentQualityLevel}
+                    onQualityChange={changeQuality}
+                    captions={captions}
+                    currentCaption={currentCaption}
+                    onSubtitleChange={setCurrentCaption}
+                    subtitleOffset={subtitleOffset}
+                    onSubtitleOffsetChange={setSubtitleOffset}
+                    audioTracks={audioTracks}
+                    currentAudioTrack={currentAudioTrack}
+                    onAudioChange={changeAudioTrack}
+                    allSources={allSources}
+                    currentSourceIndex={currentSourceIndex}
+                    onSourceChange={handleSourceChange}
+                />
+            )}
 
             {/* ── Skip Intro pill ── */}
             {showSkipIntro && activeSkipSegment && (
