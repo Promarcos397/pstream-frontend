@@ -591,6 +591,13 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         setShowVolume(false);
                         setShowNextEpPopup(false);
                     }}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => {
+                        e.stopPropagation();
+                        setActivePanel?.('none');
+                        setShowVolume(false);
+                        setShowNextEpPopup(false);
+                    }}
                 />
             )}
 
@@ -605,6 +612,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         paddingBottom: 16,
                         background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%)',
                     }}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
                 >
                     {/* Larger back button for better touch target (min 44×44) */}
                     <button
@@ -632,6 +641,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 >
                     <button
                         onClick={(e) => { e.stopPropagation(); onSeek(-10); triggerSeekFlash('left'); }}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 64, height: 64 }}
                         aria-label="Rewind 10s"
@@ -640,6 +651,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 80, height: 80 }}
                         aria-label={isPlaying ? 'Pause' : 'Play'}
@@ -648,6 +661,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onSeek(10); triggerSeekFlash('right'); }}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 64, height: 64 }}
                         aria-label="Fast-forward 10s"
@@ -671,6 +686,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 id="video-controls-container"
                 className={`absolute inset-x-0 bottom-0 z-30 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                 onClick={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
                 onMouseEnter={() => setIsHovering(true)}
                 onMouseLeave={() => setIsHovering(false)}
             >
