@@ -1112,7 +1112,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const vid = videoRef.current;
         vid?.addEventListener('timeupdate', update);
         return () => vid?.removeEventListener('timeupdate', update);
-    }, [subtitleObjectUrl]);
+    }, [subtitleObjectUrl, subtitleOffset]);
 
 
 
