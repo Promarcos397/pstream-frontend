@@ -1178,6 +1178,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return () => vid?.removeEventListener('timeupdate', update);
     }, [subtitleObjectUrl, subtitleOffset]);
 
+    // Disable native subtitles to prevent double-rendering (since we use our own overlay)
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        const hideNative = () => {
+            for (let i = 0; i < video.textTracks.length; i++) {
+                video.textTracks[i].mode = 'hidden';
+            }
+        };
+        video.addEventListener('loadedmetadata', hideNative);
+        const interval = setInterval(hideNative, 1000);
+        hideNative();
+        return () => {
+            video.removeEventListener('loadedmetadata', hideNative);
+            clearInterval(interval);
+        };
+    }, [streamUrl]);
+
 
 
     // ─── TV Details init (two separate effects to avoid double-fetching) ──────────
@@ -1329,7 +1347,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 // Dialogue detection: lines starting with '- ' (or '– ')
                 // e.g. "- Hello there\n- Hi!" → two speakers
                 const lines = currentCueText.split(/\n/);
-                const isDialogue = lines.length >= 2 && lines.filter(l => /^[-–]\s/.test(l.trim())).length >= 1;
+                // Dialogue detection: requires at least 2 lines, each starting with a dash
+                const isDialogue = lines.length >= 2 && lines.filter(l => /^[-–]\s/.test(l.trim())).length >= 2;
 
                 // When cue changes, determine positioning
                 if (currentCueText !== prevCueRef.current) {
@@ -1378,7 +1397,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                             : settings.subtitleEdgeStyle === 'outline'
                                                 ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
                                                 : 'none',
-                                        filter: settings.subtitleBlur > 0 ? `blur(${settings.subtitleBlur}px)` : undefined,
+
                                         opacity: (settings.subtitleOpacity ?? 100) / 100,
                                         marginBottom: i < speakerLines.length - 1 ? '0.2em' : 0,
                                         alignSelf: i === 1 ? (side === 'left' ? 'flex-end' : 'flex-start') : undefined,
@@ -1420,7 +1439,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                     : settings.subtitleEdgeStyle === 'outline'
                                         ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
                                         : 'none',
-                                filter: settings.subtitleBlur > 0 ? `blur(${settings.subtitleBlur}px)` : undefined,
+
                                 opacity: (settings.subtitleOpacity ?? 100) / 100,
                             }}
                             dangerouslySetInnerHTML={{ __html: currentCueText.replace(/\n/g, '<br/>') }}
