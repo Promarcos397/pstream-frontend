@@ -1171,6 +1171,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, [activePanel]);
 
+    const toggleUI = useCallback(() => {
+        if (activePanel !== 'none') return;
+        setShowUI(prev => !prev);
+    }, [activePanel]);
+
+    // ─── Touch Gestures ───────────────────────────────────────────────────────────
+    useTouchGestures(containerRef, {
+        onSingleTap: toggleUI,
+        onDoubleTapCenter: () => videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause(),
+        onDoubleTapLeft: () => { if (videoRef.current) videoRef.current.currentTime -= 10; },
+        onDoubleTapRight: () => { if (videoRef.current) videoRef.current.currentTime += 10; },
+        onSwipeLeft: (dist) => { if (videoRef.current) videoRef.current.currentTime += (dist / 10); showControls(); },
+        onSwipeRight: (dist) => { if (videoRef.current) videoRef.current.currentTime -= (dist / 10); showControls(); }
+    });
+
     // ─── Fullscreen toggle ────────────────────────────────────────────────────────
     const toggleFullscreen = useCallback(() => {
         const el = containerRef.current as any;
