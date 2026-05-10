@@ -401,7 +401,37 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const applyStreamResult = useCallback((sources: any[], subtitles: any[], globalReferer?: string | null) => {
         if (!sources || sources.length === 0) return;
 
-        setAllSources(sources);
+        // "Torrent Preferred Always" — If premium already landed, prepend it to the list
+        let finalSources = [...sources];
+        if (premiumResolver.streamUrl) {
+            const premiumSource = {
+                url:        premiumResolver.streamUrl,
+                quality:    premiumResolver.quality || 'auto',
+                isM3U8:     false,
+                isEmbed:    false,
+                noProxy:    false,
+                provider:   'Premium Server',
+                providerId: 'premium',
+                referer:    '',
+                origin:     '',
+                headers:    {},
+                _type:      'mp4',
+            };
+            const alreadyHasPremium = finalSources.some(s => s.providerId === 'premium');
+            if (!alreadyHasPremium) {
+                finalSources = [premiumSource, ...finalSources];
+            }
+        }
+
+        setAllSources(finalSources);
+
+        // "Torrent Preferred Always" — If we are already playing a premium source,
+        // don't let regular scrapers auto-switch and interrupt the experience.
+        const currentSource = allSources[currentSourceIndex];
+        if (currentSource?.providerId === 'premium' && !isBuffering) {
+            console.log('[VideoPlayer] 💎 Premium stream active. Ignoring regular scraper result.');
+            return;
+        }
 
         // Skip any sources that are in the failure cooldown from a previous attempt.
         // Without this, a cache-bust re-fetch that returns the same dead URL gets tried again immediately.
@@ -494,7 +524,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (isEmbedFallback) {
             setTimeout(() => setIsBuffering(false), 1500);
         }
-    }, [settings.subtitleLanguage, settings.showSubtitles]);
+    }, [settings.subtitleLanguage, settings.showSubtitles, premiumResolver.streamUrl, premiumResolver.quality]);
 
     // ─── Manual source change ────────────────────────────────────────────────────
     const handleSourceChange = useCallback((index: number) => {
@@ -763,13 +793,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             imdbId || String(movie.id), 
             type,
             mediaType === 'tv' ? playingSeasonNumber : undefined,
-            mediaType === 'tv' ? currentEpisode : undefined
+            mediaType === 'tv' ? currentEpisode : undefined,
+            undefined, // authToken (handled by hook)
+            movie.title || movie.name
         ).then(metaJson => {
             if (!metaJson) {
                 console.log('[VideoPlayer] No premium sources found.');
             }
         });
-    }, [premiumAttempted]);
+    }, [premiumAttempted, movie.imdb_id]);
 
     // ─── Apply Premium Stream URL ────────────────────────────────────────────────
     useEffect(() => {
@@ -800,11 +832,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         });
 
         // Always switch to it immediately if it's new
-        setLoadingMessage(`Premium Ultra High-speed source found — connecting...`);
-        setCurrentSourceIndex(0); // Switch to the first source (which we just prepended)
-        setStreamUrl(premiumSource.url);
-        setIsStreamM3U8(false);
-        setIsBuffering(true);
+        if (streamUrl !== premiumSource.url) {
+            setLoadingMessage(`Premium Ultra High-speed source found — connecting...`);
+            setCurrentSourceIndex(0); // Switch to the first source (which we just prepended)
+            setStreamUrl(premiumSource.url);
+            setIsStreamM3U8(false);
+            setIsBuffering(true);
+        }
     }, [premiumResolver.streamUrl, premiumAttempted, applyStreamResult]);
 
     // ─── Skip Segments (TV only) ────────────────────────────────────────────────

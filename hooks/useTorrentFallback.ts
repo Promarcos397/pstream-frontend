@@ -33,6 +33,7 @@ interface ResolveFn {
         season?:   number,
         episode?:  number,
         authToken?: string,
+        title?:    string,
     ): Promise<string | null>;
 }
 
@@ -49,7 +50,7 @@ export function useTorrentFallback() {
     // Store auth token so the player can refresh the URL if needed
     const tokenRef = useRef<string>('');
 
-    const resolve: ResolveFn = useCallback(async (imdbId, type, season, episode, authToken) => {
+    const resolve: ResolveFn = useCallback(async (imdbId, type, season, episode, authToken, title) => {
         // Cancel any in-flight request
         if (abortRef.current) abortRef.current.abort();
         abortRef.current = new AbortController();
@@ -62,6 +63,7 @@ export function useTorrentFallback() {
             const params = new URLSearchParams({ imdbId, type });
             if (season)  params.set('season',  String(season));
             if (episode) params.set('episode', String(episode));
+            if (title)   params.set('title',   title);
 
             const sourcesRes = await fetch(`${BACKEND_URL}/api/torrent/sources?${params}`, {
                 headers: { 'Authorization': authToken ? `Bearer ${authToken}` : '' },
@@ -88,6 +90,7 @@ export function useTorrentFallback() {
                 imdbId,
                 type,
                 token: authToken || '',
+                title: title || '',
             });
             if (season)       streamParams.set('season',  String(season));
             if (episode)      streamParams.set('episode', String(episode));
