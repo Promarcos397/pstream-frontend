@@ -400,6 +400,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // ─── Apply stream result ────────────────────────────────────────────────────
     const applyStreamResult = useCallback((sources: any[], subtitles: any[], globalReferer?: string | null) => {
         if (!sources || sources.length === 0) return;
+        setError(null);
 
         // "Torrent Preferred Always" — If premium already landed, prepend it to the list
         let finalSources = [...sources];
@@ -811,6 +812,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!premiumResolver.streamUrl || !premiumAttempted) return;
 
         console.log(`[VideoPlayer] 💎 Applying premium stream: ${premiumResolver.quality} @ ${premiumResolver.seeders} seeders`);
+        setError(null); // Clear any "No stream found" error from the regular resolver
 
         const premiumSource = {
             url:        premiumResolver.streamUrl,
