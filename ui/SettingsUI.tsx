@@ -152,3 +152,30 @@ export const SettingsSelectGroup: React.FC<SelectGroupProps> = ({ label, options
         </div>
     );
 };
+
+// --- Generic Text Input ---
+interface InputProps {
+    label: string;
+    subLabel?: string;
+    value: string;
+    placeholder?: string;
+    onChange: (val: string) => void;
+    darkTheme?: boolean;
+    type?: 'text' | 'password';
+}
+
+export const SettingsInput: React.FC<InputProps> = ({ label, subLabel, value, placeholder, onChange, darkTheme = true, type = 'text' }) => (
+    <div className="space-y-3">
+        <div>
+            <label className={`block text-xs uppercase font-black tracking-widest ${darkTheme ? 'text-white/60' : 'text-gray-400'}`}>{label}</label>
+            {subLabel && <span className={`block text-[10px] mt-0.5 ${darkTheme ? 'text-white/40' : 'text-gray-400 font-medium italic'}`}>{subLabel}</span>}
+        </div>
+        <input
+            type={type}
+            value={value}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            className={`w-full appearance-none border-2 rounded-sm px-4 py-3.5 focus:outline-none transition-all text-sm font-bold shadow-sm ${darkTheme ? 'bg-[#222] border-white/10 text-white placeholder:text-white/20 hover:bg-[#333] focus:border-white/30' : 'bg-white border-gray-100 text-black placeholder:text-gray-300 hover:border-gray-300 focus:border-red-500'}`}
+        />
+    </div>
+);

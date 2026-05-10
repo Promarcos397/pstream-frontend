@@ -4,6 +4,7 @@ import { getSeasonDetails, getMovieDetails, getStream, getExternalIds, prefetchS
 import ISO6391 from 'iso-639-1';
 
 import { useGlobalContext } from '../context/GlobalContext';
+import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useTitle } from '../context/TitleContext';
 import { streamCache } from '../utils/streamCache';
 import { useTouchGestures } from '../hooks/useTouchGestures';
@@ -75,6 +76,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const { user, settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState, setActiveVideoId } = useGlobalContext();
     const { setPageTitle } = useTitle();
     const isMobile = useIsMobile();
+    const { overlayStyle, enabled: subsEnabled } = useSubtitleStyle();
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -97,6 +99,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
     const [isVideoReady, setIsVideoReady] = useState(false); // gates subtitle rendering on first canplay
+    const [videoFit, setVideoFit] = useState<'contain' | 'cover'>('contain');
     const hasPlayedOnceRef = useRef(false); // persists across subtitle track changes (unlike isVideoReady)
     const [loadingMessage, setLoadingMessage] = useState('Finding stream...');
     const [streamUrl, setStreamUrl] = useState<string | null>(null);
@@ -121,8 +124,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     // ─── Torrent fallback ──────────────────────────────────────────────────────
     // Triggered silently after MAX_STREAM_RETRIES, only for logged-in users.
-    const torrent = useTorrentFallback();
-    const [torrentAttempted, setTorrentAttempted] = useState(false);
+    const premiumResolver = useTorrentFallback();
+    const [premiumAttempted, setPremiumAttempted] = useState(false);
 
     // TV Show state
     const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
@@ -359,10 +362,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // ─── Touch gestures ──────────────────────────────────────────────────────────
     // Double-tap left/right = ±10s seek; double-tap center = play/pause
     useTouchGestures(containerRef, {
-        onDoubleTapLeft: () => { if (videoRef.current) videoRef.current.currentTime -= 10; },
-        onDoubleTapRight: () => { if (videoRef.current) videoRef.current.currentTime += 10; },
+        onDoubleTapLeft: () => { 
+            lastTouchTimeRef.current = Date.now();
+            if (videoRef.current) videoRef.current.currentTime -= 10; 
+        },
+        onDoubleTapRight: () => { 
+            lastTouchTimeRef.current = Date.now();
+            if (videoRef.current) videoRef.current.currentTime += 10; 
+        },
+        onSwipeLeft: (distance) => {
+            lastTouchTimeRef.current = Date.now();
+            if (videoRef.current) videoRef.current.currentTime -= Math.min(60, Math.round(distance / 10));
+            showControls();
+        },
+        onSwipeRight: (distance) => {
+            lastTouchTimeRef.current = Date.now();
+            if (videoRef.current) videoRef.current.currentTime += Math.min(60, Math.round(distance / 10));
+            showControls();
+        },
         onSingleTap: () => { 
-            // Ignore if we click on a button or something that prevents default, handled by touch gesture?
+            lastTouchTimeRef.current = Date.now();
             if (activePanel !== 'none') {
                 setActivePanel('none');
                 return;
@@ -728,73 +747,65 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     // Reset torrent state when navigating to a new piece of content
     useEffect(() => {
-        setTorrentAttempted(false);
-        torrent.reset();
+        setPremiumAttempted(false);
+        premiumResolver.reset();
+        setPremiumAttempted(true); // Trigger immediately for better performance
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
-    // ─── Torrent Fallback Trigger ────────────────────────────────────────────────
-    // Fires when torrentAttempted flips to true (set by onTokenExpired/onError above).
-    // Only runs for logged-in users (auth token required for /api/torrent/sources).
+    // Fires immediately (premiumAttempted is set to true on mount/change).
     useEffect(() => {
-        if (!torrentAttempted || !user) return;
-
-        const token = AuthService.getToken();
-        if (!token) {
-            setError('Backup source requires a login. Please sign in and try again.');
-            setIsBuffering(false);
-            return;
-        }
-
-        // Resolve IMDB ID — needed by Torrentio for accurate magnet lookup
         const imdbId = movie.imdb_id || '';
         const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
 
-        console.log(`[VideoPlayer] 🧲 Torrent fallback: ${movie.title || movie.name} (${type}) imdb=${imdbId || 'pending'}`);
+        console.log(`[VideoPlayer] 💎 Premium resolver: ${movie.title || movie.name} (${type}) imdb=${imdbId || 'pending'}`);
 
-        torrent.resolve(
-            imdbId || String(movie.id), // fallback to tmdbId if imdb unavailable
+        premiumResolver.resolve(
+            imdbId || String(movie.id), 
             type,
             mediaType === 'tv' ? playingSeasonNumber : undefined,
-            mediaType === 'tv' ? currentEpisode : undefined,
-            token
+            mediaType === 'tv' ? currentEpisode : undefined
         ).then(metaJson => {
             if (!metaJson) {
-                setError('No backup sources found. This title may not be available via torrent.');
-                setIsBuffering(false);
+                console.log('[VideoPlayer] No premium sources found.');
             }
-            // Actual URL application happens in the next effect below
         });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [torrentAttempted]);
+    }, [premiumAttempted]);
 
-    // ─── Apply Torrent Stream URL ────────────────────────────────────────────────
-    // Watches for torrent.streamUrl becoming populated, then injects it as a
-    // synthetic source so the existing HLS player pipeline handles it.
+    // ─── Apply Premium Stream URL ────────────────────────────────────────────────
     useEffect(() => {
-        if (!torrent.streamUrl || !torrentAttempted) return;
+        if (!premiumResolver.streamUrl || !premiumAttempted) return;
 
-        console.log(`[VideoPlayer] 🧲 Applying torrent stream: ${torrent.quality} @ ${torrent.seeders} seeders`);
+        console.log(`[VideoPlayer] 💎 Applying premium stream: ${premiumResolver.quality} @ ${premiumResolver.seeders} seeders`);
 
-        // The torrent endpoint streams raw MP4 bytes — treat as a non-HLS direct source
-        // The endpoint URL itself is the stream (POST body sent separately by useHls/XHR)
-        const torrentSource = {
-            url:        torrent.streamUrl,
-            quality:    torrent.quality || 'auto',
+        const premiumSource = {
+            url:        premiumResolver.streamUrl,
+            quality:    premiumResolver.quality || 'auto',
             isM3U8:     false,
             isEmbed:    false,
-            noProxy:    false, // goes through our backend, no extra proxy needed
-            provider:   'Torrent (P2P)',
-            providerId: 'torrent',
+            noProxy:    false,
+            provider:   'Premium Server',
+            providerId: 'premium',
             referer:    '',
             origin:     '',
             headers:    {},
             _type:      'mp4',
         };
 
-        setLoadingMessage(`P2P source found (${torrent.quality || 'auto'}) — connecting...`);
-        applyStreamResult([torrentSource], [], null);
+        // Torrent is preferred always:
+        // Prepend it to allSources so it's the first one in the list for manual switching too.
+        setAllSources(prev => {
+            const alreadyHasPremium = prev.some(s => s.providerId === 'premium');
+            if (alreadyHasPremium) return prev;
+            return [premiumSource, ...prev];
+        });
+
+        // Always switch to it immediately if it's new
+        setLoadingMessage(`Premium Ultra High-speed source found — connecting...`);
+        setCurrentSourceIndex(0); // Switch to the first source (which we just prepended)
+        setStreamUrl(premiumSource.url);
+        setIsStreamM3U8(false);
         setIsBuffering(true);
-    }, [torrent.streamUrl, torrentAttempted, applyStreamResult]);
+    }, [premiumResolver.streamUrl, premiumAttempted, applyStreamResult]);
 
     // ─── Skip Segments (TV only) ────────────────────────────────────────────────
     useEffect(() => {
@@ -916,10 +927,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             } else {
                 console.warn(`[VideoPlayer] ❌ Max retries (${MAX_STREAM_RETRIES}) reached`);
                 // If user is logged in and we haven't tried torrent yet, trigger fallback silently
-                if (user && !torrentAttempted) {
-                    console.log('[VideoPlayer] 🧲 Activating torrent fallback...');
-                    setTorrentAttempted(true);
-                    setLoadingMessage('Trying backup source...');
+                if (user && !premiumAttempted) {
+                    console.log('[VideoPlayer] 💎 Activating premium fallback...');
+                    setPremiumAttempted(true);
+                    setLoadingMessage('Connecting to high-speed server...');
                     setIsBuffering(true);
                     setError(null);
                 } else {
@@ -946,10 +957,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             });
             if (currentSourceIndex < allSources.length - 1) {
                 handleSourceChange(currentSourceIndex + 1);
-            } else if (user && !torrentAttempted) {
-                console.log('[VideoPlayer] 🧲 All sources errored — activating torrent fallback...');
-                setTorrentAttempted(true);
-                setLoadingMessage('Trying backup source...');
+            } else if (user && !premiumAttempted) {
+                console.log('[VideoPlayer] 💎 All sources errored — activating premium fallback...');
+                setPremiumAttempted(true);
+                setLoadingMessage('Connecting to high-speed server...');
                 setIsBuffering(true);
                 setError(null);
             } else {
@@ -1298,16 +1309,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         onDoubleTapRight: () => {
             lastTouchTimeRef.current = Date.now();
             if (videoRef.current) videoRef.current.currentTime += 10;
-        },
-        onSwipeLeft: (dist) => {
-            lastTouchTimeRef.current = Date.now();
-            if (videoRef.current) videoRef.current.currentTime += (dist / 10);
-            showControls();
-        },
-        onSwipeRight: (dist) => {
-            lastTouchTimeRef.current = Date.now();
-            if (videoRef.current) videoRef.current.currentTime -= (dist / 10);
-            showControls();
         }
     });
 
@@ -1318,6 +1319,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             className={`fixed z-[100] flex flex-col font-sans select-none overflow-hidden bg-black ${isPseudoFullscreen ? 'inset-0' : (isFullscreen ? '' : 'inset-0')}`}
             style={isPseudoFullscreen ? { position: 'fixed', zIndex: 9999 } : {}}
             onMouseMove={showControls}
+            onTouchStart={() => { lastTouchTimeRef.current = Date.now(); }}
             // Double-click on the video container = toggle fullscreen (desktop)
             onDoubleClick={(e) => {
                 // Ignore double-clicks on control buttons
@@ -1328,7 +1330,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         >
             <video
                 ref={videoRef}
-                className="w-full h-full object-contain"
+                className={`w-full h-full ${videoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
@@ -1345,22 +1347,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             {/* Show when: stream is ready (isVideoReady) OR we've played before and are just switching subtitle tracks */}
             {(isVideoReady || hasPlayedOnceRef.current) && subtitleObjectUrl && currentCueText && (() => {
                 // Dialogue detection: lines starting with '- ' (or '– ')
-                // e.g. "- Hello there\n- Hi!" → two speakers
                 const lines = currentCueText.split(/\n/);
-                // Dialogue detection: requires at least 2 lines, each starting with a dash
                 const isDialogue = lines.length >= 2 && lines.filter(l => /^[-–]\s/.test(l.trim())).length >= 2;
 
-                // When cue changes, determine positioning
                 if (currentCueText !== prevCueRef.current) {
                     prevCueRef.current = currentCueText;
                     if (isDialogue) {
-                        // Dialogue cue: flip side from last time
                         speakerSideRef.current = speakerSideRef.current === 'right' ? 'left' : 'right';
-                        // Don't call setState inside render — use a layout effect later
                     }
                 }
 
-                // For dialogue: render two speaker lines with slight offset
                 if (isDialogue) {
                     const speakerLines = lines.map(l => l.replace(/^[-–]\s*/, '').trim()).filter(Boolean);
                     const side = speakerSideRef.current;
@@ -1368,19 +1364,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         <div
                             className="subtitle-overlay"
                             style={{
+                                ...overlayStyle,
                                 bottom: showUI ? (isMobile ? '8rem' : '7rem') : '2.5rem',
-                                fontFamily: settings.subtitleFontFamily || "'Consolas', monospace",
-                                fontSize: isMobile
-                                    ? (settings.subtitleSize === 'small' ? '14px' : settings.subtitleSize === 'large' ? '22px' : '18px')
-                                    : (settings.subtitleSize === 'small' ? 'clamp(14px, 1.8vw, 18px)' :
-                                       settings.subtitleSize === 'large' ? 'clamp(22px, 3.2vw, 32px)' :
-                                       'clamp(18px, 2.5vw, 26px)'),
+                                left: '0',
+                                transform: 'none',
+                                maxWidth: '100%',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: side === 'left' ? 'flex-start' : 'flex-end',
                                 paddingLeft: side === 'left' ? '12%' : '4%',
                                 paddingRight: side === 'right' ? '12%' : '4%',
                                 transition: 'all 0.25s ease',
+                                background: 'transparent',
+                                backgroundColor: 'transparent',
+                                backdropFilter: 'none',
+                                boxShadow: 'none'
                             }}
                         >
                             {speakerLines.map((line, i) => (
@@ -1388,17 +1386,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                     key={i}
                                     className="subtitle-line"
                                     style={{
-                                        color: settings.subtitleColor || 'white',
-                                        backgroundColor: (settings.subtitleBackground as string) !== 'none'
-                                            ? 'rgba(0,0,0,0.75)'
-                                            : 'transparent',
-                                        textShadow: settings.subtitleEdgeStyle === 'drop-shadow'
-                                            ? '0 1px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8)'
-                                            : settings.subtitleEdgeStyle === 'outline'
-                                                ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
-                                                : 'none',
-
-                                        opacity: (settings.subtitleOpacity ?? 100) / 100,
+                                        color: overlayStyle.color,
+                                        fontFamily: overlayStyle.fontFamily,
+                                        fontSize: overlayStyle.fontSize,
+                                        textShadow: overlayStyle.textShadow,
+                                        backgroundColor: overlayStyle.backgroundColor,
+                                        padding: overlayStyle.padding,
+                                        borderRadius: overlayStyle.borderRadius,
+                                        backdropFilter: overlayStyle.backdropFilter,
                                         marginBottom: i < speakerLines.length - 1 ? '0.2em' : 0,
                                         alignSelf: i === 1 ? (side === 'left' ? 'flex-end' : 'flex-start') : undefined,
                                         transform: `translateX(${i === 1 ? (side === 'left' ? '8%' : '-8%') : '0'})`,
@@ -1411,42 +1406,41 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     );
                 }
 
-                // Standard single-speaker subtitle
                 return (
                     <div
                         className="subtitle-overlay"
                         style={{
+                            ...overlayStyle,
                             bottom: showUI ? (isMobile ? '8rem' : '7rem') : '2.5rem',
-                            fontFamily: settings.subtitleFontFamily || "'Consolas', monospace",
-                            fontSize: isMobile
-                                ? (settings.subtitleSize === 'small' ? '14px' : settings.subtitleSize === 'large' ? '22px' : '18px')
-                                : (settings.subtitleSize === 'small' ? 'clamp(14px, 1.8vw, 18px)' :
-                                   settings.subtitleSize === 'large' ? 'clamp(22px, 3.2vw, 32px)' :
-                                   'clamp(18px, 2.5vw, 26px)'),
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            background: 'transparent',
+                            backgroundColor: 'transparent',
+                            backdropFilter: 'none',
+                            padding: 0,
+                            transition: 'all 0.25s ease',
                         }}
                     >
                         <span
                             className="subtitle-line"
                             style={{
-                                color: settings.subtitleColor || 'white',
-                                backgroundColor: (settings.subtitleBackground as string) !== 'none'
-                                    ? ((settings.subtitleBackground as string) === 'black' ? 'rgba(0,0,0,0.75)' :
-                                       (settings.subtitleBackground as string) === 'white' ? 'rgba(255,255,255,0.15)' :
-                                       'rgba(0,0,0,0.75)')
-                                    : 'transparent',
-                                textShadow: settings.subtitleEdgeStyle === 'drop-shadow'
-                                    ? '0 1px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8)'
-                                    : settings.subtitleEdgeStyle === 'outline'
-                                        ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
-                                        : 'none',
-
-                                opacity: (settings.subtitleOpacity ?? 100) / 100,
+                                color: overlayStyle.color,
+                                fontFamily: overlayStyle.fontFamily,
+                                fontSize: overlayStyle.fontSize,
+                                textShadow: overlayStyle.textShadow,
+                                backgroundColor: overlayStyle.backgroundColor,
+                                padding: overlayStyle.padding,
+                                borderRadius: overlayStyle.borderRadius,
+                                backdropFilter: overlayStyle.backdropFilter,
+                                display: 'inline-block',
+                                whiteSpace: 'pre-wrap',
                             }}
                             dangerouslySetInnerHTML={{ __html: currentCueText.replace(/\n/g, '<br/>') }}
                         />
                     </div>
                 );
             })()}
+
 
             {isBuffering && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10 pointer-events-none">
@@ -1500,6 +1494,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         setActivePanel(p => (p === 'episodes' || p === 'seasons') ? 'none' : 'episodes');
                       }
                     : undefined}
+                videoFit={videoFit}
+                onToggleFit={() => setVideoFit(prev => prev === 'contain' ? 'cover' : 'contain')}
             />
 
             {isMobile ? (

@@ -11,7 +11,9 @@ import {
     CardsThreeIcon,
     SubtitlesIcon,
     CornersOutIcon,
+    CornersInIcon,
     ArrowLeftIcon,
+    CropIcon,
 } from '@phosphor-icons/react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { Episode } from '../types';
@@ -61,6 +63,8 @@ interface VideoPlayerControlsProps {
         description?: string;
         stillPath?: string;
     } | null;
+    videoFit?: 'contain' | 'cover';
+    onToggleFit?: () => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -465,6 +469,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     activePanel = 'none', setActivePanel,
     onInteraction, onControlsHoverChange,
     nextEpisodeData,
+    videoFit, onToggleFit,
 }) => {
     const isMobile = useIsMobile();
     const timelineRef = useRef<HTMLDivElement>(null);
@@ -660,6 +665,17 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         mediaType={mediaType}
                         className="text-white text-sm line-clamp-1 drop-shadow-md"
                     />
+                    <div className="flex-1" />
+                    {onToggleFit && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onToggleFit(); }}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md border border-white/20 rounded-full text-white/90 hover:bg-white/20 transition-all active:scale-95"
+                            style={{ minHeight: 36 }}
+                        >
+                            <CropIcon size={18} weight="bold" />
+                            <span className="text-[11px] font-bold tracking-widest uppercase">{videoFit === 'cover' ? 'Fill' : 'Fit'}</span>
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -703,10 +719,20 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
             {/* ── TOP: Back button (desktop only, top-left) ── */}
             {!isMobile && (
-                <div className={`absolute top-0 left-0 z-40 px-8 pt-8 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                <div className={`absolute top-0 inset-x-0 z-40 px-8 pt-8 flex items-center justify-between transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                     <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white/80 hover:text-white hover:scale-110 transition-all p-1.5" aria-label="Close player">
                         <ArrowLeftIcon size={30} weight="bold" />
                     </button>
+                    
+                    {onToggleFit && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onToggleFit(); }}
+                            className="flex items-center gap-2 px-4 py-2 bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-full text-white/80 hover:text-white hover:bg-zinc-800 transition-all active:scale-95 shadow-xl"
+                        >
+                            <CropIcon size={20} weight="bold" />
+                            <span className="text-xs font-bold tracking-[0.15em] uppercase">{videoFit === 'cover' ? 'Original' : 'Zoom to Fill'}</span>
+                        </button>
+                    )}
                 </div>
             )}
 

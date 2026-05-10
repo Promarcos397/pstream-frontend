@@ -82,30 +82,35 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
       onMouseLeave={() => setExpanded(false)}
     >
       <div
-        className={`flex items-center gap-1 overflow-hidden transition-all duration-200 border-2 rounded-full bg-[#2a2a2a]/80
-          ${expanded ? 'border-white/60 px-4 gap-4' : 'border-gray-500 justify-center w-8 h-8 md:w-9 md:h-9'}`}
-        style={{ height: expanded ? 36 : undefined }}
+        className={`flex items-center gap-1 overflow-hidden transition-all duration-300 border-2 rounded-full bg-[#2a2a2a]/90 backdrop-blur-md shadow-lg
+          ${expanded ? 'border-white/80 px-4 gap-5' : 'border-gray-500 justify-center w-10 h-10 md:w-11 md:h-11'}`}
+        style={{ height: expanded ? 42 : undefined }}
       >
         {expanded ? (
           <>
             {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
               const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
               const isActive = rating === r;
+              const color = r === 'love' ? 'text-red-500' : r === 'like' ? 'text-blue-400' : 'text-gray-400';
               return (
                 <button
                   key={r}
                   onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-125 flex-shrink-0
-                    ${isActive ? 'text-white' : 'text-white/60 hover:text-white'}`}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-125 flex-shrink-0
+                    ${isActive ? color : 'text-white/60 hover:text-white'}`}
                   title={r.charAt(0).toUpperCase() + r.slice(1)}
                 >
-                  <Icon size={24} weight={isActive ? 'fill' : 'bold'} />
+                  <Icon size={26} weight={isActive ? 'fill' : 'bold'} />
                 </button>
               );
             })}
           </>
         ) : (
-          <CurrentIcon size={24} weight={rating ? 'fill' : 'bold'} className={rating ? 'text-white' : 'text-white'} />
+          <CurrentIcon 
+            size={24} 
+            weight={rating ? 'fill' : 'bold'} 
+            className={rating === 'love' ? 'text-red-500' : rating === 'like' ? 'text-blue-400' : rating === 'dislike' ? 'text-gray-400' : 'text-white'} 
+          />
         )}
       </div>
     </div>
@@ -666,7 +671,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
 
               {/* Info Section */}
-              <div className="px-4 pt-8 pb-5 space-y-4 bg-[#181818]">
+              <div className="px-4 pt-6 pb-5 space-y-4 bg-[#181818]">
                 {/* Action Buttons Row */}
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-4">
@@ -674,29 +679,29 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     {isCinemaOnly && !isBook ? (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
-                        className="bg-[#6d6d6e] text-white rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95"
+                        className="bg-[#6d6d6e] text-white rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95 shadow-lg"
                         title="In Theaters"
                       >
-                        <TicketIcon size={18} weight="bold" />
+                        <TicketIcon size={22} weight="bold" />
                       </button>
                     ) : (
                       <Link
                         to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-white text-black rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200"
+                        className="bg-white text-black rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200"
                         title={isBook ? "Read Now" : "Play"}
                       >
-                        {isBook ? <BookOpenIcon size={18} weight="fill" /> : <PlayIcon size={22} weight="fill" className="ml-0.5" />}
+                        {isBook ? <BookOpenIcon size={24} weight="fill" /> : <PlayIcon size={28} weight="fill" className="ml-0.5" />}
                       </Link>
                     )}
                     {/* Add to List — subtle animation on state change */}
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
-                      className={`border-2 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
+                      className={`border-2 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
                       ${isAdded ? 'border-white bg-white/10 shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'}`}
                       title={isAdded ? 'Remove from My List' : 'Add to My List'}
                     >
-                      {isAdded ? <CheckIcon size={24} weight="bold" /> : <PlusIcon size={24} weight="bold" />}
+                      {isAdded ? <CheckIcon size={28} weight="bold" /> : <PlusIcon size={28} weight="bold" />}
                     </button>
                     {/* Rate — Love / Like / Dislike pill */}
                     <RatingPill
@@ -708,10 +713,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   {/* More Info - Chevron Down */}
                   <button
                     onClick={handleOpenModal}
-                    className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-8 h-8 md:w-9 md:h-9 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
+                    className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
                     title="More Info"
                   >
-                    <CaretDownIcon size={18} weight="bold" />
+                    <CaretDownIcon size={24} weight="bold" />
                   </button>
                 </div>
 

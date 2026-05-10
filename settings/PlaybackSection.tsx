@@ -45,3 +45,4 @@ const PlaybackSection: React.FC<PlaybackSectionProps> = ({ settings, updateSetti
 };
 
 export default PlaybackSection;
+

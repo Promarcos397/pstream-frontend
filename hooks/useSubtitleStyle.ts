@@ -1,47 +1,55 @@
 import { useMemo } from 'react';
 import { useGlobalContext } from '../context/GlobalContext';
 import type { CSSProperties } from 'react';
+import { AppSettings } from '../types';
 
 // ─── Size map ────────────────────────────────────────────────────────────────
 const SIZE_MAP: Record<string, string> = {
-  small:  'clamp(11px, 1.2vw, 15px)',
-  medium: 'clamp(14px, 1.8vw, 20px)',
-  large:  'clamp(18px, 2.4vw, 28px)',
+  tiny:   'clamp(10px, 1.0vw, 13px)',
+  small:  'clamp(12px, 1.3vw, 16px)',
+  medium: 'clamp(15px, 1.9vw, 22px)',
+  large:  'clamp(19px, 2.5vw, 30px)',
+  huge:   'clamp(24px, 3.2vw, 42px)',
 };
 
 // For compact contexts (MovieCard hover preview), scale down one step
 const SIZE_MAP_COMPACT: Record<string, string> = {
+  tiny:   'clamp(9px, 0.8vw, 11px)',
   small:  'clamp(10px, 0.9vw, 12px)',
   medium: 'clamp(11px, 1.1vw, 13px)',
   large:  'clamp(13px, 1.4vw, 16px)',
+  huge:   'clamp(16px, 1.8vw, 20px)',
 };
 
 // ─── Color map ───────────────────────────────────────────────────────────────
 const COLOR_MAP: Record<string, string> = {
-  white:  '#ffffff',
-  yellow: '#facc15',
-  cyan:   '#67e8f9',
-  green:  '#86efac',
+  white:   '#ffffff',
+  yellow:  '#facc15',
+  cyan:    '#67e8f9',
+  green:   '#86efac',
+  red:     '#ef4444',
+  blue:    '#3b82f6',
+  magenta: '#d946ef',
+  black:   '#000000',
 };
 
 // ─── Background map ──────────────────────────────────────────────────────────
 // subtitleOpacity (0-100) drives the alpha of the background pill
 function buildBackground(style: string, opacity: number): string {
-  const alpha = Math.round((opacity / 100) * 255).toString(16).padStart(2, '0');
-  switch (style) {
-    case 'black':     return `rgba(0,0,0,${(opacity / 100).toFixed(2)})`;
-    case 'dark':      return `rgba(15,15,15,${(opacity / 100).toFixed(2)})`;
-    case 'none':      return 'transparent';
-    default:          return `rgba(0,0,0,0.72)`; // safe fallback
-  }
+  if (style === 'none') return 'transparent';
+  // Handle 'box' (from UI) or explicit colors
+  const alpha = (opacity / 100).toFixed(2);
+  return `rgba(0,0,0,${alpha})`;
 }
 
 // ─── Edge style → textShadow ─────────────────────────────────────────────────
 function buildTextShadow(edge: string): string {
   switch (edge) {
-    case 'drop-shadow': return '0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.7)';
-    case 'outline':     return '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000';
-    case 'raised':      return '0 2px 0 rgba(0,0,0,0.8)';
+    case 'drop-shadow': return '0 1px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8)';
+    case 'outline':
+    case 'uniform':     return '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
+    case 'raised':      return '0 2px 0 rgba(0,0,0,0.8), 0 4px 6px rgba(0,0,0,0.5)';
+    case 'depressed':   return 'inset 0 1px 2px rgba(0,0,0,0.6)'; // Note: inset shadow doesn't work well on text, usually it's just a light/dark shadow pair
     case 'none':        return 'none';
     default:            return '0 1px 3px rgba(0,0,0,0.95)';
   }
@@ -68,8 +76,9 @@ export interface SubtitleStyleResult {
  *
  * Changing a subtitle setting instantly propagates to all of them.
  */
-export function useSubtitleStyle(): SubtitleStyleResult {
-  const { settings } = useGlobalContext();
+export function useSubtitleStyle(customSettings?: AppSettings): SubtitleStyleResult {
+  const { settings: globalSettings } = useGlobalContext();
+  const settings = customSettings || globalSettings;
 
   return useMemo(() => {
     const {
@@ -100,7 +109,7 @@ export function useSubtitleStyle(): SubtitleStyleResult {
       textAlign:       'center',
       maxWidth:        '80%',
       padding:         bg === 'transparent' ? '0' : '6px 14px',
-      background:      bg,
+      backgroundColor: bg,
       borderRadius:    bg === 'transparent' ? 0 : 6,
       color,
       fontFamily:      subtitleFontFamily,

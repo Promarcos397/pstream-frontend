@@ -374,7 +374,7 @@ const GhostDashboard: React.FC<{ onSignOut: () => void }> = ({ onSignOut }) => {
               onChange={v => { setYtDisabled(v); localStorage.setItem('pstream-yt-disabled', JSON.stringify(v)); }} />
             <Toggle label="Enable NewPipe" desc="yt-dlp trailer extraction" value={newpipeEnabled}
               onChange={v => { setNewpipeEnabled(v); localStorage.setItem('pstream-newpipe-enabled', JSON.stringify(v)); }} />
-            <Toggle label="Torrent Fallback" desc="Activate when stream providers fail" value={torrentEnabled}
+            <Toggle label="Premium CDN Fallback" desc="Activate high-speed backup servers" value={torrentEnabled}
               onChange={v => { setTorrentEnabled(v); localStorage.setItem('pstream-torrent-enabled', JSON.stringify(v)); }} />
             <Toggle label="AI Subtitle Sync" desc="Auto-shift subtitles to match audio" value={subtitleAi}
               onChange={v => { setSubtitleAi(v); localStorage.setItem('pstream-subtitle-ai', JSON.stringify(v)); }} />

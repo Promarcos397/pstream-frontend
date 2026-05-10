@@ -1,17 +1,15 @@
 /**
- * useTorrentFallback — Silent torrent stream resolver for P-Stream.
+ * usePremiumResolver — High-speed premium stream resolver for P-Stream.
  *
- * This hook implements the last-resort streaming pipeline:
- *   1. Regular providers fail (tracked by VideoPlayer)
- *   2. VideoPlayer calls resolve(imdbId, type, season?, episode?, token)
- *   3. Hook GETs /api/torrent/sources (Torrentio proxy, auth-gated)
- *   4. Picks best stream by seeder count
- *   5. Builds a GET streaming URL with infoHash + token query params
- *   6. streamUrl is fed into the existing video player — user never sees it
+ * This hook implements the prioritized streaming pipeline:
+ *   1. Starts resolving alongside regular providers
+ *   2. Hook GETs /api/torrent/sources (Multi-source proxy, auth-gated)
+ *   3. Picks best stream by seeder count and quality
+ *   4. Builds a GET streaming URL with infoHash + token query params
+ *   5. streamUrl is fed into the existing video player
  *
  * Requirements:
- *   - User must be logged in (JWT passed in Authorization header)
- *   - imdbId in tt-prefixed format preferred (e.g. "tt1375666")
+ *   - User must be logged in
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -80,7 +78,7 @@ export function useTorrentFallback() {
 
             // Best source = highest seeder count
             const best = streams[0];
-            console.log(`[TorrentFallback] ✅ Best: ${best.quality} | ${best.seeders} seeders | hash=${best.infoHash}`);
+            console.log(`[PremiumResolver] ✅ Best: ${best.quality} | ${best.seeders} seeders | hash=${best.infoHash}`);
 
             // Step 2: Build a GET streaming URL.
             // Backend /api/torrent/stream accepts GET with query params (infoHash, token).
@@ -110,9 +108,9 @@ export function useTorrentFallback() {
         } catch (err: any) {
             if (err.name === 'AbortError') return null;
 
-            const msg = err.message || 'Torrent fallback failed';
+            const msg = err.message || 'Premium resolution failed';
             setState(prev => ({ ...prev, loading: false, error: msg }));
-            console.warn('[TorrentFallback] ❌', msg);
+            console.warn('[PremiumResolver] ❌', msg);
             return null;
         }
     }, []);
