@@ -121,6 +121,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [error, setError] = useState<string | null>(null);
     const reportedSuccessRef = useRef<string | null>(null);
     const prefetchedNextEpsRef = useRef<Set<string>>(new Set());
+    // Holds the pending error from the standard resolver; cleared if premium succeeds
+    const standardErrorRef = useRef<string | null>(null);
 
     // ─── Torrent fallback ──────────────────────────────────────────────────────
     // Triggered silently after MAX_STREAM_RETRIES, only for logged-in users.
@@ -762,8 +764,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     streamCache.set(cacheKey, { sources: result.sources, subtitles: combinedSubs, provider: result.provider || 'unknown' });
                     applyStreamResult(result.sources, combinedSubs, result.referer);
                 } else {
-                    setError(result?.error || 'No stream found for this title.');
-                    setIsBuffering(false);
+                    // Don't show the error yet — the premium (torrent) resolver is running in parallel
+                    // and may succeed. We only surface the error once it also finishes.
+                    // Mark the standard resolver as failed; the premium apply effect or a
+                    // separate watcher will show the error if premium also comes up empty.
+                    setLoadingMessage('Searching premium sources...');
+                    // Store the error message in a ref so we can show it after premium check
+                    standardErrorRef.current = result?.error || 'No stream found for this title.';
                 }
             } catch (err: any) {
                 setError(err.message || 'Failed to fetch stream');
@@ -776,43 +783,67 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         fetchStream();
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode, retryCount, applyStreamResult]);
 
+    // (standardErrorRef declared near top with other refs)
+
     // Reset torrent state when navigating to a new piece of content
     useEffect(() => {
-        setPremiumAttempted(false);
+        standardErrorRef.current = null;
         premiumResolver.reset();
-        setPremiumAttempted(true); // Trigger immediately for better performance
+        setPremiumAttempted(true); // single-flag flip (was false→true which caused double-fire)
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
-    // Fires immediately (premiumAttempted is set to true on mount/change).
+    // Fires when premiumAttempted flips. Waits for a real imdbId before calling.
     useEffect(() => {
-        const imdbId = movie.imdb_id || '';
-        const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
+        if (!premiumAttempted) return;
 
-        const searchId = imdbId || '';
+        const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
         const searchTitle = movie.title || movie.name || '';
 
-        console.log(`[VideoPlayer] 💎 Premium resolver: ${searchTitle} (${type}) id=${searchId || 'Title-Fallback'}`);
+        console.log(`[VideoPlayer] 💎 Premium resolver: ${searchTitle} (${type})`);
 
-        premiumResolver.resolve(
-            searchId, 
-            type,
-            mediaType === 'tv' ? playingSeasonNumber : undefined,
-            mediaType === 'tv' ? currentEpisode : undefined,
-            undefined, // authToken (handled by hook)
-            searchTitle
-        ).then(metaJson => {
-            if (!metaJson) {
-                console.log('[VideoPlayer] No premium sources found.');
-            }
-        });
-    }, [premiumAttempted, movie.imdb_id]);
+        // If we already have an imdbId use it; otherwise wait for getExternalIds first
+        // so we never send imdbId='' to the torrent backend.
+        const doResolve = (imdbId: string) => {
+            premiumResolver.resolve(
+                imdbId,
+                type,
+                mediaType === 'tv' ? playingSeasonNumber : undefined,
+                mediaType === 'tv' ? currentEpisode : undefined,
+                undefined,
+                searchTitle
+            ).then(metaJson => {
+                if (!metaJson) {
+                    console.log('[VideoPlayer] No premium sources found.');
+                    // Premium also came up empty — now we can safely surface the standard error
+                    if (standardErrorRef.current) {
+                        setError(standardErrorRef.current);
+                        setIsBuffering(false);
+                        standardErrorRef.current = null;
+                    }
+                }
+            });
+        };
+
+        if (movie.imdb_id) {
+            doResolve(movie.imdb_id);
+        } else {
+            // Fetch the real IMDB ID first — prevents sending imdbId='' which causes
+            // the torrent endpoint to return 400/fail immediately
+            getExternalIds(movie.id, type)
+                .then((ext: any) => ext?.imdb_id || '')
+                .catch(() => '')
+                .then(doResolve);
+        }
+    }, [premiumAttempted]);
 
     // ─── Apply Premium Stream URL ────────────────────────────────────────────────
     useEffect(() => {
-        if (!premiumResolver.streamUrl || !premiumAttempted) return;
+        if (!premiumResolver.streamUrl) return;
 
         console.log(`[VideoPlayer] 💎 Applying premium stream: ${premiumResolver.quality} @ ${premiumResolver.seeders} seeders`);
-        setError(null); // Clear any "No stream found" error from the regular resolver
+        // Clear both the live error state and the pending standard-resolver error
+        setError(null);
+        standardErrorRef.current = null;
 
         const premiumSource = {
             url:        premiumResolver.streamUrl,
@@ -836,15 +867,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             return [premiumSource, ...prev];
         });
 
-        // Always switch to it immediately if it's new
-        if (streamUrl !== premiumSource.url) {
-            setLoadingMessage(`Premium Ultra High-speed source found — connecting...`);
-            setCurrentSourceIndex(0); // Switch to the first source (which we just prepended)
-            setStreamUrl(premiumSource.url);
+        // Always switch to it — use functional update to avoid stale streamUrl closure
+        setStreamUrl(prev => {
+            if (prev === premiumSource.url) return prev; // already playing, no-op
+            setLoadingMessage('Premium Ultra High-speed source found — connecting...');
+            setCurrentSourceIndex(0);
             setIsStreamM3U8(false);
             setIsBuffering(true);
-        }
-    }, [premiumResolver.streamUrl, premiumAttempted, applyStreamResult]);
+            return premiumSource.url;
+        });
+    }, [premiumResolver.streamUrl]);
 
     // ─── Skip Segments (TV only) ────────────────────────────────────────────────
     useEffect(() => {
