@@ -787,15 +787,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const imdbId = movie.imdb_id || '';
         const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
 
-        console.log(`[VideoPlayer] 💎 Premium resolver: ${movie.title || movie.name} (${type}) imdb=${imdbId || 'pending'}`);
+        const searchId = imdbId || '';
+        const searchTitle = movie.title || movie.name || '';
+
+        console.log(`[VideoPlayer] 💎 Premium resolver: ${searchTitle} (${type}) id=${searchId || 'Title-Fallback'}`);
 
         premiumResolver.resolve(
-            imdbId || String(movie.id), 
+            searchId, 
             type,
             mediaType === 'tv' ? playingSeasonNumber : undefined,
             mediaType === 'tv' ? currentEpisode : undefined,
             undefined, // authToken (handled by hook)
-            movie.title || movie.name
+            searchTitle
         ).then(metaJson => {
             if (!metaJson) {
                 console.log('[VideoPlayer] No premium sources found.');
