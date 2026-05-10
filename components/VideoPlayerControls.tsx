@@ -563,6 +563,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const handlePlayPause = () => {
         onPlayPause();
         setPpRippleTrigger(t => t + 1);
+        onInteraction?.();
     };
 
     const triggerSeekFlash = (side: 'left' | 'right') => {
@@ -570,24 +571,31 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
         setTimeout(() => setSeekFlash(null), 450);
     };
 
-    const toggleVolume = () => { setShowVolume(p => !p); setShowNextEpPopup(false); setActivePanel?.('none'); };
+    const toggleVolume = () => {
+        setShowVolume(p => !p);
+        setShowNextEpPopup(false);
+        setActivePanel?.('none');
+        onInteraction?.();
+    };
+    // Always fire next episode immediately — no popup confirmation step.
     const toggleNextEp = () => {
-        // If we have episode preview data, show the popup for confirmation
-        if (nextEpisodeData) {
-            setShowNextEpPopup(p => !p); setShowVolume(false); setActivePanel?.('none');
-        } else if (onNextEpisode) {
-            // No popup data — fire immediately (this is the common case)
+        if (onNextEpisode) {
             onNextEpisode();
+            setShowNextEpPopup(false);
+            setShowVolume(false);
+            onInteraction?.();
         }
     };
 
     const toggleSubtitles = () => {
         if (activePanel === 'audioSubtitles') setActivePanel?.('none');
         else { setActivePanel?.('audioSubtitles'); setShowVolume(false); setShowNextEpPopup(false); }
+        onInteraction?.();
     };
     const toggleEpisodes = () => {
         if (activePanel === 'episodes' || activePanel === 'seasons') setActivePanel?.('none');
         else { setActivePanel?.('episodes'); setShowVolume(false); setShowNextEpPopup(false); }
+        onInteraction?.();
     };
 
     // Display progress: use drag position while dragging for instant feedback
@@ -737,19 +745,25 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             )}
 
             {/* ── BOTTOM Controls ── */}
+            {/*
+              Outer wrapper: always pointer-events-none so gestures on the
+              video area below are not swallowed when the bar is invisible.
+              Inner content div: always pointer-events-auto so buttons are
+              ALWAYS reachable regardless of showUI state.
+            */}
             <div
                 id="video-controls-container"
-                className={`absolute inset-x-0 bottom-0 z-30 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-                onClick={(e) => e.stopPropagation()}
-                onTouchStart={handleTouchStart}
-                onTouchEnd={(e) => e.stopPropagation()}
+                className={`absolute inset-x-0 bottom-0 z-30 transition-opacity duration-300 pointer-events-none ${showUI ? 'opacity-100' : 'opacity-0'}`}
                 onMouseEnter={() => setIsHovering(true)}
                 onMouseLeave={() => setIsHovering(false)}
             >
                 <div className="absolute inset-0 bg-gradient-to-t from-black/98 via-black/60 to-transparent pointer-events-none" />
 
                 <div
-                    className="relative"
+                    className="relative pointer-events-auto"
+                    onClick={(e) => e.stopPropagation()}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={(e) => e.stopPropagation()}
                     style={{
                         paddingLeft: `max(${safeLeft}, ${isMobile ? '16px' : '40px'})`,
                         paddingRight: `max(${safeRight}, ${isMobile ? '16px' : '40px'})`,
@@ -828,13 +842,13 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             {!isMobile ? (
                                 <>
                                     {/* Desktop: play | rewind | ff | volume */}
-                                    <button onClick={handlePlayPause} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                                    <button onClick={handlePlayPause} onMouseDown={() => onInteraction?.()} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
                                         {isPlaying ? <PauseIcon size={ICON_SIZE} weight="fill" /> : <PlayIcon size={ICON_SIZE} weight="fill" />}
                                     </button>
-                                    <button onClick={() => onSeek(-10)} className={btn} aria-label="Rewind 10s">
+                                    <button onClick={() => { onSeek(-10); onInteraction?.(); }} className={btn} aria-label="Rewind 10s">
                                         <ArrowCounterClockwiseIcon size={ICON_SIZE} />
                                     </button>
-                                    <button onClick={() => onSeek(10)} className={btn} aria-label="Fast-forward 10s">
+                                    <button onClick={() => { onSeek(10); onInteraction?.(); }} className={btn} aria-label="Fast-forward 10s">
                                         <ArrowClockwiseIcon size={ICON_SIZE} />
                                     </button>
                                     {/* Volume */}
@@ -842,7 +856,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         {showVolume && (
                                             <VolumePopup volume={volume} isMuted={isMuted} isMobile={false} onVolumeChange={onVolumeChange} onInteraction={onInteraction} />
                                         )}
-                                        <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} onTouchStart={handleTouchStart} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
+                                        <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} onMouseDown={() => onInteraction?.()} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
                                             {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} /> : <SpeakerHighIcon size={ICON_SIZE} />}
                                         </button>
                                     </div>
@@ -902,9 +916,11 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                     )}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleNextEp(); }}
+                                        onMouseDown={() => onInteraction?.()}
                                         className={`${btn} ${showNextEp ? btnActive : ''}`}
                                         style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                                         aria-label="Next episode"
+                                        title="Next Episode (N)"
                                     >
                                         <SkipForwardIcon size={ICON_SIZE} weight={showNextEp ? 'fill' : 'regular'} />
                                     </button>
@@ -916,6 +932,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 <div className="relative">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
+                                        onMouseDown={() => onInteraction?.()}
                                         className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
                                         aria-label="Subtitles & Audio"
                                         title="Subtitles (S)"
@@ -930,6 +947,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 <div className="relative">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
+                                        onMouseDown={() => onInteraction?.()}
                                         className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
                                         aria-label="Episode Explorer"
                                     >
@@ -940,7 +958,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                             {/* Fullscreen */}
                             <button
-                                onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
+                                onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); onInteraction?.(); }}
                                 className={btn}
                                 style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                                 aria-label="Toggle fullscreen"
