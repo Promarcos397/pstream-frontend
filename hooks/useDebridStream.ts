@@ -113,30 +113,31 @@ export function useDebridStream() {
             const best = streams[0];
             console.log(`[DebridStream] ✅ Best: ${best.quality} | ${best.seeders} seeders | ${best.infoHash}`);
 
-            // ── Step 2: Check AllDebrid instant cache (browser → AllDebrid) ──────
-            // Browser uses residential IP → AllDebrid never blocks it
+            // ── Step 2: Upload magnet to AllDebrid (idempotent — returns files if cached) ──
+            // If the magnet is already in AllDebrid's cache, the upload response
+            // immediately includes `ready: true` and the file links.
+            // If not cached, `ready: false` — we fall back to extractors.
             const magnet = `magnet:?xt=urn:btih:${best.infoHash}&${TRACKERS}`;
-            const instantUrl = `${ALLDEBRID_API}/magnet/instant?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&magnets[]=${encodeURIComponent(magnet)}`;
+            const uploadUrl = `${ALLDEBRID_API}/magnet/upload?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&magnets[]=${encodeURIComponent(magnet)}`;
 
-            const instantRes = await fetch(instantUrl, { signal: abortRef.current.signal });
-            const instantData = await instantRes.json();
+            const uploadRes = await fetch(uploadUrl, { signal: abortRef.current.signal });
+            const uploadData = await uploadRes.json();
 
-            if (instantData?.status !== 'success') {
-                const msg = instantData?.error?.message || 'AllDebrid API error';
+            if (uploadData?.status !== 'success') {
+                const msg = uploadData?.error?.message || 'AllDebrid upload failed';
                 throw new Error(msg);
             }
 
-            const magnetInfo = instantData?.data?.magnets?.[0];
+            const magnetInfo = uploadData?.data?.magnets?.[0];
 
-            if (!magnetInfo?.instant) {
-                // Submit for background caching, then fall back to extractors
-                fetch(`${ALLDEBRID_API}/magnet/upload?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&magnets[]=${encodeURIComponent(magnet)}`)
-                    .catch(() => {});
-                throw new Error('Not cached yet — submitted. Try again in a moment.');
+            if (!magnetInfo?.ready) {
+                // Submitted for caching — not instant. Fall back to extractors.
+                console.log(`[DebridStream] Magnet queued for caching (not instant): ${best.infoHash}`);
+                throw new Error('Not cached yet — try again shortly.');
             }
 
-            // ── Step 3: Extract the best file URL ────────────────────────────────
-            const finalUrl = findBestFileUrl(magnetInfo.files, best.fileIdx ?? null);
+            // ── Step 3: Extract best file URL from the ready magnet ───────────────────
+            const finalUrl = findBestFileUrl(magnetInfo.files || [], best.fileIdx ?? null);
             if (!finalUrl) throw new Error('No playable file found in cached torrent');
 
             console.log(`[DebridStream] ✅ CDN URL: ${finalUrl.substring(0, 80)}...`);
