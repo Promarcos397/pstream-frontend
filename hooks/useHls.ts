@@ -130,12 +130,20 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             // XHR setup: always disable credentials (prevents CORS preflight issues
             // with cross-origin CDN segments), optionally inject X-Referer header.
             const referer = streamReferer;
+            const gigaBase = (import.meta as any).env?.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
             const isBackendProxyStream = !!streamUrl && streamUrl.includes('/proxy/stream?url=');
-            (hlsConfig as any).xhrSetup = (xhr: XMLHttpRequest) => {
+
+            // When a referer is provided for a NON-proxy stream (e.g. VaPlayer direct URLs),
+            // route all HLS XHR segment/manifest requests through our backend /proxy/stream.
+            // This injects CORS headers without the HF IP having to reach the CDN directly.
+            (hlsConfig as any).xhrSetup = (xhr: XMLHttpRequest, url: string) => {
                 xhr.withCredentials = false;
-                if (referer && isBackendProxyStream) {
-                    // Browsers block setting 'Referer' directly — X-Referer is a
-                    // best-effort hint for CDNs that check it (most don't on token URLs).
+                if (referer && !isBackendProxyStream && url && !url.startsWith(gigaBase)) {
+                    // Reroute this request through our CORS proxy
+                    const proxyUrl = `${gigaBase}/proxy/stream?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify({ referer, origin: new URL(referer).origin }))}`;
+                    // Abort the original XHR and reopen it to the proxy URL
+                    xhr.open('GET', proxyUrl, true);
+                } else if (referer && isBackendProxyStream) {
                     try { xhr.setRequestHeader('X-Referer', referer); } catch (_) {}
                 }
             };
