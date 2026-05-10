@@ -84,11 +84,33 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
         let mediaErrorCount = 0;
         const video = videoRef.current;
         if (!video || !streamUrl || !isM3U8) {
-            if (streamUrl && !isM3U8) {
-                // Handle MP4 playback
-                video!.src = streamUrl;
-                setIsBuffering(false);
-                if (autoPlay) video!.play().catch(() => {});
+            if (streamUrl && !isM3U8 && video) {
+                // Direct MP4 / AllDebrid CDN URL — set src and wait for canplay
+                video.src = streamUrl;
+                video.load();
+
+                const onCanPlay = () => {
+                    setIsBuffering(false);
+                    if (autoPlay) video.play().catch(() => {});
+                };
+                const onError = () => {
+                    console.error('[useHls] Direct video load error for:', streamUrl.substring(0, 80));
+                    setIsBuffering(false);
+                };
+                const onWaiting = () => setIsBuffering(true);
+                const onPlaying = () => setIsBuffering(false);
+
+                video.addEventListener('canplay',  onCanPlay,  { once: true });
+                video.addEventListener('error',    onError,    { once: true });
+                video.addEventListener('waiting',  onWaiting);
+                video.addEventListener('playing',  onPlaying);
+
+                return () => {
+                    video.removeEventListener('canplay',  onCanPlay);
+                    video.removeEventListener('error',    onError);
+                    video.removeEventListener('waiting',  onWaiting);
+                    video.removeEventListener('playing',  onPlaying);
+                };
             }
             return;
         }
