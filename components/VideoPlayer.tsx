@@ -733,14 +733,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setError(null);
         standardErrorRef.current = null;
 
-        const premiumSource = {
+        const torrentSource = {
             url:        debridStream.streamUrl,
             quality:    debridStream.quality || 'auto',
             isM3U8:     false,
             isEmbed:    false,
-            noProxy:    false,
-            provider:   'Premium Server',
-            providerId: 'premium',
+            noProxy:    true,   // AllDebrid redirects to direct CDN — don't double-proxy
+            provider:   'AllDebrid CDN',
+            providerId: 'torrent',
             referer:    '',
             origin:     '',
             headers:    {},
@@ -748,21 +748,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
 
         // Torrent is preferred always:
-        // Prepend it to allSources so it's the first one in the list for manual switching too.
+        // Prepend to allSources so it appears first in manual source list too.
         setAllSources(prev => {
-            const alreadyHasPremium = prev.some(s => s.providerId === 'premium');
-            if (alreadyHasPremium) return prev;
-            return [premiumSource, ...prev];
+            const already = prev.some(s => s.providerId === 'torrent');
+            if (already) return prev;
+            return [torrentSource, ...prev];
         });
 
         // Always switch to it â€” use functional update to avoid stale streamUrl closure
         setStreamUrl(prev => {
-            if (prev === premiumSource.url) return prev; // already playing, no-op
-            setLoadingMessage('Premium Ultra High-speed source found â€” connecting...');
+            if (prev === torrentSource.url) return prev;
+            setLoadingMessage('High-speed source found — connecting...');
             setCurrentSourceIndex(0);
             setIsStreamM3U8(false);
             setIsBuffering(true);
-            return premiumSource.url;
+            return torrentSource.url;
         });
     }, [debridStream.streamUrl]);
 
@@ -1576,3 +1576,4 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 };
 
 export default VideoPlayer;
+
