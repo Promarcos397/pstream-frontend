@@ -952,9 +952,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         },
         onTokenExpired: () => {
-            const activeProvider = allSources[currentSourceIndex]?.provider || 'unknown';
-            const activeProviderId = allSources[currentSourceIndex]?.providerId;
-            const activeUrl = allSources[currentSourceIndex]?.url || '';
+            const activeSource = allSources[currentSourceIndex];
+            const activeProvider = activeSource?.provider || 'unknown';
+            const activeProviderId = activeSource?.providerId;
+            const activeUrl = activeSource?.url || '';
+
+            // 💎 Premium (torrent) stream — never retry on 403, it will always have its own lifecycle
+            if (activeProviderId === 'premium') {
+                console.warn('[VideoPlayer] 403 on premium torrent stream — ignoring, torrent connection issues are transient');
+                return;
+            }
+
             const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
             sourceFailureCooldownRef.current.set(failedSourceKey, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
             reportStreamError({
@@ -1011,9 +1019,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         },
         onError: (errMsg) => {
-            const activeProvider = allSources[currentSourceIndex]?.provider || 'unknown';
-            const activeProviderId = allSources[currentSourceIndex]?.providerId;
-            const activeUrl = allSources[currentSourceIndex]?.url || '';
+            const activeSource = allSources[currentSourceIndex];
+            const activeProvider = activeSource?.provider || 'unknown';
+            const activeProviderId = activeSource?.providerId;
+            const activeUrl = activeSource?.url || '';
+
+            // 💎 Premium stream errors are handled by the torrent pipeline, not retry logic
+            if (activeProviderId === 'premium') {
+                console.warn('[VideoPlayer] Error on premium torrent stream — will not retry with regular sources');
+                return;
+            }
+
             const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
             sourceFailureCooldownRef.current.set(failedSourceKey, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
             reportStreamError({
