@@ -127,21 +127,37 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                 fragLoadingRetryDelay:   500,
             };
 
-            // XHR setup: always disable credentials (prevents CORS preflight issues
-            // with cross-origin CDN segments), optionally inject X-Referer header.
+            // XHR setup: disable credentials, and for VaPlayer's rotating CDN domains,
+            // reroute segment/variant XHR requests through /proxy/stream for CORS injection.
+            // VaPlayer CDN domains block HF IPs but not residential browsers — so we use
+            // noProxy for the manifest (browser fetches directly) but proxy each segment
+            // to get CORS headers added server-side.
             const referer = streamReferer;
             const gigaBase = (import.meta as any).env?.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
             const isBackendProxyStream = !!streamUrl && streamUrl.includes('/proxy/stream?url=');
 
-            // When a referer is provided for a NON-proxy stream (e.g. VaPlayer direct URLs),
-            // route all HLS XHR segment/manifest requests through our backend /proxy/stream.
-            // This injects CORS headers without the HF IP having to reach the CDN directly.
+            // VaPlayer CDN patterns that need proxy-based CORS injection for segments
+            const VAPLAYER_CDN_PATTERNS = [
+                'contentmonetizationlab.site', 'smartmarketingacademy.site',
+                'personalbrandgrowth.site', 'wealthcreationmethod.site',
+                'neonhorizonworkshops.com', 'wanderlynest.com', 'orchidpixelgardens.com',
+                'brightpathsignals.com', 'cloudnestra.com', 'justhd.tv',
+            ];
+
             (hlsConfig as any).xhrSetup = (xhr: XMLHttpRequest, url: string) => {
                 xhr.withCredentials = false;
-                if (referer && !isBackendProxyStream && url && !url.startsWith(gigaBase)) {
-                    // Reroute this request through our CORS proxy
-                    const proxyUrl = `${gigaBase}/proxy/stream?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify({ referer, origin: new URL(referer).origin }))}`;
-                    // Abort the original XHR and reopen it to the proxy URL
+                if (!url) return;
+
+                // Check if this XHR is for a VaPlayer CDN segment that needs CORS proxy
+                const isVaPlayerCdn = VAPLAYER_CDN_PATTERNS.some(p => url.includes(p));
+
+                if (isVaPlayerCdn && !url.startsWith(gigaBase)) {
+                    // Reroute through our CORS proxy — adds Access-Control-Allow-Origin
+                    // while the browser's residential IP makes the actual CDN connection
+                    const headers = referer
+                        ? { referer, origin: (() => { try { return new URL(referer).origin; } catch { return ''; } })() }
+                        : {};
+                    const proxyUrl = `${gigaBase}/proxy/stream?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
                     xhr.open('GET', proxyUrl, true);
                 } else if (referer && isBackendProxyStream) {
                     try { xhr.setRequestHeader('X-Referer', referer); } catch (_) {}
@@ -210,9 +226,14 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                 if (onManifestParsed) onManifestParsed();
                 if (autoPlay) {
                     // Small delay on mobile ensures the video element is ready
-                    // after HLS attaches — prevents silent autoplay failures on iOS/Android
+                    // after HLS attaches — prevents silent autoplay failures on iOS/Android.
+                    // AbortError is expected when a new source loads mid-play (premium override) — suppress it.
                     const delay = mobile ? 100 : 0;
-                    setTimeout(() => video.play().catch(err => console.warn('[useHls] Autoplay blocked:', err)), delay);
+                    setTimeout(() => video.play().catch(err => {
+                        if (err?.name !== 'AbortError') {
+                            console.warn('[useHls] Autoplay blocked:', err);
+                        }
+                    }), delay);
                 }
             });
 
