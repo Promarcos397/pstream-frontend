@@ -50,7 +50,23 @@ export const useIsInTheaters = (movie: Movie | null) => {
                     }
                 }
 
-                setIsInTheaters(hasTheater && !hasDigital);
+                // Rule 1 (definitive): TMDB confirms a digital/streaming release → playable online
+                // Rule 2 (fallback): No TMDB data at all → use release date window (60-day theatrical window)
+                const hasTmdbData = hasTheater || hasDigital;
+
+                if (hasTmdbData) {
+                    // Rule 1: definitive. Digital available → not theater-only.
+                    setIsInTheaters(hasTheater && !hasDigital);
+                } else if (movie.release_date) {
+                    // Rule 2: No TMDB release data. Use 60-day window from release date.
+                    const releaseDate = new Date(movie.release_date);
+                    const ageDays = (Date.now() - releaseDate.getTime()) / (1000 * 60 * 60 * 24);
+                    // Released within 60 days and in the future or recent past → theater-only
+                    setIsInTheaters(ageDays >= 0 && ageDays < 60);
+                } else {
+                    setIsInTheaters(false);
+                }
+
             } catch {
                 // On error, assume not in theaters (fail open = playable)
                 setIsInTheaters(false);

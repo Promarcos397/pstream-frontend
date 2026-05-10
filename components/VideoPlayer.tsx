@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Movie, Episode } from '../types';
 import { getSeasonDetails, getMovieDetails, getStream, getExternalIds, prefetchStream } from '../services/api';
 import ISO6391 from 'iso-639-1';
@@ -89,8 +89,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [progress, setProgress] = useState(0);
-    const [volume, setVolume] = useState(1);
-    const [isMuted, setIsMuted] = useState(false);
+    const [volume, setVolume] = useState(() => {
+        try {
+            const stored = parseFloat(localStorage.getItem('pstream_vol') || '1');
+            return isFinite(stored) && stored >= 0.05 && stored <= 1 ? stored : 1;
+        } catch { return 1; }
+    });
+    const [isMuted, setIsMuted] = useState(false); // Always start unmuted; user mutes manually
     const [showUI, setShowUI] = useState(true);
     const showUIRef = useRef(true);
     useEffect(() => { showUIRef.current = showUI; }, [showUI]);
@@ -100,6 +105,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [isVideoReady, setIsVideoReady] = useState(false); // gates subtitle rendering on first canplay
     const [videoFit, setVideoFit] = useState<'contain' | 'cover'>('contain');
     const hasPlayedOnceRef = useRef(false); // persists across subtitle track changes (unlike isVideoReady)
+    const volumeRef = useRef((() => {
+        try {
+            const stored = parseFloat(localStorage.getItem('pstream_vol') || '1');
+            return isFinite(stored) && stored >= 0.05 && stored <= 1 ? stored : 1;
+        } catch { return 1; }
+    })()); // latest volume — init from localStorage, kept in sync via onVolumeChange
+    const mutedRef  = useRef(false); // tracks user's explicit muted intent (vs browser auto-mute)
     const [loadingMessage, setLoadingMessage] = useState('Finding stream...');
     const [streamUrl, setStreamUrl] = useState<string | null>(null);
     const [streamReferer, setStreamReferer] = useState<string | null>(null);
@@ -487,7 +499,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setStreamUrl(finalUrl);
         setIsStreamM3U8(!!hlsSource.isM3U8);
         setStreamReferer(activeReferer || null);
-        setLoadingMessage(`Loading video from ${hlsSource.provider || 'Server'}...`);
+        setLoadingMessage('Loading...');
 
         if (subtitles && subtitles.length > 0) {
             const mappedCaptions = subtitles.map((sub: any, index: number) => ({
@@ -546,7 +558,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         retryCooldownUntilRef.current = 0;
         setError(null);
         setIsBuffering(true);
-        setLoadingMessage(`Switching to ${candidate.provider || 'Server'}...`);
+        setLoadingMessage('Trying another source...');
         reportedSuccessRef.current = null;
 
         // âš ï¸ Do NOT call applyStreamResult here â€” it overwrites allSources with a single element,
@@ -685,8 +697,39 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setStreamUrl(null);
         setAllSources([]);
         setCurrentSourceIndex(0);
-        setLoadingMessage('Finding best source...');
+        setLoadingMessage('Finding your stream...');
+        // Wipe subtitles from the previous episode/movie
+        setCaptions([]);
+        setCurrentCaption(null);
+        setPremiumAttempted(false);
+        // Reset playback ref so the initial-load overlay shows again for the new episode
+        hasPlayedOnceRef.current = false;
+        // Reset time display immediately — don't let the old episode's progress show on the new one
+        setCurrentTime(0);
+        setDuration(0);
+        setProgress(0);
+        setBufferedAmount(0);
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
+
+    // Restore audio after stream URL change.
+    // Browsers may auto-mute videos played via programmatic play() without a direct user gesture.
+    // Listening on 'playing' (not 'canplay') guarantees the browser has committed to playback.
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video || !streamUrl) return;
+
+        const restoreAudio = () => {
+            if (volumeRef.current > 0) video.volume = volumeRef.current;
+            // Only force-unmute if the user hasn't explicitly chosen to mute
+            if (!mutedRef.current) video.muted = false;
+            // Sync state back from the real element (browser may still override)
+            setVolume(video.volume);
+            setIsMuted(video.muted);
+        };
+
+        video.addEventListener('playing', restoreAudio, { once: true });
+        return () => video.removeEventListener('playing', restoreAudio);
+    }, [streamUrl]);
 
     // Fire torrent resolver on mount
     useEffect(() => {
@@ -694,7 +737,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const searchTitle = movie.title || movie.name || '';
         console.log(`[VideoPlayer] ðŸŽ¯ AllDebrid resolver: ${searchTitle} (${type})`);
 
-        const slowTimer = setTimeout(() => setLoadingMessage('Still finding source...'), 5000);
+        const slowTimer  = setTimeout(() => setLoadingMessage('Almost there...'), 6000);
+        const slowerTimer = setTimeout(() => setLoadingMessage('Taking a moment...'), 14000);
 
         const doResolve = (imdbId: string) => {
             debridStream.resolve(
@@ -706,6 +750,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 searchTitle
             ).then(result => {
                 clearTimeout(slowTimer);
+                clearTimeout(slowerTimer);
                 if (!result) {
                     // AllDebrid couldn't find it â€” fall back to extractors
                     console.log('[VideoPlayer] AllDebrid: no result â€” activating extractor fallback.');
@@ -723,7 +768,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 .then(doResolve);
         }
 
-        return () => clearTimeout(slowTimer);
+        return () => { clearTimeout(slowTimer); clearTimeout(slowerTimer); };
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
     // Apply AllDebrid stream when resolved
@@ -758,7 +803,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         // Always switch to it â€” use functional update to avoid stale streamUrl closure
         setStreamUrl(prev => {
             if (prev === torrentSource.url) return prev;
-            setLoadingMessage('High-speed source found — connecting...');
+            setLoadingMessage('Source found! Preparing...');
             setCurrentSourceIndex(0);
             setIsStreamM3U8(false);
             setIsBuffering(true);
@@ -766,7 +811,53 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         });
     }, [debridStream.streamUrl]);
 
-    // â”€â”€â”€ Skip Segments (TV only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── External subtitles for AllDebrid streams ─────────────────────────────────
+    // Torrent/MKV files have no embedded subtitle streams in the HTTP response,
+    // so we fetch from OpenSubtitles whenever the debrid URL is resolved.
+    useEffect(() => {
+        if (!debridStream.streamUrl) return;
+        let cancelled = false;
+
+        const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
+        const preferredLang = settings.subtitleLanguage?.toLowerCase() || 'en';
+
+        SubtitleService.getSubtitleTracks(
+            String(movie.id), type,
+            mediaType === 'tv' ? playingSeasonNumber : undefined,
+            mediaType === 'tv' ? currentEpisode : undefined,
+            preferredLang
+        ).then(tracks => {
+            if (cancelled || !tracks.length) return;
+
+            const mappedCaptions = tracks.map((sub, idx) => ({
+                id: `sub-ext-${idx}`,
+                label: sub.label,
+                url: sub.url,
+                lang: sub.lang,
+            }));
+
+            setCaptions(prev => {
+                // Don't overwrite captions that were already set by the stream itself
+                if (prev.length > 0) return prev;
+                return mappedCaptions;
+            });
+
+            if (!settings.showSubtitles) return;
+
+            // Pick: preferred lang → 3rd English (avoids SDH/CC) → 1st English → anything
+            const enTracks = mappedCaptions.filter(s => s.lang === 'en');
+            const target = mappedCaptions.find(s => s.lang === preferredLang)
+                || enTracks[2] || enTracks[0]
+                || mappedCaptions[0];
+
+            if (target) setCurrentCaption(target.url);
+        }).catch(() => {});
+
+        return () => { cancelled = true; };
+    }, [debridStream.streamUrl, movie.id, mediaType, playingSeasonNumber, currentEpisode,
+        settings.subtitleLanguage, settings.showSubtitles]);
+
+    // ——— Skip Segments (TV only) —————————————————————————————————————————————————
     useEffect(() => {
         const fetchSkips = async () => {
             if (mediaType === 'tv') {
@@ -1031,6 +1122,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setCurrentTime(time);
         setDuration(dur);
         setProgress((time / dur) * 100);
+
+        // Track buffered range so the seek bar can show how much is loaded ahead
+        if (video.buffered.length > 0) {
+            try {
+                const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+                setBufferedAmount((bufferedEnd / dur) * 100);
+            } catch (_) {}
+        }
 
         // Skip detection
         const intro = skipSegments.find(s => s.type === 'intro' && time >= s.startTime && time <= (s.endTime - 2));
@@ -1309,10 +1408,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onPause={() => setIsPlaying(false)}
                 onVolumeChange={() => {
                     if (videoRef.current) {
-                        setVolume(videoRef.current.volume);
-                        setIsMuted(videoRef.current.muted);
+                        const vol = videoRef.current.volume;
+                        const muted = videoRef.current.muted;
+                        setVolume(vol);
+                        setIsMuted(muted);
+                        // Keep refs in sync for the audio-restore effect
+                        volumeRef.current = vol;
+                        mutedRef.current = muted;
+                        // Persist volume level (not muted — always start unmuted on next visit)
+                        if (vol > 0) {
+                            try { localStorage.setItem('pstream_vol', String(vol)); } catch {}
+                        }
                     }
                 }}
+                // For direct MP4 streams (AllDebrid CDN), track buffering via native events.
+                // HLS streams use the hlsBuffering state from useHls instead.
+                onWaiting={() => { if (!isStreamM3U8) setIsBuffering(true); }}
+                onPlaying={() => { if (!isStreamM3U8) setIsBuffering(false); }}
+                onCanPlay={() => { if (!isStreamM3U8) setIsBuffering(false); }}
+                // Aggressive pre-buffering: tell the browser to download as much as possible
+                preload="auto"
                 playsInline
             />
 
@@ -1416,10 +1531,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
 
             {isBuffering && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10 pointer-events-none">
-                    <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4" />
-                    <p className="text-white/60 text-sm font-medium tracking-widest uppercase">{loadingMessage}</p>
-                </div>
+                hasPlayedOnceRef.current ? (
+                    // Mid-playback stall (seeking or network): subtle centered spinner only
+                    // No alarming message — user knows the content is there, just buffering
+                    <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                        <div className="w-10 h-10 border-4 border-white/10 border-t-white/80 rounded-full animate-spin" />
+                    </div>
+                ) : (
+                    // Initial load: full overlay with comforting message
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10 pointer-events-none">
+                        <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-5" />
+                        <p className="text-white/70 text-sm font-medium tracking-wider">{loadingMessage}</p>
+                    </div>
+                )
             )}
 
             {error && (
