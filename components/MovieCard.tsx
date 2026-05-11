@@ -583,10 +583,14 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       alt="preview"
                     />
                     <div className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
+                        {/* 1080p mold: scale~5.71 → iframe=1920x1080 → CSS back to 336x189.
+                            cropFactor=1.05 clips ~8.5px per edge to hide the YouTube logo
+                            (~7px at this scale). Shows 95% of the video. */}
                         <TrailerPlayer 
                             key={`card-player-${replayCount}`}
                             movie={movie} 
                             variant="card"
+                            cropFactor={1.08}
                             onReady={() => setIsHoverVideoReady(true)}
                             onEnded={() => {
                                 setIsHoverVideoReady(false);

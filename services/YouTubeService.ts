@@ -112,7 +112,7 @@ function buildSearchQueries(options: SearchOptions): string[] {
     const clean = title.trim();
     const yearTerm = year ? ` ${year}` : '';
     const typeTerm = type === 'tv' ? 'tv series' : 'movie';
-    return [`"${clean}"${yearTerm} ${typeTerm} trailer`];
+    return [`"${clean}" ${typeTerm} ${yearTerm} trailer`];
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
@@ -178,23 +178,43 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
 
     // Type signal: soft guidance, never hard-fail
     if (isTv) {
-        if (/\btv\b|\bseries\b|\bseason\b|\bshow\b/.test(t)) score += 15;
-        if (/\bmovie\b|\bfilm\b/.test(t)) score -= 25;
+        if (/\btv\b|\bseries\b|\bshow\b/.test(t)) score += 20;
+        if (/\bseason\b/.test(t)) score += 20;
+        if (/\bmovie\b|\bfilm\b|\bepisode\b/.test(t)) score -= 40;
     } else if (isMovie) {
-        if (/\bmovie\b|\bfilm\b/.test(t)) score += 12;
-        if (/\bseason\b|\bepisode\b|\btv\b|\bseries\b/.test(t)) score -= 25;
+        if (/\bmovie\b|\bfilm\b/.test(t)) score += 20;
+        if (/\bseason\b|\bepisode\b|\btv\b|\bseries\b/.test(t)) score -= 40;
     }
 
     // ── Trailer quality signals ──────────────────────────────────────────────
     
-    if (/\btrailer\b/.test(t)) score += 12;
-    if (/\bteaser\b/.test(t)) score += 12;
+    if (/\btrailer\b/.test(t)) score += 18;
+    if (/\bteaser\b/.test(t)) score += 25;
 
     // Quality/resolution keywords are secondary to relevance
-    if (/\b4k\b/.test(t)) score += 20;
-    if (/\bhdr\b/.test(t)) score += 16;
-    if (/\bimax\b/.test(t)) score += 16;
-    if (/\bblu[\s-]?ray\b/.test(t)) score += 16;
+    if (/\b4k\b/.test(t)) score += 25;
+    if (/\bhdr\b/.test(t)) score += 15;
+    if (/\bhd\b/.test(t)) score += 15;
+    if (/\bimax\b/.test(t)) score += 20;
+    if (/\bblu[\s-]?ray\b/.test(t)) score += 20;
+    if (/\b(hbo|max|hulu|apple|prime|disney|Crunchyroll|BBC|Paramount|Rotten\s*Tomatoes)\b/i.test(t)) score += 10;
+    if (t.length > 50 && q.length > 10) score += 15; // avoid very short titles
+    
+    // Year boost: Exact match or one year before (trailers often release the year prior)
+    
+    if (options.year) {
+        const targetYear = parseInt(options.year);
+        if (!isNaN(targetYear)) {
+            const yearRegex = new RegExp(`\\b${targetYear}\\b`);
+            const prevYearRegex = new RegExp(`\\b${targetYear - 1}\\b`);
+
+            if (yearRegex.test(t)) {
+                score += 35; // Strong match
+            } else if (prevYearRegex.test(t)) {
+                score += 25; // Valid trailer window
+            }
+        }
+    }
 
     // Penalize non-trailer content
     for (const pattern of BANLIST_PATTERNS) {

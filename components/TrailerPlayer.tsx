@@ -9,6 +9,18 @@ interface TrailerPlayerProps {
     movie: Movie | null;
     /** The UI context. Dictates how heavily to crop the YouTube watermark */
     variant?: 'card' | 'hero' | 'modal';
+    /**
+     * How much to overscan beyond the natural cover-fit dimensions.
+     * 1.0 = perfect fill (no crop), 1.04 = 4% overflow each edge.
+     *
+     * For the 'card' variant the default is 1.0 because:
+     *  - The card popup container is exactly 16:9 (336×189), same as the video.
+     *  - The artificialScale=36 trick makes YouTube UI chrome render at 1/36 its
+     *    natural size (~1-2px visually), so no overscan is needed to hide it.
+     * For 'hero'/'modal' the default is 1.10 because those containers may not be
+     * 16:9 and need the cover-crop to guarantee full bleed coverage.
+     */
+    cropFactor?: number;
     onEnded?: () => void;
     onErrored?: () => void;
     onReady?: () => void;
@@ -22,6 +34,7 @@ interface TrailerPlayerProps {
 export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({ 
     movie, 
     variant = 'modal',
+    cropFactor,
     onEnded,
     onErrored,
     onReady,
@@ -35,15 +48,20 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     const playerRef = useRef<any>(null);
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
-    // Zoom crops YouTube chrome.
-    const zoomFactor = variant === 'card' ? 1.10 : 1.10;
-    const dimensions = useVideoCover(containerRef, zoomFactor);
+    // zoomFactor: for CARD this becomes the CSS scale zoom to push chrome off the edges.
+    //             for HERO/MODAL this feeds useVideoCover cover-crop math.
+    const DEFAULT_CROP: Record<string, number> = { card: 1.20, hero: 1.10, modal: 1.20 };
+    const zoomFactor = cropFactor ?? DEFAULT_CROP[variant] ?? 1.10;
 
-    // HD Quality Trick: inflate the DOM pixel size so YouTube serves a higher-res stream,
-    // then CSS-scale it back down to the correct visual size.
-    // Only inflate once ResizeObserver has confirmed real container dimensions — until then
-    // scale=1 so the player renders immediately at normal size and starts loading.
-    const artificialScale = (variant === 'card' || variant === 'modal') && dimensions.ready ? 36 : 36;
+    // For CARD & MODAL: useVideoCover is only used by the hero render path.
+    // These variants use percentage-based inflation so they need coverFactor=1.0 (natural dimensions).
+    // For HERO: coverFactor = zoomFactor feeds the cover-crop math.
+    const isFixedRatio = variant === 'card' || variant === 'modal';
+    const coverFactor = isFixedRatio ? 1.0 : zoomFactor;
+    const dimensions = useVideoCover(containerRef, coverFactor);
+
+    // Inflate DOM so YouTube chrome shrinks to ~1-2px at visual scale.
+    const artificialScale = 26;
 
     // Cleanup interval on unmount
     useEffect(() => {
@@ -121,7 +139,11 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
 
         // Resume from where we left off, or use content-aware skip:
         // Teasers are short (~60-90s), so only skip 5s. Full trailers skip 15s.
-        const defaultSkip = isTeaser ? 5 : 15;
+        const duration = e.target.getDuration() || 0;
+        const autoDetectedTeaser = duration > 0 && duration < 90;
+        const isActuallyTeaser = isTeaser || autoDetectedTeaser;
+
+        const defaultSkip = isActuallyTeaser ? 5 : 15;
         const savedTime = movie ? (getVideoState(movie.id)?.time || 0) : 0;
         e.target.seekTo(savedTime > 0 ? savedTime : defaultSkip, true);
         
@@ -155,7 +177,21 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             syncIntervalRef.current = setInterval(() => {
                 try {
                     const time = e.target.getCurrentTime();
+                    const duration = e.target.getDuration();
+                    
                     if (time > 0) {
+                        // --- Auto-Outro Skip ---
+                        // YouTube trailers often have 10-15s of "Channel Recommendations" at the end.
+                        // We skip the last 7 seconds to keep the experience clean.
+                        // Resiliency: Only skip if the video is at least 45s long, so we don't
+                        // gut extremely short teasers that might be all-content.
+                        const remaining = duration - time;
+                        if (duration > 45 && remaining < 7) {
+                            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+                            handlersRef.current.onEnded?.();
+                            return;
+                        }
+
                         updateVideoState(movie.id, time, videoId || undefined);
                         onProgress?.(time);
                     }
@@ -185,32 +221,69 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     if (!movie || !videoId) return null;
 
     return (
-        <div 
-            ref={containerRef} 
-            className="absolute inset-0 overflow-hidden bg-black pointer-events-none flex items-center justify-center"
+        <div
+            ref={containerRef}
+            className="absolute inset-0 overflow-hidden bg-black pointer-events-none"
         >
-            {/* Always mount the player — never gate on dimensions.ready.
-                artificialScale is 1 until dimensions settle, then jumps to 36
-                for the quality trick. The player starts loading immediately. */}
-            <div 
-                className="flex-shrink-0" 
-                style={{ 
-                    width: dimensions.width * artificialScale, 
-                    height: dimensions.height * artificialScale,
-                    transform: `scale(${1 / artificialScale})`,
-                    transformOrigin: 'center center'
-                }}
-            >
-                <YouTube
-                    videoId={videoId}
+            {isFixedRatio ? (
+                // ── CARD & MODAL: BOTH effects independently ────────────────────────
+                // Layer 1 — outer scale(zoomFactor): crop from center (controls visible area)
+                // Layer 2 — inner percentage inflate + scale(1/N): shrinks YouTube chrome to ~2px
+                // N*100% = always N× the parent width, no ResizeObserver needed, stable from frame 1.
+                <div
                     className="w-full h-full"
-                    onReady={handleReady}
-                    onStateChange={handleStateChange}
-                    onEnd={handleEnd}
-                    onError={handleError}
-                    opts={playerOpts}
-                />
-            </div>
+                    style={{ transform: `scale(${zoomFactor})`, transformOrigin: 'center center' }}
+                >
+                    <div className="flex items-center justify-center w-full h-full">
+                        <div
+                            className="flex-shrink-0"
+                            style={{
+                                width: `${artificialScale * 100}%`,
+                                height: `${artificialScale * 100}%`,
+                                transform: `scale(${1 / artificialScale})`,
+                                transformOrigin: 'center center',
+                            }}
+                        >
+                            <YouTube
+                                videoId={videoId}
+                                className="w-full h-full"
+                                onReady={handleReady}
+                                onStateChange={handleStateChange}
+                                onEnd={handleEnd}
+                                onError={handleError}
+                                opts={playerOpts}
+                            />
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                // ── HERO: Flexible aspect ratio ──────────────────────────────────────
+                // useVideoCover sizes the iframe to cover the container + zoomFactor overflow.
+                // artificialScale=26 inflates the DOM so YouTube chrome (~60px) becomes
+                // ~2.3px at visual scale — invisible. CSS scale(1/26) restores visual size.
+                // overflow:hidden clips the zoomFactor overflow, hiding any remaining chrome.
+                <div className="flex items-center justify-center w-full h-full">
+                    <div
+                        className="flex-shrink-0"
+                        style={{
+                            width: dimensions.width * artificialScale,
+                            height: dimensions.height * artificialScale,
+                            transform: `scale(${1 / artificialScale})`,
+                            transformOrigin: 'center center',
+                        }}
+                    >
+                        <YouTube
+                            videoId={videoId}
+                            className="w-full h-full"
+                            onReady={handleReady}
+                            onStateChange={handleStateChange}
+                            onEnd={handleEnd}
+                            onError={handleError}
+                            opts={playerOpts}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

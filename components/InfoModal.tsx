@@ -316,8 +316,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         >
             <div
                 ref={modalRef}
-                // TWEAK HERE: Change max-w-[850px] to make narrower/wider. Change mt-6 md:mt-8 to move it up/down on Y-axis.
-                className="relative w-full max-w-[850px] bg-[#181818] rounded-xl shadow-2xl mt-6 md:mt-8 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
+                // TWEAK HERE: Change max-w-[920px] to make narrower/wider. Change mt-6 md:mt-8 to move it up/down on Y-axis.
+                className="relative w-full max-w-[920px] bg-[#181818] rounded-xl shadow-2xl mt-6 md:mt-8 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
                 style={{
                     transform: springTransform,
                     transition: springTransition,
@@ -339,7 +339,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 </button>
 
                 {/* --- Hero Section --- */}
-                <div ref={heroRef} className="relative h-[280px] sm:h-[360px] md:h-[490px] w-full bg-black group overflow-hidden">
+                <div ref={heroRef} className="relative aspect-video w-full bg-black group overflow-hidden">
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
