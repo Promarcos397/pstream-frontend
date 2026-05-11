@@ -111,7 +111,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             return isFinite(stored) && stored >= 0.05 && stored <= 1 ? stored : 1;
         } catch { return 1; }
     })()); // latest volume — init from localStorage, kept in sync via onVolumeChange
-    const mutedRef  = useRef(false); // tracks user's explicit muted intent (vs browser auto-mute)
+    const mutedRef  = useRef(false); // tracks real-time element state
+    const userMutedRef = useRef(false); // tracks explicit user intent (manual toggle)
     const [loadingMessage, setLoadingMessage] = useState('Finding stream...');
     const [streamUrl, setStreamUrl] = useState<string | null>(null);
     const [streamReferer, setStreamReferer] = useState<string | null>(null);
@@ -720,9 +721,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         const restoreAudio = () => {
             if (volumeRef.current > 0) video.volume = volumeRef.current;
-            // Only force-unmute if the user hasn't explicitly chosen to mute
-            if (!mutedRef.current) video.muted = false;
-            // Sync state back from the real element (browser may still override)
+            // CRITICAL: Only stay muted if the user EXPLICITLY chose to mute.
+            // If the browser auto-muted (userMutedRef is false), force-unmute now.
+            if (!userMutedRef.current) {
+                video.muted = false;
+                console.log('[VideoPlayer] ðŸ”Š Overriding browser auto-mute');
+            }
+            // Sync state back from the real element
             setVolume(video.volume);
             setIsMuted(video.muted);
         };
@@ -746,8 +751,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 type,
                 mediaType === 'tv' ? playingSeasonNumber : undefined,
                 mediaType === 'tv' ? currentEpisode : undefined,
-                undefined,
-                searchTitle
+                searchTitle,
+                String(movie.id)
             ).then(result => {
                 clearTimeout(slowTimer);
                 clearTimeout(slowerTimer);
@@ -780,6 +785,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         const torrentSource = {
             url:        debridStream.streamUrl,
+            name:       debridStream.name || 'Torrent Stream',
             quality:    debridStream.quality || 'auto',
             isM3U8:     false,
             isEmbed:    false,
@@ -821,15 +827,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
         const preferredLang = settings.subtitleLanguage?.toLowerCase() || 'en';
 
+        const debridSubs = (debridStream as any).subtitles || [];
+
         SubtitleService.getSubtitleTracks(
             String(movie.id), type,
             mediaType === 'tv' ? playingSeasonNumber : undefined,
             mediaType === 'tv' ? currentEpisode : undefined,
             preferredLang
         ).then(tracks => {
-            if (cancelled || !tracks.length) return;
+            if (cancelled) return;
 
-            const mappedCaptions = tracks.map((sub, idx) => ({
+            // Merge debridSubs and tracks, deduplicating by URL
+            const combined = [...debridSubs];
+            for (const t of tracks) {
+                if (!combined.some(c => c.url === t.url)) {
+                    combined.push(t);
+                }
+            }
+
+            if (!combined.length) return;
+
+            const mappedCaptions = combined.map((sub, idx) => ({
                 id: `sub-ext-${idx}`,
                 label: sub.label,
                 url: sub.url,
@@ -837,9 +855,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }));
 
             setCaptions(prev => {
-                // Don't overwrite captions that were already set by the stream itself
-                if (prev.length > 0) return prev;
-                return mappedCaptions;
+                // If we already have HLS/Embedded captions, keep them but append these
+                const existingUrls = new Set(prev.map(p => p.url));
+                const newOnes = mappedCaptions.filter(m => !existingUrls.has(m.url));
+                return [...prev, ...newOnes];
             });
 
             if (!settings.showSubtitles) return;
@@ -914,6 +933,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         streamUrl,
         isM3U8: isStreamM3U8,
         streamReferer: streamReferer,
+        preferredAudioLanguage: settings.audioLanguage,
         onManifestParsed: () => {
             const video = videoRef.current;
             if (video) {
@@ -1001,10 +1021,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const activeProviderId = activeSource?.providerId;
             const activeUrl = activeSource?.url || '';
 
-            // Torrent/AllDebrid stream errors are transient â€” don't retry with extractors
+            // Torrent/AllDebrid stream errors (often codec related like AC3/HEVC/MKV)
+            // should trigger a fallback to the next source instead of stalling.
             if (activeProviderId === 'torrent') {
-                console.warn('[VideoPlayer] Error on AllDebrid stream â€” ignoring.');
-                return;
+                console.warn('[VideoPlayer] AllDebrid stream failed (likely codec/container issue) -> falling back.');
             }
 
             const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
@@ -1571,7 +1591,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onSeek={(amt) => videoRef.current && (videoRef.current.currentTime += amt)}
                 volume={volume}
                 onVolumeChange={(v) => { if (videoRef.current) { videoRef.current.volume = v; if (v > 0) videoRef.current.muted = false; } }}
-                onToggleMute={() => videoRef.current && (videoRef.current.muted = !videoRef.current.muted)}
+                onToggleMute={() => {
+                    if (videoRef.current) {
+                        const nextMuted = !videoRef.current.muted;
+                        videoRef.current.muted = nextMuted;
+                        userMutedRef.current = nextMuted;
+                        setIsMuted(nextMuted);
+                    }
+                }}
                 onTimelineSeek={(p) => videoRef.current && (videoRef.current.currentTime = (p / 100) * videoRef.current.duration)}
                 onToggleFullscreen={toggleFullscreen}
                 onClose={onClose || (() => window.history.back())}

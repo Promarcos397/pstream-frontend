@@ -206,7 +206,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     <div 
       id="hero-container" 
       ref={containerRef} 
-      className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full overflow-hidden group bg-black"
+      className="relative h-[50vh] sm:h-[66vh] md:h-[77vh] lg:h-[80vh] w-full overflow-hidden group bg-black"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={(e) => {
         if (e.clientY < 60 || e.clientX > window.innerWidth - 20) return;

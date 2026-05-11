@@ -48,10 +48,9 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     const playerRef = useRef<any>(null);
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
-    // zoomFactor: for CARD this becomes the CSS scale zoom to push chrome off the edges.
-    //             for HERO/MODAL this feeds useVideoCover cover-crop math.
-    const DEFAULT_CROP: Record<string, number> = { card: 1.20, hero: 1.10, modal: 1.20 };
-    const zoomFactor = cropFactor ?? DEFAULT_CROP[variant] ?? 1.10;
+    // zoomFactor: controls the PHYSICAL zoom (scale) of the video content.
+    const DEFAULT_CROP: Record<string, number> = { card: 1.35, hero: 1.10, modal: 1.35 };
+    const zoomFactor = cropFactor ?? DEFAULT_CROP[variant] ?? 1.35;
 
     // For CARD & MODAL: useVideoCover is only used by the hero render path.
     // These variants use percentage-based inflation so they need coverFactor=1.0 (natural dimensions).
@@ -61,7 +60,8 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     const dimensions = useVideoCover(containerRef, coverFactor);
 
     // Inflate DOM so YouTube chrome shrinks to ~1-2px at visual scale.
-    const artificialScale = 26;
+    // Lowered to 12 to stay under hardware texture limits (prevents blurriness).
+    const artificialScale = 16.0;
 
     // Cleanup interval on unmount
     useEffect(() => {
@@ -242,11 +242,12 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                                 height: `${artificialScale * 100}%`,
                                 transform: `scale(${1 / artificialScale})`,
                                 transformOrigin: 'center center',
+                                willChange: 'transform'
                             }}
                         >
                             <YouTube
                                 videoId={videoId}
-                                className="w-full h-full"
+                                className="w-full h-full flex items-center justify-center"
                                 onReady={handleReady}
                                 onStateChange={handleStateChange}
                                 onEnd={handleEnd}
@@ -270,11 +271,12 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                             height: dimensions.height * artificialScale,
                             transform: `scale(${1 / artificialScale})`,
                             transformOrigin: 'center center',
+                            willChange: 'transform'
                         }}
                     >
                         <YouTube
                             videoId={videoId}
-                            className="w-full h-full"
+                            className="w-full h-full flex items-center justify-center"
                             onReady={handleReady}
                             onStateChange={handleStateChange}
                             onEnd={handleEnd}

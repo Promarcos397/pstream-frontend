@@ -32,17 +32,19 @@ const TRACKERS = [
 ].map(t => `tr=${encodeURIComponent(t)}`).join('&');
 
 type MediaType = 'movie' | 'tv';
-
 interface DebridStreamState {
     streamUrl: string | null;
+    name:      string | null;
     loading:   boolean;
     error:     string | null;
     seeders:   number | null;
     quality:   string | null;
+    subtitles?: { url: string; label: string; lang: string }[];
 }
 
 interface CacheEntry {
     url:     string;
+    name:    string;
     quality: string;
     seeders: number;
     ts:      number;
@@ -72,14 +74,55 @@ function writeCache(key: string, entry: Omit<CacheEntry, 'ts'>): void {
 // 4K Web-DL/WEB-Rip are smaller than remuxes so they score better than raw remux.
 function qualityScore(q: string = '', name: string = ''): number {
     const lc = `${q} ${name}`.toLowerCase();
-    if (lc.includes('1080') && (lc.includes('remux') || lc.includes('bluray'))) return 7;
-    if (lc.includes('1080') && lc.includes('hdr'))  return 6;
-    if (lc.includes('1080') && lc.includes('web'))  return 5;
-    if (lc.includes('1080'))                        return 4;
-    if ((lc.includes('4k') || lc.includes('2160')) && lc.includes('web')) return 3;
-    if (lc.includes('4k') || lc.includes('2160'))  return 2; // likely huge remux
-    if (lc.includes('720'))                         return 1;
-    return 0;
+    let score = 0;
+
+    // Base resolution ranking
+    if (lc.includes('1080') && (lc.includes('remux') || lc.includes('bluray'))) score = 7;
+    else if (lc.includes('1080') && lc.includes('hdr'))  score = 6;
+    else if (lc.includes('1080') && lc.includes('web'))  score = 5;
+    else if (lc.includes('1080'))                        score = 4;
+    else if ((lc.includes('4k') || lc.includes('2160')) && lc.includes('web')) score = 3;
+    else if (lc.includes('4k') || lc.includes('2160'))   score = 2; // likely huge remux
+    else if (lc.includes('720'))                         score = 1;
+
+    // Audio Compatibility Adjustments
+    if (lc.includes('aac') || lc.includes('stereo') || lc.includes('2.0') || lc.includes('mp3')) {
+        score += 0.5;
+    }
+    if (lc.includes('dts-hd') || lc.includes('truehd') || lc.includes('atmos')) {
+        score -= 1.5;
+    }
+    if (lc.includes('dts') && !lc.includes('aac')) {
+        score -= 0.5;
+    }
+
+    // Language Scoring (Heavily penalize non-English dubbed versions for default pick)
+    const nonEngKeywords = [
+        'french', 'truefrench', 'vf', 'vostfr', 'fr', 
+        'ita', 'italian', 'german', 'ger', 'deutsch', 
+        'spa', 'spanish', 'espanol', 'latino', 'hindi'
+    ];
+    
+    // Check for exact word matches to avoid false positives (e.g., "transformer" vs "fr")
+    const isExplicitlyNonEnglish = nonEngKeywords.some(keyword => {
+        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+        return regex.test(lc);
+    });
+
+    if (isExplicitlyNonEnglish) {
+        if (lc.includes('multi')) {
+            score -= 1.0; // Multi has English but might default to wrong track in browser
+        } else {
+            score -= 10.0; // Purely dubbed version — almost never desired as default
+        }
+    }
+
+    // Boost for Original Version / English keywords
+    if (lc.includes('english') || lc.includes('eng') || /\bvo\b/i.test(lc)) {
+        score += 0.5;
+    }
+
+    return score;
 }
 
 // ── File extraction ───────────────────────────────────────────────────────────
@@ -98,7 +141,20 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null): string 
     flatten(files);
     if (!flat.length) return null;
     if (targetIdx != null && flat[targetIdx]) return flat[targetIdx].url;
-    flat.sort((a, b) => b.size - a.size); // Largest file = main video
+
+    // Primary sort: Size (largest = main feature)
+    // Secondary tie-breaker: Browser-friendly formats (.mp4, .m4v)
+    flat.sort((a, b) => {
+        if (Math.abs(a.size - b.size) > 1024 * 1024) { // > 1MB difference
+            return b.size - a.size;
+        }
+        const isA_MP4 = /\.(mp4|m4v)$/i.test(a.name);
+        const isB_MP4 = /\.(mp4|m4v)$/i.test(b.name);
+        if (isA_MP4 && !isB_MP4) return -1;
+        if (!isA_MP4 && isB_MP4) return 1;
+        return b.size - a.size;
+    });
+
     return flat[0].url;
 }
 
@@ -106,10 +162,12 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null): string 
 export function useDebridStream() {
     const [state, setState] = useState<DebridStreamState>({
         streamUrl: null,
+        name:      null,
         loading:   false,
         error:     null,
         seeders:   null,
         quality:   null,
+        subtitles: [],
     });
 
     const abortRef = useRef<AbortController | null>(null);
@@ -119,8 +177,8 @@ export function useDebridStream() {
         type:     MediaType,
         season?:  number,
         episode?: number,
-        _unused?: string,
         title?:   string,
+        tmdbId?:  string
     ): Promise<string | null> => {
         if (!ALLDEBRID_KEY) {
             console.warn('[DebridStream] No VITE_ALLDEBRID_KEY — skipping');
@@ -131,7 +189,7 @@ export function useDebridStream() {
         abortRef.current = new AbortController();
         const signal = abortRef.current.signal;
 
-        setState({ streamUrl: null, loading: true, error: null, seeders: null, quality: null });
+        setState({ streamUrl: null, name: null, loading: true, error: null, seeders: null, quality: null, subtitles: [] });
 
         const ck = makeCacheKey(imdbId, type, season, episode);
 
@@ -140,8 +198,8 @@ export function useDebridStream() {
             const cached = readCache(ck);
             if (cached) {
                 console.log(`[DebridStream] 💾 Cache: ${cached.quality} | ${cached.url.substring(0, 60)}...`);
-                setState({ streamUrl: cached.url, loading: false, error: null, seeders: cached.seeders, quality: cached.quality });
-                return JSON.stringify({ streamUrl: cached.url, quality: cached.quality, seeders: cached.seeders });
+                setState({ streamUrl: cached.url, name: cached.name, loading: false, error: null, seeders: cached.seeders, quality: cached.quality });
+                return JSON.stringify({ streamUrl: cached.url, name: cached.name, quality: cached.quality, seeders: cached.seeders });
             }
 
             // ── Step 1: Fetch quality-sorted sources from backend ──────────────────
@@ -149,6 +207,7 @@ export function useDebridStream() {
             if (season)  params.set('season',  String(season));
             if (episode) params.set('episode', String(episode));
             if (title)   params.set('title',   title);
+            if (tmdbId)  params.set('tmdbId',  tmdbId);
 
             const sourcesRes = await fetch(`${BACKEND_URL}/api/torrent/sources?${params}`, { signal });
             if (!sourcesRes.ok) {
@@ -156,7 +215,7 @@ export function useDebridStream() {
                 throw new Error(body.error || `Sources ${sourcesRes.status}`);
             }
 
-            const { streams } = await sourcesRes.json();
+            const { streams, subtitles } = await sourcesRes.json();
             if (!streams?.length) throw new Error('No torrent sources found');
 
             // Re-sort: prefer 1080p streamable over 4K remux
@@ -213,6 +272,16 @@ export function useDebridStream() {
 
                     finalUrl = cdnUrl;
                     winner   = candidate;
+                    
+                    // 5. Finalize state
+                    setState(prev => ({
+                        ...prev,
+                        streamUrl: cdnUrl,
+                        name: winner.name,
+                        quality: winner.quality,
+                        seeders: winner.seeders,
+                        loading: false
+                    }));
                     break;
                 } catch (e: any) {
                     if (e.name === 'AbortError') throw e;
@@ -224,9 +293,22 @@ export function useDebridStream() {
 
             console.log(`[DebridStream] ✅ ${winner.quality} | ${winner.seeders} seeders`);
 
-            writeCache(ck, { url: finalUrl, quality: winner.quality || 'auto', seeders: winner.seeders || 0 });
+            writeCache(ck, { 
+                url: finalUrl, 
+                name: winner.name || '',
+                quality: winner.quality || 'auto', 
+                seeders: winner.seeders || 0 
+            });
 
-            setState({ streamUrl: finalUrl, loading: false, error: null, seeders: winner.seeders, quality: winner.quality || null });
+            setState({ 
+                streamUrl: finalUrl, 
+                name: winner.name || null, 
+                loading: false, 
+                error: null, 
+                seeders: winner.seeders, 
+                quality: winner.quality || null,
+                subtitles: subtitles || []
+            });
             return JSON.stringify({ streamUrl: finalUrl, quality: winner.quality, seeders: winner.seeders });
 
         } catch (err: any) {
@@ -240,7 +322,7 @@ export function useDebridStream() {
 
     const reset = useCallback(() => {
         if (abortRef.current) abortRef.current.abort();
-        setState({ streamUrl: null, loading: false, error: null, seeders: null, quality: null });
+        setState({ streamUrl: null, name: null, loading: false, error: null, seeders: null, quality: null });
     }, []);
 
     /** Clear the session cache for a specific piece of content (e.g. after a broken link). */

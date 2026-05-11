@@ -75,7 +75,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
             w-10 md:w-16 lg:w-20 bg-black/50 hover:bg-black/70 cursor-pointer flex items-center justify-center transition-all duration-300 rounded-r-md pointer-events-none ${loading ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
           onClick={() => scroll('left')}
         >
-          <CaretLeftIcon size={48} className="text-white hover:scale-125 transition drop-shadow-lg" />
+          <CaretLeftIcon size={64} weight='bold' className="text-white" />
         </div>
 
         {/* Scroll Container */}
@@ -91,7 +91,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
                   <div className="h-[60%] w-[60%] bg-[#222] rounded skew-y-6 opacity-30"></div>
                 </div>
                 {/* Image Skeleton */}
-                <div className="h-full w-[70%] bg-[#222] rounded-sm border border-white/5 animate-pulse relative overflow-hidden">
+                <div className="h-full w-[70%] bg-[#222] rounded-sm border border-white/5 overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
                 </div>
               </div>
@@ -100,12 +100,12 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
               <div
                 key={movie.id}
                 className="relative flex-none 
-                h-[100px] w-[120px] 
-                sm:h-[130px] sm:w-[150px] 
-                md:h-[150px] md:w-[170px] 
-                lg:h-[180px] lg:w-[200px] 
-                cursor-pointer transition-transform duration-300 hover:scale-105 hover:z-40 flex items-end 
-                mr-4 sm:mr-6
+                h-[110px] w-[140px] 
+                sm:h-[140px] sm:w-[170px] 
+                md:h-[170px] md:w-[200px] 
+                lg:h-[170px] lg:w-[190px] 
+                mr- sm:mr-5 md:mr-5
+                cursor-pointer transition-transform duration-300 flex items-end 
                 pointer-events-auto"
                 onClick={(e) => {
                   const rawRect = e.currentTarget.getBoundingClientRect();
@@ -114,22 +114,22 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
                 }}
               >
                 {/* The Number - Now properly positioned to heavily underlap */}
-                <div className="absolute left-[-5%] bottom-0 h-full w-[60%] flex items-end justify-start z-0 pointer-events-none pb-0">
+                <div className="absolute left-[0%] bottom-0 h-[100%] w-[80%] flex items-end justify-start z-0 pointer-events-none">
                   <svg
-                    viewBox="0 0 100 170"
-                    className="h-[120%] w-auto drop-shadow-[4px_0_10px_rgba(0,0,0,0.8)] -ml-2 mb-[-5px]"
+                    viewBox="1 -15 100 100"
+                    className="h-full w-auto drop-shadow-[0px_4px_12px_rgba(0,0,0,1)]"
                     preserveAspectRatio="xMidYMax meet"
                   >
                     <text
-                      x="40"
-                      y="160"
+                      x="30"
+                      y="80"
                       textAnchor="middle"
                       fill="#000000"
-                      stroke="#808080"
+                      stroke="#595959"
                       strokeWidth="3.5"
                       strokeLinejoin="round"
-                      fontSize="170"
-                      fontWeight="900"
+                      fontSize="150"
+                      fontWeight="800"
                       fontFamily="Arial, sans-serif"
                       letterSpacing={index === 9 ? "-15" : "-5"}
                     >
@@ -156,10 +156,10 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
         <div
           className={`absolute top-1/2 -translate-y-1/2 right-0 z-50 
             h-[120px] sm:h-[150px] md:h-[180px] lg:h-[210px] 
-            w-10 md:w-16 lg:w-20 bg-black/50 hover:bg-black/70 cursor-pointer flex items-center justify-center transition-all duration-300 rounded-l-md pointer-events-none ${loading ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
+            w-10 md:w-14 lg:w-28 bg-black/40 cursor-pointer flex items-center justify-center rounded-l-md pointer-events-none ${loading ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
           onClick={() => scroll('right')}
         >
-          <CaretRightIcon size={48} className="text-white hover:scale-125 transition drop-shadow-lg" />
+          <CaretRightIcon size={64} weight='bold' className="text-white" />
         </div>
       </div>
     </div>

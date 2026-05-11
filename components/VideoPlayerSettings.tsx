@@ -267,10 +267,14 @@ export const ServerPanel: React.FC<{
                                 {currentSourceIndex === i && <CheckIcon size={20} weight="bold" className="text-white" />}
                             </div>
                             <div className="flex flex-col overflow-hidden">
-                                <span className={`text-base font-bold ${currentSourceIndex === i ? 'text-white' : 'text-white/60'}`}>
-                                    {source.provider || `Server ${i + 1}`}
+                                <span className={`text-sm truncate ${currentSourceIndex === i ? 'text-white' : 'text-white/80'}`}>
+                                    {source.name || source.provider || `Server ${i + 1}`}
                                 </span>
-                                <span className="text-xs text-white/50 truncate">{source.quality || 'Auto'} • {source.isM3U8 ? 'Adaptive' : 'Direct'}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] uppercase font-bold text-white/40">{source.provider || 'External'}</span>
+                                    <span className="text-[10px] text-white/30">•</span>
+                                    <span className="text-[10px] text-white/40 uppercase">{source.quality || 'Auto'} • {source.isM3U8 ? 'Adaptive' : 'Direct'}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -281,52 +285,105 @@ export const ServerPanel: React.FC<{
 };
 
 // ─── Quality menu ──────────────────────────────────────────────────────────
+// ─── Quality menu ──────────────────────────────────────────────────────────
 export const QualityMenu: React.FC<{
     qualities: Array<{ height: number; bitrate: number; level: number }>;
     currentQuality: number;
     onQualityChange: (level: number) => void;
     onClose: () => void;
-}> = ({ qualities, currentQuality, onQualityChange, onClose }) => {
+    allSources?: any[];
+    currentSourceIndex?: number;
+    onSourceChange?: (index: number) => void;
+}> = ({ qualities, currentQuality, onQualityChange, onClose, allSources, currentSourceIndex, onSourceChange }) => {
     const isMobile = useIsMobile();
     const rowCls = `flex items-center justify-between px-4 ${isMobile ? 'py-4' : 'py-2.5'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition rounded select-none`;
 
-    return (
-        <div className="flex flex-col">
-            {/* Auto quality row — needs relative so the inline CheckIcon positions correctly */}
-            <div className={`relative flex items-center gap-3 ${isMobile ? rowCls : 'px-12 py-[18px] border-b border-white/5 bg-[#121212] cursor-default'}`} onClick={() => { onQualityChange(-1); onClose(); }}>
+    // 1. If it's a Debrid/Direct stream, show all sources as quality levels
+    // This is the primary path for 99% of viewing.
+    if (allSources && allSources.length > 0 && (!qualities || qualities.length === 0)) {
+        // Group by quality label (4K, 1080p, etc)
+        const uniqueQualities = allSources.reduce((acc: any[], src, idx) => {
+            const label = src.quality || 'Auto';
+            if (!acc.find(a => a.label === label)) {
+                acc.push({ label, index: idx, seeders: src.seeders || 0 });
+            }
+            return acc;
+        }, []);
+
+        return (
+            <div className="flex flex-col h-full bg-[#262626]">
                 {!isMobile && (
-                    <CheckIcon
-                        size={16}
-                        weight="bold"
-                        className={`flex-shrink-0 transition-opacity ${currentQuality === -1 ? 'text-white opacity-100' : 'opacity-0'}`}
-                    />
+                    <div className="px-8 py-6 border-b border-white/10 flex-shrink-0">
+                        <span className="text-white text-2xl font-bold">Video Quality</span>
+                        <p className="text-sm text-white/40 mt-1">Select your preferred resolution for this stream.</p>
+                    </div>
                 )}
-                <div className="flex flex-col gap-0.5">
-                    <span className={`text-sm font-bold ${currentQuality === -1 ? 'text-white' : 'text-white/60'}`}>Auto</span>
-                    {!isMobile && <div className="text-xs text-white/50">Adjusts automatically</div>}
+                <div className="overflow-y-auto max-h-[50vh] py-2 scroll-list">
+                    {uniqueQualities.map((q) => {
+                        const isSelected = currentSourceIndex === q.index || (allSources[currentSourceIndex || 0]?.quality === q.label);
+                        return (
+                            <div key={q.index} className={rowCls} onClick={() => { if (onSourceChange) onSourceChange(q.index); onClose(); }}>
+                                <div className="w-8 flex-shrink-0 flex justify-center">
+                                    {isSelected && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className={`text-base font-bold ${isSelected ? 'text-white' : 'text-white/80'}`}>{q.label}</span>
+                                    {q.seeders > 0 && <span className="text-[10px] text-white/40 uppercase font-bold">{q.seeders} SEEDERS</span>}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
-            {qualities.map((q, i) => (
-                <div
-                    key={i}
-                    className={`relative flex items-center gap-3 ${isMobile ? rowCls : 'px-12 py-[18px] border-b border-white/5 transition-colors cursor-pointer hover:bg-white/5'} ${currentQuality === q.level ? 'bg-white/5' : ''}`}
-                    onClick={() => { onQualityChange(q.level); onClose(); }}
-                >
+        );
+    }
+
+    // 2. Fallback for HLS streams (e.g. trailers or rare scraped sources)
+    if (qualities && qualities.length > 0) {
+        return (
+            <div className="flex flex-col">
+                <div className={`relative flex items-center gap-3 ${isMobile ? rowCls : 'px-12 py-[18px] border-b border-white/5 bg-[#121212] cursor-default'}`} onClick={() => { onQualityChange(-1); onClose(); }}>
                     {!isMobile && (
                         <CheckIcon
                             size={16}
                             weight="bold"
-                            className={`flex-shrink-0 transition-opacity ${currentQuality === q.level ? 'text-white opacity-100' : 'opacity-0'}`}
+                            className={`flex-shrink-0 transition-opacity ${currentQuality === -1 ? 'text-white opacity-100' : 'opacity-0'}`}
                         />
                     )}
-                    <span className={`text-sm font-bold ${currentQuality === q.level ? 'text-white' : 'text-white/60'}`}>
-                        {q.height > 0 ? `${q.height}p` : 'Unknown'}
-                    </span>
+                    <div className="flex flex-col gap-0.5">
+                        <span className={`text-sm font-bold ${currentQuality === -1 ? 'text-white' : 'text-white/60'}`}>Auto</span>
+                        {!isMobile && <div className="text-xs text-white/50">Adjusts automatically</div>}
+                    </div>
                 </div>
-            ))}
+                <div className="overflow-y-auto max-h-[50vh] py-2 scroll-list">
+                    {qualities.map((q, i) => (
+                        <div
+                            key={i}
+                            className={`relative flex items-center gap-3 ${isMobile ? rowCls : 'px-12 py-[18px] border-b border-white/5 transition-colors cursor-pointer hover:bg-white/5'} ${currentQuality === q.level ? 'bg-white/5' : ''}`}
+                            onClick={() => { onQualityChange(q.level); onClose(); }}
+                        >
+                            {!isMobile && (
+                                <CheckIcon
+                                    size={16}
+                                    weight="bold"
+                                    className={`flex-shrink-0 transition-opacity ${currentQuality === q.level ? 'text-white opacity-100' : 'opacity-0'}`}
+                                />
+                            )}
+                            <span className="text-sm font-bold">{q.height}p</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-12 text-center text-white/40 italic">
+            Quality selection is unavailable for this source.
         </div>
     );
 };
+
 
 // ─── Episode explorer ──────────────────────────────────────────────────────
 export const EpisodeExplorer: React.FC<{

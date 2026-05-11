@@ -57,7 +57,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
     <nav
       className={`fixed top-0 w-full z-[80] transition-all duration-500 
         px-6 md:px-14 lg:px-16
-        ${isSettings ? 'bg-white border-b border-gray-100' : (isScrolled || mobileMenuOpen ? 'bg-[#141414]/100  shadow-2xl' : 'bg-gradient-to-b from-black/60 via-black/20 to-transparent')}
+        ${isSettings ? 'bg-white border-b border-gray-100' : (isScrolled || mobileMenuOpen ? 'bg-[#141414]/100' : 'bg-transparent')}
         ${isSettings ? 'pt-4 pb-4' : 'pt-[calc(1rem+env(safe-area-inset-top))] pb-3 md:py-4'}`}
     >
       <div className="flex items-center justify-between">

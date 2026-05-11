@@ -93,6 +93,7 @@ export interface AppSettings {
   // Language Settings
   displayLanguage: string;  // TMDB content language (e.g., 'en-US', 'es-ES', 'fr-FR')
   subtitleLanguage: string; // Preferred subtitle language (e.g., 'en', 'es', 'fr')
+  audioLanguage: string;    // Preferred audio track language (e.g., 'en', 'es', 'fr')
   avatarUrl?: string;       // Custom profile avatar path
   displayName?: string;     // Custom profile display name
   isKidsMode?: boolean;     // Account-wide kids mode

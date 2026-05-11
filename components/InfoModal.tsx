@@ -338,8 +338,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     <XIcon size={24} className="text-white" />
                 </button>
 
-                {/* --- Hero Section --- */}
-                <div ref={heroRef} className="relative aspect-video w-full bg-black group overflow-hidden">
+                {/* --- Media Container --- */}
+                <div ref={heroRef} className="relative aspect-[16/8] w-full bg-black group overflow-hidden">
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}

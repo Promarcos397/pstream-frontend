@@ -86,6 +86,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   subtitleWindowColor: 'black',
   displayLanguage: 'en-US',
   subtitleLanguage: 'en',
+  audioLanguage: 'en',
   avatarUrl: DEFAULT_AVATAR,
   isKidsMode: false,
 };

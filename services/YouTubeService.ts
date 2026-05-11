@@ -121,6 +121,9 @@ const BANLIST_PATTERNS = [
     /fan[\s-]?made/i,
     /\breaction\b/i,
     /\breview\b/i,
+    /\bmovieclips\b/i,
+    /\bclips\b/i,
+    /\bmovieclip\b/i,
     /explained/i,
     /\bspoof\b/i,
     /\bparody\b/i,
@@ -179,7 +182,7 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     // Type signal: soft guidance, never hard-fail
     if (isTv) {
         if (/\btv\b|\bseries\b|\bshow\b/.test(t)) score += 20;
-        if (/\bseason\b/.test(t)) score += 20;
+        if (/\bseason\b/.test(t)) score += 25;
         if (/\bmovie\b|\bfilm\b|\bepisode\b/.test(t)) score -= 40;
     } else if (isMovie) {
         if (/\bmovie\b|\bfilm\b/.test(t)) score += 20;
@@ -190,15 +193,19 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     
     if (/\btrailer\b/.test(t)) score += 18;
     if (/\bteaser\b/.test(t)) score += 25;
+    if (/\bofficial\b/i.test(t)) score += 10;
+    
+    // After your trailer quality signals block
+    if (!/\btrailer\b|\bteaser\b/i.test(t)) score -= 30; 
 
     // Quality/resolution keywords are secondary to relevance
-    if (/\b4k\b/.test(t)) score += 25;
+    if (/\b4k\b/.test(t)) score += 45;
     if (/\bhdr\b/.test(t)) score += 15;
-    if (/\bhd\b/.test(t)) score += 15;
-    if (/\bimax\b/.test(t)) score += 20;
-    if (/\bblu[\s-]?ray\b/.test(t)) score += 20;
-    if (/\b(hbo|max|hulu|apple|prime|disney|Crunchyroll|BBC|Paramount|Rotten\s*Tomatoes)\b/i.test(t)) score += 10;
-    if (t.length > 50 && q.length > 10) score += 15; // avoid very short titles
+    if (/\bhd\b/.test(t)) score += 10;
+    if (/\bimax\b/.test(t)) score += 10;
+    if (/\bblu[\s-]?ray\b/.test(t)) score += 10;
+    if (/\b(hbo|max|hulu|apple|prime|disney|Crunchyroll|BBC|Paramount|Rotten\s*Tomatoes)\b/i.test(t)) score += 25;
+    if (t.length > 50 && q.length > 10) score += 5; // avoid very short titles
     
     // Year boost: Exact match or one year before (trailers often release the year prior)
     
@@ -209,9 +216,9 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
             const prevYearRegex = new RegExp(`\\b${targetYear - 1}\\b`);
 
             if (yearRegex.test(t)) {
-                score += 35; // Strong match
+                score += 15; // Strong match
             } else if (prevYearRegex.test(t)) {
-                score += 25; // Valid trailer window
+                score += 15; // Valid trailer window
             }
         }
     }
@@ -382,7 +389,7 @@ export const searchTrailersWithFallback = async (
             .sort((a, b) => b.score - a.score);
 
         if (import.meta.env.DEV) {
-            console.log(`[YouTubeService] Scored candidates for "${options.title}":`,
+            console.log(`[YouTubeService] Scored candidates for "${options.title}" (year=${options.year ?? 'none'}, type=${options.type ?? 'none'}):`,
                 scored.slice(0, 5).map(c => `[${c.score}] ${c.title} — ${c.channelTitle}`)
             );
         }

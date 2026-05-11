@@ -14,6 +14,8 @@ interface UseHlsOptions {
     onMirrorSwitch?: () => void;
     /** Called when HLS fires a fatal, unrecoverable error. Use to report to health service. */
     onFatalError?: (type: string, details: string, statusCode?: number) => void;
+    /** Preferred audio language code (e.g. 'en', 'fr') */
+    preferredAudioLanguage?: string;
 }
 
 export interface HlsQuality {
@@ -38,17 +40,25 @@ export interface HlsSubtitleTrack {
 }
 
 /**
- * Picks the best English audio track index from a list of HLS audio tracks.
- * Priority: explicit 'en' lang > name contains 'english' > default track > track 0.
+ * Picks the best audio track index from a list based on user preference.
+ * Priority: explicit lang match > name contains preferredLang > default track > track 0.
  */
-function pickEnglishTrackId(tracks: HlsAudioTrack[]): number {
+function pickPreferredAudioTrack(tracks: HlsAudioTrack[], preferredLang: string = 'en'): number {
     if (tracks.length === 0) return -1;
-    const byLang = tracks.find(t => t.lang?.toLowerCase().startsWith('en'));
+    const lang = (preferredLang || 'en').toLowerCase();
+    
+    // 1. Try explicit language code match (e.g. "en")
+    const byLang = tracks.find(t => t.lang?.toLowerCase().startsWith(lang));
     if (byLang) return byLang.id;
-    const byName = tracks.find(t => t.name?.toLowerCase().includes('english'));
+    
+    // 2. Try name match (e.g. "English")
+    const byName = tracks.find(t => t.name?.toLowerCase().includes(lang === 'en' ? 'english' : lang));
     if (byName) return byName.id;
+    
+    // 3. Fallback to default track
     const byDefault = tracks.find(t => t.isDefault);
     if (byDefault) return byDefault.id;
+    
     return tracks[0].id;
 }
 
@@ -64,7 +74,11 @@ function isMobileDevice(): boolean {
  * Mobile-optimised: capLevelToPlayerSize, adaptive buffers, low start level.
  */
 export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: UseHlsOptions) => {
-    const { streamUrl, isM3U8, autoPlay = true, streamReferer, onManifestParsed, onError, onTokenExpired, onFatalError } = options;
+    const { 
+        streamUrl, isM3U8, autoPlay = true, streamReferer, 
+        onManifestParsed, onError, onTokenExpired, onFatalError,
+        preferredAudioLanguage = 'en'
+    } = options;
     const hlsRef = useRef<Hls | null>(null);
     const [qualityLevels, setQualityLevels] = useState<HlsQuality[]>([]);
     const [currentQuality, setCurrentQuality] = useState<number>(-1);
@@ -91,6 +105,31 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
 
                 const onCanPlay = () => {
                     setIsBuffering(false);
+                    
+                    // Native audio track detection for direct streams (MP4/MKV)
+                    // Supported in Safari and experimental Chrome/Firefox
+                    const nativeTracks = (video as any).audioTracks;
+                    if (nativeTracks && nativeTracks.length > 0) {
+                        const tracks = Array.from(nativeTracks).map((t: any, idx: number) => ({
+                            id: idx,
+                            name: t.label || t.language || `Track ${idx + 1}`,
+                            lang: t.language || '',
+                            isDefault: t.enabled
+                        }));
+                        setAudioTracks(tracks as any);
+                        
+                        // Pick preferred if multiple exist
+                        if (tracks.length > 1) {
+                            const preferredId = pickPreferredAudioTrack(tracks as any, preferredAudioLanguage);
+                            if (preferredId !== -1) {
+                                for (let i = 0; i < nativeTracks.length; i++) {
+                                    nativeTracks[i].enabled = (i === preferredId);
+                                }
+                                setCurrentAudioTrack(preferredId);
+                            }
+                        }
+                    }
+                    
                     if (autoPlay) video.play().catch(() => {});
                 };
                 const onError = () => {
@@ -220,14 +259,14 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                     }));
                     setAudioTracks(tracks);
 
-                    // Auto-select English audio immediately, preventing foreign language playback
+                    // Auto-select preferred audio immediately, preventing unwanted dubbed playback
                     if (tracks.length > 1) {
-                        const englishId = pickEnglishTrackId(tracks);
-                        if (englishId !== -1 && englishId !== hls.audioTrack) {
-                            console.log(`[useHls] Auto-switching to English audio (track ${englishId}: "${tracks[englishId]?.name ?? 'unknown'}")`);
-                            hls.audioTrack = englishId;
+                        const preferredId = pickPreferredAudioTrack(tracks, preferredAudioLanguage);
+                        if (preferredId !== -1 && preferredId !== hls.audioTrack) {
+                            console.log(`[useHls] Auto-switching to ${preferredAudioLanguage} audio (track ${preferredId}: "${tracks[preferredId]?.name ?? 'unknown'}")`);
+                            hls.audioTrack = preferredId;
                         }
-                        setCurrentAudioTrack(englishId !== -1 ? englishId : hls.audioTrack);
+                        setCurrentAudioTrack(preferredId !== -1 ? preferredId : hls.audioTrack);
                     } else {
                         setCurrentAudioTrack(hls.audioTrack);
                     }

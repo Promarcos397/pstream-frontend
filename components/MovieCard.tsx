@@ -394,7 +394,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   // so no py-52 hack is needed on the Row strip.
   const getPopupFixedStyle = (): React.CSSProperties => {
     if (!hoveredRect) return { display: 'none' };
-    const POPUP_W = 336;
+    const POPUP_W = 342;
     const TOP_OFFSET = -88; // ← TUNE THIS: more negative = popup higher above the card
     let left: number;
     if (hoverPosition === 'left') {
@@ -500,16 +500,39 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           <>
             <div className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-3 px-3">
               {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt={movie.title || movie.name}
-                  onLoad={handleLogoLoad}
-                  className={`w-auto object-contain transition-all duration-300 ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
-                  style={{
-                    filter: 'drop-shadow(0 12px 25px rgba(0,0,0,0.5)) drop-shadow(0 4px 5px rgba(0,0,0,0.35))',
-                  }}
-                  draggable={false}
-                />
+                <div className="relative inline-flex items-center justify-center">
+                  {/* Premium Shadow Stack (Backported from Hover state) */}
+                  <img
+                    src={logoUrl}
+                    aria-hidden
+                    className={`absolute w-auto object-contain ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
+                    style={{
+                      filter: 'blur(4px) brightness(0) opacity(0.8)',
+                      transform: 'translate(1px, 2px) scale(1.01)',
+                      zIndex: 0,
+                    }}
+                  />
+                  <img
+                    src={logoUrl}
+                    aria-hidden
+                    className={`absolute w-auto object-contain ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
+                    style={{
+                      filter: 'blur(20px) brightness(0) opacity(0.5)',
+                      transform: 'scale(1.05)',
+                      zIndex: 0,
+                    }}
+                  />
+                  <img
+                    src={logoUrl}
+                    alt={movie.title || movie.name}
+                    onLoad={handleLogoLoad}
+                    className={`relative w-auto object-contain transition-all duration-300 z-[1] ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
+                    style={{
+                      filter: 'drop-shadow(0 12px 25px rgba(0,0,0,0.5)) drop-shadow(0 4px 5px rgba(0,0,0,0.35))'
+                    }}
+                    draggable={false}
+                  />
+                </div>
               ) : (
                 <h3 className={`text-white font-leaner text-center tracking-wide leading-tight drop-shadow-[0_3px_9px_rgba(0,0,0,0.85)] line-clamp-3 mb-2 w-full px-1 ${isBook ? 'text-2xl' : 'text-xl'}`}>
                   {movie.title || movie.name}
@@ -573,7 +596,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               }}
             >
               {/* Media Container — taller to avoid info section getting cut */}
-              <div className="relative w-[336px] h-[189px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+              <div className="relative w-[400px] h-[200px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
 
                 {(!isBook) ? (
                   <>
@@ -590,7 +613,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                             key={`card-player-${replayCount}`}
                             movie={movie} 
                             variant="card"
-                            cropFactor={1.08}
+                            cropFactor={1.35}
                             onReady={() => setIsHoverVideoReady(true)}
                             onEnded={() => {
                                 setIsHoverVideoReady(false);

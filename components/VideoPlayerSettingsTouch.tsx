@@ -182,10 +182,14 @@ export const ServerPanelTouch: React.FC<{
                             {currentSourceIndex === i && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                         </div>
                         <div className="flex flex-col overflow-hidden">
-                            <span className={`text-base font-bold ${currentSourceIndex === i ? 'text-white' : 'text-white/60'}`}>
-                                {source.provider || `Server ${i + 1}`}
+                            <span className={`text-base font-bold ${currentSourceIndex === i ? 'text-white' : 'text-white/80'}`}>
+                                {source.name || source.provider || `Server ${i + 1}`}
                             </span>
-                            <span className="text-xs text-white/50 truncate">{source.quality || 'Auto'} • {source.isM3U8 ? 'Adaptive' : 'Direct'}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase font-bold text-white/30">{source.provider || 'External'}</span>
+                                <span className="text-[10px] text-white/30">•</span>
+                                <span className="text-xs text-white/40 truncate">{source.quality || 'Auto'} • {source.isM3U8 ? 'Adaptive' : 'Direct'}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
