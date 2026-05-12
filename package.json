@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@consumet/extensions": "^1.8.8",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@phosphor-icons/react": "^2.1.10",
     "@plasmohq/messaging": "^0.7.2",
     "@scure/bip39": "^2.0.1",

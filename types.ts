@@ -1,4 +1,14 @@
 
+export interface InternalTrack {
+    id: number;
+    type: 'audio' | 'subtitle';
+    codec: string;
+    language?: string;
+    name?: string;
+    channels?: number;
+    isDefault?: boolean;
+}
+
 export interface Movie {
   id: number | string;
   title?: string;

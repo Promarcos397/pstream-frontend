@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Episode } from '../types';
+import { Episode, InternalTrack } from '../types';
 import { ArrowLeftIcon, CheckIcon, CaretRightIcon, XIcon } from '@phosphor-icons/react';
 
 import { useTranslation } from 'react-i18next';
@@ -89,10 +89,15 @@ export const AudioSubPanel: React.FC<{
     audioTracks: Array<{ id: number; name: string; lang: string }>;
     currentAudioTrack: number;
     onAudioChange: (trackId: number) => void;
+    internalTracks?: InternalTrack[];
+    selectedAudioTrackId?: number | null;
+    selectedSubtitleTrackId?: number | null;
+    onInternalAudioChange?: (id: number) => void;
+    onInternalSubtitleChange?: (id: number) => void;
     onClose: () => void;
     subtitleOffset?: number;
     onSubtitleOffsetChange?: (offset: number) => void;
-}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange }) => {
+}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, internalTracks = [], selectedAudioTrackId, selectedSubtitleTrackId, onInternalAudioChange, onInternalSubtitleChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange }) => {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
     const [activeLangGroup, setActiveLangGroup] = React.useState<string | null>(null);
@@ -125,6 +130,7 @@ export const AudioSubPanel: React.FC<{
                 Audio
             </div>
             <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
+                {/* External/HLS Tracks */}
                 {audioTracks.map((track) => (
                     <li 
                         key={track.id} 
@@ -135,6 +141,26 @@ export const AudioSubPanel: React.FC<{
                             {currentAudioTrack === track.id && <span className="text-white font-light text-base">✓</span>}
                         </div>
                         <span className="text-sm truncate">{track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}</span>
+                    </li>
+                ))}
+
+                {/* Internal Tracks (MKV/MP4) */}
+                {internalTracks.filter(t => t.type === 'audio').map((track) => (
+                    <li 
+                        key={`internal-${track.id}`} 
+                        className={`${rowCls} ${selectedAudioTrackId === track.id ? 'text-white' : 'text-[#b3b3b3]'}`} 
+                        onClick={(e) => { e.stopPropagation(); onInternalAudioChange?.(track.id); }}
+                    >
+                        <div className="w-6 flex-shrink-0 flex justify-center">
+                            {selectedAudioTrackId === track.id && <span className="text-white font-light text-base">✓</span>}
+                        </div>
+                        <div className="flex flex-col overflow-hidden">
+                            <span className="text-sm truncate font-bold">{track.name || `Audio Track ${track.id}`}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] opacity-60 uppercase">{track.language || 'Unknown'}</span>
+                                <span className="text-[10px] bg-white/10 px-1 rounded uppercase">{track.codec.replace('A_', '').replace('V_', '')}</span>
+                            </div>
+                        </div>
                     </li>
                 ))}
             </ul>
@@ -196,6 +222,26 @@ export const AudioSubPanel: React.FC<{
                         </li>
                     );
                 })}
+
+                {/* Internal Subtitles */}
+                {internalTracks.filter(t => t.type === 'subtitle').map((track) => (
+                    <li 
+                        key={`internal-sub-${track.id}`} 
+                        className={`${rowCls} ${selectedSubtitleTrackId === track.id ? 'text-white' : 'text-[#b3b3b3]'}`} 
+                        onClick={(e) => { e.stopPropagation(); onInternalSubtitleChange?.(track.id); }}
+                    >
+                        <div className="w-6 flex-shrink-0 flex justify-center">
+                            {selectedSubtitleTrackId === track.id && <span className="text-white font-light text-base">✓</span>}
+                        </div>
+                        <div className="flex flex-col overflow-hidden">
+                            <span className="text-sm truncate font-bold">{track.name || `Internal Subtitle ${track.id}`}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] opacity-60 uppercase">{track.language || 'Unknown'}</span>
+                                <span className="text-[10px] bg-white/10 px-1 rounded uppercase">{track.codec.replace('S_TEXT/', '')}</span>
+                            </div>
+                        </div>
+                    </li>
+                ))}
              </ul>
         </div>
     );
@@ -279,12 +325,13 @@ export const ServerPanel: React.FC<{
                         </div>
                     </div>
                 ))}
+                
+
             </div>
         </div>
     );
 };
 
-// ─── Quality menu ──────────────────────────────────────────────────────────
 // ─── Quality menu ──────────────────────────────────────────────────────────
 export const QualityMenu: React.FC<{
     qualities: Array<{ height: number; bitrate: number; level: number }>;
@@ -617,6 +664,11 @@ interface VideoPlayerSettingsProps {
     audioTracks: Array<{ id: number; name: string; lang: string }>;
     currentAudioTrack: number;
     onAudioChange: (trackId: number) => void;
+    internalTracks: InternalTrack[];
+    selectedAudioTrackId: number | null;
+    selectedSubtitleTrackId: number | null;
+    onInternalAudioChange: (id: number) => void;
+    onInternalSubtitleChange: (id: number) => void;
     showTitle?: string;
     onPanelHover?: () => void;
     onStartHide?: () => void;

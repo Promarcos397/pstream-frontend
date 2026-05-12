@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Episode } from '../types';
+import { Episode, InternalTrack } from '../types';
 import { ArrowLeftIcon, CheckIcon, CaretRightIcon, XIcon, PlayIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -41,7 +41,6 @@ export const PanelShellTouch: React.FC<{
     );
 };
 
-// ─── Audio & Subtitle combined menu ─────────────────────────────────────────
 export const AudioSubPanelTouch: React.FC<{
     captions: Array<{ id: string; label: string; url: string; lang: string }>;
     currentCaption: string | null;
@@ -49,10 +48,15 @@ export const AudioSubPanelTouch: React.FC<{
     audioTracks: Array<{ id: number; name: string; lang: string }>;
     currentAudioTrack: number;
     onAudioChange: (trackId: number) => void;
+    internalTracks?: InternalTrack[];
+    selectedAudioTrackId?: number | null;
+    selectedSubtitleTrackId?: number | null;
+    onInternalAudioChange?: (id: number) => void;
+    onInternalSubtitleChange?: (id: number) => void;
     onClose: () => void;
     subtitleOffset?: number;
     onSubtitleOffsetChange?: (offset: number) => void;
-}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange }) => {
+}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, internalTracks = [], selectedAudioTrackId, selectedSubtitleTrackId, onInternalAudioChange, onInternalSubtitleChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'audio' | 'subtitles'>('subtitles');
 
@@ -92,7 +96,7 @@ export const AudioSubPanelTouch: React.FC<{
             </div>
 
             {activeTab === 'audio' ? (
-                <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
+                <ul className="flex-1 overflow-y-auto scrollbar-none">
                     {audioTracks.map((track) => (
                         <li 
                             key={track.id} 
@@ -103,6 +107,26 @@ export const AudioSubPanelTouch: React.FC<{
                                 {currentAudioTrack === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                             </div>
                             <span className="text-base truncate">{track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}</span>
+                        </li>
+                    ))}
+
+                    {/* Internal Audio Tracks */}
+                    {internalTracks.filter(t => t.type === 'audio').map((track) => (
+                        <li 
+                            key={`internal-${track.id}`} 
+                            className={`${rowCls} ${selectedAudioTrackId === track.id ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
+                            onClick={(e) => { e.stopPropagation(); onInternalAudioChange?.(track.id); }}
+                        >
+                            <div className="w-8 flex-shrink-0 flex justify-center">
+                                {selectedAudioTrackId === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                            </div>
+                            <div className="flex flex-col overflow-hidden">
+                                <span className="text-base truncate font-bold">{track.name || `Audio Track ${track.id}`}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs opacity-60 uppercase">{track.language || 'Unknown'}</span>
+                                    <span className="text-xs bg-white/10 px-1 rounded uppercase">{track.codec.replace('A_', '')}</span>
+                                </div>
+                            </div>
                         </li>
                     ))}
                 </ul>
@@ -142,21 +166,44 @@ export const AudioSubPanelTouch: React.FC<{
                             <span className="text-base">{t('player.off')}</span>
                         </li>
 
-                        {groupedCaptions.map(([langKey, caps]) => {
-                            const hasActiveChild = caps.some(c => c.url === currentCaption);
-                            return (
-                                <li 
-                                    key={langKey} 
-                                    className={`${rowCls} ${hasActiveChild ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
-                                    onClick={(e) => { e.stopPropagation(); onSubtitleChange(caps[0].url); onClose(); }}
-                                >
-                                    <div className="w-8 flex-shrink-0 flex justify-center">
-                                        {hasActiveChild && <CheckIcon size={20} weight="bold" className="text-red-500" />}
-                                    </div>
-                                    <span className="text-base truncate">{caps[0].label}</span>
-                                </li>
-                            );
+                        {groupedCaptions.flatMap(([langKey, caps]) => {
+                            return caps.map((cap, index) => {
+                                const displayLabel = caps.length > 1 ? `${cap.label} (Track ${index + 1})` : cap.label;
+                                const isSelected = cap.url === currentCaption;
+                                return (
+                                    <li 
+                                        key={cap.id || `${langKey}-${index}`} 
+                                        className={`${rowCls} ${isSelected ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
+                                        onClick={(e) => { e.stopPropagation(); onSubtitleChange(cap.url); onClose(); }}
+                                    >
+                                        <div className="w-8 flex-shrink-0 flex justify-center">
+                                            {isSelected && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                        </div>
+                                        <span className="text-base truncate">{displayLabel}</span>
+                                    </li>
+                                );
+                            });
                         })}
+
+                        {/* Internal Subtitles */}
+                        {internalTracks.filter(t => t.type === 'subtitle').map((track) => (
+                            <li 
+                                key={`internal-sub-${track.id}`} 
+                                className={`${rowCls} ${selectedSubtitleTrackId === track.id ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
+                                onClick={(e) => { e.stopPropagation(); onInternalSubtitleChange?.(track.id); }}
+                            >
+                                <div className="w-8 flex-shrink-0 flex justify-center">
+                                    {selectedSubtitleTrackId === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                </div>
+                                <div className="flex flex-col overflow-hidden">
+                                    <span className="text-base truncate font-bold">{track.name || `Internal Subtitle ${track.id}`}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs opacity-60 uppercase">{track.language || 'Unknown'}</span>
+                                        <span className="text-xs bg-white/10 px-1 rounded uppercase">{track.codec.replace('S_TEXT/', '')}</span>
+                                    </div>
+                                </div>
+                            </li>
+                        ))}
                     </ul>
                 </div>
             )}
@@ -194,6 +241,8 @@ export const ServerPanelTouch: React.FC<{
                     </div>
                 </div>
             ))}
+            
+
         </div>
     );
 };
@@ -204,33 +253,76 @@ export const QualityMenuTouch: React.FC<{
     currentQuality: number;
     onQualityChange: (level: number) => void;
     onClose: () => void;
-}> = ({ qualities, currentQuality, onQualityChange, onClose }) => {
+    allSources?: any[];
+    currentSourceIndex?: number;
+    onSourceChange?: (index: number) => void;
+    onRequestFallback?: () => void;
+}> = ({ qualities, currentQuality, onQualityChange, onClose, allSources, currentSourceIndex, onSourceChange, onRequestFallback }) => {
     const rowCls = `flex items-center px-4 py-4 cursor-pointer active:bg-white/10 transition border-b border-white/5 select-none`;
 
-    return (
-        <div className="flex flex-col">
-            <div className={`${rowCls} ${currentQuality === -1 ? 'bg-white/5' : ''}`} onClick={() => { onQualityChange(-1); onClose(); }}>
-                <div className="w-8 flex-shrink-0 flex justify-center">
-                    {currentQuality === -1 && <CheckIcon size={20} weight="bold" className="text-red-500" />}
-                </div>
-                <div className="flex flex-col gap-0.5">
-                    <span className={`text-base font-bold ${currentQuality === -1 ? 'text-white' : 'text-white/60'}`}>Auto</span>
-                </div>
+    // 1. If it's a Debrid/Direct stream, show all sources as quality levels
+    if (allSources && allSources.length > 0 && (!qualities || qualities.length === 0)) {
+        const uniqueQualities = allSources.reduce((acc: any[], src, idx) => {
+            const label = src.quality || 'Auto';
+            if (!acc.find(a => a.label === label)) {
+                acc.push({ label, index: idx, seeders: src.seeders || 0 });
+            }
+            return acc;
+        }, []);
+
+        return (
+            <div className="flex flex-col">
+                {uniqueQualities.map((q) => {
+                    const isSelected = currentSourceIndex === q.index || (allSources[currentSourceIndex || 0]?.quality === q.label);
+                    return (
+                        <div key={q.index} className={`${rowCls} ${isSelected ? 'bg-white/5' : ''}`} onClick={() => { if (onSourceChange) onSourceChange(q.index); onClose(); }}>
+                            <div className="w-8 flex-shrink-0 flex justify-center">
+                                {isSelected && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                            </div>
+                            <div className="flex flex-col">
+                                <span className={`text-base font-bold ${isSelected ? 'text-white' : 'text-white/80'}`}>{q.label}</span>
+                                {q.seeders > 0 && <span className="text-[10px] text-white/40 uppercase font-bold">{q.seeders} SEEDERS</span>}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
-            {qualities.map((q, i) => (
-                <div
-                    key={i}
-                    className={`${rowCls} ${currentQuality === q.level ? 'bg-white/5' : ''}`}
-                    onClick={() => { onQualityChange(q.level); onClose(); }}
-                >
+        );
+    }
+
+    // 2. Fallback for HLS streams
+    if (qualities && qualities.length > 0) {
+        return (
+            <div className="flex flex-col">
+                <div className={`${rowCls} ${currentQuality === -1 ? 'bg-white/5' : ''}`} onClick={() => { onQualityChange(-1); onClose(); }}>
                     <div className="w-8 flex-shrink-0 flex justify-center">
-                        {currentQuality === q.level && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                        {currentQuality === -1 && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                     </div>
-                    <span className={`text-base font-bold ${currentQuality === q.level ? 'text-white' : 'text-white/60'}`}>
-                        {q.height > 0 ? `${q.height}p` : 'Unknown'}
-                    </span>
+                    <div className="flex flex-col gap-0.5">
+                        <span className={`text-base font-bold ${currentQuality === -1 ? 'text-white' : 'text-white/60'}`}>Auto</span>
+                    </div>
                 </div>
-            ))}
+                {qualities.map((q, i) => (
+                    <div
+                        key={i}
+                        className={`${rowCls} ${currentQuality === q.level ? 'bg-white/5' : ''}`}
+                        onClick={() => { onQualityChange(q.level); onClose(); }}
+                    >
+                        <div className="w-8 flex-shrink-0 flex justify-center">
+                            {currentQuality === q.level && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                        </div>
+                        <span className={`text-base font-bold ${currentQuality === q.level ? 'text-white' : 'text-white/60'}`}>
+                            {q.height > 0 ? `${q.height}p` : 'Unknown'}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-8 text-center text-white/40 text-sm">
+            Quality selection is unavailable for this source.
         </div>
     );
 };
@@ -432,6 +524,11 @@ interface VideoPlayerSettingsTouchProps {
     audioTracks: Array<{ id: number; name: string; lang: string }>;
     currentAudioTrack: number;
     onAudioChange: (trackId: number) => void;
+    internalTracks: InternalTrack[];
+    selectedAudioTrackId: number | null;
+    selectedSubtitleTrackId: number | null;
+    onInternalAudioChange: (id: number) => void;
+    onInternalSubtitleChange: (id: number) => void;
     allSources: any[];
     currentSourceIndex: number;
     onSourceChange: (index: number) => void;

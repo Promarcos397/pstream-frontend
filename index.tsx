@@ -26,3 +26,14 @@ root.render(
     </GlobalProvider>
   </TitleProvider>
 );
+
+// Register Service Worker for Media Background Interceptor
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(registration => {
+            console.log('[SW] Registered with scope:', registration.scope);
+        }).catch(err => {
+            console.error('[SW] Registration failed:', err);
+        });
+    });
+}

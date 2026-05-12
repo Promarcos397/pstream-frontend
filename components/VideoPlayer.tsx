@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Movie, Episode } from '../types';
+import { Movie, Episode, InternalTrack } from '../types';
+import { MediaProbe } from '../utils/mediaProbe';
 import { getSeasonDetails, getMovieDetails, getStream, getExternalIds, prefetchStream } from '../services/api';
 import ISO6391 from 'iso-639-1';
-
 import { useGlobalContext } from '../context/GlobalContext';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useTitle } from '../context/TitleContext';
@@ -14,6 +14,7 @@ import { SkipService, SkipSegment } from '../services/SkipService';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 import { useDebridStream } from '../hooks/useDebridStream';
+import { useAudioTranscoder, isAudioCodecSupported } from '../hooks/useAudioTranscoder';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -40,7 +41,6 @@ function shouldForceProxy(source: any): boolean {
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
 import VideoPlayerSettingsTouch from './VideoPlayerSettingsTouch';
-import { CaretRightIcon } from '@phosphor-icons/react';
 
 interface VideoPlayerProps {
     movie: Movie;
@@ -140,6 +140,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // Triggered silently after MAX_STREAM_RETRIES, only for logged-in users.
     const debridStream = useDebridStream();
     const [premiumAttempted, setPremiumAttempted] = useState(false);
+
+    // Internal tracks (MKV/MP4)
+    const [internalTracks, setInternalTracks] = useState<InternalTrack[]>([]);
+    const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<number | null>(null);
+    const [selectedSubtitleTrackId, setSelectedSubtitleTrackId] = useState<number | null>(null);
+    const [transcodedAudioUrl, setTranscodedAudioUrl] = useState<string | null>(null);
+    const transcodedAudioRef = useRef<HTMLAudioElement | null>(null);
+    const transcodedCleanupRef = useRef<(() => void) | null>(null);
+
+    const { transcode, status: transcodeStatus, progress: transcodeProgress } = useAudioTranscoder();
+
+    // Route MKV through SW proxy — the SW probes the audio codec and streams without CORS issues.
+    // Non-MKV URLs stay direct (HLS, MP4 from other sources).
+    const activeStreamUrl = useMemo(() => streamUrl, [streamUrl]);
+
+    // Detect likely audio codec from filename — instant, no network needed.
+    // Most real-world torrent filenames include codec info (AAC, AC3, DTS, etc.)
+    const guessedAudioCodec = useMemo((): 'aac' | 'ac3' | 'unknown' => {
+        if (!streamUrl) return 'unknown';
+        const name = decodeURIComponent(streamUrl).toLowerCase();
+        if (name.includes('aac')) return 'aac';
+        if (name.includes('web-dl') || name.includes('webrip') || name.includes('amzn') || name.includes('nf.') || name.includes('hbo') || name.includes('dsnp')) return 'aac'; // Streaming rips always use AAC
+        if (name.includes('ac3') || name.includes('dts') || name.includes('truehd') || name.includes('dd+') || name.includes('eac3')) return 'ac3';
+        return 'unknown'; // Could be either — DVD/BluRay rips often have AC3
+    }, [streamUrl]);
 
     // TV Show state
     const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
@@ -783,39 +808,137 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setError(null);
         standardErrorRef.current = null;
 
-        const torrentSource = {
+        const debridSources = (debridStream as any).alternatives?.map((alt: any, idx: number) => {
+            const name = alt.name || '';
+            const ext = name.toLowerCase().endsWith('.mkv') ? 'mkv' : 
+                        name.toLowerCase().endsWith('.webm') ? 'webm' : 
+                        name.toLowerCase().endsWith('.avi') ? 'avi' : 'mp4';
+            
+            // Extract a cleaner display name from the torrent name
+            const displayName = name.split('/').pop() || name;
+
+            return {
+                url:        alt.url,
+                name:       displayName,
+                quality:    alt.quality || 'auto',
+                isM3U8:     false,
+                isEmbed:    false,
+                noProxy:    true,
+                provider:   idx === 0 ? 'Premium Server (Best)' : `Premium Alt ${idx + 1}`,
+                providerId: `torrent-${idx}`,
+                referer:    '',
+                origin:     '',
+                headers:    {},
+                _type:      ext,
+            };
+        }) || [{
             url:        debridStream.streamUrl,
             name:       debridStream.name || 'Torrent Stream',
             quality:    debridStream.quality || 'auto',
             isM3U8:     false,
             isEmbed:    false,
-            noProxy:    true,   // AllDebrid redirects to direct CDN — don't double-proxy
-            provider:   'AllDebrid CDN',
-            providerId: 'torrent',
+            noProxy:    true,
+            provider:   'Premium Server',
+            providerId: 'torrent-0',
             referer:    '',
             origin:     '',
             headers:    {},
-            _type:      'mp4',
-        };
+            _type:      (debridStream.name || '').toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4',
+        }];
 
         // Torrent is preferred always:
         // Prepend to allSources so it appears first in manual source list too.
         setAllSources(prev => {
-            const already = prev.some(s => s.providerId === 'torrent');
-            if (already) return prev;
-            return [torrentSource, ...prev];
+            const filtered = prev.filter(s => !s.providerId?.startsWith('torrent'));
+            return [...debridSources, ...filtered];
         });
 
         // Always switch to it â€” use functional update to avoid stale streamUrl closure
         setStreamUrl(prev => {
-            if (prev === torrentSource.url) return prev;
+            const bestUrl = debridSources[0].url;
+            if (prev === bestUrl) return prev;
             setLoadingMessage('Source found! Preparing...');
             setCurrentSourceIndex(0);
             setIsStreamM3U8(false);
             setIsBuffering(true);
-            return torrentSource.url;
+            return bestUrl;
         });
-    }, [debridStream.streamUrl]);
+    }, [debridStream.streamUrl, (debridStream as any).alternatives]);
+
+    // Internal MKV/MP4 track probing — skip for Debrid (IP blocked) but run for others
+    useEffect(() => {
+        if (!streamUrl || isStreamM3U8 || isEmbed) {
+            setInternalTracks([]);
+            setSelectedAudioTrackId(null);
+            setSelectedSubtitleTrackId(null);
+            setTranscodedAudioUrl(null);
+            return;
+        }
+
+        // Debrid URLs are blocked by the backend (503), so we can't probe them.
+        const isDebrid = streamUrl.includes('.debrid.it') || streamUrl.includes('.alldebrid.com');
+        if (isDebrid) {
+            setInternalTracks([]);
+            setTranscodedAudioUrl(null);
+            return;
+        }
+
+        const controller = new AbortController();
+
+        const probe = async () => {
+            try {
+                const tracks = await MediaProbe.probe(streamUrl);
+                if (controller.signal.aborted) return;
+
+                if (tracks && tracks.length > 0) {
+                    console.log('[VideoPlayer] 🎵 Internal tracks:', tracks.map(t => `${t.type}:${t.codec}(${t.language || '?'})`).join(', '));
+                    setInternalTracks(tracks);
+
+                    // Auto-select default audio track
+                    const defAudio = tracks.find(t => t.type === 'audio' && t.isDefault) ?? tracks.find(t => t.type === 'audio');
+                    if (defAudio) {
+                        setSelectedAudioTrackId(defAudio.id);
+
+                        // Transcode if unsupported (standard extractors often support CORS or we proxy them)
+                        if (!isAudioCodecSupported(defAudio.codec)) {
+                            console.log(`[VideoPlayer] 🔄 Unsupported codec ${defAudio.codec} — transcoding via ffmpeg.wasm`);
+                            const trackIndex = tracks.filter(t => t.type === 'audio').indexOf(defAudio);
+                            const result = await transcode(streamUrl, trackIndex);
+                            if (!controller.signal.aborted) {
+                                transcodedCleanupRef.current?.();
+                                transcodedCleanupRef.current = result.cleanup;
+                                setTranscodedAudioUrl(result.url);
+                            } else {
+                                result.cleanup();
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[VideoPlayer] Probe/Transcode failed:', e);
+            }
+        };
+
+        probe();
+        return () => {
+            controller.abort();
+            transcodedCleanupRef.current?.();
+            transcodedCleanupRef.current = null;
+        };
+    }, [streamUrl, isStreamM3U8, isEmbed]);
+
+    // ── MKV Audio Safety Fallback (Debrid only) ──────────────────────────────
+    // Since we can't probe Debrid URLs, we just log a warning if the heuristic is unsure.
+    useEffect(() => {
+        if (!streamUrl || isStreamM3U8 || isEmbed) return;
+        const isDebrid = streamUrl.includes('.debrid.it') || streamUrl.includes('.alldebrid.com');
+        if (!isDebrid) return;
+        
+        const isMkv = streamUrl.toLowerCase().includes('.mkv');
+        if (isMkv && guessedAudioCodec === 'unknown') {
+            console.log('[VideoPlayer] ℹ️ Debrid MKV with unknown audio. If silent, use the source selector to pick a WEB-DL/AAC alternative.');
+        }
+    }, [streamUrl, isStreamM3U8, isEmbed, guessedAudioCodec]);
 
     // ── External subtitles for AllDebrid streams ─────────────────────────────────
     // Torrent/MKV files have no embedded subtitle streams in the HTTP response,
@@ -873,7 +996,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }).catch(() => {});
 
         return () => { cancelled = true; };
-    }, [debridStream.streamUrl, movie.id, mediaType, playingSeasonNumber, currentEpisode,
+    }, [debridStream.streamUrl, (debridStream as any).subtitles, movie.id, mediaType, playingSeasonNumber, currentEpisode,
         settings.subtitleLanguage, settings.showSubtitles]);
 
     // ——— Skip Segments (TV only) —————————————————————————————————————————————————
@@ -930,8 +1053,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         changeQuality,
         changeAudioTrack
     } = useHls(videoRef, {
-        streamUrl,
-        isM3U8: isStreamM3U8,
+        streamUrl: activeStreamUrl,
+        isM3U8: isStreamM3U8 && !activeStreamUrl?.startsWith('/sw-proxy'),
         streamReferer: streamReferer,
         preferredAudioLanguage: settings.audioLanguage,
         onManifestParsed: () => {
@@ -1384,6 +1507,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         });
     }, [activePanel, showControls]);
 
+    const handleInternalAudioChange = (id: number) => {
+        setSelectedAudioTrackId(id);
+        console.log(`[VideoPlayer] Switched internal audio to track ${id}`);
+        
+        const track = internalTracks.find(t => t.id === id);
+        if (track && !isAudioCodecSupported(track.codec)) {
+            console.log(`[VideoPlayer] Unsupported codec ${track.codec} detected. Routing through Background Interceptor...`);
+        }
+    };
+
+    const handleInternalSubtitleChange = (id: number) => {
+        setSelectedSubtitleTrackId(id);
+        console.log(`[VideoPlayer] Switched internal subtitle to track ${id}`);
+        // TODO: Signal to Service Worker or WASM decoder to switch stream
+    };
+
     // â”€â”€â”€ Touch Gestures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     useTouchGestures(containerRef, {
         onSingleTap: () => {
@@ -1651,6 +1790,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     audioTracks={audioTracks}
                     currentAudioTrack={currentAudioTrack}
                     onAudioChange={changeAudioTrack}
+                    internalTracks={internalTracks}
+                    selectedAudioTrackId={selectedAudioTrackId}
+                    selectedSubtitleTrackId={selectedSubtitleTrackId}
+                    onInternalAudioChange={handleInternalAudioChange}
+                    onInternalSubtitleChange={handleInternalSubtitleChange}
                     allSources={allSources}
                     currentSourceIndex={currentSourceIndex}
                     onSourceChange={handleSourceChange}
@@ -1684,6 +1828,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     audioTracks={audioTracks}
                     currentAudioTrack={currentAudioTrack}
                     onAudioChange={changeAudioTrack}
+                    internalTracks={internalTracks}
+                    selectedAudioTrackId={selectedAudioTrackId}
+                    selectedSubtitleTrackId={selectedSubtitleTrackId}
+                    onInternalAudioChange={handleInternalAudioChange}
+                    onInternalSubtitleChange={handleInternalSubtitleChange}
                     allSources={allSources}
                     currentSourceIndex={currentSourceIndex}
                     onSourceChange={handleSourceChange}

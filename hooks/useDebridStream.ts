@@ -40,6 +40,7 @@ interface DebridStreamState {
     seeders:   number | null;
     quality:   string | null;
     subtitles?: { url: string; label: string; lang: string }[];
+    alternatives?: Array<{ url: string; name: string; quality: string; seeders: number }>;
 }
 
 interface CacheEntry {
@@ -48,6 +49,8 @@ interface CacheEntry {
     quality: string;
     seeders: number;
     ts:      number;
+    subtitles?: { url: string; label: string; lang: string }[];
+    alternatives?: Array<{ url: string; name: string; quality: string; seeders: number }>;
 }
 
 // ── Session cache helpers ─────────────────────────────────────────────────────
@@ -85,41 +88,52 @@ function qualityScore(q: string = '', name: string = ''): number {
     else if (lc.includes('4k') || lc.includes('2160'))   score = 2; // likely huge remux
     else if (lc.includes('720'))                         score = 1;
 
-    // Audio Compatibility Adjustments
-    if (lc.includes('aac') || lc.includes('stereo') || lc.includes('2.0') || lc.includes('mp3')) {
-        score += 0.5;
+    // Audio Compatibility & Source Reliability (Browsers cannot play AC3, EAC3, TrueHD, DTS natively)
+    // WEB-DL/WEB-Rip from streaming services (AMZN, NF, DSNP, etc.) almost always use AAC or Opus.
+    const isWebSource = lc.includes('web-dl') || lc.includes('webrip') || lc.includes('web-rip') || 
+                        lc.includes('amzn') || lc.includes('nf.') || lc.includes('dsnp') || 
+                        lc.includes('hulu') || lc.includes('hbo') || lc.includes('itunes') ||
+                        lc.includes('atvp');
+
+    if (lc.includes('aac') || lc.includes('mp3') || lc.includes('opus') || 
+        lc.includes('2.0') || lc.includes('stereo') || isWebSource) {
+        score += 15.0; // Heavily prefer browser-native codecs and streaming-optimized sources
     }
-    if (lc.includes('dts-hd') || lc.includes('truehd') || lc.includes('atmos')) {
-        score -= 1.5;
-    }
-    if (lc.includes('dts') && !lc.includes('aac')) {
-        score -= 0.5;
+    
+    // Penalize unsupported surround codecs aggressively
+    if (lc.includes('truehd') || lc.includes('atmos') || lc.includes('dts-hd') || lc.includes('dtshd')) {
+        score -= 30.0;
+    } else if (lc.includes('dts') || lc.includes('ac3') || lc.includes('eac3') || 
+               lc.includes('dd5.1') || lc.includes('ddp') || lc.includes('dd+') || 
+               lc.includes('5.1') || lc.includes('7.1')) {
+        // Bluray rips often have AC3/DTS even if not explicitly labeled, 
+        // so we penalize generic 5.1/7.1 tags unless a supported codec is also present.
+        if (!lc.includes('aac') && !lc.includes('opus')) {
+            score -= 20.0;
+        }
     }
 
     // Language Scoring (Heavily penalize non-English dubbed versions for default pick)
     const nonEngKeywords = [
-        'french', 'truefrench', 'vf', 'vostfr', 'fr', 
-        'ita', 'italian', 'german', 'ger', 'deutsch', 
-        'spa', 'spanish', 'espanol', 'latino', 'hindi'
+        'french', 'truefrench', 'vf', 'vostfr', 'multi-vf',
+        'ita', 'italian',
+        'german', 'ger', 'deutsch',
+        'spa', 'espanol', 'latino', 'spanish',
+        'rus', 'russian', 'hindi', 'tamil', 'telugu', 'kannada', 'malayalam',
+        'por', 'portuguese', 'brazilian',
+        'pol', 'polish', 
+        'tur', 'turkish', 
+        'nld', 'dutch', 'flemish',
+        'cze', 'czech', 
+        'swe', 'swedish', 'dan', 'danish', 'fin', 'finnish', 'nor', 'norwegian',
+        'kor', 'korean', 'jpn', 'japanese', 'chi', 'chinese', 'zho', 'mandarin', 'cantonese',
+        'dubbed' // heavily penalize generic "dubbed" tags unless explicitly multi
     ];
-    
-    // Check for exact word matches to avoid false positives (e.g., "transformer" vs "fr")
-    const isExplicitlyNonEnglish = nonEngKeywords.some(keyword => {
-        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-        return regex.test(lc);
-    });
-
-    if (isExplicitlyNonEnglish) {
-        if (lc.includes('multi')) {
-            score -= 1.0; // Multi has English but might default to wrong track in browser
-        } else {
-            score -= 10.0; // Purely dubbed version — almost never desired as default
+    for (const kw of nonEngKeywords) {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        if (regex.test(lc) && !lc.includes('multi')) {
+            score -= 100;
         }
-    }
-
-    // Boost for Original Version / English keywords
-    if (lc.includes('english') || lc.includes('eng') || /\bvo\b/i.test(lc)) {
-        score += 0.5;
     }
 
     return score;
@@ -127,7 +141,7 @@ function qualityScore(q: string = '', name: string = ''): number {
 
 // ── File extraction ───────────────────────────────────────────────────────────
 // AllDebrid file structure: folders use "e" for entries, files have "l" (link) + "s" (size)
-function findBestFileUrl(files: any[], targetIdx: number | null = null): string | null {
+function findBestFileUrl(files: any[], targetIdx: number | null = null, season?: number, episode?: number): string | null {
     const flat: { name: string; size: number; url: string }[] = [];
 
     function flatten(items: any[]) {
@@ -140,20 +154,36 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null): string 
 
     flatten(files);
     if (!flat.length) return null;
+
+    // 1. If it's a TV show, try to find the specific episode file by name
+    if (season != null && episode != null) {
+        const sPad = String(season).padStart(2, '0');
+        const ePad = String(episode).padStart(2, '0');
+        
+        const patterns = [
+            new RegExp(`[sS]${sPad}[eE]${ePad}\\b`), // S01E02
+            new RegExp(`[sS]${season}[eE]${ePad}\\b`), // S1E02
+            new RegExp(`\\b${season}x${ePad}\\b`), // 1x02
+            new RegExp(`[eE]${ePad}\\b`), // E02
+            new RegExp(`\\b${ePad}\\b`) // 02
+        ];
+
+        for (const regex of patterns) {
+            const matches = flat.filter(f => regex.test(f.name) && /\.(mp4|mkv|m4v|avi)$/i.test(f.name));
+            if (matches.length === 1) return matches[0].url; // Perfect single match
+            if (matches.length > 1) {
+                // If multiple matches (e.g. sample files), pick the largest
+                matches.sort((a, b) => b.size - a.size);
+                return matches[0].url;
+            }
+        }
+    }
+
+    // 2. Fallback to Torrentio's targetIdx if provided
     if (targetIdx != null && flat[targetIdx]) return flat[targetIdx].url;
 
-    // Primary sort: Size (largest = main feature)
-    // Secondary tie-breaker: Browser-friendly formats (.mp4, .m4v)
-    flat.sort((a, b) => {
-        if (Math.abs(a.size - b.size) > 1024 * 1024) { // > 1MB difference
-            return b.size - a.size;
-        }
-        const isA_MP4 = /\.(mp4|m4v)$/i.test(a.name);
-        const isB_MP4 = /\.(mp4|m4v)$/i.test(b.name);
-        if (isA_MP4 && !isB_MP4) return -1;
-        if (!isA_MP4 && isB_MP4) return 1;
-        return b.size - a.size;
-    });
+    // 3. Absolute fallback: Largest video file
+    flat.sort((a, b) => b.size - a.size);
 
     return flat[0].url;
 }
@@ -198,7 +228,7 @@ export function useDebridStream() {
             const cached = readCache(ck);
             if (cached) {
                 console.log(`[DebridStream] 💾 Cache: ${cached.quality} | ${cached.url.substring(0, 60)}...`);
-                setState({ streamUrl: cached.url, name: cached.name, loading: false, error: null, seeders: cached.seeders, quality: cached.quality });
+                setState({ streamUrl: cached.url, name: cached.name, loading: false, error: null, seeders: cached.seeders, quality: cached.quality, subtitles: cached.subtitles || [] });
                 return JSON.stringify({ streamUrl: cached.url, name: cached.name, quality: cached.quality, seeders: cached.seeders });
             }
 
@@ -227,11 +257,11 @@ export function useDebridStream() {
             console.log(`[DebridStream] ${sorted.length} sources. Top: ${sorted.slice(0, 3).map(s => s.quality).join(', ')}`);
 
             // ── Steps 2–4: Cascade through sources until one is AllDebrid-cached ───
-            let finalUrl: string | null = null;
-            let winner: any            = null;
+            const alternatives: Array<{ url: string; name: string; quality: string; seeders: number }> = [];
 
             for (const candidate of sorted.slice(0, MAX_TRY)) {
                 if (signal.aborted) break;
+                if (alternatives.length >= 10) break;
 
                 try {
                     // 2a: Upload magnet (idempotent) — tells us if it's instant
@@ -258,7 +288,7 @@ export function useDebridStream() {
                     const fInfo = fData?.data?.magnets?.[0];
                     const fList = fInfo?.files ?? mInfo.files ?? [];
 
-                    const shortUrl = findBestFileUrl(fList, candidate.fileIdx ?? null);
+                    const shortUrl = findBestFileUrl(fList, candidate.fileIdx ?? null, type === 'tv' ? season : undefined, type === 'tv' ? episode : undefined);
                     if (!shortUrl) continue;
 
                     // 2c: Unlock short link → CDN URL
@@ -270,46 +300,56 @@ export function useDebridStream() {
                     const cdnUrl = uData?.data?.link;
                     if (!cdnUrl) continue;
 
-                    finalUrl = cdnUrl;
-                    winner   = candidate;
-                    
-                    // 5. Finalize state
+                    alternatives.push({
+                        url: cdnUrl,
+                        name: candidate.name,
+                        quality: candidate.quality || 'Auto',
+                        seeders: candidate.seeders || 0
+                    });
+
+                    // Update state progressively as we find them
                     setState(prev => ({
                         ...prev,
-                        streamUrl: cdnUrl,
-                        name: winner.name,
-                        quality: winner.quality,
-                        seeders: winner.seeders,
-                        loading: false
+                        streamUrl: alternatives[0].url,
+                        name: alternatives[0].name,
+                        quality: alternatives[0].quality,
+                        seeders: alternatives[0].seeders,
+                        loading: false,
+                        subtitles: subtitles || [],
+                        alternatives: [...alternatives]
                     }));
-                    break;
+
                 } catch (e: any) {
                     if (e.name === 'AbortError') throw e;
                     console.warn(`[DebridStream] Candidate failed: ${e.message}`);
                 }
             }
 
-            if (!finalUrl || !winner) throw new Error('None of the top sources are cached on AllDebrid');
+            if (alternatives.length === 0) throw new Error('None of the top sources are cached on AllDebrid');
 
-            console.log(`[DebridStream] ✅ ${winner.quality} | ${winner.seeders} seeders`);
+            const winner = alternatives[0];
+            console.log(`[DebridStream] ✅ Found ${alternatives.length} alternatives. Best: ${winner.quality}`);
 
             writeCache(ck, { 
-                url: finalUrl, 
+                url: winner.url, 
                 name: winner.name || '',
                 quality: winner.quality || 'auto', 
-                seeders: winner.seeders || 0 
+                seeders: winner.seeders || 0,
+                subtitles: subtitles || [],
+                alternatives: alternatives
             });
 
             setState({ 
-                streamUrl: finalUrl, 
+                streamUrl: winner.url, 
                 name: winner.name || null, 
                 loading: false, 
                 error: null, 
                 seeders: winner.seeders, 
                 quality: winner.quality || null,
-                subtitles: subtitles || []
+                subtitles: subtitles || [],
+                alternatives: alternatives
             });
-            return JSON.stringify({ streamUrl: finalUrl, quality: winner.quality, seeders: winner.seeders });
+            return JSON.stringify({ streamUrl: winner.url, quality: winner.quality, seeders: winner.seeders, alternatives });
 
         } catch (err: any) {
             if (err.name === 'AbortError') return null;

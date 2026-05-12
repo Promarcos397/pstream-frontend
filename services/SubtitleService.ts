@@ -111,9 +111,8 @@ export const SubtitleService = {
                 (parseInt(b.SubDownloadsCnt) || 0) - (parseInt(a.SubDownloadsCnt) || 0)
             );
 
-            const seenLangs = new Set<string>();
+            const langCounts: Record<string, number> = {};
             const tracks: SubtitleTrack[] = [];
-            let englishCount = 0;
 
             for (const sub of sorted) {
                 if (!sub.SubDownloadLink) continue;
@@ -121,21 +120,19 @@ export const SubtitleService = {
                     .replace('.gz', '')
                     .replace('download/', 'download/subencoding-utf8/');
                 const lang = labelToLangCode(sub.LanguageName || '');
-                const label = LANG_LABELS[lang] || sub.LanguageName || lang.toUpperCase();
+                let label = LANG_LABELS[lang] || sub.LanguageName || lang.toUpperCase();
 
-                // Allow up to 5 English tracks as requested for selection logic
-                if (lang === 'en') {
-                    if (englishCount < 5) {
-                        englishCount++;
-                        tracks.push({ url, lang, label });
+                langCounts[lang] = (langCounts[lang] || 0) + 1;
+
+                // Allow up to 5 tracks per language to provide more options without clutter
+                if (langCounts[lang] <= 5) {
+                    if (langCounts[lang] > 1) {
+                        label = `${label} (${langCounts[lang]})`;
                     }
-                } else if (!seenLangs.has(lang)) {
-                    // One best track for all other languages
-                    seenLangs.add(lang);
                     tracks.push({ url, lang, label });
                 }
                 
-                if (tracks.length >= 20) break; // Increased cap slightly 
+                if (tracks.length >= 50) break; // Relaxed total cap to 50
             }
 
             return tracks;

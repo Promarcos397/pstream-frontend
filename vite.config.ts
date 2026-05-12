@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
+// Required headers for SharedArrayBuffer (used by ffmpeg.wasm)
+// credentialless: enables crossOriginIsolated (SharedArrayBuffer) while still
+// allowing cross-origin resources (TMDB images, YouTube, Debrid video) to load.
+const coopCoepHeaders = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'credentialless',
+};
+
 export default defineConfig({
   plugins: [
     react(),
@@ -29,9 +37,16 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    headers: coopCoepHeaders,
+  },
+  preview: {
+    headers: coopCoepHeaders,
   },
   build: {
     outDir: 'dist',
     sourcemap: true,
+  },
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
   },
 });
