@@ -61,6 +61,7 @@ interface SearchOptions {
     year?: string;
     company?: string;
     type?: 'movie' | 'tv';
+    isAnime?: boolean;
 }
 
 // Full candidate with metadata — needed for local scoring
@@ -68,6 +69,7 @@ interface YTCandidate {
     videoId: string;
     title: string;
     channelTitle: string;
+    duration?: number;
 }
 
 // ─── Key Rotation ─────────────────────────────────────────────────────────────
@@ -143,6 +145,7 @@ const BANLIST_PATTERNS = [
     /\banalysis\b/i,
     /\bclip\b/i,             // Clips are not trailers
     /\bshort\s+film\b/i,
+    /\brotten\s+tomatoes\b/i,
 ];
 
 function normalizeText(s: string): string {
@@ -159,6 +162,7 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     const c = normalizeText(candidate.channelTitle);
     const isTv = options.type === 'tv';
     const isMovie = options.type === 'movie';
+    const isAnime = !!options.isAnime;
 
     let score = 0;
 
@@ -188,27 +192,99 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
         if (/\bmovie\b|\bfilm\b/.test(t)) score += 20;
         if (/\bseason\b|\bepisode\b|\btv\b|\bseries\b/.test(t)) score -= 40;
     }
+    if (isAnime) {
+        if (/\banime\b/.test(t)) score += 50;
+        if (/\bfull\s+episode\b|\bfull\s+episodes\b|full\s+anime\b|full\s+movie\b|full\s+anime\s+movie|\blive\s+action\b/.test(t)) score -= 100;
+    }
 
     // ── Trailer quality signals ──────────────────────────────────────────────
-    
-    if (/\btrailer\b/.test(t)) score += 18;
-    if (/\bteaser\b/.test(t)) score += 25;
-    if (/\bofficial\b/i.test(t)) score += 10;
-    
+
+    if (/\btrailer\b/.test(t)) score += 45;
+    if (/\bteaser\b/.test(t)) score += 85;
+    if (/\bofficial\b/i.test(t)) score += 45;
+
     // After your trailer quality signals block
-    if (!/\btrailer\b|\bteaser\b/i.test(t)) score -= 30; 
+    if (!/\btrailer\b|\bteaser\b/i.test(t)) score -= 30;
 
     // Quality/resolution keywords are secondary to relevance
-    if (/\b4k\b/.test(t)) score += 45;
-    if (/\bhdr\b/.test(t)) score += 15;
-    if (/\bhd\b/.test(t)) score += 10;
-    if (/\bimax\b/.test(t)) score += 10;
-    if (/\bblu[\s-]?ray\b/.test(t)) score += 10;
-    if (/\b(hbo|max|hulu|apple|prime|disney|Crunchyroll|BBC|Paramount|Rotten\s*Tomatoes)\b/i.test(t)) score += 25;
+    if (/\b4k\b/.test(t)) score += 120;
+    if (/\bhdr\b/.test(t)) score += 25;
+    if (/\bhd\b/.test(t)) score += 25;
     if (t.length > 50 && q.length > 10) score += 5; // avoid very short titles
-    
-    // Year boost: Exact match or one year before (trailers often release the year prior)
-    
+
+    // ── Regional & Annoying Content Penalties (Smart Ban) ──────────────────
+
+    // 1. Regional / Localized Versions — title-level ban
+    //    Any of these keywords in the title strongly signals a non-English dub/sub version
+    if (/\b(India|Indian|Hindi|Tamil|Telugu|Malayalam|Kannada|Bengali|Punjabi|Marathi|Gujarati|Bhojpuri|Urdu|Pakistan|Pakistani|Bangladesh|Sri\s*Lanka|Nepal|Nepali)\b/i.test(t) ||
+        /\b(Brazil|Brasil|Brazilian|Brasileira|Português|Portuguese|Portugal)\b/i.test(t) ||
+        /\b(Español|Spanish|Espanol|Castellano|Latino|Latin\s*America|Mexico|México|Argentina|Chile|Colombia|Venezuela|Peru)\b/i.test(t) ||
+        /\b(Français|French|France|Québec|Quebec|VOSTFR|VF\b)\b/i.test(t) ||
+        /\b(Deutsch|German|Germany|Österreich|Austria|Schweiz|Switzerland)\b/i.test(t) ||
+        /\b(Italiano|Italian|Italy|Italia)\b/i.test(t) ||
+        /\b(Türk|Turkish|Turkey|Türkiye)\b/i.test(t) ||
+        /\b(Русский|Russian|Russia|Россия)\b/i.test(t) ||
+        /\b(Arabic|العربية|Arab|Kuwait|Saudi|UAE|Egypt|Mısır)\b/i.test(t) ||
+        /\b(Korean|한국어|Korea|Kore)\b/i.test(t) ||
+        /\b(Thai|Thailand|ภาษาไทย)\b/i.test(t) ||
+        /\b(Vietnamese|Vietnam|Việt)\b/i.test(t) ||
+        /\b(Indonesian|Bahasa|Indonesia)\b/i.test(t) ||
+        /\b(Malay|Malaysia|Melayu)\b/i.test(t) ||
+        /\b(Filipino|Philippines|Tagalog)\b/i.test(t) ||
+        /\b(Polish|Polski|Poland|Polska)\b/i.test(t) ||
+        /\b(Dutch|Nederlands|Holland)\b/i.test(t) ||
+        /\b(Swedish|Svenska|Sweden)\b/i.test(t) ||
+        /\b(Romanian|Română|Romania)\b/i.test(t) ||
+        /\b(Czech|Česky|Čeština)\b/i.test(t) ||
+        /\b(Hungarian|Magyar|Hungary)\b/i.test(t) ||
+        /\b(Greek|Ελληνικά|Greece)\b/i.test(t) ||
+        /\b(Rotten Tomatoes|rotton|tomatoes)\b/i.test(t) ||
+        /\b(Dubbed|Dub\b|Subbed|Sub\b|Subtitulado|Legendado|Dublado|Altyazı|Subtitrare)\b/i.test(t)
+    ) {
+        score -= 150;
+    }
+
+    // 1b. Channel-name regional ban — catches localized channels with clean-looking titles
+    if (/\b(India|Indian|Bollywood|Hindi|Tamil|Telugu|Malayalam|Kannada|Bengali|Punjabi|Bhojpuri|Desi)\b/i.test(c) ||
+        /\b(Brazil|Brasil|Brasileiro|Brasileira|Português|Lusofon)\b/i.test(c) ||
+        /\b(Español|Latino|Latinoamerica|Mexico|México|Argentina|Colombia|Chile)\b/i.test(c) ||
+        /\b(Français|French|France)\b/i.test(c) ||
+        /\b(Deutsch|German|Germany)\b/i.test(c) ||
+        /\b(Türk|Turkish|Turkey)\b/i.test(c) ||
+        /\b(Arab|Arabic|Saudi|Kuwait|Egyptian)\b/i.test(c) ||
+        /\b(Korean|한국|Korea)\b/i.test(c) ||
+        /\b(Thai|Thailand)\b/i.test(c) ||
+        /\b(Vietnam|Viet|Việt)\b/i.test(c) ||
+        /\b(Indonesia|Bahasa|Melayu|Malaysia)\b/i.test(c) ||
+        /\b(Filipino|Pinoy|Philippines)\b/i.test(c) ||
+        /\b(Russian|Россия|Русский)\b/i.test(c) ||
+        /\b(Polish|Polska)\b/i.test(c) ||
+        /\b(Dubbed|Dub|Dubbing|Subbed)\b/i.test(c) ||
+        /\b(Rotten Tomatoes|rotton|tomatoes)\b/i.test(c)
+    ) {
+        score -= 150;
+    }
+
+    // 2. Meta-Content & Analysis (Not the actual trailer)
+    if (/\b(Reaction|Review|Breakdown|Explained|Ending\s*Explained|Hidden\s*Details|Easter\s*Eggs|Theory|Analysis|Discussion)\b/i.test(t)) {
+        score -= 200;
+    }
+
+    // 3. Alternative Media & Snippets
+    if (/\b(Song|Music\s*Video|Soundtrack|OST|Lyrics|Karaoke|Full\s*Movie|Full\s*Episode|Clip|Scene|Gameplay|Game|Walkthrough|Playthrough)\b/i.test(t)) {
+        score -= 120;
+    }
+
+    // 4. Fake / Fan / Concept Content & Vertical "Shorts"
+    if (/\b(Fan\s*Made|Concept|Edit|Fake|Parody|Spoof|Re-cut|Pitch|#Shorts|Shorts|TikTok|Reels|Vertical|Portrait)\b/i.test(t)) {
+        score -= 250;
+    }
+
+    // 5. Streaming companies
+    if (/\b(hbo|max|hulu|apple|prime|disney|Crunchyroll|BBC|Paramount|Netflix|WB|Sony|Universal|Fox|MGM|Lionsgate|Miramax)\b/i.test(t)) score += 5;
+
+    // 6. Year boost: Exact match or one year before (trailers often release the year prior)
+
     if (options.year) {
         const targetYear = parseInt(options.year);
         if (!isNaN(targetYear)) {
@@ -230,6 +306,11 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
 
     // No-metadata candidates (backend fallback) can't be scored — push them last
     if (!candidate.title && !candidate.channelTitle) score -= 100;
+
+    // Penalize long videos (usually full movies/scams, not trailers)
+    if (candidate.duration && candidate.duration > 400) {
+        score -= 200;
+    }
 
     return score;
 }

@@ -4,11 +4,13 @@ import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
 // Required headers for SharedArrayBuffer (used by ffmpeg.wasm)
-// credentialless: enables crossOriginIsolated (SharedArrayBuffer) while still
-// allowing cross-origin resources (TMDB images, YouTube, Debrid video) to load.
+// WARNING: Enabling COEP (even 'credentialless') will block third-party iframes 
+// like YouTube unless they are explicitly marked with the `credentialless` attribute.
+// Since the YouTube IFrame API creates the iframe dynamically, it gets blocked.
+// We disable these headers so YouTube works on localhost.
 const coopCoepHeaders = {
-  'Cross-Origin-Opener-Policy': 'same-origin',
-  'Cross-Origin-Embedder-Policy': 'credentialless',
+  // 'Cross-Origin-Opener-Policy': 'same-origin',
+  // 'Cross-Origin-Embedder-Policy': 'credentialless',
 };
 
 export default defineConfig({

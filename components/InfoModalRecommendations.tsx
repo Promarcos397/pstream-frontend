@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PlusIcon, CheckIcon, PlayIcon } from '@phosphor-icons/react';
+import { PlusIcon, CheckIcon, PlayIcon, CaretDownIcon, CaretUpIcon } from '@phosphor-icons/react';
 import { Movie } from '../types';
 import { getMovieImages } from '../services/api';
 import { MaturityBadge } from './MovieCardBadges';
@@ -29,14 +28,7 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
     const year = (rec.release_date || rec.first_air_date)?.substring(0, 4) || '';
     const title = rec.title || rec.name || '';
 
-    // Duration / seasons badge (top-right of image)
-    const durationBadge = rec.number_of_seasons
-        ? `${rec.number_of_seasons} Season${rec.number_of_seasons > 1 ? 's' : ''}`
-        : rec.runtime
-        ? `${Math.floor(rec.runtime / 60)}h ${rec.runtime % 60 > 0 ? ` ${rec.runtime % 60}m` : ''}`
-        : mediaType === 'tv' ? 'Series' : '';
-
-    // Fetch title logo — same API endpoint as MovieCard
+    // Fetch title logo
     useEffect(() => {
         let cancelled = false;
         setLogoPath(null);
@@ -48,7 +40,6 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
                 const logo = images?.logos?.find(
                     (l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null
                 );
-                // w500 for logo — same as MovieCard LOGO_SIZE
                 setLogoPath(logo ? `${TMDB_IMG}/w500${logo.file_path}` : '');
             })
             .catch(() => { if (!cancelled) setLogoPath(''); })
@@ -72,8 +63,6 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
     const hasLogo = !logoLoading && logoPath && !logoFailed;
     const noLogo  = !logoLoading && (!logoPath || logoFailed);
 
-    // Dynamic logo height: same logic as MovieCard
-    // square/tall logos → smaller height, wide logos → taller
     const logoHeight = logoDim.isSquare ? 'max-h-10' : 'max-h-14';
 
     return (
@@ -88,31 +77,24 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
                     <img
                         src={backdrop}
                         alt={title}
-                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-300"
+                        // NO zoom animation, just a clean brightness lift on hover
+                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
                         loading="lazy"
                     />
                 ) : (
                     <div className="w-full h-full bg-[#222]" />
                 )}
 
-                {/* Gradient for logo readability */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-transparent pointer-events-none" />
+                {/* NO gradient overlay — clean image */}
 
-                {/* Play icon overlay on hover */}
+                {/* Play icon overlay on hover — clean, no backdrop-blur */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                        <PlayIcon size={22} weight="fill" className="text-white ml-0.5" />
+                    <div className="w-11 h-11 rounded-full bg-black/50 border border-white/50 flex items-center justify-center">
+                        <PlayIcon size={20} weight="fill" className="text-white ml-0.5" />
                     </div>
                 </div>
 
-                {/* Top-right: duration / seasons badge */}
-                {durationBadge && (
-                    <div className="absolute top-2 right-2 text-white text-[11px] font-semibold drop-shadow-md bg-black/55 px-1.5 py-0.5 rounded-[2px]">
-                        {durationBadge}
-                    </div>
-                )}
-
-                {/* Bottom-left: adaptive title logo (same as MovieCard) */}
+                {/* Bottom-left: adaptive title logo */}
                 <div className="absolute bottom-2 left-2 right-2 max-w-[78%]">
                     {logoLoading && (
                         <div className="h-9 w-20 rounded bg-white/10 animate-pulse" />
@@ -139,20 +121,24 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
                 className="p-3 cursor-pointer hover:bg-[#3a3a3a] transition-colors duration-150"
                 onClick={() => onOpenModal(rec)}
             >
-                <div className="flex items-center justify-between gap-2 mb-2">
+                {/* Metadata row — wider tags, consistent with InfoModal */}
+                <div className="flex items-center justify-between gap-2 mb-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
                         <MaturityBadge adult={rec.adult} voteAverage={rec.vote_average} size="sm" />
-                        <span className="border border-gray-500 px-1 py-px text-[9px] rounded-[2px] text-gray-400 font-bold leading-none">
+                        {/* HD tag — matches InfoModal's badge style */}
+                        <span className="border border-gray-400 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-300 h-fit leading-none font-extrabold">
                             HD
                         </span>
-                        {year && <span className="text-gray-400 text-xs font-medium">{year}</span>}
+                        {year && (
+                            <span className="text-gray-300 text-xs font-medium px-0.5">{year}</span>
+                        )}
                     </div>
 
-                    {/* +List button */}
+                    {/* +/- List button — matches InfoModal's button size */}
                     <button
                         onClick={(e) => { e.stopPropagation(); toggleList(rec); }}
                         title={isAdded ? 'Remove from My List' : 'Add to My List'}
-                        className={`shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center
+                        className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center
                             transition-all duration-150 hover:scale-110 active:scale-95
                             ${isAdded
                                 ? 'border-white bg-white/10 text-white'
@@ -160,14 +146,14 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
                             }`}
                     >
                         {isAdded
-                            ? <CheckIcon size={13} weight="bold" />
-                            : <PlusIcon  size={13} weight="bold" />
+                            ? <CheckIcon size={14} weight="bold" />
+                            : <PlusIcon  size={14} weight="bold" />
                         }
                     </button>
                 </div>
 
-                {/* Overview — taller, more lines */}
-                <p className="text-[#bbb] text-[12px] leading-relaxed line-clamp-5 min-h-[72px]">
+                {/* Overview — white/80, readable */}
+                <p className="text-white/80 text-[12px] leading-relaxed line-clamp-5 min-h-[72px]">
                     {rec.overview || 'No description available.'}
                 </p>
             </div>
@@ -183,7 +169,7 @@ interface InfoModalRecommendationsProps {
     onPlay: (rec: Movie) => void;
 }
 
-const INITIAL_SHOW = 9; // 3 rows of 3
+const BATCH_REC = 9; // 3 rows of 3
 
 const InfoModalRecommendations: React.FC<InfoModalRecommendationsProps> = ({
     recommendations,
@@ -191,11 +177,13 @@ const InfoModalRecommendations: React.FC<InfoModalRecommendationsProps> = ({
     onPlay,
 }) => {
     const { t } = useTranslation();
-    const [showAll, setShowAll] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(BATCH_REC);
 
     if (!recommendations?.length) return null;
 
-    const visible = showAll ? recommendations : recommendations.slice(0, INITIAL_SHOW);
+    const visible = recommendations.slice(0, visibleCount);
+    const hasMore = visibleCount < recommendations.length;
+    const remaining = recommendations.length - visibleCount;
 
     return (
         <div className="mt-10">
@@ -213,14 +201,24 @@ const InfoModalRecommendations: React.FC<InfoModalRecommendationsProps> = ({
                 ))}
             </div>
 
-            {/* View More / View Less */}
-            {recommendations.length > INITIAL_SHOW && (
-                <div className="flex justify-center mt-6">
+            {/* Circular chevron toggle — load more / collapse */}
+            {(hasMore || visibleCount > BATCH_REC) && (
+                <div className="flex justify-center mt-5">
                     <button
-                        onClick={() => setShowAll(v => !v)}
-                        className="px-6 py-2 border border-white/30 text-white/70 text-sm rounded hover:border-white hover:text-white transition-colors"
+                        onClick={() => {
+                            if (hasMore) {
+                                setVisibleCount(c => c + BATCH_REC);
+                            } else {
+                                setVisibleCount(BATCH_REC);
+                            }
+                        }}
+                        title={hasMore ? 'Show more' : 'Show less'}
+                        className="w-10 h-10 rounded-full border border-white/20 bg-[#2a2a2a] hover:border-white/50 hover:bg-[#3a3a3a] flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 group/btn"
                     >
-                        {showAll ? 'Show Less' : `View More (${recommendations.length - INITIAL_SHOW} more)`}
+                        {hasMore
+                            ? <CaretDownIcon size={18} className="text-white/60 group-hover/btn:text-white transition-colors" />
+                            : <CaretUpIcon   size={18} className="text-white/60 group-hover/btn:text-white transition-colors" />
+                        }
                     </button>
                 </div>
             )}

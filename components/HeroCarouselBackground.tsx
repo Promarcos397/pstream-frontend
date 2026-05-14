@@ -6,9 +6,11 @@ import { TrailerPlayer } from './TrailerPlayer';
 interface HeroCarouselBackgroundProps {
     movie: Movie;
     showVideo: boolean;
+    isActuallyPlaying?: boolean;
     replayCount?: number;
     showBackdropOverlay?: boolean;
     onReady?: () => void;
+    onPlay?: () => void;
     onEnded?: () => void;
     onErrored?: () => void;
 }
@@ -16,13 +18,17 @@ interface HeroCarouselBackgroundProps {
 const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     movie,
     showVideo,
+    isActuallyPlaying = false,
     replayCount = 0,
     showBackdropOverlay = false,
     onReady,
+    onPlay,
     onEnded,
     onErrored
 }) => {
-    const isPlayingTrailer = showVideo && !showBackdropOverlay;
+    // Only fade out the backdrop and fade in the video once it's ACTUALLY playing frames.
+    // This eliminates the 1-2s black screen delay.
+    const isPlayingTrailer = showVideo && isActuallyPlaying && !showBackdropOverlay;
 
     return (
         <>
@@ -46,6 +52,7 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                         movie={movie} 
                         variant="hero"
                         onReady={onReady}
+                        onPlay={onPlay}
                         onEnded={onEnded}
                         onErrored={onErrored}
                     />

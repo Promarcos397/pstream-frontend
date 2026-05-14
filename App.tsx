@@ -26,6 +26,7 @@ import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import BrowseGridPage from './pages/BrowseGridPage';
 import GhostPage from './pages/GhostPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { Navigate } from 'react-router-dom';
 
 const App: React.FC = () => {
@@ -245,6 +246,7 @@ const App: React.FC = () => {
     return (
       <Routes>
         <Route path="/watch/:type/:id" element={<WatchPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     );
   }
@@ -271,6 +273,7 @@ const App: React.FC = () => {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/settings/*" element={<SettingsPage />} />
         <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </div>
   );

@@ -1,32 +1,19 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES, LOGO_SIZE } from '../constants';
-import { getMovieImages, prefetchStream, getExternalIds, getMovieDetails } from '../services/api';
+import { getMovieImages } from '../services/api';
 import { Movie } from '../types';
 import { TrailerPlayer } from './TrailerPlayer';
 import {MaturityBadge, BadgeOverlay, HoverProgressBar, getWatchData} from './MovieCardBadges';
+import { searchTrailerWithMeta } from '../services/YouTubeService';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
-// Replaces the old load-time IS_TOUCH_DEVICE sniff.
-//
-// Instead of asking "does this device have a touchscreen?" at startup (which
-// permanently breaks iPad+mouse, Surface, etc.), we watch the actual pointer
-// events the browser fires and update live:
-//
-//   phone / tablet finger   → touchstart fires  → prefersHover = false
-//   desktop / laptop mouse  → pointermove fires  → prefersHover = true
-//   iPad + Magic Mouse      → pointermove fires  → prefersHover = true (switches mid-session)
-//   Surface pen → finger    → touchstart fires   → prefersHover = false (switches back)
-//
-// One module-level listener drives all mounted cards via a subscriber set,
-// so there is exactly one pointermove listener on the page regardless of how
-// many cards are rendered.
 type _PHListener = (v: boolean) => void;
 const _phSubs = new Set<_PHListener>();
 let _prefersHover = false;
@@ -36,11 +23,9 @@ if (typeof window !== 'undefined') {
     const next = e.pointerType === 'mouse';
     if (next !== _prefersHover) { _prefersHover = next; _phSubs.forEach(f => f(next)); }
   }, { passive: true });
-  // mousedown catches the first click before any pointermove has fired
   window.addEventListener('mousedown', () => {
     if (!_prefersHover) { _prefersHover = true; _phSubs.forEach(f => f(true)); }
   }, { passive: true });
-  // touchstart immediately disables hover so the browser owns the gesture fully
   window.addEventListener('touchstart', () => {
     if (_prefersHover) { _prefersHover = false; _phSubs.forEach(f => f(false)); }
   }, { passive: true });
@@ -49,7 +34,7 @@ if (typeof window !== 'undefined') {
 function usePrefersHover(): boolean {
   const [val, setVal] = useState(_prefersHover);
   useEffect(() => {
-    setVal(_prefersHover); // sync in case it changed between render and mount
+    setVal(_prefersHover);
     _phSubs.add(setVal);
     return () => { _phSubs.delete(setVal); };
   }, []);
@@ -57,9 +42,6 @@ function usePrefersHover(): boolean {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Module-level registry — only ONE popup open at a time.
-// When card B's 300ms timer fires, it calls this to immediately close card A.
-let activePopupClose: (() => void) | null = null;
 
 
 interface MovieCardProps {
@@ -125,39 +107,33 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     myList, toggleList, rateMovie, getMovieRating, getVideoState,
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
+    activePopupId, setActivePopupId,
     globalMute, setGlobalMute, clearVideoState
   } = useGlobalContext();
   const [isHovered, setIsHovered] = useState(false);
-  const [isPrimed, setIsPrimed] = useState(false); // Immediate visual feedback
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const isCinemaOnly = useIsInTheaters(movie);
   const [replayCount, setReplayCount] = useState(0);
   const [isHoverVideoReady, setIsHoverVideoReady] = useState(false);
+  const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
   const [hasVideoEnded, setHasVideoEnded] = useState(false);
   const [logoFaded, setLogoFaded] = useState(false);
 
   useEffect(() => {
-    if (isHoverVideoReady && !hasVideoEnded) {
+    if (isActuallyPlaying && !hasVideoEnded) {
       const t = setTimeout(() => setLogoFaded(true), 3500);
       return () => clearTimeout(t);
     } else {
       setLogoFaded(false);
     }
-  }, [isHoverVideoReady, hasVideoEnded]);
+  }, [isActuallyPlaying, hasVideoEnded]);
 
-  // Touch scroll detection via native (passive) listeners added in useEffect.
-  // Native passive listeners never block scrolling — React synthetic onTouchStart
-  // can delay scroll commit even when marked passive, so we avoid it entirely.
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const touchDidScroll = useRef(false);
   const SCROLL_THRESHOLD = 8;
 
-  // Bi-directional sync is now handled natively by TrailerPlayer.
-
-  // 'center' | 'left' | 'right' - determines expansion direction
   const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
-  // Captured card rect at the moment hover fires — used for fixed popup positioning
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
 
   const isAdded = myList.find(m => m.id === movie.id);
@@ -165,12 +141,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const leaveTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // --- Dynamic Badge Logic (strict thresholds to reduce clutter) ---
   const getBadgeInfo = () => {
     const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
     const movieIdNum = Number(movie.id);
 
-    // Sync with New & Popular Top 10 Lists
     if (isTV && top10TV?.includes(movieIdNum)) {
       return { text: 'Top 10', type: 'top' };
     }
@@ -181,18 +155,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     const dateStr = movie.release_date || movie.first_air_date;
     const now = new Date();
 
-    // Check release recency
     if (dateStr) {
       const releaseDate = new Date(dateStr);
       const diffTime = releaseDate.getTime() - now.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      // Coming soon (within next 30 days)
       if (diffDays > 0 && diffDays <= 30) {
         return { text: 'Coming Soon', type: 'upcoming' };
       }
 
-      // Recently added (within last 45 days)
       if (diffDays >= -45 && diffDays <= 0) {
         return {
           text: isTV ? 'New Episodes' : 'Recently Added',
@@ -208,7 +179,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   const [isVisible, setIsVisible] = useState(false);
 
-  // Intersection Observer for Lazy Logo Fetching
   useEffect(() => {
     if (!cardRef.current) return;
     const observer = new IntersectionObserver((entries) => {
@@ -221,7 +191,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     return () => observer.disconnect();
   }, []);
 
-  // Adaptive Logo Engine
   const [logoDim, setLogoDim] = useState<{ ratio: number; isSquare: boolean }>({ ratio: 1.5, isSquare: false });
   const handleLogoLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth, naturalHeight } = e.currentTarget;
@@ -229,7 +198,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     setLogoDim({ ratio, isSquare: ratio < 1.35 });
   };
 
-  // Fetch Logo only when visible
   useEffect(() => {
     if (!isVisible) return;
     let isMounted = true;
@@ -253,20 +221,38 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     return () => { isMounted = false; };
   }, [isVisible, movie.id, movie.media_type, movie.title]);
 
-  // Collapse popup immediately when page scrolls (popup is fixed, card moves)
+  useEffect(() => {
+    const myId = `card-${movie.id}`;
+    if (activePopupId && activePopupId !== myId && isHovered) {
+      setIsHovered(false);
+      setHoveredRect(null);
+      setIsHoverVideoReady(false);
+    }
+  }, [activePopupId, movie.id, isHovered]);
+
+  useEffect(() => {
+    const myId = `card-${movie.id}`;
+    if (activeVideoId && activeVideoId !== myId && isHovered && activeVideoId.indexOf('modal') === -1) {
+      setIsHovered(false);
+      setHoveredRect(null);
+    }
+  }, [activeVideoId, movie.id, isHovered]);
+
   useEffect(() => {
     if (!isHovered) return;
     const collapse = () => {
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
       setIsHovered(false);
       setHoveredRect(null);
       setIsHoverVideoReady(false);
-      activePopupClose = null;
+      setIsActuallyPlaying(false);
+      const myId = `card-${movie.id}`;
+      if (activePopupId === myId) setActivePopupId(null);
+      if (activeVideoId === myId) setActiveVideoId(null);
     };
     window.addEventListener('scroll', collapse, { passive: true });
-    // Alt-tab / app-switch: collapse immediately when window loses focus
     window.addEventListener('blur', collapse);
-    // Tab visibility: collapse if tab goes hidden
     const onVisibility = () => { if (document.visibilityState === 'hidden') collapse(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
@@ -276,9 +262,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     };
   }, [isHovered]);
 
-  // Native passive touch listeners for scroll-vs-tap detection.
-  // Registered via useEffect so they are guaranteed passive — the browser
-  // never waits on them before committing a scroll gesture.
   useEffect(() => {
     const el = cardRef.current;
     if (!el) return;
@@ -301,17 +284,20 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   }, []);
 
 
-  // Prefetch stream on hover — pointer events only, never on touch
-  // Replaced with onPointerEnter for precise pointer-type detection
+  // ─── TWO-STAGE HOVER PIPELINE ─────────────────────────────────────────────
+  // Stage 1 (PRIME): At ~300ms we pre-fetch the trailer so the YouTube API
+  // search is already warm by the time the popup appears.
+  // Stage 2 (SHOW): At ~800ms the popup appears and TrailerPlayer mounts
+  // with videoId already known — playback starts almost instantly.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const PRIME_DELAY = 300;      // ms: start warming the trailer cache
+  const SHOW_DELAY = 800;       // ms: reveal popup (must be > PRIME_DELAY)
+
   const handlePointerEnter = (e: React.PointerEvent) => {
-    // Only process when the user is genuinely on mouse/trackpad input
     if (!prefersHover) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
 
-    const dateStr = movie.release_date || movie.first_air_date;
-    const yearString = dateStr ? dateStr.split('-')[0] : '';
-
-    // Determine screen position for smart popup alignment
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
       const EDGE_BUFFER = 160;
@@ -320,68 +306,86 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       else if (window.innerWidth - rect.right < EDGE_BUFFER) currentPos = 'right';
       setHoverPosition(currentPos);
     }
-
-    const year = yearString ? parseInt(yearString) : undefined;
-    const mediaType = (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv';
     
-    // Prefetch disabled on hover to prevent aggressive background requests
-    // if (year) {
-    //   prefetchStream(movie.title || movie.name || '', year, String(movie.id), mediaType, 1, 1);
-    // }
-
-    // Cancel any in-flight leave timer so fast re-enters don't flicker
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
-    // 260ms intent delay — slightly more forgiving than 200ms to filter fast pass-throughs
-    timerRef.current = setTimeout(() => {
-      // Velocity guard: if pointer moved quickly (> 1.8 px/ms avg) since enter,
-      // the user is likely sweeping across cards, not deliberately hovering.
-      // We skip the popup and let the next slow hover trigger it instead.
+    const anotherCardIsActive = activeVideoId && 
+        activeVideoId.startsWith('card-') && 
+        activeVideoId !== `card-${movie.id}`;
+
+    // ── STAGE 1: PRIME ─────────────────────────────────────────────────────
+    // If another card is playing, the user is actively browsing — we can
+    // afford to prime even faster because they're clearly in "trailer mode".
+    const primeDelay = anotherCardIsActive ? 80 : PRIME_DELAY;
+    const primeTimer = setTimeout(() => {
+      // Warm the trailer cache in the background. This calls YouTubeService
+      // which caches the result globally. When TrailerPlayer mounts at SHOW
+      // time, useTrailer will hit the cache instantly.
+      const title = movie.original_title || movie.original_name || movie.title || movie.name || '';
+      const year = (movie.release_date || movie.first_air_date || '').slice(0, 4);
+      const type = movie.media_type || (movie.title ? 'movie' : 'tv');
+      const isAnimation = movie.genre_ids?.includes(16) || movie.genres?.some(g => g.id === 16);
+      const isAnime = isAnimation && movie.original_language === 'ja';
+      
+      if (title) {
+        searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime })
+          .then(result => {
+            if (result) {
+              // Proactively cache so useTrailer sees it immediately
+              updateVideoState(movie.id, 0, result.videoId);
+            }
+          })
+          .catch(() => { /* silent — TrailerPlayer will retry if needed */ });
+      }
+    }, primeDelay);
+
+    // ── STAGE 2: SHOW ──────────────────────────────────────────────────────
+    const showDelay = anotherCardIsActive ? 180 : SHOW_DELAY;
+    const showTimer = setTimeout(() => {
       const rect = cardRef.current?.getBoundingClientRect();
       if (!rect) return;
       const dx = e.clientX - rect.left - rect.width / 2;
       const dy = e.clientY - rect.top - rect.height / 2;
-      // If cursor entered from far outside center, it's a fast sweep — bail
       if (Math.sqrt(dx * dx + dy * dy) > rect.width * 0.7) return;
 
-      // Close any other currently-open popup first (one-at-a-time guarantee)
-      if (activePopupClose) {
-        activePopupClose();
-        activePopupClose = null;
-      }
       setHoveredRect(rect);
       setIsHovered(true);
-      setActiveVideoId(`card-${movie.id}`);
-      // Register this card's teardown so another card can close us
-      activePopupClose = () => {
-        setIsHovered(false);
-        setHoveredRect(null);
-        setIsHoverVideoReady(false);
-      };
-      // Removed prefetchStream here to prevent aggressive backend calls on hover
-    }, 500);
+      const myId = `card-${movie.id}`;
+      setActivePopupId(myId);
+      setActiveVideoId(myId);
+    }, showDelay);
+
+    // Store both timers so we can cancel either on leave
+    timerRef.current = { primeTimer, showTimer, clear: () => {
+      clearTimeout(primeTimer);
+      clearTimeout(showTimer);
+    }};
   };
 
-  // handlePointerMove intentionally removed — no zone restriction needed.
-  // Leave event handles all collapse logic.
-
   const handlePointerLeave = () => {
-    // Cancel the enter timer immediately — no popup if user just grazed the card
     if (timerRef.current) {
-      clearTimeout(timerRef.current);
+      // Cancel both PRIME and SHOW timers
+      timerRef.current.clear();
       timerRef.current = null;
     }
 
-    // Deregister from global singleton if we were the active popup
-    activePopupClose = null;
-
+    // Hide popup immediately for visual cleanliness
     setIsHovered(false);
     setHoveredRect(null);
-    setActiveVideoId(prev => prev === `card-${movie.id}` ? null : prev);
     setIsHoverVideoReady(false);
+    setIsActuallyPlaying(false);
+
+    // Grace period before killing audio — allows seamless handoff to another
+    // card if the user is moving directly from one card to another.
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = setTimeout(() => {
+        const myId = `card-${movie.id}`;
+        if (activePopupId === myId) setActivePopupId(null);
+        if (activeVideoId === myId) setActiveVideoId(null);
+    }, 200);
   };
 
   const getGenreNames = () => {
@@ -389,13 +393,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     return movie.genre_ids.map(id => t(`genres.${id}`, { defaultValue: GENRES[id] })).filter(Boolean).slice(0, 3);
   };
 
-  // Computes position:fixed coordinates for the popup.
-  // position:fixed bypasses ALL parent overflow clipping (overflow-x:scroll, etc.)
-  // so no py-52 hack is needed on the Row strip.
   const getPopupFixedStyle = (): React.CSSProperties => {
     if (!hoveredRect) return { display: 'none' };
     const POPUP_W = 342;
-    const TOP_OFFSET = -88; // ← TUNE THIS: more negative = popup higher above the card
+    const TOP_OFFSET = -88;
     let left: number;
     if (hoverPosition === 'left') {
       left = hoveredRect.left;
@@ -414,32 +415,26 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     };
   };
 
-  // Handler that saves state to context before opening modal
   const handleOpenModal = (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
 
-    // Collapse the hover popup immediately.
-    // Without this, the mouse stays inside the card's hit area after InfoModal opens,
-    // so isHovered never flips and the portal popup hangs over the modal.
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (timerRef.current) { timerRef.current.clear(); timerRef.current = null; }
+    if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
     setIsHovered(false);
     setHoveredRect(null);
-    activePopupClose = null;
+    const myId = `card-${movie.id}`;
+    if (activePopupId === myId) setActivePopupId(null);
+    if (activeVideoId === myId) setActiveVideoId(null);
 
-    // Final state sync happens inside handleOpenModal now uses GlobalContext
-    const finalTrailerUrl = getVideoState(movie.id)?.videoId;
-
-    // Store the raw DOMRect BEFORE calling onSelect so InfoModal mounts with it ready.
-    // InfoModal reads .left + .top (DOMRect properties, not .x/.y plain object).
+    const savedState = getVideoState(movie.id);
     const rawRect = cardRef.current?.getBoundingClientRect();
     if (rawRect) {
       (window as any).__last_card_rect = rawRect;
     }
 
-    const savedState = getVideoState(movie.id);
     onSelect(movie, savedState?.time || 0, savedState?.videoId || undefined);
   };
 
@@ -490,18 +485,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           draggable={false}
         />
 
-        {/* Gradient overlay in grid mode for logo readability */}
         {isGrid && (
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none rounded-sm" />
         )}
 
-        {/* Base Title Overlay — logo or text title, no gradient */}
         {!isHovered && (
           <>
             <div className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-3 px-3">
               {logoUrl ? (
                 <div className="relative inline-flex items-center justify-center">
-                  {/* Premium Shadow Stack (Backported from Hover state) */}
                   <img
                     src={logoUrl}
                     aria-hidden
@@ -540,13 +532,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               )}
             </div>
 
-            {/* Dynamic Badges on Base Card */}
             <BadgeOverlay badge={badge} isBook={isBook} />
           </>
         )}
       </div>
 
-      {/* Flat progress bar — floats BELOW the card with visible gap, no overflow clipping */}
       {!isHovered && (() => {
         const state = getVideoState(movie.id);
         const lastEp = getLastWatchedEpisode(movie.id);
@@ -561,7 +551,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         if (pct < 2) return null;
 
         return (
-          // Floating bar — sits in the 14px padding zone the Row adds when progress exists
           <div
             className="absolute pointer-events-none z-20"
             style={{ top: 'calc(100% + 4px)', left: '10%', right: '10%' }}
@@ -576,9 +565,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         );
       })()}
 
-      {/* Hover Popup — rendered into document.body via portal.
-           Bypasses ALL ancestor stacking contexts and overflow clipping.
-           position:fixed + z-9999 is now truly global. */}
       {createPortal(
         <AnimatePresence>
           {isHovered && prefersHover && hoveredRect && (
@@ -595,31 +581,32 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 transformOrigin: hoverPosition === 'left' ? 'top left' : hoverPosition === 'right' ? 'top right' : 'top center',
               }}
             >
-              {/* Media Container — taller to avoid info section getting cut */}
               <div className="relative w-[400px] h-[200px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
 
                 {(!isBook) ? (
                   <>
                     <img
                       src={imageSrc}
-                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 scale-[1.05] ${isHoverVideoReady ? 'opacity-0' : 'opacity-100'}`}
+                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 scale-[1.05] ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
                       alt="preview"
                     />
-                    <div className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isHoverVideoReady ? 'opacity-100' : 'opacity-0'}`}>
-                        {/* 1080p mold: scale~5.71 → iframe=1920x1080 → CSS back to 336x189.
-                            cropFactor=1.05 clips ~8.5px per edge to hide the YouTube logo
-                            (~7px at this scale). Shows 95% of the video. */}
+                    <div className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
                         <TrailerPlayer 
                             key={`card-player-${replayCount}`}
                             movie={movie} 
                             variant="card"
                             cropFactor={1.35}
                             onReady={() => setIsHoverVideoReady(true)}
+                            onPlay={() => setIsActuallyPlaying(true)}
                             onEnded={() => {
                                 setIsHoverVideoReady(false);
+                                setIsActuallyPlaying(false);
                                 setHasVideoEnded(true);
                             }}
-                            onErrored={() => setIsHoverVideoReady(false)}
+                            onErrored={() => {
+                                setIsHoverVideoReady(false);
+                                setIsActuallyPlaying(false);
+                            }}
                         />
                     </div>
                   </>
@@ -631,7 +618,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   />
                 )}
 
-                {/* Mute Button - Hide for books */}
                 {!isBook && (
                   <button
                     onClick={(e) => {
@@ -659,9 +645,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 <div className={`absolute bottom-3 left-4 right-12 pointer-events-none z-20 transition-opacity duration-1000 ${logoFaded ? 'opacity-0' : 'opacity-100'}`}>
                   {logoUrl && !imgFailed ? (
                     <div className="relative inline-flex items-end">
-                      {/* Blurred shadow copy — creates a perfectly logo-shaped dark halo.
-                          Works against any background (white snow, dark sky, etc). */}
-                      {/* Multi-layer premium shadow copy */}
                       <img
                         src={logoUrl}
                         aria-hidden
@@ -695,14 +678,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 </div>
               </div>
 
-
-
-              {/* Info Section */}
               <div className="px-4 pt-6 pb-5 space-y-4 bg-[#181818]">
-                {/* Action Buttons Row */}
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-4">
-                    {/* Play/Read/Theater Button */}
                     {isCinemaOnly && !isBook ? (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
@@ -721,7 +699,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         {isBook ? <BookOpenIcon size={24} weight="fill" /> : <PlayIcon size={28} weight="fill" className="ml-0.5" />}
                       </Link>
                     )}
-                    {/* Add to List — subtle animation on state change */}
+
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
                       className={`border-2 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
@@ -730,14 +708,13 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     >
                       {isAdded ? <CheckIcon size={28} weight="bold" /> : <PlusIcon size={28} weight="bold" />}
                     </button>
-                    {/* Rate — Love / Like / Dislike pill */}
+
                     <RatingPill
                       rating={getMovieRating(movie.id)}
                       onRate={(r) => { rateMovie(movie, r); }}
                     />
                   </div>
 
-                  {/* More Info - Chevron Down */}
                   <button
                     onClick={handleOpenModal}
                     className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
@@ -747,12 +724,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   </button>
                 </div>
 
-                {/* Metadata Row */}
                 <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
-                  {/* Maturity Rating Badge — from MovieCardBadges */}
                   <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
 
-                  {/* Runtime or Season count */}
                   {(() => {
                     if (isBook) return <span className="text-white/70">{movie.media_type === 'series' ? 'Series' : 'Comic'}</span>;
                     const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
@@ -760,7 +734,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       const s = movie.number_of_seasons;
                       return <span className="text-white/70">{s ? `${s} ${s === 1 ? 'Season' : 'Seasons'}` : 'TV Series'}</span>;
                     }
-                    if (!movie.runtime) return null; // no fake duration for movies
+                    if (!movie.runtime) return null;
                     const h = Math.floor(movie.runtime / 60);
                     const m = movie.runtime % 60;
                     const label = h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
@@ -770,7 +744,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   {!isBook && <span className="border border-gray-300 text-gray-200 px-1 py-[2px] text-[14px] font-bold rounded-[2px] ml-3">HD</span>}
                 </div>
 
-                {/* Genres Row or Progress Bar */}
                 {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? (
                   <div className="pt-0.5 pb-1">
                     <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />

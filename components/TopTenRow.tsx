@@ -1,14 +1,655 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { CaretRightIcon, CaretLeftIcon } from '@phosphor-icons/react';
+import { useNavigate, Link } from 'react-router-dom';
+import {
+  CaretRightIcon, CaretLeftIcon, PlayIcon, CheckIcon, PlusIcon,
+  ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon,
+  BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon,
+  SpeakerSlashIcon, SpeakerHighIcon
+} from '@phosphor-icons/react';
+import { useGlobalContext } from '../context/GlobalContext';
+import { useIsInTheaters } from '../hooks/useIsInTheaters';
+import { GENRES, LOGO_SIZE } from '../constants';
+import { getMovieImages, fetchData } from '../services/api';
 import { Movie } from '../types';
-import { fetchData } from '../services/api';
+import { TrailerPlayer } from './TrailerPlayer';
+import {
+  MaturityBadge, BadgeOverlay, HoverProgressBar,
+  getWatchData, ProgressIndicator
+} from './MovieCardBadges';
 
+// ─── Shared pointer-type hook (same logic as MovieCard) ─────────────────────
+type _PHListener = (v: boolean) => void;
+const _phSubs = new Set<_PHListener>();
+let _prefersHover = false;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointermove', (e: PointerEvent) => {
+    const next = e.pointerType === 'mouse';
+    if (next !== _prefersHover) { _prefersHover = next; _phSubs.forEach(f => f(next)); }
+  }, { passive: true });
+  window.addEventListener('mousedown', () => {
+    if (!_prefersHover) { _prefersHover = true; _phSubs.forEach(f => f(true)); }
+  }, { passive: true });
+  window.addEventListener('touchstart', () => {
+    if (_prefersHover) { _prefersHover = false; _phSubs.forEach(f => f(false)); }
+  }, { passive: true });
+}
+
+function usePrefersHover(): boolean {
+  const [val, setVal] = useState(_prefersHover);
+  useEffect(() => {
+    setVal(_prefersHover);
+    _phSubs.add(setVal);
+    return () => { _phSubs.delete(setVal); };
+  }, []);
+  return val;
+}
+
+// ─── Rating Pill (copied from MovieCard) ────────────────────────────────────
+type MovieRating = 'like' | 'dislike' | 'love';
+
+const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieRating) => void }> = ({ rating, onRate }) => {
+  const [expanded, setExpanded] = useState(false);
+  const CurrentIcon = rating === 'love' ? HeartIcon : rating === 'dislike' ? ThumbsDownIcon : ThumbsUpIcon;
+  return (
+    <div
+      className="relative flex items-center"
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+    >
+      <div
+        className={`flex items-center gap-1 overflow-hidden transition-all duration-300 border-2 rounded-full bg-[#2a2a2a]/90 backdrop-blur-md shadow-lg
+          ${expanded ? 'border-white/80 px-4 gap-5' : 'border-gray-500 justify-center w-10 h-10 md:w-11 md:h-11'}`}
+        style={{ height: expanded ? 42 : undefined }}
+      >
+        {expanded ? (
+          <>
+            {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
+              const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
+              const isActive = rating === r;
+              const color = r === 'love' ? 'text-red-500' : r === 'like' ? 'text-blue-400' : 'text-gray-400';
+              return (
+                <button
+                  key={r}
+                  onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-125 flex-shrink-0
+                    ${isActive ? color : 'text-white/60 hover:text-white'}`}
+                  title={r.charAt(0).toUpperCase() + r.slice(1)}
+                >
+                  <Icon size={26} weight={isActive ? 'fill' : 'bold'} />
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <CurrentIcon
+            size={24}
+            weight={rating ? 'fill' : 'bold'}
+            className={rating === 'love' ? 'text-red-500' : rating === 'like' ? 'text-blue-400' : rating === 'dislike' ? 'text-gray-400' : 'text-white'}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// ─── Layout constants ────────────────────────────────────────────────────────
+const SIZES = {
+  card: "h-[100px] w-[175px] sm:h-[125px] sm:w-[205px] md:h-[150px] md:w-[235px] lg:h-[160px] lg:w-[245px]",
+  button: "h-[100px] sm:h-[125px] md:h-[150px] lg:h-[160px]",
+};
+
+// ─── Rank Number ────────────────────────────────────────────────────────────
+// 1-9: tall, narrow-ish, hugging the left edge.
+// 10: smaller overall, digits squished together with negative letter-spacing,
+//     container bleeds wider so the "0" peeks past the poster on the right.
+const RankNumber: React.FC<{ index: number }> = ({ index }) => {
+  const isTen = index === 9;
+  return (
+    <div
+      className={`absolute ${isTen ? 'left-[-8px]' : 'left-[-6px]'} bottom-[-6px] h-[118%] z-0 pointer-events-none overflow-visible`}
+      style={{ width: isTen ? '112%' : '88%' }}
+    >
+      <svg
+        viewBox={isTen ? "0 0 260 210" : "0 0 140 210"}
+        className="h-full w-auto"
+        preserveAspectRatio="xMinYMax meet"
+        style={{ overflow: 'visible' }}
+      >
+        <g
+          transform={isTen ? "scale(0.72, 0.90)" : "scale(0.88, 1.08)"}
+          transform-origin={isTen ? "130 205" : "70 205"}
+        >
+          <text
+            x="8"
+            y="195"
+            textAnchor="start"
+            dominantBaseline="auto"
+            fill="#000000"
+            stroke="#a3a3a3"
+            strokeWidth="5"
+            strokeLinejoin="round"
+            fontSize={isTen ? "170" : "195"}
+            fontWeight="900"
+            fontFamily="Arial, sans-serif"
+            letterSpacing={isTen ? "-28" : "-8"}
+            style={{ filter: 'drop-shadow(0px 4px 14px rgba(0,0,0,0.9))' }}
+          >
+            {index + 1}
+          </text>
+        </g>
+      </svg>
+    </div>
+  );
+};
+
+// ─── TopTenCard (base rank layout + full MovieCard hover popup) ─────────────
+const TopTenCard: React.FC<{
+  movie: Movie;
+  index: number;
+  onSelect: (movie: Movie, time?: number, videoId?: string) => void;
+}> = ({ movie, index, onSelect }) => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const prefersHover = usePrefersHover();
+
+  const {
+    myList, toggleList, rateMovie, getMovieRating, getVideoState,
+    updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
+    top10TV, top10Movies, activeVideoId, setActiveVideoId,
+    activePopupId, setActivePopupId,
+    globalMute, setGlobalMute, clearVideoState
+  } = useGlobalContext();
+
+  const [isHovered, setIsHovered] = useState(false);
+  const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
+  const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
+
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
+  const [logoDim, setLogoDim] = useState<{ ratio: number; isSquare: boolean }>({ ratio: 1.5, isSquare: false });
+  const [logoFaded, setLogoFaded] = useState(false);
+
+  const [isHoverVideoReady, setIsHoverVideoReady] = useState(false);
+  const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
+  const [hasVideoEnded, setHasVideoEnded] = useState(false);
+  const [replayCount, setReplayCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+
+  const isCinemaOnly = useIsInTheaters(movie);
+  const timerRef = useRef<any>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const isBook = ['series', 'comic', 'manga', 'local'].includes(movie.media_type || '');
+  const isAdded = myList.find(m => m.id === movie.id);
+  const isTen = index === 9;
+
+  // Intersection Observer for lazy logo fetch
+  useEffect(() => {
+    if (!cardRef.current) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Fetch logo
+  useEffect(() => {
+    if (!isVisible) return;
+    let isMounted = true;
+    const fetchLogo = async () => {
+      try {
+        const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+        const data = await getMovieImages(String(movie.id), mediaType);
+        if (!isMounted) return;
+        if (data?.logos) {
+          const logo = data.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+          if (logo) setLogoUrl(`https://image.tmdb.org/t/p/${LOGO_SIZE}${logo.file_path}`);
+        }
+      } catch (e) { /* silent */ }
+    };
+    fetchLogo();
+    return () => { isMounted = false; };
+  }, [isVisible, movie.id, movie.media_type, movie.title]);
+
+  // Logo fade-out once trailer plays
+  useEffect(() => {
+    if (isActuallyPlaying && !hasVideoEnded) {
+      const t = setTimeout(() => setLogoFaded(true), 3500);
+      return () => clearTimeout(t);
+    } else {
+      setLogoFaded(false);
+    }
+  }, [isActuallyPlaying, hasVideoEnded]);
+
+  // Unify Popup logic via Context (replaces module singleton)
+  useEffect(() => {
+    const myId = `card-${movie.id}`;
+    if (activePopupId && activePopupId !== myId && isHovered) {
+      setIsHovered(false);
+      setHoveredRect(null);
+      setIsHoverVideoReady(false);
+    }
+  }, [activePopupId, movie.id, isHovered]);
+
+  // Force close if another video (e.g. Hero) takes control
+  useEffect(() => {
+    const myId = `card-${movie.id}`;
+    if (activeVideoId && activeVideoId !== myId && isHovered && activeVideoId.indexOf('modal') === -1) {
+      setIsHovered(false);
+      setHoveredRect(null);
+    }
+  }, [activeVideoId, movie.id, isHovered]);
+
+  // Collapse popup on scroll / blur / tab-hide
+  useEffect(() => {
+    if (!isHovered) return;
+    const collapse = () => {
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      setIsHovered(false);
+      setHoveredRect(null);
+      setIsHoverVideoReady(false);
+      const myId = `card-${movie.id}`;
+      if (activePopupId === myId) setActivePopupId(null);
+    };
+    window.addEventListener('scroll', collapse, { passive: true });
+    window.addEventListener('blur', collapse);
+    const onVis = () => { if (document.visibilityState === 'hidden') collapse(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('scroll', collapse);
+      window.removeEventListener('blur', collapse);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [isHovered]);
+
+  const handleLogoLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    const ratio = naturalWidth / naturalHeight;
+    setLogoDim({ ratio, isSquare: ratio < 1.35 });
+  };
+
+  const getBadgeInfo = () => {
+    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+    const movieIdNum = Number(movie.id);
+    if (isTV && top10TV?.includes(movieIdNum)) return { text: 'Top 10', type: 'top' };
+    if (!isTV && top10Movies?.includes(movieIdNum)) return { text: 'Top 10', type: 'top' };
+
+    const dateStr = movie.release_date || movie.first_air_date;
+    const now = new Date();
+    if (dateStr) {
+      const releaseDate = new Date(dateStr);
+      const diffTime = releaseDate.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 0 && diffDays <= 30) return { text: 'Coming Soon', type: 'upcoming' };
+      if (diffDays >= -45 && diffDays <= 0) {
+        return { text: isTV ? 'New Episodes' : 'Recently Added', type: 'new' };
+      }
+    }
+    return null;
+  };
+
+  const badge = getBadgeInfo();
+
+  const getGenreNames = () => {
+    if (!movie.genre_ids) return [];
+    return movie.genre_ids
+      .map(id => t(`genres.${id}`, { defaultValue: GENRES[id] }))
+      .filter(Boolean)
+      .slice(0, 3);
+  };
+
+  const handleOpenModal = (e?: React.MouseEvent) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    setIsHovered(false);
+    setHoveredRect(null);
+    const myId = `card-${movie.id}`;
+    if (activePopupId === myId) setActivePopupId(null);
+    if (activeVideoId === myId) setActiveVideoId(null);
+
+    const savedState = getVideoState(movie.id);
+    const rawRect = cardRef.current?.getBoundingClientRect();
+    if (rawRect) (window as any).__last_card_rect = rawRect;
+    onSelect(movie, savedState?.time || 0, savedState?.videoId || undefined);
+  };
+
+  const getPopupFixedStyle = (): React.CSSProperties => {
+    if (!hoveredRect) return { display: 'none' };
+    const POPUP_W = 342;
+    const TOP_OFFSET = -88;
+    let left: number;
+    if (hoverPosition === 'left') left = hoveredRect.left;
+    else if (hoverPosition === 'right') left = hoveredRect.right - POPUP_W;
+    else left = hoveredRect.left + hoveredRect.width / 2 - POPUP_W / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
+    return {
+      position: 'fixed',
+      top: hoveredRect.top + TOP_OFFSET,
+      left,
+      width: POPUP_W,
+      zIndex: 9999,
+    };
+  };
+
+  const handlePointerEnter = (e: React.PointerEvent) => {
+    if (!prefersHover) return;
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
+
+    if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      const EDGE_BUFFER = 160;
+      let currentPos: 'center' | 'left' | 'right' = 'center';
+      if (rect.left < EDGE_BUFFER) currentPos = 'left';
+      else if (window.innerWidth - rect.right < EDGE_BUFFER) currentPos = 'right';
+      setHoverPosition(currentPos);
+    }
+
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    timerRef.current = setTimeout(() => {
+      const rect = cardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const dx = e.clientX - rect.left - rect.width / 2;
+      const dy = e.clientY - rect.top - rect.height / 2;
+      if (Math.sqrt(dx * dx + dy * dy) > rect.width * 0.7) return;
+
+      setHoveredRect(rect);
+      setIsHovered(true);
+      const myId = `card-${movie.id}`;
+      setActivePopupId(myId);
+      setActiveVideoId(myId);
+    }, 500);
+  };
+
+  const handlePointerLeave = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    const myId = `card-${movie.id}`;
+    if (activePopupId === myId) setActivePopupId(null);
+    if (activeVideoId === myId) setActiveVideoId(null);
+
+    setIsHovered(false);
+    setHoveredRect(null);
+    setIsHoverVideoReady(false);
+    setIsActuallyPlaying(false);
+  };
+
+  const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
+    ? movie.poster_path
+    : `https://image.tmdb.org/t/p/w780${movie.poster_path}`;
+
+  const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
+    ? (movie.backdrop_path || movie.poster_path)
+    : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path || movie.poster_path}`;
+
+  return (
+    <div
+      ref={cardRef}
+      data-card
+      className={`relative flex-none ${SIZES.card} mr-1 sm:mr-2 md:mr-2 cursor-pointer flex items-end pointer-events-auto select-none z-10`}
+      style={prefersHover ? { touchAction: 'none' } : undefined}
+      onPointerEnter={prefersHover ? handlePointerEnter : undefined}
+      onPointerLeave={prefersHover ? handlePointerLeave : undefined}
+      onClick={handleOpenModal}
+    >
+      <RankNumber index={index} />
+
+      {/* Poster + Badges */}
+      <div className={`absolute right-0 bottom-0 h-full z-10 rounded-sm overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.5)] ${isTen ? 'w-[42%]' : 'w-[46%]'}`}>
+        <img
+          src={posterSrc}
+          className="w-full h-full object-cover object-top"
+          alt={movie.title || movie.name}
+          loading="lazy"
+          draggable={false}
+        />
+        <BadgeOverlay badge={badge} isBook={isBook} />
+      </div>
+
+      {/* Progress bar */}
+      <ProgressIndicator
+        movie={movie}
+        getLastWatchedEpisode={getLastWatchedEpisode}
+        getVideoState={getVideoState}
+      />
+
+      {/* ─── Hover Popup (portal) ─────────────────────────────────────────── */}
+      {createPortal(
+        <AnimatePresence>
+          {isHovered && prefersHover && hoveredRect && (
+            <motion.div
+              className="bg-[#141414] rounded-md movie-card-glow overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 8, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.97 }}
+              transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+              style={{
+                ...getPopupFixedStyle(),
+                willChange: 'transform, opacity',
+                transformOrigin: hoverPosition === 'left' ? 'top left' : hoverPosition === 'right' ? 'top right' : 'top center',
+              }}
+            >
+              {/* Media Container */}
+              <div className="relative w-full h-[200px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+                {(!isBook) ? (
+                  <>
+                    <img
+                      src={imageSrc}
+                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 scale-[1.05] ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
+                      alt="preview"
+                    />
+                    <div className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
+                      <TrailerPlayer
+                        key={`card-player-${replayCount}`}
+                        movie={movie}
+                        variant="card"
+                        cropFactor={1.35}
+                        onReady={() => setIsHoverVideoReady(true)}
+                        onPlay={() => setIsActuallyPlaying(true)}
+                        onEnded={() => {
+                          setIsHoverVideoReady(false);
+                          setIsActuallyPlaying(false);
+                          setHasVideoEnded(true);
+                        }}
+                        onErrored={() => {
+                          setIsHoverVideoReady(false);
+                          setIsActuallyPlaying(false);
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <img
+                    src={imageSrc}
+                    className="w-full h-full object-cover backdrop-pop object-[50%_30%]"
+                    alt="preview"
+                  />
+                )}
+
+                {/* Mute / Replay */}
+                {!isBook && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasVideoEnded) {
+                        clearVideoState(movie.id);
+                        setHasVideoEnded(false);
+                        setIsHoverVideoReady(true);
+                        setReplayCount(c => c + 1);
+                      } else {
+                        setGlobalMute(!globalMute);
+                      }
+                    }}
+                    className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
+                  >
+                    {hasVideoEnded
+                      ? <ArrowCounterClockwiseIcon size={24} className="text-white" />
+                      : globalMute ? <SpeakerSlashIcon size={24} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
+                    }
+                  </button>
+                )}
+
+                <div className="absolute inset-x-0 bottom-0 h-7 bg-gradient-to-t from-[#181818]/70 to-transparent z-10 pointer-events-none" />
+
+                {/* Logo / Title overlay inside media */}
+                <div className={`absolute bottom-3 left-4 right-12 pointer-events-none z-20 transition-opacity duration-1000 ${logoFaded ? 'opacity-0' : 'opacity-100'}`}>
+                  {logoUrl && !imgFailed ? (
+                    <div className="relative inline-flex items-end">
+                      <img
+                        src={logoUrl}
+                        aria-hidden
+                        className={`absolute w-auto object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        style={{ filter: 'blur(4px) brightness(0) opacity(0.8)', transform: 'translate(1px, 2px) scale(1.01)', zIndex: 0 }}
+                      />
+                      <img
+                        src={logoUrl}
+                        aria-hidden
+                        className={`absolute w-auto object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        style={{ filter: 'blur(20px) brightness(0) opacity(0.5)', transform: 'translate(2px, 4px) scale(1.06)', zIndex: 0 }}
+                      />
+                      <img
+                        src={logoUrl}
+                        alt={movie.title || movie.name}
+                        className={`relative w-auto object-contain origin-bottom-left transition-all duration-300 z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        onError={() => setImgFailed(true)}
+                      />
+                    </div>
+                  ) : (
+                    <h4 className="text-white font-leaner text-4xl line-clamp-2 drop-shadow-md tracking-wide text-center mb-2 leading-none">
+                      {movie.title || movie.name}
+                    </h4>
+                  )}
+                </div>
+              </div>
+
+              {/* Info Section */}
+              <div className="px-4 pt-6 pb-5 space-y-4 bg-[#181818]">
+                {/* Action Buttons */}
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    {isCinemaOnly && !isBook ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
+                        className="bg-[#6d6d6e] text-white rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95 shadow-lg"
+                        title="In Theaters"
+                      >
+                        <TicketIcon size={22} weight="bold" />
+                      </button>
+                    ) : (
+                      <Link
+                        to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white text-black rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200"
+                        title={isBook ? "Read Now" : "Play"}
+                      >
+                        {isBook ? <BookOpenIcon size={24} weight="fill" /> : <PlayIcon size={28} weight="fill" className="ml-0.5" />}
+                      </Link>
+                    )}
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
+                      className={`border-2 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
+                        ${isAdded ? 'border-white bg-white/10 shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'}`}
+                      title={isAdded ? 'Remove from My List' : 'Add to My List'}
+                    >
+                      {isAdded ? <CheckIcon size={28} weight="bold" /> : <PlusIcon size={28} weight="bold" />}
+                    </button>
+
+                    <RatingPill
+                      rating={getMovieRating(movie.id)}
+                      onRate={(r) => rateMovie(movie, r)}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleOpenModal}
+                    className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
+                    title="More Info"
+                  >
+                    <CaretDownIcon size={24} weight="bold" />
+                  </button>
+                </div>
+
+                {/* Metadata */}
+                <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
+                  <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
+                  {(() => {
+                    if (isBook) return <span className="text-white/70">{movie.media_type === 'series' ? 'Series' : 'Comic'}</span>;
+                    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+                    if (isTV) {
+                      const s = movie.number_of_seasons;
+                      return <span className="text-white/70">{s ? `${s} ${s === 1 ? 'Season' : 'Seasons'}` : 'TV Series'}</span>;
+                    }
+                    if (!movie.runtime) return null;
+                    const h = Math.floor(movie.runtime / 60);
+                    const m = movie.runtime % 60;
+                    const label = h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
+                    return <span className="text-white/70">{label}</span>;
+                  })()}
+                  {!isBook && <span className="border border-gray-300 text-gray-200 px-1 py-[2px] text-[14px] font-bold rounded-[2px] ml-3">HD</span>}
+                </div>
+
+                {/* Genres or Progress */}
+                {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? (
+                  <div className="pt-0.5 pb-1">
+                    <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
+                    {getGenreNames().map((genreName, idx, arr) => {
+                      if (!genreName) return null;
+                      const genreId = movie.genre_ids?.[idx];
+                      const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+                      return (
+                        <span key={genreId ?? idx} className="flex items-center">
+                          <span
+                            className="text-gray-400 hover:text-white cursor-pointer transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePointerLeave();
+                              navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);
+                            }}
+                          >
+                            {genreName}
+                          </span>
+                          {idx < arr.length - 1 && <span className="text-gray-500 mx-1.5 text-[16px] leading-none">•</span>}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </div>
+  );
+};
+
+// ─── TopTenRow ───────────────────────────────────────────────────────────────
 interface TopTenRowProps {
   title: string;
   fetchUrl?: string;
   data?: Movie[];
-  onSelect: (movie: Movie) => void;
+  onSelect: (movie: Movie, time?: number, videoId?: string) => void;
 }
 
 const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }) => {
@@ -16,6 +657,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
   const rowRef = useRef<HTMLDivElement>(null);
+  const [scrollState, setScrollState] = useState({ left: false, right: false });
 
   useEffect(() => {
     if (data) {
@@ -23,15 +665,14 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
       setLoading(false);
       return;
     }
-
     if (fetchUrl) {
       const loadData = async () => {
         setLoading(true);
         try {
           const results = await fetchData(fetchUrl);
-          setMovies(results.slice(0, 10)); // Take top 10
+          setMovies(results.slice(0, 10));
         } catch (e) {
-          console.error("Top 10 fetch failed", e);
+          console.error('Top 10 fetch failed', e);
         } finally {
           setLoading(false);
         }
@@ -40,20 +681,56 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
     }
   }, [fetchUrl, data]);
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (rowRef.current) {
-      const { clientWidth } = rowRef.current;
-      const scrollAmount = clientWidth * 0.75;
+  const updateScrollState = () => {
+    if (!rowRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
+    setScrollState({
+      left: scrollLeft > 5,
+      right: scrollLeft + clientWidth < scrollWidth - 5,
+    });
+  };
 
-      if (direction === 'left') {
-        rowRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-      } else {
-        rowRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-      }
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+    window.addEventListener('resize', updateScrollState);
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [movies, loading]);
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (!rowRef.current) return;
+    const container = rowRef.current;
+    const firstCard = container.querySelector('[data-card]') as HTMLElement | null;
+    if (!firstCard) return;
+
+    const style = window.getComputedStyle(firstCard);
+    const width = firstCard.offsetWidth;
+    const margin = parseFloat(style.marginRight) || 0;
+    const step = width + margin;
+
+    const visibleWidth = container.clientWidth;
+    const visibleCount = Math.max(1, Math.floor(visibleWidth / step));
+    const scrollCount = Math.max(1, Math.floor(visibleCount * 0.6));
+    const amount = scrollCount * step;
+
+    if (direction === 'right') {
+      container.scrollBy({ left: amount, behavior: 'smooth' });
+    } else {
+      container.scrollBy({ left: -amount, behavior: 'smooth' });
     }
   };
 
   if (!loading && movies.length === 0) return null;
+
+  const btnBase =
+    `absolute top-1/2 -translate-y-1/2 z-50 ${SIZES.button} w-12 md:w-16 lg:w-20 ` +
+    `bg-black/50 hover:bg-black/70 cursor-pointer flex items-center justify-center ` +
+    `transition-all duration-300 opacity-0 pointer-events-none`;
 
   return (
     <div className="group relative my-4 md:my-6 space-y-2 z-10 hover:z-50 transition-all duration-300">
@@ -65,17 +742,12 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
       </h2>
 
       <div className="relative group/row">
-        {/* Hover Hit Box */}
-        <div className="absolute inset-x-0 top-0 bottom-0 z-0 pointer-events-auto bg-transparent" />
-
-        {/* Left Button - Height matched to cards */}
+        {/* Left Button */}
         <div
-          className={`absolute top-1/2 -translate-y-1/2 left-0 z-50 
-            h-[120px] sm:h-[150px] md:h-[180px] lg:h-[210px] 
-            w-10 md:w-16 lg:w-20 bg-black/50 hover:bg-black/70 cursor-pointer flex items-center justify-center transition-all duration-300 rounded-r-md pointer-events-none ${loading ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
+          className={`${btnBase} left-0 rounded-r-md ${scrollState.left ? 'group-hover/row:opacity-100 group-hover/row:pointer-events-auto' : ''}`}
           onClick={() => scroll('left')}
         >
-          <CaretLeftIcon size={64} weight='bold' className="text-white" />
+          <CaretLeftIcon size={64} weight="bold" className="text-white" />
         </div>
 
         {/* Scroll Container */}
@@ -85,81 +757,28 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
         >
           {loading
             ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="relative flex-none h-[120px] w-[140px] sm:h-[150px] sm:w-[180px] md:h-[180px] md:w-[210px] lg:h-[210px] lg:w-[240px] mr-4 flex items-end">
-                {/* Number Skeleton */}
-                <div className="h-full w-[30%] bg-transparent flex items-end justify-center pb-2">
-                  <div className="h-[60%] w-[60%] bg-[#222] rounded skew-y-6 opacity-30"></div>
+                <div key={i} data-card className={`relative flex-none ${SIZES.card} mr-1 sm:mr-2 md:mr-2 flex items-end`}>
+                  {/* Number skeleton */}
+                  <div className="absolute left-[-5px] bottom-[-4px] h-[110%] w-[90%] flex items-end justify-start pointer-events-none">
+                    <div className="h-[85%] w-[65%] bg-[#222] rounded-sm opacity-40 skew-x-[-6deg]" />
+                  </div>
+                  {/* Poster skeleton */}
+                  <div className="absolute right-0 bottom-0 h-full w-[46%] bg-[#222] rounded-sm border border-white/5 overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.3)]">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
+                  </div>
                 </div>
-                {/* Image Skeleton */}
-                <div className="h-full w-[70%] bg-[#222] rounded-sm border border-white/5 overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
-                </div>
-              </div>
-            ))
+              ))
             : movies.map((movie, index) => (
-              <div
-                key={movie.id}
-                className="relative flex-none 
-                h-[110px] w-[140px] 
-                sm:h-[140px] sm:w-[170px] 
-                md:h-[170px] md:w-[200px] 
-                lg:h-[170px] lg:w-[190px] 
-                mr- sm:mr-5 md:mr-5
-                cursor-pointer transition-transform duration-300 flex items-end 
-                pointer-events-auto"
-                onClick={(e) => {
-                  const rawRect = e.currentTarget.getBoundingClientRect();
-                  if (rawRect) (window as any).__last_card_rect = rawRect;
-                  onSelect(movie);
-                }}
-              >
-                {/* The Number - Now properly positioned to heavily underlap */}
-                <div className="absolute left-[0%] bottom-0 h-[100%] w-[80%] flex items-end justify-start z-0 pointer-events-none">
-                  <svg
-                    viewBox="1 -15 100 100"
-                    className="h-full w-auto drop-shadow-[0px_4px_12px_rgba(0,0,0,1)]"
-                    preserveAspectRatio="xMidYMax meet"
-                  >
-                    <text
-                      x="30"
-                      y="80"
-                      textAnchor="middle"
-                      fill="#000000"
-                      stroke="#595959"
-                      strokeWidth="3.5"
-                      strokeLinejoin="round"
-                      fontSize="150"
-                      fontWeight="800"
-                      fontFamily="Arial, sans-serif"
-                      letterSpacing={index === 9 ? "-15" : "-5"}
-                    >
-                      {index + 1}
-                    </text>
-                  </svg>
-                </div>
-
-                {/* The Poster - Pushed to the right and over the number */}
-                <img
-                  src={movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://')
-                    ? movie.poster_path
-                    : `https://image.tmdb.org/t/p/w780${movie.poster_path}`}
-                  className="absolute right-0 bottom-0 h-full w-[60%] md:w-[55%] object-cover object-top rounded-sm shadow-[0_0_15px_rgba(0,0,0,0.5)] z-10"
-                  alt={movie.title || movie.name}
-                  loading="lazy"
-                  draggable={false}
-                />
-              </div>
-            ))}
+                <TopTenCard key={movie.id} movie={movie} index={index} onSelect={onSelect} />
+              ))}
         </div>
 
-        {/* Right Button - Height matched to cards */}
+        {/* Right Button */}
         <div
-          className={`absolute top-1/2 -translate-y-1/2 right-0 z-50 
-            h-[120px] sm:h-[150px] md:h-[180px] lg:h-[210px] 
-            w-10 md:w-14 lg:w-28 bg-black/40 cursor-pointer flex items-center justify-center rounded-l-md pointer-events-none ${loading ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
+          className={`${btnBase} right-0 rounded-l-md ${scrollState.right ? 'group-hover/row:opacity-100 group-hover/row:pointer-events-auto' : ''}`}
           onClick={() => scroll('right')}
         >
-          <CaretRightIcon size={64} weight='bold' className="text-white" />
+          <CaretRightIcon size={64} weight="bold" className="text-white" />
         </div>
       </div>
     </div>

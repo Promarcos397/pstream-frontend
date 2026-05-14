@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CaretDownIcon, XIcon } from '@phosphor-icons/react';
+import { CaretDownIcon, SquaresFourIcon, RowsIcon } from '@phosphor-icons/react';
 
 export interface Genre {
     id: number;
@@ -48,7 +48,6 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
         onGenreSelect(genre);
     };
 
-    // Tap-outside to close on mobile
     useEffect(() => {
         if (!genreMenuOpen) return;
         const handleOutside = (e: MouseEvent | TouchEvent) => {
@@ -66,10 +65,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
 
     return (
         <div className="relative z-30 flex items-center justify-between px-6 md:px-14 lg:px-16 pt-2 pb-3 select-none">
-            {/* Left side: Title + Genres dropdown */}
             <div className={`flex items-center ${selectedGenre ? 'gap-2 md:gap-6' : 'gap-4 md:gap-6'}`} ref={containerRef}>
-
-                {/* Dynamic Title / Breadcrumb */}
                 <h1 className={`font-bold text-white flex items-center transition-all duration-300 
                     ${selectedGenre ? 'text-lg md:text-3xl' : 'text-xl md:text-3xl lg:text-4xl'}`}>
                     {selectedGenre ? (
@@ -88,7 +84,6 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                     )}
                 </h1>
 
-                {/* Genres Dropdown */}
                 <div
                     className="relative"
                     onMouseEnter={openMenu}
@@ -111,7 +106,6 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                         />
                     </button>
 
-                    {/* Dropdown Panel */}
                     <div
                         className={`absolute top-full left-0 md:left-0 mt-1 z-50 transition-all duration-200 
                             ${selectedGenre ? '-translate-x-12 md:translate-x-0' : 'translate-x-0'}
@@ -120,9 +114,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                         onMouseLeave={scheduleClose}
                         role="listbox"
                     >
-                        {/* Shorter panel: max-h reduced from 60vh to 42vh on mobile, 320px on desktop */}
                         <div className="w-[80vw] max-w-[280px] md:w-[440px] md:max-w-none max-h-[42vh] md:max-h-[320px] overflow-y-auto bg-[#141414]/[0.98] backdrop-blur-xl border border-white/20 rounded-[2px] shadow-[0_8px_48px_rgba(0,0,0,0.9)] p-3 scrollbar-hide">
-                            {/* "All" reset option */}
                             {selectedGenre && (
                                 <button
                                     onClick={() => handleGenreClick(null)}
@@ -149,6 +141,26 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* View Mode Toggle */}
+            {onViewModeChange && (
+                <div className="flex items-center bg-[#1a1a1a] rounded-full border border-white/10 p-0.5">
+                    <button
+                        onClick={() => onViewModeChange('row')}
+                        className={`p-1.5 rounded-full transition-all duration-200 ${viewMode === 'row' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'}`}
+                        title="Row view"
+                    >
+                        <RowsIcon size={16} weight="bold" />
+                    </button>
+                    <button
+                        onClick={() => onViewModeChange('grid')}
+                        className={`p-1.5 rounded-full transition-all duration-200 ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'}`}
+                        title="Grid view"
+                    >
+                        <SquaresFourIcon size={16} weight="bold" />
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

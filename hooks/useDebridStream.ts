@@ -17,12 +17,12 @@
 
 import { useState, useCallback, useRef } from 'react';
 
-const BACKEND_URL    = (import.meta as any).env?.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
-const ALLDEBRID_KEY  = (import.meta as any).env?.VITE_ALLDEBRID_KEY   || '';
-const ALLDEBRID_API  = 'https://api.alldebrid.com/v4';
-const AGENT          = 'pstream';
-const CACHE_TTL_MS   = 6 * 60 * 60 * 1000; // 6h — AllDebrid CDN links don't expire in this window
-const MAX_TRY        = 6;                   // Try up to 6 sources before giving up
+const BACKEND_URL = (import.meta as any).env?.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
+const ALLDEBRID_KEY = (import.meta as any).env?.VITE_ALLDEBRID_KEY || '';
+const ALLDEBRID_API = 'https://api.alldebrid.com/v4';
+const AGENT = 'pstream';
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — AllDebrid CDN links don't expire in this window
+const MAX_TRY = 6;                   // Try up to 6 sources before giving up
 
 const TRACKERS = [
     'udp://open.demonii.com:1337',
@@ -34,23 +34,23 @@ const TRACKERS = [
 type MediaType = 'movie' | 'tv';
 interface DebridStreamState {
     streamUrl: string | null;
-    name:      string | null;
-    loading:   boolean;
-    error:     string | null;
-    seeders:   number | null;
-    quality:   string | null;
+    name: string | null;
+    loading: boolean;
+    error: string | null;
+    seeders: number | null;
+    quality: string | null;
     subtitles?: { url: string; label: string; lang: string }[];
-    alternatives?: Array<{ url: string; name: string; quality: string; seeders: number }>;
+    alternatives?: Array<{ url: string; name: string; quality: string; seeders: number; _audio?: string }>;
 }
 
 interface CacheEntry {
-    url:     string;
-    name:    string;
+    url: string;
+    name: string;
     quality: string;
     seeders: number;
-    ts:      number;
+    ts: number;
     subtitles?: { url: string; label: string; lang: string }[];
-    alternatives?: Array<{ url: string; name: string; quality: string; seeders: number }>;
+    alternatives?: Array<{ url: string; name: string; quality: string; seeders: number; _audio?: string }>;
 }
 
 // ── Session cache helpers ─────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ function readCache(key: string): CacheEntry | null {
 }
 
 function writeCache(key: string, entry: Omit<CacheEntry, 'ts'>): void {
-    try { sessionStorage.setItem(key, JSON.stringify({ ...entry, ts: Date.now() })); } catch {}
+    try { sessionStorage.setItem(key, JSON.stringify({ ...entry, ts: Date.now() })); } catch { }
 }
 
 // ── Quality scoring ───────────────────────────────────────────────────────────
@@ -80,35 +80,36 @@ function qualityScore(q: string = '', name: string = ''): number {
     let score = 0;
 
     // Base resolution ranking
-    if (lc.includes('1080') && (lc.includes('remux') || lc.includes('bluray'))) score = 7;
-    else if (lc.includes('1080') && lc.includes('hdr'))  score = 6;
-    else if (lc.includes('1080') && lc.includes('web'))  score = 5;
-    else if (lc.includes('1080'))                        score = 4;
+    if (lc.includes('1080') && lc.includes('web')) score = 7;
+    else if (lc.includes('1080') && (lc.includes('remux') || lc.includes('bluray'))) score = 6;
+    else if (lc.includes('1080') && lc.includes('hdr')) score = 5;
+    else if (lc.includes('1080')) score = 4;
     else if ((lc.includes('4k') || lc.includes('2160')) && lc.includes('web')) score = 3;
-    else if (lc.includes('4k') || lc.includes('2160'))   score = 2; // likely huge remux
-    else if (lc.includes('720'))                         score = 1;
+    else if (lc.includes('4k') || lc.includes('2160')) score = 2; // likely huge remux
+    else if (lc.includes('720')) score = 1;
 
     // Audio Compatibility & Source Reliability (Browsers cannot play AC3, EAC3, TrueHD, DTS natively)
     // WEB-DL/WEB-Rip from streaming services (AMZN, NF, DSNP, etc.) almost always use AAC or Opus.
-    const isWebSource = lc.includes('web-dl') || lc.includes('webrip') || lc.includes('web-rip') || 
-                        lc.includes('amzn') || lc.includes('nf.') || lc.includes('dsnp') || 
-                        lc.includes('hulu') || lc.includes('hbo') || lc.includes('itunes') ||
-                        lc.includes('atvp');
+    const isWebSource = lc.includes('web-dl') || lc.includes('webrip') || lc.includes('web-rip') ||
+        lc.includes('amzn') || lc.includes('nf.') || lc.includes('dsnp') ||
+        lc.includes('hulu') || lc.includes('hbo') || lc.includes('itunes') ||
+        lc.includes('atvp');
 
-    if (lc.includes('aac') || lc.includes('mp3') || lc.includes('opus') || 
+    if (lc.includes('aac') || lc.includes('mp3') || lc.includes('opus') ||
         lc.includes('2.0') || lc.includes('stereo') || isWebSource) {
         score += 15.0; // Heavily prefer browser-native codecs and streaming-optimized sources
     }
-    
+
     // Penalize unsupported surround codecs aggressively
     if (lc.includes('truehd') || lc.includes('atmos') || lc.includes('dts-hd') || lc.includes('dtshd')) {
         score -= 30.0;
-    } else if (lc.includes('dts') || lc.includes('ac3') || lc.includes('eac3') || 
-               lc.includes('dd5.1') || lc.includes('ddp') || lc.includes('dd+') || 
-               lc.includes('5.1') || lc.includes('7.1')) {
+    } else if (lc.includes('dts') || lc.includes('ac3') || lc.includes('eac3') ||
+        lc.includes('dd5.1') || lc.includes('ddp') || lc.includes('dd+') ||
+        lc.includes('5.1') || lc.includes('7.1') ||
+        lc.includes('bluray') || lc.includes('bdrip') || lc.includes('brrip')) {
         // Bluray rips often have AC3/DTS even if not explicitly labeled, 
-        // so we penalize generic 5.1/7.1 tags unless a supported codec is also present.
-        if (!lc.includes('aac') && !lc.includes('opus')) {
+        // so we penalize them unless a supported codec is explicitly present.
+        if (!lc.includes('aac') && !lc.includes('opus') && !lc.includes('mp3')) {
             score -= 20.0;
         }
     }
@@ -121,10 +122,10 @@ function qualityScore(q: string = '', name: string = ''): number {
         'spa', 'espanol', 'latino', 'spanish',
         'rus', 'russian', 'hindi', 'tamil', 'telugu', 'kannada', 'malayalam',
         'por', 'portuguese', 'brazilian',
-        'pol', 'polish', 
-        'tur', 'turkish', 
+        'pol', 'polish',
+        'tur', 'turkish',
         'nld', 'dutch', 'flemish',
-        'cze', 'czech', 
+        'cze', 'czech',
         'swe', 'swedish', 'dan', 'danish', 'fin', 'finnish', 'nor', 'norwegian',
         'kor', 'korean', 'jpn', 'japanese', 'chi', 'chinese', 'zho', 'mandarin', 'cantonese',
         'dubbed' // heavily penalize generic "dubbed" tags unless explicitly multi
@@ -147,7 +148,7 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
     function flatten(items: any[]) {
         for (const item of items || []) {
             if (item.l) flat.push({ name: item.n || '', size: item.s || 0, url: item.l });
-            if (item.e)     flatten(item.e);
+            if (item.e) flatten(item.e);
             if (item.files) flatten(item.files);
         }
     }
@@ -159,7 +160,7 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
     if (season != null && episode != null) {
         const sPad = String(season).padStart(2, '0');
         const ePad = String(episode).padStart(2, '0');
-        
+
         const patterns = [
             new RegExp(`[sS]${sPad}[eE]${ePad}\\b`), // S01E02
             new RegExp(`[sS]${season}[eE]${ePad}\\b`), // S1E02
@@ -188,27 +189,75 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
     return flat[0].url;
 }
 
+// ─── EBML Audio Probe ──────────────────────────────────────────────────────
+// MKV Tracks section (containing codec IDs) is almost always within the first
+// 256KB. Fetching a small range and walking the EBML bytes gives us the actual
+// codec before the player ever touches the file.
+
+export const BROWSER_SAFE_AUDIO = new Set([
+    'A_AAC', 'A_OPUS', 'A_VORBIS', 'A_MPEG/L3', 'A_MPEG/L2', 'A_MPEG/L1',
+]);
+
+function findAudioCodecId(bytes: Uint8Array): string | null {
+    for (let i = 0; i < bytes.length - 24; i++) {
+        if (bytes[i] !== 0x86) continue;
+
+        const vint = bytes[i + 1];
+        if (!(vint & 0x80)) continue;
+        const len = vint & 0x7F;
+        if (len < 4 || len > 32) continue;
+
+        const end = i + 2 + len;
+        if (end > bytes.length) continue;
+
+        const id = String.fromCharCode(...bytes.slice(i + 2, end))
+            .replace(/\0+$/, '');
+
+        if (/^[AV]_[A-Z0-9/_]+$/.test(id) && id.startsWith('A_')) return id;
+    }
+    return null;
+}
+
+async function probeAudioCodec(url: string, signal: AbortSignal): Promise<string> {
+    if (!url.toLowerCase().includes('.mkv')) return 'A_AAC';
+
+    try {
+        const res = await fetch(url, {
+            headers: { Range: 'bytes=0-262143' },
+            signal,
+        });
+
+        if (!res.ok && res.status !== 206) return 'unknown';
+
+        const codec = findAudioCodecId(new Uint8Array(await res.arrayBuffer()));
+        console.log(`[DebridStream] 🎵 Probed ${url.split('/').pop()?.slice(0, 60)}: ${codec ?? 'not found'}`);
+        return codec ?? 'unknown';
+    } catch {
+        return 'unknown';
+    }
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export function useDebridStream() {
     const [state, setState] = useState<DebridStreamState>({
         streamUrl: null,
-        name:      null,
-        loading:   false,
-        error:     null,
-        seeders:   null,
-        quality:   null,
+        name: null,
+        loading: false,
+        error: null,
+        seeders: null,
+        quality: null,
         subtitles: [],
     });
 
     const abortRef = useRef<AbortController | null>(null);
 
     const resolve = useCallback(async (
-        imdbId:   string,
-        type:     MediaType,
-        season?:  number,
+        imdbId: string,
+        type: MediaType,
+        season?: number,
         episode?: number,
-        title?:   string,
-        tmdbId?:  string
+        title?: string,
+        tmdbId?: string
     ): Promise<string | null> => {
         if (!ALLDEBRID_KEY) {
             console.warn('[DebridStream] No VITE_ALLDEBRID_KEY — skipping');
@@ -234,10 +283,10 @@ export function useDebridStream() {
 
             // ── Step 1: Fetch quality-sorted sources from backend ──────────────────
             const params = new URLSearchParams({ imdbId, type });
-            if (season)  params.set('season',  String(season));
+            if (season) params.set('season', String(season));
             if (episode) params.set('episode', String(episode));
-            if (title)   params.set('title',   title);
-            if (tmdbId)  params.set('tmdbId',  tmdbId);
+            if (title) params.set('title', title);
+            if (tmdbId) params.set('tmdbId', tmdbId);
 
             const sourcesRes = await fetch(`${BACKEND_URL}/api/torrent/sources?${params}`, { signal });
             if (!sourcesRes.ok) {
@@ -257,7 +306,7 @@ export function useDebridStream() {
             console.log(`[DebridStream] ${sorted.length} sources. Top: ${sorted.slice(0, 3).map(s => s.quality).join(', ')}`);
 
             // ── Steps 2–4: Cascade through sources until one is AllDebrid-cached ───
-            const alternatives: Array<{ url: string; name: string; quality: string; seeders: number }> = [];
+            const alternatives: Array<{ url: string; name: string; quality: string; seeders: number; _audio?: string }> = [];
 
             for (const candidate of sorted.slice(0, MAX_TRY)) {
                 if (signal.aborted) break;
@@ -266,7 +315,7 @@ export function useDebridStream() {
                 try {
                     // 2a: Upload magnet (idempotent) — tells us if it's instant
                     const magnet = `magnet:?xt=urn:btih:${candidate.infoHash}&${TRACKERS}`;
-                    const upRes  = await fetch(
+                    const upRes = await fetch(
                         `${ALLDEBRID_API}/magnet/upload?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&magnets[]=${encodeURIComponent(magnet)}`,
                         { signal }
                     );
@@ -280,7 +329,7 @@ export function useDebridStream() {
                     }
 
                     // 2b: Fetch file list
-                    const fRes  = await fetch(
+                    const fRes = await fetch(
                         `${ALLDEBRID_API}/magnet/files?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&id[]=${mInfo.id}`,
                         { signal }
                     );
@@ -292,7 +341,7 @@ export function useDebridStream() {
                     if (!shortUrl) continue;
 
                     // 2c: Unlock short link → CDN URL
-                    const uRes  = await fetch(
+                    const uRes = await fetch(
                         `${ALLDEBRID_API}/link/unlock?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&link=${encodeURIComponent(shortUrl)}`,
                         { signal }
                     );
@@ -300,11 +349,21 @@ export function useDebridStream() {
                     const cdnUrl = uData?.data?.link;
                     if (!cdnUrl) continue;
 
+                    // ── Audio pre-check ───────────────────────────────────────────────────────
+                    const audioCodec = await probeAudioCodec(cdnUrl, signal);
+                    const audioOk = audioCodec === 'unknown' || BROWSER_SAFE_AUDIO.has(audioCodec);
+
+                    if (!audioOk) {
+                        console.log(`[DebridStream] ⏭️ Skipping ${candidate.quality} — unsupported audio: ${audioCodec}`);
+                        if (alternatives.length > 0) continue;
+                    }
+
                     alternatives.push({
                         url: cdnUrl,
                         name: candidate.name,
                         quality: candidate.quality || 'Auto',
-                        seeders: candidate.seeders || 0
+                        seeders: candidate.seeders || 0,
+                        _audio: audioCodec
                     });
 
                     // Update state progressively as we find them
@@ -330,21 +389,21 @@ export function useDebridStream() {
             const winner = alternatives[0];
             console.log(`[DebridStream] ✅ Found ${alternatives.length} alternatives. Best: ${winner.quality}`);
 
-            writeCache(ck, { 
-                url: winner.url, 
+            writeCache(ck, {
+                url: winner.url,
                 name: winner.name || '',
-                quality: winner.quality || 'auto', 
+                quality: winner.quality || 'auto',
                 seeders: winner.seeders || 0,
                 subtitles: subtitles || [],
                 alternatives: alternatives
             });
 
-            setState({ 
-                streamUrl: winner.url, 
-                name: winner.name || null, 
-                loading: false, 
-                error: null, 
-                seeders: winner.seeders, 
+            setState({
+                streamUrl: winner.url,
+                name: winner.name || null,
+                loading: false,
+                error: null,
+                seeders: winner.seeders,
                 quality: winner.quality || null,
                 subtitles: subtitles || [],
                 alternatives: alternatives
@@ -367,7 +426,7 @@ export function useDebridStream() {
 
     /** Clear the session cache for a specific piece of content (e.g. after a broken link). */
     const clearCache = useCallback((imdbId: string, type: string, season?: number, episode?: number) => {
-        try { sessionStorage.removeItem(makeCacheKey(imdbId, type, season, episode)); } catch {}
+        try { sessionStorage.removeItem(makeCacheKey(imdbId, type, season, episode)); } catch { }
     }, []);
 
     return { ...state, resolve, reset, clearCache };

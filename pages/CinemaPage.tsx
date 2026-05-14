@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import VideoPlayer from '../components/VideoPlayer';
 import ErrorBoundary from '../components/ErrorBoundary';
+import NotFoundPage from './NotFoundPage';
 import { getMovieDetails } from '../services/api';
 import { useTitle } from '../context/TitleContext';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -116,17 +117,11 @@ const CinemaPage: React.FC = () => {
 
     if (error || !movie) {
         return (
-            <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
-                <div className="text-center">
-                    <span className="text-red-500 text-lg">{error || 'Content not found'}</span>
-                    <button
-                        onClick={handleClose}
-                        className="mt-4 block mx-auto px-6 py-2 bg-red-600 rounded hover:bg-red-700 transition text-white font-bold"
-                    >
-                        Go Back
-                    </button>
-                </div>
-            </div>
+            <NotFoundPage 
+                title="Content Not Found" 
+                message={error || "The movie or TV show you're looking for doesn't exist or may have been removed."}
+                code="TMDB-404"
+            />
         );
     }
 

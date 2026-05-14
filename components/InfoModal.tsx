@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, TicketIcon, ClockIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
+import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import { Movie, Episode } from '../types';
 import { IMG_PATH, REQUESTS } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -11,7 +11,6 @@ import InfoModalEpisodes from './InfoModalEpisodes';
 import InfoModalRecommendations from './InfoModalRecommendations';
 import { useMovieData } from '../hooks/useMovieData';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
-import { NetworkPriority } from '../services/NetworkPriority';
 import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
@@ -20,10 +19,10 @@ import { useTasteEngine } from '../hooks/useTasteEngine';
 
 interface InfoModalProps {
     movie: Movie | null;
-    initialTime?: number; // Resume from Hero
-    onClose: (finalTime?: number) => void; // Pass back time
+    initialTime?: number;
+    onClose: (finalTime?: number) => void;
     onPlay: (movie: Movie, season?: number, episode?: number) => void;
-    trailerId?: string; // Force specific video
+    trailerId?: string;
 }
 
 type MovieRating = 'like' | 'dislike' | 'love';
@@ -72,6 +71,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     } = useGlobalContext();
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const [, setSearchParams] = useSearchParams();
     const [overrideMovie, setOverrideMovie] = useState<Movie | null>(null);
     const activeMovieProp = overrideMovie || movie;
     const { detailedMovie, cast, recommendations, logoUrl, isLoading } = useMovieData(activeMovieProp);
@@ -79,13 +79,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const isCinemaOnly = useIsInTheaters(movie);
 
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
+    const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
     const [hasVideoEnded, setHasVideoEnded] = useState(false);
     const [replayCount, setReplayCount] = useState(0);
 
     const { getMatchScore } = useTasteEngine();
     const matchScore = getMatchScore(detailedMovie || activeMovieProp);
 
-    // Episode / Season State
     const [episodes, setEpisodes] = useState<Episode[]>([]);
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
@@ -93,7 +93,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const modalRef = useRef<HTMLDivElement>(null);
     const heroRef = useRef<HTMLDivElement>(null);
 
-    // ── Spring-from-card animation (FLIP technique) ──────────────────────
     const [springTransform, setSpringTransform] = useState<string>('none');
     const [springTransition, setSpringTransition] = useState('none');
 
@@ -126,7 +125,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         });
     }, []);
 
-    const [resumeContext, setResumeContext] = useState<{ season: number; episode: number } | null>(null);
     useEffect(() => {
         if (!movie) return;
         const scrollY = window.scrollY;
@@ -147,15 +145,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         };
     }, [movie, setActiveVideoId]);
 
-    const [springRect, setSpringRect] = useState<any>(null);
-    useEffect(() => {
-        if (movie) {
-            setSpringRect((window as any).__last_card_rect || null);
-            if (trailerId) setActiveVideoId(trailerId);
-        }
-        return () => setActiveVideoId(null);
-    }, [movie, trailerId]);
-
     const handleClose = () => {
         onClose();
     };
@@ -164,10 +153,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         if (movie) {
             setImgFailed(false);
             setIsPlayingTrailer(false);
+            setIsActuallyPlaying(false);
             setHasVideoEnded(false);
             setEpisodes([]);
             setSelectedSeason(1);
-            setResumeContext(null);
             setReplayCount(0);
             setOverrideMovie(null);
 
@@ -176,24 +165,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             if (type === 'tv') {
                 const saved = getLastWatchedEpisode(movie.id);
                 if (saved?.season && saved?.episode) {
-                    setResumeContext({ season: saved.season, episode: saved.episode });
                     setSelectedSeason(saved.season);
                 }
             }
         }
     }, [movie]);
-
-    useEffect(() => {
-        if (!overrideMovie) return;
-        const type = (overrideMovie.media_type || (overrideMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-        if (type === 'tv') {
-            const saved = getLastWatchedEpisode(overrideMovie.id);
-            if (saved?.season && saved?.episode) {
-                setResumeContext({ season: saved.season, episode: saved.episode });
-                setSelectedSeason(saved.season);
-            }
-        }
-    }, [overrideMovie]);
 
     const fetchEpisodes = useCallback(async (id: number, season: number) => {
         setLoadingEpisodes(true);
@@ -208,58 +184,41 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         }
     }, [selectedSeason, mediaType, movie, fetchEpisodes]);
 
-    const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
-    
-    // Visibility & Scroll Pause Logic
-    const visibilityRef = useRef({ isVisible: true, isIntersecting: true });
-    
+    // ── Pause/Resume via activeVideoId ONLY ─────────────────────────────────
+    // No separate backdrop overlay state. TrailerPlayer onEnded/onErrored is
+    // the single source of truth for when the video layer hides.
     useEffect(() => {
         if (!movie) return;
 
-        visibilityRef.current.isVisible = document.visibilityState === 'visible';
-        // Assume intersecting until observer says otherwise
-        visibilityRef.current.isIntersecting = true; 
+        const isVisible = () => document.visibilityState === 'visible';
+        const isIntersectingRef = { current: true };
 
-        const updateVideoState = () => {
-            if (visibilityRef.current.isVisible && visibilityRef.current.isIntersecting) {
+        const update = () => {
+            if (isVisible() && isIntersectingRef.current) {
                 setActiveVideoId(`modal-${movie.id}`);
             } else {
                 setActiveVideoId(`paused-modal-${movie.id}`);
             }
         };
 
-        const handleVisibility = () => {
-            visibilityRef.current.isVisible = document.visibilityState === 'visible';
-            if (!visibilityRef.current.isVisible) {
-                visibilityTimerRef.current = setTimeout(() => {
-                    setShowBackdropOverlay(true);
-                }, 30_000);
-            } else {
-                if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
-                setShowBackdropOverlay(false);
-            }
-            updateVideoState();
-        };
+        const handleVisibility = () => update();
 
         document.addEventListener('visibilitychange', handleVisibility);
         
         let observer: IntersectionObserver | null = null;
         if (heroRef.current) {
-            // Using a slight delay to prevent rapid toggling if the user scrolls quickly past the threshold
             observer = new IntersectionObserver(([entry]) => {
-                visibilityRef.current.isIntersecting = entry.isIntersecting;
-                updateVideoState();
-            }, { threshold: 0.1 }); // Pause when less than 10% is visible
+                isIntersectingRef.current = entry.isIntersecting;
+                update();
+            }, { threshold: 0.1 });
             observer.observe(heroRef.current);
         }
 
-        updateVideoState();
+        update();
 
         return () => {
             document.removeEventListener('visibilitychange', handleVisibility);
             if (observer) observer.disconnect();
-            if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
         };
     }, [movie, setActiveVideoId]);
 
@@ -278,10 +237,20 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         setOverrideMovie(rec);
         setImgFailed(false);
         setIsPlayingTrailer(false);
+        setIsActuallyPlaying(false);
         setHasVideoEnded(false);
+        setLoadingEpisodes(true);
         setEpisodes([]);
         setSelectedSeason(1);
-        setResumeContext(null);
+        setReplayCount(c => c + 1);
+        const type = rec.media_type || (rec.title ? 'movie' : 'tv');
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('modal', String(rec.id));
+            next.set('type', type);
+            return next;
+        }, { replace: true });
+        setActiveVideoId(`modal-${rec.id}`);
         if (modalRef.current) {
             modalRef.current.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -316,7 +285,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         >
             <div
                 ref={modalRef}
-                // TWEAK HERE: Change max-w-[920px] to make narrower/wider. Change mt-6 md:mt-8 to move it up/down on Y-axis.
                 className="relative w-full max-w-[920px] bg-[#181818] rounded-xl shadow-2xl mt-6 md:mt-8 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
                 style={{
                     transform: springTransform,
@@ -343,21 +311,25 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
-                            className={`w-full h-full object-cover scale-[1.05] transition-opacity duration-700 ${isPlayingTrailer ? 'opacity-0' : 'opacity-100'}`}
+                            className={`w-full h-full object-cover scale-[1.05] transition-opacity duration-700 ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
                             alt="modal hero"
                         />
-                        <div className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${(isPlayingTrailer && !showBackdropOverlay) ? 'opacity-100' : 'opacity-0'}`}>
+                        {/* Video layer is now controlled ONLY by isActuallyPlaying */}
+                        <div className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
                             <TrailerPlayer 
                                 key={`modal-player-${replayCount}`}
                                 movie={activeMovie} 
                                 variant="modal"
                                 onReady={() => setIsPlayingTrailer(true)}
+                                onPlay={() => setIsActuallyPlaying(true)}
                                 onEnded={() => {
                                     setIsPlayingTrailer(false);
+                                    setIsActuallyPlaying(false);
                                     setHasVideoEnded(true);
                                 }}
                                 onErrored={() => {
                                     setIsPlayingTrailer(false);
+                                    setIsActuallyPlaying(false);
                                 }}
                             />
                         </div>
@@ -365,10 +337,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     </div>
 
                     <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 space-y-3 md:space-y-4 z-20 pointer-events-auto">
-                        <div className="inline-flex flex-col max-w-[80%]">
+                        <div className={`inline-flex flex-col max-w-[80%] transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
                             {logoUrl && !imgFailed ? (
                                 <div className="relative inline-flex items-end">
-                                    {/* Dual-layer premium shadow for high-contrast visibility */}
                                     <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(25px) brightness(0) opacity(0.55)', transform: 'translate(4px, 12px) scale(1.08)', pointerEvents: 'none', zIndex: 0 }} />
                                     <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(5px) brightness(0) opacity(0.35)', transform: 'translate(2px, 4px) scale(1.02)', pointerEvents: 'none', zIndex: 0 }} />
                                     <img src={logoUrl} alt={activeMovie.title || activeMovie.name} style={{ position: 'relative', zIndex: 1, maxHeight: 'clamp(68px, 11vw, 120px)', maxWidth: '72%', objectFit: 'contain', objectPosition: 'bottom left' }} onError={() => setImgFailed(true)} />
@@ -392,7 +363,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             )}
                         </div>
 
-                        <div className="flex items-center space-x-3">
+                        <div className={`flex items-center space-x-3 transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
                             {isCinemaOnly && mediaType === 'movie' ? (
                                 <div className="bg-[#6d6d6e]/80 text-white px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center select-none cursor-not-allowed">
                                     <TicketIcon size={24} weight="bold" className="mr-2" />
@@ -435,7 +406,34 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 </div>
 
                 <div className="px-6 md:px-12 pb-12 bg-[#181818]">
-                    <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-x-8 gap-y-6">
+                    {isLoading ? (
+                        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-x-8 gap-y-6 mt-2">
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3 mt-2">
+                                    <div className="h-3 w-14 bg-white/10 rounded-full animate-pulse" />
+                                    <div className="h-3 w-8 bg-white/10 rounded-full animate-pulse" />
+                                    <div className="h-3 w-20 bg-white/10 rounded-full animate-pulse" />
+                                </div>
+                                <div className="space-y-2 pt-1">
+                                    <div className="h-3 w-full bg-white/[0.07] rounded-full animate-pulse" />
+                                    <div className="h-3 w-[92%] bg-white/[0.07] rounded-full animate-pulse" />
+                                    <div className="h-3 w-[80%] bg-white/[0.07] rounded-full animate-pulse" />
+                                    <div className="h-3 w-[65%] bg-white/[0.07] rounded-full animate-pulse" />
+                                </div>
+                            </div>
+                            <div className="space-y-3 pt-2">
+                                <div className="flex gap-2">
+                                    <div className="h-3 w-10 bg-white/10 rounded-full animate-pulse" />
+                                    <div className="h-3 w-28 bg-white/[0.06] rounded-full animate-pulse" />
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="h-3 w-12 bg-white/10 rounded-full animate-pulse" />
+                                    <div className="h-3 w-24 bg-white/[0.06] rounded-full animate-pulse" />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-[3fr_1fr] gap-x-10 gap-y-5">
                         <div className="space-y-4">
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-white font-bold text-sm md:text-base mt-2 font-harmonia-condensed">
                                 {matchScore !== null && (
@@ -449,7 +447,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} size="md" />
                                 <span className="text-sm font-semibold text-gray-200">{activeMovie.adult ? t('common.maturity.adultDesc') : t('common.maturity.teenDesc')}</span>
                             </div>
-                            <p className="text-white font-medium text-sm md:text-[15px] leading-relaxed pt-2">{activeMovie.overview}</p>
+                            <p className="text-white font-normal text-[14px] md:text-[15px] leading-[1.65] pt-1">{activeMovie.overview}</p>
                         </div>
                         <div className="space-y-4 pt-2">
                             <div className="text-sm flex flex-wrap gap-x-1">
@@ -491,6 +489,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             </div>
                         </div>
                     </div>
+                    )}
 
                     {mediaType === 'tv' && (
                         <div className="mt-12">

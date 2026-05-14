@@ -451,13 +451,10 @@ export const EpisodeExplorer: React.FC<{
 }> = ({ seasonList, currentSeasonEpisodes, selectedSeason, currentEpisode, playingSeason, showId, onSeasonSelect, onEpisodeSelect, onEpisodeExpand, activePanel, setActivePanel, showTitle, onPanelHover, onClose }) => {
     const isMobile = useIsMobile();
     const { getEpisodeProgress } = useGlobalContext();
-    const [previewSeason, setPreviewSeason] = React.useState(selectedSeason);
     const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
     const episodesContainerRef = useRef<HTMLDivElement>(null);
     const currentEpisodeRef = useRef<HTMLDivElement>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    React.useEffect(() => { setPreviewSeason(playingSeason || selectedSeason); }, [selectedSeason, playingSeason, activePanel]);
 
     // Auto-scroll AND auto-expand current episode when panel opens
     useEffect(() => {
@@ -490,22 +487,23 @@ export const EpisodeExplorer: React.FC<{
         <div className="flex flex-col h-full bg-[#262626] font-sans text-white">
             {activePanel === 'seasons' && (
                 <div className="flex flex-col h-full">
-                    <div className="flex items-center px-6 py-4 border-b-2 border-white bg-[#262626] flex-shrink-0">
-                        <span className="text-[20px] font-bold">{showTitle || 'Seasons'}</span>
+                    <div className="flex items-center px-7 py-5 border-b-2 border-white bg-[#262626] flex-shrink-0">
+                        <span className="text-[22px] font-bold">{showTitle || 'Seasons'}</span>
                     </div>
                     <div className="overflow-y-auto scroll-list flex-1">
                         {seasonList.map(s => (
-                            <div 
-                                key={s} 
-                                onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    setPreviewSeason(s); 
-                                    onSeasonSelect(s); 
-                                    setActivePanel('episodes'); 
-                                }} 
-                                className={`relative px-[50px] py-[14px] text-[18px] font-bold transition-colors cursor-pointer border-2 border-transparent hover:bg-white/5 ${selectedSeason === s ? 'border-white bg-[#262626]' : ''}`}
+                            <div
+                                key={s}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSeasonSelect(s);
+                                    setActivePanel('episodes');
+                                }}
+                                className={`relative px-[56px] py-[18px] text-[19px] font-bold transition-colors cursor-pointer border-2 border-transparent hover:bg-white/5 ${
+                                    selectedSeason === s ? 'border-white bg-[#262626]' : ''
+                                }`}
                             >
-                                {selectedSeason === s && <CheckIcon size={16} weight="bold" className="absolute left-[18px] top-1/2 -translate-y-1/2 text-white" />}
+                                {selectedSeason === s && <CheckIcon size={17} weight="bold" className="absolute left-[18px] top-1/2 -translate-y-1/2 text-white" />}
                                 Season {s}
                             </div>
                         ))}
@@ -516,12 +514,12 @@ export const EpisodeExplorer: React.FC<{
                 <div className="flex flex-col h-full">
                     {/* Clicking the season header goes back to season list */}
                     <div
-                        className="flex items-center gap-2 px-6 py-3 border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer text-white transition-colors"
+                        className="flex items-center gap-2 px-7 py-4 border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer text-white transition-colors hover:bg-white/5"
                         onClick={(e) => { e.stopPropagation(); setActivePanel('seasons'); }}
                         title="Switch season"
                     >
-                        <ArrowLeftIcon size={18} weight="bold" className="text-white" />
-                        <span className="text-[20px] font-bold">Season {previewSeason}</span>
+                        <ArrowLeftIcon size={18} weight="bold" className="text-white/70 flex-shrink-0" />
+                        <span className="text-[22px] font-bold">Season {selectedSeason}</span>
                     </div>
                     <div ref={episodesContainerRef} className="overflow-y-auto scroll-list flex-1 scrollbar-hide">
                         {currentSeasonEpisodes.map(ep => {
@@ -537,26 +535,26 @@ export const EpisodeExplorer: React.FC<{
                                     className={`transition-colors border-b border-white/5 ${isCurrentlyPlaying || isExpanded ? 'bg-[#121212]' : 'hover:bg-white/5'}`}
                                 >
                                     <div
-                                        className="flex items-center px-6 py-3 cursor-pointer gap-3"
+                                        className="flex items-center px-7 py-[18px] cursor-pointer gap-4"
                                         onClick={(e) => { e.stopPropagation(); handleEpisodeClick(ep); }}
                                     >
-                                         {/* Episode number */}
-                                        <span className={`flex-shrink-0 ${isMobile ? 'text-xl w-[38px]' : 'text-base w-[28px]'} font-bold ${isCurrentlyPlaying ? 'text-[#e50914]' : 'text-white/60'}`}>
+                                        {/* Episode number */}
+                                        <span className={`flex-shrink-0 ${isMobile ? 'text-xl w-[38px]' : 'text-[17px] w-[32px]'} font-bold ${isCurrentlyPlaying ? 'text-[#e50914]' : 'text-white/50'}`}>
                                             {ep.episode_number}
                                         </span>
                                         {/* Name */}
-                                        <span className={`font-bold flex-1 truncate ${isMobile ? 'text-base' : 'text-sm'} ${isCurrentlyPlaying ? 'text-white' : 'text-white/90'}`}>
+                                        <span className={`font-bold flex-1 truncate ${isMobile ? 'text-base' : 'text-[15px]'} ${isCurrentlyPlaying ? 'text-white' : 'text-white/90'}`}>
                                             {ep.name}
                                         </span>
                                         {/* Progress bar */}
                                         {perc > 0 && (
-                                            <div className={`${isMobile ? 'w-[80px] h-1' : 'w-[60px] h-[3px]'} bg-white/20 flex-shrink-0 rounded-full overflow-hidden`}>
+                                            <div className={`${isMobile ? 'w-[80px] h-1' : 'w-[70px] h-[3px]'} bg-white/20 flex-shrink-0 rounded-full overflow-hidden`}>
                                                 <div className="h-full bg-red-500 rounded-full" style={{ width: `${Math.min(100, perc)}%` }} />
                                             </div>
                                         )}
-                                        {/* Expand/play caret */}
+                                        {/* Expand caret */}
                                         <CaretRightIcon
-                                            size={isMobile ? 16 : 13}
+                                            size={isMobile ? 16 : 14}
                                             weight="bold"
                                             className={`flex-shrink-0 transition-transform text-white/40 ${isExpanded ? 'rotate-90' : ''}`}
                                         />
@@ -583,9 +581,12 @@ export const EpisodeExplorer: React.FC<{
                                                 </div>
                                             )}
                                             <div className="flex-1 flex flex-col justify-center">
-                                                <p className="text-xs text-white/60 leading-relaxed line-clamp-4">
+                                                <p className="text-[13px] text-white/70 leading-relaxed line-clamp-4">
                                                     {ep.overview || 'No description available.'}
                                                 </p>
+                                                {ep.runtime && (
+                                                    <span className="text-[11px] text-white/40 mt-1.5 font-medium">{ep.runtime}m</span>
+                                                )}
                                             </div>
                                         </div>
                                     )}
@@ -608,7 +609,7 @@ export const EpisodeExplorer: React.FC<{
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between px-6 py-4 border-b-2 border-white flex-shrink-0">
-                        <span className="text-white text-lg font-bold uppercase">{activePanel === 'seasons' ? 'Seasons' : `Season ${previewSeason}`}</span>
+                        <span className="text-white text-lg font-bold uppercase">{activePanel === 'seasons' ? 'Seasons' : `Season ${selectedSeason}`}</span>
                         <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="w-10 h-10 flex items-center justify-center text-white active:text-white/50"><XIcon size={20} weight="bold" /></button>
                     </div>
                     <div className="overflow-y-auto flex-1">{innerContent}</div>
@@ -633,7 +634,13 @@ export const EpisodeExplorer: React.FC<{
     return (
         <div
             id="video-panel-shell"
-            className={`${commonPanelCls} ${activePanel === 'audioSubtitles' ? 'w-[480px]' : (activePanel === 'episodes' || activePanel === 'seasons' ? 'w-[700px]' : 'w-[380px]')} h-[420px] lg:h-[65vh]`}
+            className={`${commonPanelCls} ${
+                activePanel === 'audioSubtitles'
+                    ? 'w-[500px] h-[420px]'
+                    : (activePanel === 'episodes' || activePanel === 'seasons')
+                    ? 'w-[820px] h-[72vh]'
+                    : 'w-[380px] h-auto'
+            }`}
         >
             {innerContent}
         </div>

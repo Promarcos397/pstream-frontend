@@ -8,6 +8,7 @@ import TopTenRow from '../components/TopTenRow';
 import { useGlobalContext } from '../context/GlobalContext';
 import { prefetchStream } from '../services/api';
 import { useDynamicManifest } from '../hooks/useDynamicManifest';
+import ManifestSkeleton from '../components/ManifestSkeleton';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -52,7 +53,7 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
   const { myList, continueWatching, getLikedMovies } = useGlobalContext();
   const { t } = useTranslation();
 
-  const rows = useDynamicManifest('home');
+  const { rows, isLoading } = useDynamicManifest('home');
 
   // --- SMART PRELOADING ENGINE ---
   // Removed: We now use the global usePrefetchQueue hook instead of aggressive localized prefetching.
@@ -69,27 +70,33 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
       />
       {/* THEME_TOGGLE: ROW_POSITION - Adjust negative margin to move rows up/down relative to Hero */}
       <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6">
-        {rows.map(row => (
-          row.type === 'top10' ? (
-            <TopTenRow
-              key={row.key}
-              title={row.title}
-              fetchUrl={row.fetchUrl}
-              onSelect={onSelectMovie}
-            />
-          ) : (
-            <Row
-              key={row.key}
-              title={row.title}
-              fetchUrl={row.fetchUrl}
-              data={row.data}
-              onSelect={onSelectMovie}
-              onPlay={onPlay}
-              rowKey={row.key}
-              onViewAll={onViewAll}
-            />
-          )
-        ))}
+        {isLoading ? (
+          <div className="pt-4 md:pt-10">
+             <ManifestSkeleton count={6} />
+          </div>
+        ) : (
+          rows.map(row => (
+            row.type === 'top10' ? (
+              <TopTenRow
+                key={row.key}
+                title={row.title}
+                fetchUrl={row.fetchUrl}
+                onSelect={onSelectMovie}
+              />
+            ) : (
+              <Row
+                key={row.key}
+                title={row.title}
+                fetchUrl={row.fetchUrl}
+                data={row.data}
+                onSelect={onSelectMovie}
+                onPlay={onPlay}
+                rowKey={row.key}
+                onViewAll={onViewAll}
+              />
+            )
+          ))
+        )}
       </main>
     </>
   );

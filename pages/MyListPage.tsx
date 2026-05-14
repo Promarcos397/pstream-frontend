@@ -8,40 +8,17 @@ import { PlaylistIcon } from '@phosphor-icons/react';
 import Row from '../components/Row';
 import { REQUESTS } from '../constants';
 import { useTasteEngine } from '../hooks/useTasteEngine';
+import { UNIVERSAL_GENRES } from '../data/pageGenres';
 
 interface PageProps {
   onSelectMovie: (movie: Movie) => void;
+  onPlay?: (movie: Movie) => void;
+  onViewAll?: (rowKey: string, fetchUrl: string, title: string) => void;
 }
 
-type FilterType = 'all' | 'movie' | 'tv' | 'comic';
-type SortType = 'date_added' | 'title' | 'rating' | 'release_date';
-
-const MY_LIST_GENRES = [
-  { id: 28, name: 'Action' },
-  { id: 12, name: 'Adventure' },
-  { id: 16, name: 'Animation' },
-  { id: 35, name: 'Comedy' },
-  { id: 80, name: 'Crime' },
-  { id: 99, name: 'Documentary' },
-  { id: 18, name: 'Drama' },
-  { id: 10751, name: 'Family' },
-  { id: 14, name: 'Fantasy' },
-  { id: 36, name: 'History' },
-  { id: 27, name: 'Horror' },
-  { id: 10402, name: 'Music' },
-  { id: 9648, name: 'Mystery' },
-  { id: 10749, name: 'Romance' },
-  { id: 878, name: 'Science Fiction' },
-  { id: 53, name: 'Thriller' },
-  { id: 10752, name: 'War' },
-  { id: 37, name: 'Western' }
-];
-
-const MyListPage: React.FC<PageProps> = ({ onSelectMovie }) => {
-  const { myList, isKidsMode, getLikedMovies } = useGlobalContext();
+const MyListPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) => {
+  const { myList, isKidsMode } = useGlobalContext();
   const { t } = useTranslation();
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [sort, setSort] = useState<SortType>('date_added');
   const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
 
   const { getRecommendedGenres, getDislikedMovies } = useTasteEngine();
@@ -59,47 +36,21 @@ const MyListPage: React.FC<PageProps> = ({ onSelectMovie }) => {
       });
     }
 
-    // 1. Media Type Filter
-    if (filter !== 'all') {
-      list = list.filter(m => {
-        const type = m.media_type || (m.title ? 'movie' : 'tv');
-        if (filter === 'comic') return ['series', 'comic', 'manga', 'local'].includes(type);
-        return type === filter;
-      });
-    }
-
-    // 2. Genre Filter
+    // Genre Filter via CategorySubNav
     if (selectedGenre) {
       list = list.filter(m => m.genre_ids?.includes(selectedGenre.id));
     }
 
-    // 3. Sort
-    switch (sort) {
-      case 'title':
-        list.sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
-        break;
-      case 'rating':
-        list.sort((a, b) => b.vote_average - a.vote_average);
-        break;
-      case 'release_date':
-        list.sort((a, b) => new Date(b.release_date || b.first_air_date || 0).getTime() - new Date(a.release_date || a.first_air_date || 0).getTime());
-        break;
-      case 'date_added':
-      default:
-        list.reverse();
-        break;
-    }
-
     return list;
-  }, [myList, filter, sort, selectedGenre, isKidsMode]);
+  }, [myList, selectedGenre, isKidsMode]);
 
   return (
     <div className="relative min-h-screen">
-      {/* Dynamic Sub-Nav for My List */}
+      {/* Genre Sub-Nav — same pattern as MoviesPage & ShowsPage */}
       <div className="absolute top-16 md:top-20 left-0 right-0 w-full z-40 pointer-events-auto">
         <CategorySubNav
           title={isKidsMode ? 'Kids List' : 'My List'}
-          genres={MY_LIST_GENRES}
+          genres={UNIVERSAL_GENRES}
           selectedGenre={selectedGenre}
           onGenreSelect={setSelectedGenre}
         />
@@ -111,7 +62,7 @@ const MyListPage: React.FC<PageProps> = ({ onSelectMovie }) => {
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-10 animate-fadeIn">
               {processedList.map(movie => (
                 <div key={movie.id} className="relative group">
-                  <MovieCard movie={movie} onSelect={onSelectMovie} isGrid={true} />
+                  <MovieCard movie={movie} onSelect={onSelectMovie} onPlay={onPlay} isGrid={true} />
                 </div>
               ))}
             </div>
@@ -119,7 +70,7 @@ const MyListPage: React.FC<PageProps> = ({ onSelectMovie }) => {
             <div className="text-gray-400 mt-20 text-center animate-fadeIn">
               <p>{t('list.noMatches')}</p>
               <button
-                onClick={() => { setFilter('all'); setSort('date_added'); setSelectedGenre(null); }}
+                onClick={() => setSelectedGenre(null)}
                 className="mt-4 text-white underline hover:text-gray-300"
               >
                 {t('list.reset')}
@@ -137,14 +88,17 @@ const MyListPage: React.FC<PageProps> = ({ onSelectMovie }) => {
         )}
       </div>
 
-      {/* --- Taste Engine Sections --- */}
+      {/* Taste Engine Sections */}
       {!isKidsMode && (
-        <div className="pb-16 space-y-8">
+        <div className="px-6 md:px-14 lg:px-20 pb-16 space-y-8">
           {topGenres.length > 0 && (
             <Row
               title="Recommended For You"
               fetchUrl={REQUESTS.fetchByGenre('movie', topGenres[0])}
               onSelect={onSelectMovie}
+              onPlay={onPlay}
+              rowKey="mylist-taste-recommended"
+              onViewAll={onViewAll}
             />
           )}
 
@@ -153,6 +107,8 @@ const MyListPage: React.FC<PageProps> = ({ onSelectMovie }) => {
               title="Hidden & Disliked"
               data={dislikedMovies}
               onSelect={onSelectMovie}
+              onPlay={onPlay}
+              rowKey="mylist-disliked"
             />
           )}
         </div>

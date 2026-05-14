@@ -225,11 +225,15 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
 
           {initialLoad
             ? Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="movie-card-container relative flex-none w-[calc((100vw-3rem)/2.5)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[7/5] bg-[#222] rounded-sm overflow-hidden border border-white/5 pointer-events-auto mr-1 md:mr-1.5 lg:mr-2">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
-                <div className="absolute bottom-3 left-3 right-3 space-y-2 opacity-50">
-                  <div className="h-2 bg-gray-600 rounded w-3/4"></div>
-                  <div className="h-2 bg-gray-600 rounded w-1/2"></div>
+              <div key={i} className="movie-card-container relative flex-none w-[calc((100vw-3rem)/2.5)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[7/5] bg-[#1e1e1e] rounded-sm overflow-hidden border border-white/[0.04] pointer-events-auto mr-1 md:mr-1.5 lg:mr-2">
+                {/* Shimmer sweep */}
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" style={{ animationDelay: `${i * 0.08}s` }} />
+                {/* Fake image area top gradient */}
+                <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
+                {/* Fake logo placeholder */}
+                <div className="absolute bottom-4 left-3 space-y-2">
+                  <div className="h-2.5 bg-white/[0.08] rounded-full" style={{ width: `${48 + (i % 4) * 16}px` }} />
+                  <div className="h-1.5 bg-white/[0.05] rounded-full" style={{ width: `${32 + (i % 3) * 12}px` }} />
                 </div>
               </div>
             ))
@@ -252,7 +256,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
         {!isMobile && (
           <>
             <div
-              className={`absolute top-0 bottom-0 left-0 z-[1000]  w-[15px] md:w-[39px] lg:w-[55px] items-center justify-center cursor-pointer
+              className={`absolute top-0 bottom-0 left-0 z-[1000] w-[15px] md:w-[39px] lg:w-[55px] items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/70 flex
                 transition-opacity duration-300 pointer-events-none rounded-r-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
@@ -261,7 +265,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
               <CaretLeftIcon size={76} weight="bold" className="text-white drop-shadow-lg" />
             </div>
             <div
-              className={`absolute top-0 bottom-0 right-0 z-[1000] w-[31px] md:w-[63px] lg:w-[79px] items-center justify-center cursor-pointer
+              className={`absolute top-0 bottom-0 right-0 z-[1000] w-[15px] md:w-[39px] lg:w-[55px] items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/70 flex
                 transition-opacity duration-300 pointer-events-none rounded-l-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}

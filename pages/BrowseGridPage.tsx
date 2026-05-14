@@ -4,7 +4,7 @@ import { Movie } from '../types';
 import MovieCard from '../components/MovieCard';
 import { fetchData } from '../services/api';
 import { REQUESTS } from '../constants';
-import { CaretLeftIcon } from '@phosphor-icons/react';
+import { CaretLeftIcon, CaretDownIcon } from '@phosphor-icons/react';
 
 interface BrowseGridPageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -129,9 +129,19 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
 
         {/* Loading skeleton — 16:9 aspect to match MovieCard isGrid */}
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2 gap-y-10 animate-pulse">
-            {Array.from({ length: 18 }).map((_, i) => (
-              <div key={i} className="aspect-video bg-[#222] rounded-sm" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2 gap-y-6">
+            {Array.from({ length: 24 }).map((_, i) => (
+              <div key={i} className="aspect-video bg-[#1e1e1e] rounded-sm overflow-hidden relative border border-white/[0.04]">
+                <div
+                  className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent"
+                  style={{ animationDelay: `${(i % 6) * 0.1}s` }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
+                <div className="absolute bottom-3 left-3 space-y-1.5">
+                  <div className="h-2 bg-white/[0.08] rounded-full" style={{ width: `${40 + (i % 5) * 18}px` }} />
+                  <div className="h-1.5 bg-white/[0.05] rounded-full" style={{ width: `${28 + (i % 3) * 10}px` }} />
+                </div>
+              </div>
             ))}
           </div>
         ) : (
@@ -159,16 +169,20 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
               <div className="flex justify-center mt-10">
                 <button
                   onClick={handleLoadMore}
-                  className="px-8 py-3 bg-[#e50914] text-white text-sm font-bold rounded hover:bg-[#f40612] transition-colors active:scale-95"
+                  title="Load more"
+                  className="w-11 h-11 rounded-full border border-white/20 bg-[#2a2a2a] hover:border-white/50 hover:bg-[#3a3a3a] flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 group/btn"
                 >
-                  Load More
+                  <CaretDownIcon size={20} className="text-white/60 group-hover/btn:text-white transition-colors" />
                 </button>
               </div>
             )}
 
             {isLoadingMore && (
               <div className="flex justify-center mt-10">
-                <div className="w-7 h-7 border-2 border-[#e50914] border-t-transparent rounded-full animate-spin" />
+                <div className="relative w-9 h-9">
+                  <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/60 animate-spin" />
+                </div>
               </div>
             )}
           </>

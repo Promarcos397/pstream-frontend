@@ -13,7 +13,7 @@ import { SubtitleService } from '../services/SubtitleService';
 import { SkipService, SkipSegment } from '../services/SkipService';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
-import { useDebridStream } from '../hooks/useDebridStream';
+import { useDebridStream, BROWSER_SAFE_AUDIO } from '../hooks/useDebridStream';
 import { useAudioTranscoder, isAudioCodecSupported } from '../hooks/useAudioTranscoder';
 
 // Giga Engine Backend URL
@@ -525,7 +525,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setStreamUrl(finalUrl);
         setIsStreamM3U8(!!hlsSource.isM3U8);
         setStreamReferer(activeReferer || null);
-        setLoadingMessage('Loading...');
+        setLoadingMessage('Initializing...');
 
         if (subtitles && subtitles.length > 0) {
             const mappedCaptions = subtitles.map((sub: any, index: number) => ({
@@ -584,7 +584,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         retryCooldownUntilRef.current = 0;
         setError(null);
         setIsBuffering(true);
-        setLoadingMessage('Trying another source...');
+        setLoadingMessage('Switching source...');
         reportedSuccessRef.current = null;
 
         // âš ï¸ Do NOT call applyStreamResult here â€” it overwrites allSources with a single element,
@@ -723,7 +723,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setStreamUrl(null);
         setAllSources([]);
         setCurrentSourceIndex(0);
-        setLoadingMessage('Finding your stream...');
+        setLoadingMessage('Locating stream...');
         // Wipe subtitles from the previous episode/movie
         setCaptions([]);
         setCurrentCaption(null);
@@ -767,8 +767,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const searchTitle = movie.title || movie.name || '';
         console.log(`[VideoPlayer] ðŸŽ¯ AllDebrid resolver: ${searchTitle} (${type})`);
 
-        const slowTimer  = setTimeout(() => setLoadingMessage('Almost there...'), 6000);
-        const slowerTimer = setTimeout(() => setLoadingMessage('Taking a moment...'), 14000);
+        const slowTimer  = setTimeout(() => setLoadingMessage('Establishing connection...'), 6000);
+        const slowerTimer = setTimeout(() => setLoadingMessage('Preparing playback...'), 14000);
 
         const doResolve = (imdbId: string) => {
             debridStream.resolve(
@@ -830,6 +830,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 origin:     '',
                 headers:    {},
                 _type:      ext,
+                _audio:     alt._audio || 'unknown',
             };
         }) || [{
             url:        debridStream.streamUrl,
@@ -844,7 +845,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             origin:     '',
             headers:    {},
             _type:      (debridStream.name || '').toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4',
+            _audio:     'unknown',
         }];
+
+        // ── Source Manifest Log (for filename pattern study) ──────────────────
+        // Open DevTools Console → filter by "📦 SOURCE MANIFEST" to collect data.
+        // Share 7+ console outputs (different titles, seasons, episodes) to analyse naming patterns.
+        try {
+            const label = `${movie.title || movie.name || 'Unknown'}${mediaType === 'tv' ? ` S${playingSeasonNumber}E${currentEpisode}` : ''}`;
+            console.groupCollapsed(`📦 SOURCE MANIFEST — ${label} (${debridSources.length} sources)`);
+            console.table(
+                debridSources.map((s: any, i: number) => {
+                    const rawName = (debridStream as any).alternatives?.[i]?.name || s.name || '';
+                    const filename = rawName.split('/').pop() || rawName;
+                    return {
+                        '#':        i + 1,
+                        'filename': filename,
+                        'ext':      s._type || '?',
+                        'quality':  s.quality || '?',
+                        'provider': s.provider || '?',
+                        'url':      s.url?.substring(0, 80) + (s.url?.length > 80 ? '…' : ''),
+                    };
+                })
+            );
+            console.groupEnd();
+        } catch (_) {}
 
         // Torrent is preferred always:
         // Prepend to allSources so it appears first in manual source list too.
@@ -928,17 +953,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, [streamUrl, isStreamM3U8, isEmbed]);
 
     // ── MKV Audio Safety Fallback (Debrid only) ──────────────────────────────
-    // Since we can't probe Debrid URLs, we just log a warning if the heuristic is unsure.
+    // Since we can't probe Debrid URLs directly via the browser, we rely on the
+    // proxy probe in useDebridStream. If that failed, we just log a warning.
     useEffect(() => {
         if (!streamUrl || isStreamM3U8 || isEmbed) return;
+        
+        const currentSource = allSources[currentSourceIndex];
         const isDebrid = streamUrl.includes('.debrid.it') || streamUrl.includes('.alldebrid.com');
         if (!isDebrid) return;
         
         const isMkv = streamUrl.toLowerCase().includes('.mkv');
-        if (isMkv && guessedAudioCodec === 'unknown') {
+        if (isMkv && (!currentSource?._audio || currentSource._audio === 'unknown')) {
             console.log('[VideoPlayer] ℹ️ Debrid MKV with unknown audio. If silent, use the source selector to pick a WEB-DL/AAC alternative.');
         }
-    }, [streamUrl, isStreamM3U8, isEmbed, guessedAudioCodec]);
+    }, [streamUrl, isStreamM3U8, isEmbed, currentSourceIndex, allSources]);
 
     // ── External subtitles for AllDebrid streams ─────────────────────────────────
     // Torrent/MKV files have no embedded subtitle streams in the HTTP response,
@@ -1129,7 +1157,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 console.warn(`[VideoPlayer] âŒ Max retries (${MAX_STREAM_RETRIES}) reached â€” activating extractor fallback.`);
                 if (!extractorEnabled) {
                     setExtractorEnabled(true);
-                    setLoadingMessage('Searching backup sources...');
+                    setLoadingMessage('Searching alternatives...');
                     setIsBuffering(true);
                     setError(null);
                 } else {
@@ -1691,26 +1719,49 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
             {isBuffering && (
                 hasPlayedOnceRef.current ? (
-                    // Mid-playback stall (seeking or network): subtle centered spinner only
-                    // No alarming message — user knows the content is there, just buffering
+                    // Mid-playback stall — subtle spinner only, no alarm
                     <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                        <div className="w-10 h-10 border-4 border-white/10 border-t-white/80 rounded-full animate-spin" />
+                        <div className="relative w-12 h-12">
+                            <div className="absolute inset-0 rounded-full border-[3px] border-white/10" />
+                            <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-white/90 animate-spin" />
+                        </div>
                     </div>
                 ) : (
-                    // Initial load: full overlay with comforting message
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10 pointer-events-none">
-                        <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-5" />
-                        <p className="text-white/70 text-sm font-medium tracking-wider">{loadingMessage}</p>
+                    // Initial load — premium branded loading screen
+                    <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(20,20,20,0.97) 0%, rgba(0,0,0,1) 100%)' }}>
+                        {/* Spinner */}
+                        <div className="relative w-14 h-14 mb-8">
+                            <div className="absolute inset-0 rounded-full border-[3px] border-white/8" />
+                            <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-white/70 animate-spin" />
+                            <div className="absolute inset-[6px] rounded-full border-[2px] border-transparent border-t-[#e50914]/60 animate-spin" style={{ animationDuration: '0.7s', animationDirection: 'reverse' }} />
+                        </div>
+                        {/* Message */}
+                        <p className="text-white/40 text-[13px] font-medium tracking-[0.12em] uppercase select-none">{loadingMessage}</p>
                     </div>
                 )
             )}
 
             {error && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-20 text-center px-6">
-                    <h2 className="text-2xl font-bold text-white mb-4">Playback Error</h2>
-                    <p className="text-white/60 mb-8 max-w-md">{error}</p>
-                    <button onClick={() => setRetryCount(c => c + 1)} className="px-8 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition">Retry Connection</button>
-                    <button onClick={onClose} className="mt-4 text-white/40 hover:text-white transition">Exit Player</button>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-20 text-center px-6" style={{ backdropFilter: 'blur(8px)' }}>
+                    <div className="w-16 h-16 rounded-full border-2 border-[#e50914]/40 flex items-center justify-center mb-6">
+                        <span className="text-[#e50914] text-3xl font-bold">!</span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Playback Error</h2>
+                    <p className="text-white/50 mb-8 max-w-sm text-sm leading-relaxed">{error}</p>
+                    <div className="flex flex-col items-center gap-3">
+                        <button
+                            onClick={() => setRetryCount(c => c + 1)}
+                            className="px-8 py-3 bg-white text-black font-bold text-sm rounded-full hover:bg-white/90 hover:scale-105 transition-all active:scale-95"
+                        >
+                            Retry Connection
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="text-white/30 hover:text-white/70 text-sm transition-colors mt-1"
+                        >
+                            Exit Player
+                        </button>
+                    </div>
                 </div>
             )}
 

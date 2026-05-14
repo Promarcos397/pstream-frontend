@@ -62,6 +62,8 @@ interface GlobalContextType {
   setHeroVideoState: (state: Partial<GlobalContextType['heroVideoState']>) => void;
   activeVideoId: string | null;
   setActiveVideoId: React.Dispatch<React.SetStateAction<string | null>>;
+  activePopupId: string | null;
+  setActivePopupId: React.Dispatch<React.SetStateAction<string | null>>;
   globalMute: boolean;
   setGlobalMute: (mute: boolean) => void;
   isKidsMode: boolean;
@@ -197,6 +199,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [top10TV, setTop10TV] = useState<number[]>([]);
   const [top10Movies, setTop10Movies] = useState<number[]>([]);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [activePopupId, setActivePopupId] = useState<string | null>(null);
   const [heroVideoState, _setHeroVideoState] = useState<GlobalContextType['heroVideoState']>({ time: 0, movie: null });
   const setHeroVideoState = useCallback((state: Partial<GlobalContextType['heroVideoState']>) => {
     _setHeroVideoState(prev => ({ ...prev, ...state }));
@@ -348,6 +351,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       top10TV, top10Movies, rateMovie, getMovieRating, getLikedMovies,
       user, login, logout, deleteAccountData, importProfileData, syncStatus,
       heroVideoState, setHeroVideoState, activeVideoId, setActiveVideoId,
+      activePopupId, setActivePopupId,
       globalMute, setGlobalMute, isKidsMode, pageSeenIds, registerSeenIds, clearSeenIds
     }}>
       {children}

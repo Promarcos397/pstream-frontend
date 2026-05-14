@@ -6,8 +6,7 @@ import { useNetworkQuality } from '../hooks/useNetworkQuality';
 import { useIsMobile } from '../hooks/useIsMobile';
 import HeroCarouselBackground from './HeroCarouselBackground';
 import HeroCarouselContent from './HeroCarouselContent';
-import { Movie, TMDBResponse } from '../types';
-import { REQUESTS, LOGO_SIZE } from '../constants';
+import { Movie } from '../types';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
 import { MaturityBadge } from './MovieCardBadges';
 
@@ -15,23 +14,23 @@ interface HeroCarouselProps {
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
   onPlay: (movie: Movie) => void;
   fetchUrl?: string;
-  seekTime?: number; // Command to seek
-  heroMovie?: Movie; // Optional: Override with explicit movie (e.g. Cloud Series)
-  genreId?: number; // Optional: Genre filter
+  seekTime?: number;
+  heroMovie?: Movie;
+  genreId?: number;
   pageType?: 'home' | 'movie' | 'tv' | 'new_popular';
 }
 
 const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie, genreId, pageType: explicitPageType }) => {
-  const { getVideoState, setHeroVideoState, heroVideoState, activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState } = useGlobalContext();
+  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState } = useGlobalContext();
   const networkQuality = useNetworkQuality();
   const isMobile = useIsMobile();
   const [movie, setMovie] = useState<Movie | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isHovered, setIsHovered] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
 
   const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
   const [hasVideoEnded, setHasVideoEnded] = useState(false);
   const [replayCount, setReplayCount] = useState(0); 
 
@@ -39,23 +38,20 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backdropForcedRef = useRef(false);
 
-  // Refs
-  const videoTimerRef = useRef<any>(null);
-  const fadeIntervalRef = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null); // Shared ref for resize and intersection observer
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // 1. Tab Visibility Tracking
   const [isTabVisible, setIsTabVisible] = useState(true);
   useEffect(() => {
     const handleVisibilityChange = () => {
       const visible = document.visibilityState === 'visible';
       setIsTabVisible(visible);
+      
       if (!visible) {
         if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
         visibilityTimerRef.current = setTimeout(() => {
           backdropForcedRef.current = true;
           setShowBackdropOverlay(true);
-        }, 30_000);
+        }, 15_000);
       } else {
         if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
         backdropForcedRef.current = false;
@@ -76,7 +72,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     }
   }, [showVideo, isVideoReady, isTabVisible]);
 
-  // 2. Viewport Tracking — scroll-based with rAF for buttery smooth response
   const [isOutOfView, setIsOutOfView] = useState(false);
   useEffect(() => {
     let rafId: number;
@@ -86,10 +81,9 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const heroHeight = rect.height;
-      // Pause once more than 30% of the hero has scrolled above the viewport top
       const visiblePx = Math.min(rect.bottom, heroHeight) - Math.max(rect.top, 0);
       const visibleFraction = Math.max(0, visiblePx / heroHeight);
-      const outOfView = visibleFraction < 0.55; // pause when less than 55% visible
+      const outOfView = visibleFraction < 0.55;
       if (outOfView !== lastState) {
         lastState = outOfView;
         setIsOutOfView(outOfView);
@@ -101,7 +95,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       rafId = requestAnimationFrame(check);
     };
 
-    // Also use an IntersectionObserver as a fallback safety net
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.intersectionRatio < 0.4) setIsOutOfView(true); },
       { threshold: [0.4] }
@@ -109,7 +102,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     if (containerRef.current) observer.observe(containerRef.current);
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    check(); // run once on mount
+    check();
     return () => {
       window.removeEventListener('scroll', onScroll);
       cancelAnimationFrame(rafId);
@@ -117,9 +110,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     };
   }, []);
 
-  // --- Magic System: Hero Selection is now handled by HeroEngine service ---
-
-  // Fetch One Movie (Daily Consistent) OR Use Provided Hero Movie
   useEffect(() => {
     const applyHeroPackage = (pkg: HeroPackage) => {
       setMovie(pkg.movie);
@@ -157,7 +147,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     const unsubscribe = HeroEngine.subscribe((type, pkg) => {
       const currentPageType = getHeroPageType(fetchUrl || '');
       if (type === currentPageType) {
-        // If it's a genre-specific wait, check if the pkg matches the genreId
         applyHeroPackage(pkg);
       }
     });
@@ -168,31 +157,79 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   }, [fetchUrl, heroMovie, genreId]);
 
 
+  const prevActiveIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (loading || !movie) return;
     
-    // We only mount the TrailerPlayer if the tab is visible, the hero is in view, and not on mobile
-    if (isOutOfView || !isTabVisible || isMobile) {
+    const myVideoId = `hero-${movie.id}`;
+
+    if (isOutOfView || isMobile) {
         setShowVideo(false);
-        setActiveVideoId(prev => prev === `hero-${movie.id}` ? null : prev);
-    } else {
-        // Delay playing by a short amount (simulating network delay aesthetic)
-        const delay = networkQuality.isSlowNetwork ? 2000 : 1000;
+        setIsActuallyPlaying(false);
+        if (activeVideoId === myVideoId) setActiveVideoId(null);
+        prevActiveIdRef.current = activeVideoId;
+        return;
+    }
+
+    if (!isTabVisible) {
+        if (activeVideoId === myVideoId) setActiveVideoId(null);
+        prevActiveIdRef.current = activeVideoId;
+        return;
+    }
+
+    const wasInModalForMe = prevActiveIdRef.current === `modal-${movie.id}`;
+    
+    if (wasInModalForMe) {
+        setShowVideo(true);
+        if (activeVideoId !== myVideoId && (!activeVideoId || activeVideoId.startsWith('hero-'))) {
+            setActiveVideoId(myVideoId);
+        }
+        prevActiveIdRef.current = activeVideoId;
+        return;
+    }
+
+    // SMART DELAY: If a card or modal just released focus, the user is actively
+    // browsing trailers — resume hero almost instantly. Otherwise use a moderate
+    // delay that still feels snappy but avoids jank on first landing.
+    if (activeVideoId !== myVideoId && (!activeVideoId || activeVideoId.startsWith('hero-'))) {
+        const wasJustActiveElsewhere = prevActiveIdRef.current && 
+            prevActiveIdRef.current !== myVideoId && 
+            !prevActiveIdRef.current.startsWith('hero-');
+        const delay = wasJustActiveElsewhere ? 800 : (networkQuality.isSlowNetwork ? 800 : 800);
+        
         const timer = setTimeout(() => {
             setShowVideo(true);
-            setActiveVideoId(prev => {
-                // If a modal or hover card is already playing (e.g. from page refresh restore), don't steal focus!
-                if (!prev || prev.startsWith('hero-')) {
-                    return `hero-${movie.id}`;
-                }
-                return prev;
-            });
+            setActiveVideoId(myVideoId);
         }, delay);
+        prevActiveIdRef.current = activeVideoId;
         return () => clearTimeout(timer);
     }
-  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId, isMobile]);
 
-  // Removed custom seek handling since TrailerPlayer does it natively via GlobalContext
+    prevActiveIdRef.current = activeVideoId;
+  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId, isMobile, activeVideoId]);
+
+  const backdropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!movie) return;
+    const myVideoId = `hero-${movie.id}`;
+    
+    if (activeVideoId && activeVideoId !== myVideoId) {
+        if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
+        backdropTimerRef.current = setTimeout(() => {
+            setShowBackdropOverlay(true);
+        }, 1800);
+    } else {
+        if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
+        if (!backdropForcedRef.current) {
+            setShowBackdropOverlay(false);
+        }
+    }
+    
+    return () => {
+        if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
+    };
+  }, [activeVideoId, movie]);
 
   if (loading) return (
     <div className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full bg-[#141414] overflow-hidden">
@@ -207,29 +244,25 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       id="hero-container" 
       ref={containerRef} 
       className="relative h-[50vh] sm:h-[66vh] md:h-[77vh] lg:h-[80vh] w-full overflow-hidden group bg-black"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={(e) => {
-        if (e.clientY < 60 || e.clientX > window.innerWidth - 20) return;
-        setIsHovered(false);
-      }}
     >
       <HeroCarouselBackground
         movie={movie} 
         showVideo={showVideo} 
+        isActuallyPlaying={isActuallyPlaying}
         replayCount={replayCount}
         showBackdropOverlay={showBackdropOverlay}
         onReady={() => setIsVideoReady(true)}
-        onEnded={() => { setHasVideoEnded(true); setShowVideo(false); setIsVideoReady(false); }}
-        onErrored={() => { setShowVideo(false); setIsVideoReady(false); }}
+        onPlay={() => setIsActuallyPlaying(true)}
+        onEnded={() => { setHasVideoEnded(true); setShowVideo(false); setIsVideoReady(false); setIsActuallyPlaying(false); }}
+        onErrored={() => { setShowVideo(false); setIsVideoReady(false); setIsActuallyPlaying(false); }}
       />
       <HeroCarouselContent
-        movie={movie} logoUrl={logoUrl} isVideoReady={isVideoReady} onPlay={onPlay}
+        movie={movie} logoUrl={logoUrl} isVideoReady={isActuallyPlaying} onPlay={onPlay}
         onSelect={(m, _, __) => {
           onSelect(m);
         }}
         hasVideoEnded={hasVideoEnded}
       />
-        {/* Mute + Age Rating — standardized MaturityBadge */}
         <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
           bottom-[25%] sm:bottom-[21%] md:bottom-[17%]"
         >
@@ -255,7 +288,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
               )}
             </button>
           )}
-          {/* Use standardized MaturityBadge — md size for hero prominence */}
           <div className="mr-4">
             <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} size="md" />
           </div>
