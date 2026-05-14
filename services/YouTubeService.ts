@@ -114,7 +114,7 @@ function buildSearchQueries(options: SearchOptions): string[] {
     const clean = title.trim();
     const yearTerm = year ? ` ${year}` : '';
     const typeTerm = type === 'tv' ? 'tv series' : 'movie';
-    return [`"${clean}" ${typeTerm} ${yearTerm} trailer`];
+    return [`"${clean}" ${typeTerm} ${yearTerm}`];
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
@@ -200,17 +200,16 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     // ── Trailer quality signals ──────────────────────────────────────────────
 
     if (/\btrailer\b/.test(t)) score += 45;
-    if (/\bteaser\b/.test(t)) score += 85;
-    if (/\bofficial\b/i.test(t)) score += 45;
+    if (/\bteaser\b/.test(t)) score += 100;
+    if (/\bofficial\b/i.test(t)) score += 25;
 
-    // After your trailer quality signals block
+    // 2. Explicit content check — penalize if neither "trailer" nor "teaser" is present
     if (!/\btrailer\b|\bteaser\b/i.test(t)) score -= 30;
-
     // Quality/resolution keywords are secondary to relevance
     if (/\b4k\b/.test(t)) score += 120;
-    if (/\bhdr\b/.test(t)) score += 25;
-    if (/\bhd\b/.test(t)) score += 25;
-    if (t.length > 50 && q.length > 10) score += 5; // avoid very short titles
+    if (/\bhdr\b/.test(t)) score += 50;
+    if (/\bhd\b/.test(t)) score += 75;
+    if (t.length > 50 && q.length > 10) score -= 100; // avoid very short titles
 
     // ── Regional & Annoying Content Penalties (Smart Ban) ──────────────────
 
@@ -250,6 +249,12 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
         /\b(Español|Latino|Latinoamerica|Mexico|México|Argentina|Colombia|Chile)\b/i.test(c) ||
         /\b(Français|French|France)\b/i.test(c) ||
         /\b(Deutsch|German|Germany)\b/i.test(c) ||
+        /\b(Louisiana|Cajun|Acadian)\b/i.test(c) ||
+        /\b(Texas|Texan)\b/i.test(c) ||
+        /\b(Florida|Floridian)\b/i.test(c) ||
+        /\b(New York|New Yorker)\b/i.test(c) ||
+        /\b(Los Angeles|Los Angeles)\b/i.test(c) ||
+        /\b(Egyptian|egypt)\b/i.test(c) ||
         /\b(Türk|Turkish|Turkey)\b/i.test(c) ||
         /\b(Arab|Arabic|Saudi|Kuwait|Egyptian)\b/i.test(c) ||
         /\b(Korean|한국|Korea)\b/i.test(c) ||
@@ -266,7 +271,7 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     }
 
     // 2. Meta-Content & Analysis (Not the actual trailer)
-    if (/\b(Reaction|Review|Breakdown|Explained|Ending\s*Explained|Hidden\s*Details|Easter\s*Eggs|Theory|Analysis|Discussion)\b/i.test(t)) {
+    if (/\b(Reaction|Review|Breakdown|Explained|Ending\s*Explained|Hidden\s*Details|Easter\s*Eggs|Theory|Analysis|Discussion|specials|special|fake|hot_take|hot_takes|hot\s*takes|hot\s*take|hotstar|hotstar\s*specials)\b/i.test(t)) {
         score -= 200;
     }
 
@@ -281,7 +286,7 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     }
 
     // 5. Streaming companies
-    if (/\b(hbo|max|hulu|apple|prime|disney|Crunchyroll|BBC|Paramount|Netflix|WB|Sony|Universal|Fox|MGM|Lionsgate|Miramax)\b/i.test(t)) score += 5;
+    if (/\b(hbo|max|hulu|Crunchyroll|BBC|Paramount|Netflix|WB|Sony|Universal|Fox|MGM|Lionsgate|Miramax|prime)\b/i.test(t)) score += 25;
 
     // 6. Year boost: Exact match or one year before (trailers often release the year prior)
 
@@ -469,11 +474,22 @@ export const searchTrailersWithFallback = async (
             .map(c => ({ ...c, score: scoreCandidate(options, c) }))
             .sort((a, b) => b.score - a.score);
 
-        if (import.meta.env.DEV) {
-            console.log(`[YouTubeService] Scored candidates for "${options.title}" (year=${options.year ?? 'none'}, type=${options.type ?? 'none'}):`,
-                scored.slice(0, 5).map(c => `[${c.score}] ${c.title} — ${c.channelTitle}`)
-            );
-        }
+        // ── Smarter, Structured Logging ──────────────────────────────────────
+        const logTitle = `[YouTubeService] 🔍 "${options.title}" (${options.type ?? 'unknown'}${options.year ? `, ${options.year}` : ''})`;
+        console.groupCollapsed(logTitle);
+        console.log("Context:", { ...options, queries: effectiveQueries });
+        
+        const tableData = scored.slice(0, 10).map((c, i) => ({
+            Rank: i === 0 ? '🏆 Winner' : `#${i + 1}`,
+            Score: c.score,
+            Title: c.title,
+            Channel: c.channelTitle,
+            Link: `https://youtu.be/${c.videoId}`
+        }));
+        
+        console.table(tableData);
+        if (scored.length > 10) console.log(`... and ${scored.length - 10} more candidates found.`);
+        console.groupEnd();
 
         const videoIds = scored.map(c => c.videoId).slice(0, maxResults);
 

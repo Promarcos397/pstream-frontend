@@ -137,7 +137,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         const duration = e.target.getDuration() || 0;
         const autoDetectedTeaser = duration > 0 && duration < 90;
         const isActuallyTeaser = isTeaser || autoDetectedTeaser;
-        const defaultSkip = isActuallyTeaser ? 5 : 15;
+        const defaultSkip = isActuallyTeaser ? 8 : 16;
         const savedTime = movie ? (getVideoState(movie.id)?.time || 0) : 0;
         e.target.seekTo(savedTime > 0 ? savedTime : defaultSkip, true);
         
@@ -176,7 +176,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                     if (time > 0) {
                         const remaining = duration - time;
                         // Auto-outro skip: now PAUSES the player so backdrop + audio stay in sync
-                        if (duration > 45 && remaining < 7) {
+                        if (duration > 45 && remaining < 8) {
                             if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
                             try { e.target.pauseVideo(); } catch {}
                             handlersRef.current.onEnded?.();
@@ -187,7 +187,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                         onProgress?.(time);
                     }
                 } catch {}
-            }, 1000);
+            }, 500);
         }
 
         if (e.data === YT_PAUSED) {
