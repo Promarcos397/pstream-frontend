@@ -1,7 +1,7 @@
-import axios from 'axios';
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
-import { getMovieImages, getExternalIds, prefetchStream, getMovieDetails } from './api';
+import { getMovieImages, getExternalIds, prefetchStream, fetchData } from './api';
+import tmdb from './tmdb';
 
 /**
  * HeroEngine v3 — "Session-Stable, Time-Aware"
@@ -406,7 +406,7 @@ class HeroEngineService {
 
       console.log(`[HeroEngine v3] Curating "${slotLabel}" (${slot}) for ${cacheKey}…`);
 
-      const response = await axios.get<TMDBResponse>(url);
+      const response = await tmdb.get<TMDBResponse>(url);
       const results  = (response.data.results || []).filter(
         (m: any) => m.backdrop_path && m.vote_count >= 200,
       );

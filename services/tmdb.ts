@@ -57,11 +57,14 @@ export function setTmdbLanguage(lang: string) {
 const tmdb: AxiosInstance = axios.create({ baseURL: TMDB_BASE_URL });
 
 tmdb.interceptors.request.use((config) => {
-  // Only inject api_key/language if not already present
-  // (prevents duplicate params when callers already include them in the URL)
+  // Only inject api_key/language if they aren't already hardcoded in the URL string
+  const url = config.url || '';
+  const hasApiKey = url.includes('api_key=');
+  const hasLang   = url.includes('language=');
+
   config.params = {
-    api_key:  getKey(),
-    language: _lang,
+    ...(!hasApiKey && { api_key: getKey() }),
+    ...(!hasLang   && { language: _lang }),
     ...config.params,  // caller params WIN — they can override language per-call
   };
   return config;
