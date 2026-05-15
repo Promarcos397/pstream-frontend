@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, animate } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -99,7 +99,7 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 const SIZES = {
-  card: "h-[100px] w-[175px] sm:h-[125px] sm:w-[205px] md:h-[150px] md:w-[235px] lg:h-[160px] lg:w-[245px]",
+  card: "h-[100px] w-[160px] sm:h-[125px] sm:w-[185px] md:h-[150px] md:w-[210px] lg:h-[160px] lg:w-[220px]",
   button: "h-[100px] sm:h-[125px] md:h-[150px] lg:h-[160px]",
 };
 
@@ -111,33 +111,50 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
   const isTen = index === 9;
   return (
     <div
-      className={`absolute ${isTen ? 'left-[-8px]' : 'left-[-6px]'} bottom-[-6px] h-[118%] z-0 pointer-events-none overflow-visible`}
+      className={`absolute ${isTen ? 'left-[24px]' : 'left-[22px]'} bottom-[-6px] h-[122%] z-0 pointer-events-none overflow-visible`}
       style={{ width: isTen ? '112%' : '88%' }}
     >
       <svg
-        viewBox={isTen ? "0 0 260 210" : "0 0 140 210"}
+        viewBox={isTen ? "0 0 280 210" : "0 0 200 210"}
         className="h-full w-auto"
-        preserveAspectRatio="xMinYMax meet"
+        preserveAspectRatio="none"
         style={{ overflow: 'visible' }}
       >
         <g
-          transform={isTen ? "scale(0.72, 0.90)" : "scale(0.88, 1.08)"}
+          transform={isTen ? "scale(1.25, 1.08)" : "scale(1.5, 1.12)"}
           transform-origin={isTen ? "130 205" : "70 205"}
         >
+          {/* Outer Outline Stroke */}
+          <text
+            x="8"
+            y="195"
+            textAnchor="start"
+            dominantBaseline="auto"
+            fill="none"
+            stroke="#595959"
+            strokeWidth="10"
+            strokeLinejoin="round"
+            fontSize={isTen ? "175" : "185"}
+            fontWeight="900"
+            fontFamily="'Inter', sans-serif"
+            letterSpacing={isTen ? "-25" : "-8"}
+          >
+            {index + 1}
+          </text>
+          {/* Main Body with Inner Thickening Stroke */}
           <text
             x="8"
             y="195"
             textAnchor="start"
             dominantBaseline="auto"
             fill="#000000"
-            stroke="#a3a3a3"
-            strokeWidth="5"
+            stroke="#000000"
+            strokeWidth="6"
             strokeLinejoin="round"
-            fontSize={isTen ? "170" : "195"}
+            fontSize={isTen ? "175" : "185"}
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
-            letterSpacing={isTen ? "-28" : "-8"}
-            style={{ filter: 'drop-shadow(0px 4px 14px rgba(0,0,0,0.9))' }}
+            fontFamily="'Inter', sans-serif"
+            letterSpacing={isTen ? "-25" : "-8"}
           >
             {index + 1}
           </text>
@@ -401,7 +418,7 @@ const TopTenCard: React.FC<{
     <div
       ref={cardRef}
       data-card
-      className={`relative flex-none ${SIZES.card} mr-1 sm:mr-2 md:mr-2 cursor-pointer flex items-end pointer-events-auto select-none z-10`}
+      className={`relative flex-none ${SIZES.card} mr-0 cursor-pointer flex items-end pointer-events-auto select-none z-10`}
       style={prefersHover ? { touchAction: 'none' } : undefined}
       onPointerEnter={prefersHover ? handlePointerEnter : undefined}
       onPointerLeave={prefersHover ? handlePointerLeave : undefined}
@@ -410,7 +427,7 @@ const TopTenCard: React.FC<{
       <RankNumber index={index} />
 
       {/* Poster + Badges */}
-      <div className={`absolute right-0 bottom-0 h-full z-10 rounded-sm overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.5)] ${isTen ? 'w-[42%]' : 'w-[46%]'}`}>
+      <div className={`absolute right-[12px] bottom-0 h-full z-10 rounded-sm overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.5)] ${isTen ? 'w-[42%]' : 'w-[46%]'}`}>
         <img
           src={posterSrc}
           className="w-full h-full object-cover object-top"
@@ -714,15 +731,80 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
     const step = width + margin;
 
     const visibleWidth = container.clientWidth;
-    const visibleCount = Math.max(1, Math.floor(visibleWidth / step));
-    const scrollCount = Math.max(1, Math.floor(visibleCount * 0.6));
+    const V = Math.max(1, Math.floor(visibleWidth / step));
+    
+    // Two-Step Set Logic: 
+    // Step 1: Scroll by (V - 2) to reach the "overlap" point (e.g., Card 5).
+    // Step 2: Scroll by the remainder (SetLength - Step 1) to hit Card 1 perfectly.
+    const S1 = Math.max(1, V - 2);
+    const S2 = Math.max(1, movies.length - S1);
+    
+    // Detect current position in the 10-card cycle
+    const currentPos = Math.round(container.scrollLeft / step) % movies.length;
+    
+    let scrollCount = V; // Fallback
+    if (direction === 'right') {
+      // If we are at Card 1 (0), move to Card 5 (S1)
+      if (currentPos === 0) scrollCount = S1;
+      // If we are at Card 5 (S1), move to next Card 1 (SetLength)
+      else if (currentPos === S1) scrollCount = S2;
+    } else {
+      // Backwards logic:
+      // If at Card 1 (0), jump back to Card 5 (S1)
+      if (currentPos === 0) scrollCount = S2;
+      // If at Card 5 (S1), jump back to Card 1 (0)
+      else if (currentPos === S1) scrollCount = S1;
+    }
+      
     const amount = scrollCount * step;
 
-    if (direction === 'right') {
-      container.scrollBy({ left: amount, behavior: 'smooth' });
-    } else {
-      container.scrollBy({ left: -amount, behavior: 'smooth' });
+    const oneSetWidth = movies.length * step;
+    let rawTarget = direction === 'right' 
+      ? container.scrollLeft + amount 
+      : container.scrollLeft - amount;
+
+    // --- Infinity Warping Logic ---
+    if (direction === 'left' && rawTarget < 0) {
+      container.scrollLeft += oneSetWidth;
+      rawTarget += oneSetWidth;
     }
+    else if (direction === 'right' && rawTarget > oneSetWidth * 2) {
+      container.scrollLeft -= oneSetWidth;
+      rawTarget -= oneSetWidth;
+    }
+
+    // Snap to nearest card boundary to eliminate 0.5% drift
+    const target = Math.round(rawTarget / step) * step;
+
+    animate(container.scrollLeft, target, {
+      type: "spring",
+      stiffness: 100,
+      damping: 20,
+      onUpdate: (val) => {
+        container.scrollLeft = val;
+      }
+    });
+  };
+
+  const handleManualScroll = () => {
+    if (!rowRef.current || movies.length === 0) return;
+    const container = rowRef.current;
+    const firstCard = container.querySelector('[data-card]') as HTMLElement | null;
+    if (!firstCard) return;
+
+    const style = window.getComputedStyle(firstCard);
+    const width = firstCard.offsetWidth;
+    const margin = parseFloat(style.marginRight) || 0;
+    const step = width + margin;
+    const oneSetWidth = movies.length * step;
+
+    if (container.scrollLeft > oneSetWidth * 2) {
+      container.scrollLeft -= oneSetWidth;
+    } else if (container.scrollLeft < 0) {
+      container.scrollLeft += oneSetWidth;
+    }
+    
+    updateScrollState(); // Update button visibility states if needed
   };
 
   if (!loading && movies.length === 0) return null;
@@ -734,7 +816,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
 
   return (
     <div className="group relative my-4 md:my-6 space-y-2 z-10 hover:z-50 transition-all duration-300">
-      <h2 className="px-6 md:px-14 lg:px-20 text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
+      <h2 className="pl-4 md:pl-10 lg:pl-16 pr-6 md:pr-14 lg:pr-20 text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
         {title}
         <span className="text-xs text-cyan-500 ml-2 opacity-0 group-hover/title:opacity-100 transition-opacity duration-300 flex items-center font-semibold">
           {t('rows.exploreAll')} <CaretRightIcon size={14} className="ml-1" />
@@ -744,7 +826,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
       <div className="relative group/row">
         {/* Left Button */}
         <div
-          className={`${btnBase} left-0 rounded-r-md ${scrollState.left ? 'group-hover/row:opacity-100 group-hover/row:pointer-events-auto' : ''}`}
+          className={`${btnBase} left-0 rounded-r-md group-hover/row:opacity-100 group-hover/row:pointer-events-auto`}
           onClick={() => scroll('left')}
         >
           <CaretLeftIcon size={64} weight="bold" className="text-white" />
@@ -753,29 +835,30 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
         {/* Scroll Container */}
         <div
           ref={rowRef}
-          className="flex overflow-x-scroll scrollbar-hide space-x-0 py-10 -my-10 px-6 md:px-14 lg:px-20 w-full items-center pointer-events-auto relative z-10 scroll-smooth"
+          onScroll={handleManualScroll}
+          className="flex overflow-x-scroll scrollbar-hide space-x-0 py-10 -my-10 pl-8 md:pl-14 lg:pl-24 pr-6 md:pr-14 lg:pr-20 w-full items-center pointer-events-auto relative z-10"
         >
           {loading
             ? Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} data-card className={`relative flex-none ${SIZES.card} mr-1 sm:mr-2 md:mr-2 flex items-end`}>
-                  {/* Number skeleton */}
-                  <div className="absolute left-[-5px] bottom-[-4px] h-[110%] w-[90%] flex items-end justify-start pointer-events-none">
-                    <div className="h-[85%] w-[65%] bg-[#222] rounded-sm opacity-40 skew-x-[-6deg]" />
-                  </div>
-                  {/* Poster skeleton */}
-                  <div className="absolute right-0 bottom-0 h-full w-[46%] bg-[#222] rounded-sm border border-white/5 overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.3)]">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
-                  </div>
+              <div key={i} data-card className={`relative flex-none ${SIZES.card} mr-1 sm:mr-2 md:mr-2 flex items-end`}>
+                {/* Number skeleton */}
+                <div className="absolute left-[-5px] bottom-[-4px] h-[110%] w-[90%] flex items-end justify-start pointer-events-none">
+                  <div className="h-[85%] w-[65%] bg-[#222] rounded-sm opacity-40 skew-x-[-6deg]" />
                 </div>
-              ))
-            : movies.map((movie, index) => (
-                <TopTenCard key={movie.id} movie={movie} index={index} onSelect={onSelect} />
-              ))}
+                {/* Poster skeleton */}
+                <div className="absolute right-0 bottom-0 h-full w-[46%] bg-[#222] rounded-sm border border-white/5 overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.3)]">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
+                </div>
+              </div>
+            ))
+            : [...movies, ...movies, ...movies].map((movie, index) => (
+              <TopTenCard key={`${movie.id}-${index}`} movie={movie} index={index % movies.length} onSelect={onSelect} />
+            ))}
         </div>
 
         {/* Right Button */}
         <div
-          className={`${btnBase} right-0 rounded-l-md ${scrollState.right ? 'group-hover/row:opacity-100 group-hover/row:pointer-events-auto' : ''}`}
+          className={`${btnBase} right-0 rounded-l-md group-hover/row:opacity-100 group-hover/row:pointer-events-auto`}
           onClick={() => scroll('right')}
         >
           <CaretRightIcon size={64} weight="bold" className="text-white" />

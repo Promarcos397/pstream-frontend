@@ -230,7 +230,6 @@ export const useDynamicManifest = (
 
     // ── 2. NEW & POPULAR PAGE ─────────────────────────────────────────────────
     if (pageType === 'new_popular') {
-      manifest.push({ key: 'top10-overall',  title: 'Global Top 10 Today',              fetchUrl: REQUESTS.fetchTrending,        type: 'top10' });
       manifest.push({ key: 'top10-movies',   title: 'Top 10 Films in the UK Today',     fetchUrl: REQUESTS.fetchTrendingMovies,  type: 'top10' });
       manifest.push({ key: 'top10-tv',       title: 'Top 10 Series in the UK Today',    fetchUrl: REQUESTS.fetchTrendingTV,      type: 'top10' });
       manifest.push({ key: 'new-releases',   title: 'Newly Added to the Collection',    fetchUrl: REQUESTS.fetchNewReleases });
@@ -510,8 +509,6 @@ export const useDynamicManifest = (
     const sec     = top10Key === 'top10-tv' ? { key: 'top10-movies-2', title: 'Top 10 Films in the UK Today', url: REQUESTS.fetchTrendingMovies } : { key: 'top10-tv-2', title: 'Top 10 Series in the UK Today', url: REQUESTS.fetchTrendingTV };
     insertTop10(manifest, sec.key, sec.title, sec.url, Math.min(manifest.length, 13));
 
-    // Tertiary global
-    insertTop10(manifest, 'top10-overall', 'Global Top 10 Today', REQUESTS.fetchTrending, Math.min(manifest.length, 22));
 
     // ── 6. COMFORT ROWS INJECTION ─────────────────────────────────────────────
     if (continueWatchingRow) {
