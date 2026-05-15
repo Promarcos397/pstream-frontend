@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Movie } from '../types';
 import { IMG_PATH } from '../constants';
 import { TrailerPlayer } from './TrailerPlayer';
@@ -13,6 +13,7 @@ interface HeroCarouselBackgroundProps {
     onPlay?: () => void;
     onEnded?: () => void;
     onErrored?: () => void;
+    onImageLoad?: () => void;
 }
 
 const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
@@ -24,27 +25,38 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     onReady,
     onPlay,
     onEnded,
-    onErrored
+    onErrored,
+    onImageLoad
 }) => {
     // Only fade out the backdrop and fade in the video once it's ACTUALLY playing frames.
     // This eliminates the 1-2s black screen delay.
     const isPlayingTrailer = showVideo && isActuallyPlaying && !showBackdropOverlay;
 
+    const imgRef = useRef<HTMLImageElement>(null);
+
+    useEffect(() => {
+        if (imgRef.current?.complete) {
+            onImageLoad?.();
+        }
+    }, [onImageLoad]);
+
     return (
         <>
             {/* Background Image */}
-            <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out z-0 ${isPlayingTrailer ? "opacity-0" : "opacity-100"}`}>
+            <div className={`absolute inset-0 transition-opacity duration-400 ease-in-out z-0 ${isPlayingTrailer ? "opacity-0" : "opacity-100"}`}>
                 <img
+                    ref={imgRef}
                     src={`${IMG_PATH}${movie.backdrop_path}`}
                     className={`w-full h-full object-cover backdrop-pop ${['series', 'comic', 'manga', 'local'].includes(movie.media_type || '') ? 'object-[50%_15%]' : 'object-[50%_15%]'}`}
                     alt="backdrop"
+                    onLoad={onImageLoad}
                 />
             </div>
 
             {/* Background Video Layer */}
             <div
                 id="hero-video-layer"
-                className={`absolute inset-0 z-0 transition-opacity duration-1000 overflow-hidden ${isPlayingTrailer ? 'opacity-100' : 'opacity-0'}`}
+                className={`absolute inset-0 z-0 transition-opacity duration-300 overflow-hidden ${isPlayingTrailer ? 'opacity-100' : 'opacity-0'}`}
             >
                 {showVideo && (
                     <TrailerPlayer 

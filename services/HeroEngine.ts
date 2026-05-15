@@ -286,10 +286,10 @@ function pickPoolSlot(pool: HeroPoolItem[], pageType: string, userTopGenres: num
   const n       = pool.length;
   const baseIdx = hashStr(dayOfYear() + '_' + pageType) % n;
   if (userTopGenres.length === 0 || n <= 1) return pool[baseIdx];
-  const window = [-3, -2, -1, 0, 1, 2, 3];
+  const windowRange = [-3, -2, -1, 0, 1, 2, 3];
   let bestSlot  = pool[baseIdx];
   let bestScore = -1;
-  for (const offset of window) {
+  for (const offset of windowRange) {
     const idx     = ((baseIdx + offset) % n + n) % n;
     const slot    = pool[idx];
     const overlap = (slot.preferGenres || []).filter(g => userTopGenres.includes(g)).length;
@@ -304,7 +304,7 @@ function pickPoolSlot(pool: HeroPoolItem[], pageType: string, userTopGenres: num
 class HeroEngineService {
   /** In-memory map — rebuilt from sessionStorage on first getHero() call */
   private live: Map<string, HeroPackage> = new Map();
-  private isInitializing: Set<string>    = new Set();
+  private initializing: Map<string, Promise<HeroPackage | null>> = new Map();
   private listeners: Set<(pageType: string, hero: HeroPackage) => void> = new Set();
   private sessionCache: SessionCache     = {};
   private cacheLoaded                    = false;
@@ -355,138 +355,122 @@ class HeroEngineService {
   async getHero(pageType: string, fetchUrl?: string, genreId?: number): Promise<HeroPackage | null> {
     const cacheKey = genreId ? `${pageType}_${genreId}` : pageType;
 
-    // 1. Check live in-memory cache (fastest)
+    // 1. Check live in-memory cache
     if (this.live.has(cacheKey)) return this.live.get(cacheKey)!;
 
-    // 2. Check session storage (survives refresh)
+    // 2. Check session storage
     const fromSession = this.fromCache(cacheKey);
     if (fromSession) {
       this.live.set(cacheKey, fromSession);
       return fromSession;
     }
 
-    // 3. Prevent duplicate fetches
-    if (this.isInitializing.has(cacheKey)) return null;
-    this.isInitializing.add(cacheKey);
+    // 3. Prevent duplicate fetches by awaiting in-flight promise
+    if (this.initializing.has(cacheKey)) return this.initializing.get(cacheKey)!;
 
-    try {
-      const slot      = getTimeSlot();
-      const holiday   = getCurrentHoliday();
-      const userGenres = getUserTopGenres();
+    const promise = (async () => {
+      try {
+        const slot = getTimeSlot();
+        const holiday = getCurrentHoliday();
+        const userGenres = getUserTopGenres();
 
-      let url: string;
-      let slotLabel   = '';
+        let url: string;
+        let slotLabel = '';
 
-      if (genreId) {
-        url       = fetchUrl || REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', genreId);
-        slotLabel = `Genre ${genreId}`;
-      } else if (fetchUrl) {
-        url       = fetchUrl;
-        slotLabel = 'Custom';
-      } else {
-        // ── Context-aware pool selection ─────────────────────────────────
-        // Priority: holiday override → time-slotted pool → personalization
-        let pool: HeroPoolItem[];
-
-        const holidayOverride = holiday ? HOLIDAY_HOME_OVERRIDE[holiday] : undefined;
-        if (holidayOverride && holidayOverride.length > 0 && pageType === 'home') {
-          pool = holidayOverride;
+        if (genreId) {
+          url = fetchUrl || REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', genreId);
+          slotLabel = `Genre ${genreId}`;
+        } else if (fetchUrl) {
+          url = fetchUrl;
+          slotLabel = 'Custom';
         } else {
-          const pools =
-            pageType === 'movie' ? MOVIE_POOLS :
-            pageType === 'tv'    ? TV_POOLS    :
-                                   HOME_POOLS;
-          pool = pools[slot];
+          let pool: HeroPoolItem[];
+          const holidayOverride = holiday ? HOLIDAY_HOME_OVERRIDE[holiday] : undefined;
+          if (holidayOverride && holidayOverride.length > 0 && pageType === 'home') {
+            pool = holidayOverride;
+          } else {
+            const pools = pageType === 'movie' ? MOVIE_POOLS : pageType === 'tv' ? TV_POOLS : HOME_POOLS;
+            pool = pools[slot];
+          }
+          const item = pickPoolSlot(pool, `${pageType}_${slot}`, userGenres);
+          url = item.url();
+          slotLabel = item.label;
         }
 
-        const item = pickPoolSlot(pool, `${pageType}_${slot}`, userGenres);
-        url        = item.url();
-        slotLabel  = item.label;
-      }
+        console.log(`[HeroEngine v3] Curating "${slotLabel}" (${slot}) for ${cacheKey}…`);
 
-      console.log(`[HeroEngine v3] Curating "${slotLabel}" (${slot}) for ${cacheKey}…`);
+        const response = await tmdb.get<TMDBResponse>(url);
+        const BLACKLIST = [1087040];
+        const results = (response.data.results || []).filter(
+          (m: any) => m.backdrop_path && m.vote_count >= 200 && !BLACKLIST.includes(m.id)
+        );
 
-      const response = await tmdb.get<TMDBResponse>(url);
-      const BLACKLIST = [1087040];
-      const results  = (response.data.results || []).filter(
-        (m: any) => m.backdrop_path && m.vote_count >= 200 && !BLACKLIST.includes(m.id),
-      );
+        if (results.length === 0) throw new Error(`No results for "${slotLabel}"`);
 
-      if (results.length === 0) throw new Error(`No results for "${slotLabel}"`);
+        const startIdx = hashStr(dayOfYear() + '_' + cacheKey) % results.length;
+        let selectedMovie: any = null;
+        let logoUrl: string | undefined;
+        let externals: any;
+        let mediaType: 'movie' | 'tv' = 'movie';
 
-      // Pick a stable starting index: day + cacheKey hash so every page/slot is different
-      const startIdx = hashStr(dayOfYear() + '_' + cacheKey) % results.length;
+        const candidateIndices = Array.from({ length: Math.min(5, results.length) }, (_, i) => (startIdx + i) % results.length);
+        const candidateBatch = await Promise.all(candidateIndices.map(async (idx) => {
+          const c = results[idx];
+          const cType = (c.media_type || (c.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+          const [images, exts] = await Promise.all([
+            getMovieImages(c.id, cType),
+            getExternalIds(c.id, cType),
+          ]);
+          return { c, cType, images, exts };
+        }));
 
-      let selectedMovie: any  = null;
-      let logoUrl: string | undefined;
-      let externals: any;
-      let mediaType: 'movie' | 'tv' = 'movie';
-
-      // Logo Guarantee: try up to 5 candidates, pick the first with an EN logo
-      for (let attempt = 0; attempt < Math.min(5, results.length); attempt++) {
-        const idx       = (startIdx + attempt) % results.length;
-        const candidate = results[idx];
-        const cType     = (candidate.media_type || (candidate.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-
-        const [images, exts] = await Promise.all([
-          getMovieImages(candidate.id, cType),
-          getExternalIds(candidate.id, cType),
-        ]);
-
-        const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
-        if (logo) {
-          selectedMovie  = candidate;
-          mediaType      = cType;
-          logoUrl        = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
-          externals      = exts;
-          break;
+        for (const { c, cType, images, exts } of candidateBatch) {
+          const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+          if (logo) {
+            selectedMovie = c;
+            mediaType = cType;
+            logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+            externals = exts;
+            break;
+          }
         }
+
+        if (!selectedMovie) {
+          selectedMovie = results[startIdx];
+          mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+          externals = await getExternalIds(selectedMovie.id, mediaType);
+          const images = await getMovieImages(selectedMovie.id, mediaType);
+          const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+          if (logo) logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+        }
+
+        const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
+        const pkg: HeroPackage = {
+          movie: movieWithExtras,
+          logoUrl,
+          isReady: true,
+          pageType,
+          timeSlot: slot,
+        };
+
+        this.live.set(cacheKey, pkg);
+        this.toCache(cacheKey, pkg);
+        this.listeners.forEach(cb => cb(pageType, pkg));
+
+        return pkg;
+      } catch (e) {
+        console.error(`[HeroEngine v3] Failed for ${cacheKey}:`, e);
+        return null;
+      } finally {
+        this.initializing.delete(cacheKey);
       }
+    })();
 
-      // Hard fallback if no logo found after 5 attempts
-      if (!selectedMovie) {
-        selectedMovie  = results[startIdx];
-        mediaType      = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-        externals      = await getExternalIds(selectedMovie.id, mediaType);
-        const images   = await getMovieImages(selectedMovie.id, mediaType);
-        const logo     = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
-        if (logo) logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
-      }
-
-      const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
-
-      const pkg: HeroPackage = {
-        movie:     movieWithExtras,
-        logoUrl,
-        isReady:   true,
-        pageType,
-        timeSlot:  slot,
-      };
-
-      // Persist to live map + sessionStorage
-      this.live.set(cacheKey, pkg);
-      this.toCache(cacheKey, pkg);
-      this.isInitializing.delete(cacheKey);
-      this.listeners.forEach(cb => cb(pageType, pkg));
-
-      // Warm-prefetch the stream so clicking Play is instant
-      const title       = movieWithExtras.title || movieWithExtras.name || '';
-      const releaseDate = movieWithExtras.release_date || movieWithExtras.first_air_date;
-      prefetchStream(
-        title,
-        releaseDate ? new Date(releaseDate).getFullYear() : undefined,
-        String(movieWithExtras.id),
-        mediaType,
-        1, 1,
-        movieWithExtras.imdb_id,
-      );
-
-      return pkg;
-    } catch (e) {
-      console.error(`[HeroEngine v3] Failed for ${cacheKey}:`, e);
-      this.isInitializing.delete(cacheKey);
-      return null;
-    }
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+    const finalPromise = Promise.race([promise, timeoutPromise]);
+    
+    this.initializing.set(cacheKey, finalPromise);
+    return finalPromise;
   }
 
   async prepareAllHeroes() {
@@ -502,8 +486,8 @@ class HeroEngineService {
     return () => this.listeners.delete(callback);
   }
 
-  getCachedHero(pageType: string, genreId?: number): HeroPackage | undefined {
-    const key = genreId ? `${pageType}_${genreId}` : pageType;
+  getCachedHero(pageTypeOrKey: string, genreId?: number): HeroPackage | undefined {
+    const key = (genreId !== undefined) ? `${pageTypeOrKey}_${genreId}` : pageTypeOrKey;
     return this.live.get(key) ?? (this.fromCache(key) || undefined);
   }
 
@@ -518,7 +502,7 @@ class HeroEngineService {
       const entry = this.sessionCache[p];
       if (!entry || now - entry.ts > 30_000) {
         this.live.delete(p);
-        this.isInitializing.delete(p);
+        this.initializing.delete(p);
         delete this.sessionCache[p];
         this.getHero(p);
       }

@@ -9,6 +9,7 @@ import HeroCarouselContent from './HeroCarouselContent';
 import { Movie } from '../types';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
 import { MaturityBadge } from './MovieCardBadges';
+import HeroSkeleton from './HeroSkeleton';
 
 interface HeroCarouselProps {
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
@@ -21,12 +22,14 @@ interface HeroCarouselProps {
 }
 
 const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie, genreId, pageType: explicitPageType }) => {
-  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState } = useGlobalContext();
+  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState, setIsAppReady } = useGlobalContext();
   const networkQuality = useNetworkQuality();
   const isMobile = useIsMobile();
   const [movie, setMovie] = useState<Movie | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isBackdropLoaded, setIsBackdropLoaded] = useState(false);
+  const [isLogoLoaded, setIsLogoLoaded] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
 
   const [isVideoReady, setIsVideoReady] = useState(false);
@@ -114,7 +117,6 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     const applyHeroPackage = (pkg: HeroPackage) => {
       setMovie(pkg.movie);
       if (pkg.logoUrl) setLogoUrl(pkg.logoUrl);
-      setLoading(false);
     };
 
     const getHeroPageType = (url: string): string => {
@@ -139,7 +141,10 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       } else {
         const pkg = await HeroEngine.getHero(pageType, fetchUrl, genreId);
         if (pkg) applyHeroPackage(pkg);
-        else setLoading(false);
+        else {
+            setLoading(false);
+            setIsAppReady(true);
+        }
       }
     };
 
@@ -154,16 +159,49 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     return () => {
         unsubscribe();
     };
-  }, [fetchUrl, heroMovie, genreId]);
+  }, [explicitPageType, fetchUrl, heroMovie, genreId, setIsAppReady]);
+
+  // Unified Blink Reveal & Safety Timeout
+  useEffect(() => {
+    if (!movie) return;
+
+    let isRevealed = false;
+    const reveal = () => {
+      if (isRevealed) return;
+      isRevealed = true;
+      setLoading(false);
+      setIsAppReady(true);
+    };
+
+    // Case 1: All assets ready
+    if (isBackdropLoaded && (logoUrl ? isLogoLoaded : true)) {
+      reveal();
+    }
+
+    // Case 2: Safety Timeout (3s)
+    const safety = setTimeout(reveal, 3000);
+
+    return () => clearTimeout(safety);
+  }, [movie, isBackdropLoaded, isLogoLoaded, logoUrl, setIsAppReady]);
 
 
+  const hasInterruptedRef = useRef(false);
+  const prevMovieIdRef = useRef<number | string | null>(null);
   const prevActiveIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (loading || !movie) return;
     
+    // Reset interruption state if the movie actually changes
+    if (prevMovieIdRef.current !== movie.id) {
+        hasInterruptedRef.current = false;
+        prevMovieIdRef.current = movie.id;
+    }
+
     const myVideoId = `hero-${movie.id}`;
 
     if (isOutOfView || isMobile) {
+        if (showVideo) hasInterruptedRef.current = true;
         setShowVideo(false);
         setIsActuallyPlaying(false);
         if (activeVideoId === myVideoId) setActiveVideoId(null);
@@ -177,25 +215,27 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         return;
     }
 
-    const wasInModalForMe = prevActiveIdRef.current === `modal-${movie.id}`;
-    
-    if (wasInModalForMe) {
-        setShowVideo(true);
-        if (activeVideoId !== myVideoId && (!activeVideoId || activeVideoId.startsWith('hero-'))) {
-            setActiveVideoId(myVideoId);
-        }
+    // If another player is active, mark as interrupted and stop
+    if (activeVideoId && activeVideoId !== myVideoId && !activeVideoId.startsWith('hero-')) {
+        hasInterruptedRef.current = true;
+        setShowVideo(false);
+        setIsActuallyPlaying(false);
         prevActiveIdRef.current = activeVideoId;
         return;
     }
 
-    // SMART DELAY: If a card or modal just released focus, the user is actively
-    // browsing trailers — resume hero almost instantly. Otherwise use a moderate
-    // delay that still feels snappy but avoids jank on first landing.
-    if (activeVideoId !== myVideoId && (!activeVideoId || activeVideoId.startsWith('hero-'))) {
+    // If the modal was open for this movie, we treat it as an interruption.
+    // The user has transitioned to a deeper detail view, so we don't need to auto-resume the hero trailer.
+    if (prevActiveIdRef.current === `modal-${movie.id}`) {
+        hasInterruptedRef.current = true;
+    }
+
+    // AUTO-RESUME LOGIC: Only resume if we haven't been interrupted
+    if (!hasInterruptedRef.current && activeVideoId !== myVideoId && (!activeVideoId || activeVideoId.startsWith('hero-'))) {
         const wasJustActiveElsewhere = prevActiveIdRef.current && 
             prevActiveIdRef.current !== myVideoId && 
             !prevActiveIdRef.current.startsWith('hero-');
-        const delay = wasJustActiveElsewhere ? 800 : (networkQuality.isSlowNetwork ? 800 : 800);
+        const delay = wasJustActiveElsewhere ? 0 : 80;
         
         const timer = setTimeout(() => {
             setShowVideo(true);
@@ -206,7 +246,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     }
 
     prevActiveIdRef.current = activeVideoId;
-  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId, isMobile, activeVideoId]);
+  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId, isMobile, activeVideoId, showVideo]);
 
   const backdropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -231,13 +271,10 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     };
   }, [activeVideoId, movie]);
 
-  if (loading) return (
-    <div className="relative h-[50vh] sm:h-[60vh] md:h-[80vh] w-full bg-[#141414] overflow-hidden">
-      <div className="absolute inset-0 bg-[#1f1f1f] animate-pulse" />
-    </div>
-  );
-
-  if (!movie) return null;
+  if (!movie) {
+    if (!loading) return null; // Don't block the rest of the page if Hero fails
+    return <HeroSkeleton />;
+  }
 
   return (
     <div 
@@ -245,6 +282,12 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       ref={containerRef} 
       className="relative h-[50vh] sm:h-[66vh] md:h-[77vh] lg:h-[80vh] w-full overflow-hidden group bg-black"
     >
+      {/* Global Skeleton Overlay (Unified Blink) */}
+      {loading && (
+        <div className="absolute inset-0 z-[100] bg-black">
+          <HeroSkeleton />
+        </div>
+      )}
       <HeroCarouselBackground
         movie={movie} 
         showVideo={showVideo} 
@@ -253,11 +296,18 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         showBackdropOverlay={showBackdropOverlay}
         onReady={() => setIsVideoReady(true)}
         onPlay={() => setIsActuallyPlaying(true)}
-        onEnded={() => { setHasVideoEnded(true); setShowVideo(false); setIsVideoReady(false); setIsActuallyPlaying(false); }}
+        onImageLoad={() => setIsBackdropLoaded(true)}
+        onEnded={() => { 
+            setHasVideoEnded(true); 
+            setShowVideo(false); 
+            setIsVideoReady(false); 
+            setIsActuallyPlaying(false);
+        }}
         onErrored={() => { setShowVideo(false); setIsVideoReady(false); setIsActuallyPlaying(false); }}
       />
       <HeroCarouselContent
         movie={movie} logoUrl={logoUrl} isVideoReady={isActuallyPlaying} onPlay={onPlay}
+        onImageLoad={() => setIsLogoLoaded(true)}
         onSelect={(m, _, __) => {
           onSelect(m);
         }}

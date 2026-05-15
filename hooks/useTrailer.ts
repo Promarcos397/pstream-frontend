@@ -8,12 +8,14 @@ export const useTrailer = (movie: Movie | null) => {
     const { getVideoState, updateVideoState } = useGlobalContext();
     const [videoId, setVideoId] = useState<string | null>(null);
     const [isTeaser, setIsTeaser] = useState(false);
+    const [isDirect, setIsDirect] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (!movie) {
             setVideoId(null);
             setIsTeaser(false);
+            setIsDirect(false);
             return;
         }
 
@@ -21,7 +23,7 @@ export const useTrailer = (movie: Movie | null) => {
         const cachedState = getVideoState(movie.id);
         if (cachedState?.videoId) {
             setVideoId(cachedState.videoId);
-            // isTeaser stays false for cached entries (teaserCache is in-memory only)
+            setIsDirect(cachedState.videoId.startsWith('http'));
             return;
         }
 
@@ -42,11 +44,12 @@ export const useTrailer = (movie: Movie | null) => {
             return;
         }
 
-        searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime })
+        searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime, tmdbId: movie.id.toString() })
             .then(result => {
                 if (mounted && result) {
                     setVideoId(result.videoId);
                     setIsTeaser(result.isTeaser);
+                    setIsDirect(result.isDirect || false);
                     // Proactively cache it so other components are aware instantly
                     updateVideoState(movie.id, 0, result.videoId);
                 }
@@ -58,5 +61,5 @@ export const useTrailer = (movie: Movie | null) => {
         return () => { mounted = false; };
     }, [movie, getVideoState, updateVideoState]);
 
-    return { videoId, isTeaser, isLoading };
+    return { videoId, isTeaser, isDirect, isLoading };
 };

@@ -9,6 +9,8 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { prefetchStream } from '../services/api';
 import { useDynamicManifest } from '../hooks/useDynamicManifest';
 import ManifestSkeleton from '../components/ManifestSkeleton';
+import HeroSkeleton from '../components/HeroSkeleton';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -50,7 +52,7 @@ interface SmartRow {
 }
 
 const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onViewAll }) => {
-  const { myList, continueWatching, getLikedMovies } = useGlobalContext();
+  const { myList, continueWatching, getLikedMovies, isAppReady } = useGlobalContext();
   const { t } = useTranslation();
 
   const { rows, isLoading } = useDynamicManifest('home');
@@ -59,7 +61,11 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
   // Removed: We now use the global usePrefetchQueue hook instead of aggressive localized prefetching.
 
   return (
-    <>
+    <div className="relative">
+      {/* 
+        HeroCarousel must be rendered even when !isAppReady because it's the component 
+        responsible for setting isAppReady = true once its assets are loaded. 
+      */}
       <HeroCarousel
         key="home"
         onSelect={onSelectMovie}
@@ -68,17 +74,35 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
         seekTime={seekTime}
         pageType="home"
       />
-      {/* THEME_TOGGLE: ROW_POSITION - Adjust negative margin to move rows up/down relative to Hero */}
-      <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6">
-        {isLoading ? (
-          <div className="pt-4 md:pt-10">
-             <ManifestSkeleton count={6} />
-          </div>
-        ) : (
-          rows.map(row => (
+
+      <AnimatePresence>
+        {(!isAppReady || isLoading) ? (
+          <motion.div
+            key="skeletons"
+            className="absolute inset-0 z-[100] bg-[#141414]"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+             <main className="relative z-10 pb-12 mt-[45vh] space-y-4 md:space-y-6 px-4 md:px-14 lg:px-16">
+                <ManifestSkeleton count={6} />
+             </main>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <motion.div
+        key="content"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isAppReady ? 1 : 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      >
+        <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6">
+          {rows.map((row, index) => (
             row.type === 'top10' ? (
               <TopTenRow
                 key={row.key}
+                index={index}
                 title={row.title}
                 fetchUrl={row.fetchUrl}
                 onSelect={onSelectMovie}
@@ -86,6 +110,7 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
             ) : (
               <Row
                 key={row.key}
+                index={index}
                 title={row.title}
                 fetchUrl={row.fetchUrl}
                 data={row.data}
@@ -95,10 +120,10 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
                 onViewAll={onViewAll}
               />
             )
-          ))
-        )}
-      </main>
-    </>
+          ))}
+        </main>
+      </motion.div>
+    </div>
   );
 };
 

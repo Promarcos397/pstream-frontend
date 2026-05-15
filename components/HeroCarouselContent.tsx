@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { InfoIcon, TicketIcon, PlayCircle } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,7 @@ interface HeroCarouselContentProps {
     onSelect: (movie: Movie, time?: number, videoId?: string) => void;
     trailerVideoId?: string;
     hasVideoEnded?: boolean;
+    onImageLoad?: () => void;
 }
 
 const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
@@ -22,12 +23,20 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
     onPlay,
     onSelect,
     trailerVideoId,
-    hasVideoEnded = false
+    hasVideoEnded = false,
+    onImageLoad
 }) => {
     const { t } = useTranslation();
     const [showDescription, setShowDescription] = useState(true);
     const [imgFailed, setImgFailed] = useState(false);
     const isCinemaOnly = useIsInTheaters(movie);
+    const logoImgRef = useRef<HTMLImageElement>(null);
+
+    useEffect(() => {
+        if (logoImgRef.current?.complete) {
+            onImageLoad?.();
+        }
+    }, [logoUrl, onImageLoad]);
 
     // Reset image failure if logo URL changes (navigating between heroes)
     useEffect(() => setImgFailed(false), [logoUrl]);
@@ -83,6 +92,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                                 }}
                             />
                             <img
+                                ref={logoImgRef}
                                 src={logoUrl}
                                 alt={movie?.name || movie?.title || 'title logo'}
                                 className="relative object-contain object-bottom"
@@ -91,6 +101,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                                     maxHeight: 'clamp(85px, 20vw, 210px)', 
                                     maxWidth: 'clamp(260px, 60vw, 620px)' 
                                 }}
+                                onLoad={onImageLoad}
                                 onError={() => setImgFailed(true)}
                             />
                         </div>

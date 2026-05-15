@@ -82,6 +82,9 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
     const [hasVideoEnded, setHasVideoEnded] = useState(false);
     const [replayCount, setReplayCount] = useState(0);
+    const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
+    const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const backdropForcedRef = useRef(false);
 
     const { getMatchScore } = useTasteEngine();
     const matchScore = getMatchScore(detailedMovie || activeMovieProp);
@@ -194,10 +197,25 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         const isIntersectingRef = { current: true };
 
         const update = () => {
-            if (isVisible() && isIntersectingRef.current) {
+            const visible = isVisible();
+            if (visible && isIntersectingRef.current) {
                 setActiveVideoId(`modal-${movie.id}`);
+                
+                // Clear forced backdrop when returning
+                if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+                backdropForcedRef.current = false;
+                setShowBackdropOverlay(false);
             } else {
                 setActiveVideoId(`paused-modal-${movie.id}`);
+                
+                // Start 15s timer if hidden
+                if (!visible) {
+                    if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+                    visibilityTimerRef.current = setTimeout(() => {
+                        backdropForcedRef.current = true;
+                        setShowBackdropOverlay(true);
+                    }, 15_000);
+                }
             }
         };
 
@@ -218,6 +236,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
         return () => {
             document.removeEventListener('visibilitychange', handleVisibility);
+            if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
             if (observer) observer.disconnect();
         };
     }, [movie, setActiveVideoId]);
@@ -311,11 +330,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
-                            className={`w-full h-full object-cover scale-[1.05] transition-opacity duration-700 ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
+                            className={`w-full h-full object-cover scale-[1.05] transition-opacity duration-400 ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
                             alt="modal hero"
                         />
-                        {/* Video layer is now controlled ONLY by isActuallyPlaying */}
-                        <div className={`absolute inset-0 transition-opacity duration-1000 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
+                        {/* Video layer: hidden if backdrop is forced or video hasn't started */}
+                        <div className={`absolute inset-0 transition-opacity duration-300 overflow-hidden ${isActuallyPlaying && !showBackdropOverlay ? 'opacity-100' : 'opacity-0'}`}>
                             <TrailerPlayer 
                                 key={`modal-player-${replayCount}`}
                                 movie={activeMovie} 

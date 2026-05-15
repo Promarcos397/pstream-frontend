@@ -69,6 +69,9 @@ interface GlobalContextType {
   isKidsMode: boolean;
   pageSeenIds: number[];
   registerSeenIds: (ids: number[]) => void;
+  isScrolling: boolean;
+  isAppReady: boolean;
+  setIsAppReady: (ready: boolean) => void;
   clearSeenIds: () => void;
 }
 
@@ -115,19 +118,9 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch { return DEFAULT_SETTINGS; }
   });
 
-  const [videoStates, setVideoStates] = useState<{ [key: string]: VideoState }>(() => {
-    try {
-      localStorage.removeItem('pstream-video-states'); // Clear old cache
-    } catch {}
-    return {};
-  });
+  const [videoStates, setVideoStates] = useState<{ [key: string]: VideoState }>({});
 
-  const [episodeProgress, setEpisodeProgress] = useState<{ [key: string]: EpisodeProgress }>(() => {
-    try {
-      const saved = localStorage.getItem('pstream-episode-progress');
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  });
+  const [episodeProgress, setEpisodeProgress] = useState<{ [key: string]: EpisodeProgress }>({});
 
   const [likedMovies, setLikedMovies] = useState<Record<string, LikedEntry>>(() => {
     try {
@@ -141,6 +134,23 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return saved !== undefined ? saved === 'true' : false; // Default to false (unmuted) for new users
   });
 
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [isAppReady, setIsAppReady] = useState(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const handleScroll = () => {
+      if (!isScrolling) setIsScrolling(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setIsScrolling(false), 60);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      clearTimeout(timer);
+    };
+  }, [isScrolling]);
+
   const setGlobalMute = useCallback((mute: boolean) => {
     setGlobalMuteState(mute);
     Cookies.set('muted_profile', String(mute), { expires: 365 });
@@ -151,8 +161,12 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => { localStorage.setItem('pstream-list', JSON.stringify(myList)); }, [myList]);
   useEffect(() => { localStorage.setItem('pstream-history', JSON.stringify(continueWatching)); }, [continueWatching]);
   useEffect(() => { localStorage.setItem('pstream-settings', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('pstream-episode-progress', JSON.stringify(episodeProgress)); }, [episodeProgress]);
   useEffect(() => { localStorage.setItem('pstream-liked', JSON.stringify(likedMovies)); }, [likedMovies]);
+  
+  // Use a ref to keep track of current videoStates without triggering re-renders 
+  // for components that only need the *getter* function.
+  const videoStatesRef = React.useRef(videoStates);
+  useEffect(() => { videoStatesRef.current = videoStates; }, [videoStates]);
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
@@ -222,6 +236,10 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
   }, []);
   const clearSeenIds = useCallback(() => { setPageSeenIds([]); }, []);
+  
+  useEffect(() => {
+    videoStatesRef.current = videoStates;
+  }, [videoStates]);
 
   const toggleList = useCallback((movie: Movie) => {
     setMyList(prev => {
@@ -242,14 +260,14 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setSettings(prev => ({ ...prev, ...newSettings }));
   }, []);
 
-  const updateVideoState = useCallback((movieId: number | string, time: number, videoId?: string, duration?: number) => {
+  const updateVideoState = useCallback((movieId: string | number, time: number, videoId?: string, duration?: number) => {
     setVideoStates(prev => ({
       ...prev,
       [movieId]: { time, videoId: videoId || prev[movieId]?.videoId, duration: duration || prev[movieId]?.duration }
     }));
   }, []);
 
-  const getVideoState = useCallback((movieId: number | string) => videoStates[movieId], [videoStates]);
+  const getVideoState = useCallback((movieId: number | string) => videoStatesRef.current[movieId], []);
   const clearVideoState = useCallback((movieId: number | string) => {
     setVideoStates(prev => {
       const next = { ...prev };
@@ -352,7 +370,8 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       user, login, logout, deleteAccountData, importProfileData, syncStatus,
       heroVideoState, setHeroVideoState, activeVideoId, setActiveVideoId,
       activePopupId, setActivePopupId,
-      globalMute, setGlobalMute, isKidsMode, pageSeenIds, registerSeenIds, clearSeenIds
+      globalMute, setGlobalMute, isKidsMode, pageSeenIds, registerSeenIds, clearSeenIds,
+      isScrolling, isAppReady, setIsAppReady
     }}>
       {children}
     </GlobalContext.Provider>

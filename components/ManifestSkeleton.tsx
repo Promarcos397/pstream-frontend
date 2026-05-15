@@ -18,7 +18,7 @@ export const ManifestSkeleton: React.FC<ManifestSkeletonProps> = ({ count = 5 })
               <div 
                 key={j} 
                 className="aspect-video flex-1 bg-white/[0.06] rounded-sm min-w-[160px]"
-                style={{ animationDelay: `${(i * 6 + j) * 0.05}s` }}
+                style={{ animationDelay: `${(i * 6 + j) * 0.02}s` }}
               />
             ))}
           </div>

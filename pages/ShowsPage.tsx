@@ -9,6 +9,7 @@ import { useDynamicManifest } from '../hooks/useDynamicManifest';
 import ManifestSkeleton from '../components/ManifestSkeleton';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
 import { TV_GENRES } from '../data/pageGenres';
+import { useGlobalContext } from '../context/GlobalContext';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -18,6 +19,7 @@ interface PageProps {
 
 const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) => {
   const { t } = useTranslation();
+  const { isAppReady } = useGlobalContext();
   const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
   const { rows, isLoading } = useDynamicManifest('tv', selectedGenre?.id);
 
@@ -42,7 +44,7 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
       />
 
       <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6">
-        {isLoading ? (
+        {isLoading || !isAppReady ? (
           <div className="pt-4 md:pt-10">
             <ManifestSkeleton count={8} />
           </div>

@@ -9,7 +9,9 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { getWatchData } from './MovieCardBadges';
 
-const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowKey, onViewAll }) => {
+import { motion } from 'framer-motion';
+
+const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, onSelect, onPlay, rowKey, onViewAll, index = 0 }) => {
   const { t } = useTranslation();
   const { pageSeenIds, registerSeenIds, videoStates, getVideoState, getLastWatchedEpisode } = useGlobalContext();
   const isMobile = useIsMobile();
@@ -40,7 +42,23 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
     return getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0;
   }), [movies, videoStates, getLastWatchedEpisode, getVideoState]);
 
-  const rowRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isInView, setIsInView] = useState(false);
+
+  // Viewport Observer for Lazy Loading
+  useEffect(() => {
+    if (data) {
+      setIsInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setIsInView(true); },
+      { rootMargin: '400px' } // Load slightly before it comes into view
+    );
+    if (viewRef.current) observer.observe(viewRef.current);
+    return () => observer.disconnect();
+  }, [data]);
 
   // Initial Data Load
   useEffect(() => {
@@ -50,6 +68,8 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
       return;
     }
 
+    if (!isInView) return;
+
     if (fetchUrl) {
       let isMounted = true;
       setMovies([]);
@@ -58,14 +78,13 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
       setInitialLoad(true);
       setIsHidden(false);
 
-      if (rowRef.current) {
-        rowRef.current.scrollLeft = 0;
+      if (scrollRef.current) {
+        scrollRef.current.scrollLeft = 0;
       }
 
       const loadRowData = async () => {
         try {
-          // Priority Network QoS: Staggered delay for high Hero bandwidth pipe
-          await new Promise(resolve => setTimeout(resolve, 250));
+
           if (!isMounted) return;
 
           const results = await fetchData(fetchUrl);
@@ -95,7 +114,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
       loadRowData();
       return () => { isMounted = false; };
     }
-  }, [fetchUrl, data]);
+  }, [fetchUrl, data, isInView]);
 
   // Load More Function
   const loadMore = async () => {
@@ -141,8 +160,8 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
   };
 
   const scroll = (direction: 'left' | 'right') => {
-    if (!rowRef.current) return;
-    const container = rowRef.current;
+    if (!scrollRef.current) return;
+    const container = scrollRef.current;
     const cards = container.querySelectorAll('.movie-card-container');
     if (cards.length === 0) return;
 
@@ -184,8 +203,8 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
   };
 
   const handleManualScroll = () => {
-    if (!rowRef.current || movies.length === 0) return;
-    const container = rowRef.current;
+    if (!scrollRef.current || movies.length === 0) return;
+    const container = scrollRef.current;
     const firstCard = container.querySelector('.movie-card-container') as HTMLElement | null;
     if (!firstCard) return;
 
@@ -205,7 +224,15 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
   if (!initialLoad && movies.length === 0) return null;
 
   return (
-    <div
+    <motion.div
+      ref={viewRef}
+      initial={{ opacity: 0, y: 20 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ 
+        duration: 0.8, 
+        delay: Math.min(index * 0.1, 0.4), // Stagger delay, capped for deep rows
+        ease: [0.16, 1, 0.3, 1] 
+      }}
       className="group relative my-3 md:my-4 space-y-1 z-10"
     >
       {/* Row Title */}
@@ -236,7 +263,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
       <div className="relative group/row row-scroll-outer pl-6 md:pl-14 lg:pl-16">
         {/* Scroll Container */}
         <div
-          ref={rowRef}
+          ref={scrollRef}
           onScroll={handleManualScroll}
           className={`row-scroll-strip flex overflow-x-scroll scrollbar-hide w-full pointer-events-auto relative z-10`}
           style={{
@@ -305,7 +332,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
 

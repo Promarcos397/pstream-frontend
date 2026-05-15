@@ -99,18 +99,7 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [location.pathname]);
 
-  // Prefetch last played on mount
   useEffect(() => {
-    try {
-      const last = Cookies.get('pstream-last-played');
-      if (last) {
-        const data = JSON.parse(last);
-        if (data.id && data.title && data.year) {
-          prefetchStream(data.title, data.year, String(data.id), data.type, data.season, data.episode);
-        }
-      }
-    } catch (e) { }
-    
     // Warm up the Hero Engines for all pages instantly
     HeroEngine.prepareAllHeroes();
   }, []);
@@ -268,8 +257,8 @@ const App: React.FC = () => {
         <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
         <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
-        <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} />} />
-        <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} />} />
+        <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/settings/*" element={<SettingsPage />} />
         <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />

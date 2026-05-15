@@ -96,30 +96,18 @@ const _pending    = new Map<string, Promise<any>>();
 // ─── Fetch functions ──────────────────────────────────────────────────────────
 
 export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') => {
-  const key = `${type}_${id}`;
-  if (_imageCache.has(key)) return _imageCache.get(key);
-  if (_pending.has(key))    return _pending.get(key);
-
-  const req = (async () => {
-    for (let retries = 2; retries >= 0; retries--) {
-      try {
-        const { data } = await tmdb.get(`/${type}/${id}/images`, {
-          params: { include_image_language: 'en,null' },
-        });
-        _imageCache.set(key, data);
-        return data;
-      } catch (e) {
-        if (retries === 0) { console.error(`[TMDB] Images ${type}/${id}:`, e); return null; }
-        await new Promise(r => setTimeout(r, 500));
-      }
-    }
+  const url = `/${type}/${id}/images`;
+  if (_dataCache.has(url)) return _dataCache.get(url);
+  try {
+    const { data } = await tmdb.get(url, {
+      params: { include_image_language: 'en,null' }
+    });
+    _dataCache.set(url, data);
+    return data;
+  } catch (e) {
+    console.error(`[TMDB] Images ${type}/${id}:`, e);
     return null;
-  })();
-
-  _pending.set(key, req);
-  const result = await req;
-  _pending.delete(key);
-  return result;
+  }
 };
 
 export const getMovieDetails = async (id: number | string, type: 'movie' | 'tv') => {
@@ -153,8 +141,11 @@ export const getSeasonDetails = async (id: number | string, seasonNumber: number
 };
 
 export const getExternalIds = async (id: number | string, type: 'movie' | 'tv') => {
+  const url = `/${type}/${id}/external_ids`;
+  if (_dataCache.has(url)) return _dataCache.get(url);
   try {
-    const { data } = await tmdb.get(`/${type}/${id}/external_ids`);
+    const { data } = await tmdb.get(url);
+    _dataCache.set(url, data);
     return data;
   } catch (e) {
     console.error(`[TMDB] ExternalIds ${type}/${id}:`, e);
@@ -216,10 +207,16 @@ export const searchMovies = async (query: string) => {
   }
 };
 
+const _dataCache = new Map<string, any>();
+
 export const fetchData = async (url: string) => {
+  if (_dataCache.has(url)) return _dataCache.get(url);
+
   try {
     const { data } = await tmdb.get(url);
-    return data.results || [];
+    const results = data.results || [];
+    _dataCache.set(url, results);
+    return results;
   } catch (e) {
     console.error('[TMDB] fetchData error:', e);
     return [];

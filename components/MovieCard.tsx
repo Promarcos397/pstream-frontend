@@ -10,7 +10,7 @@ import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages } from '../services/api';
 import { Movie } from '../types';
 import { TrailerPlayer } from './TrailerPlayer';
-import {MaturityBadge, BadgeOverlay, HoverProgressBar, getWatchData} from './MovieCardBadges';
+import { MaturityBadge, BadgeOverlay, HoverProgressBar, getWatchData } from './MovieCardBadges';
 import { searchTrailerWithMeta } from '../services/YouTubeService';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
@@ -88,10 +88,10 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
             })}
           </>
         ) : (
-          <CurrentIcon 
-            size={24} 
-            weight={rating ? 'fill' : 'bold'} 
-            className={rating === 'love' ? 'text-red-500' : rating === 'like' ? 'text-blue-400' : rating === 'dislike' ? 'text-gray-400' : 'text-white'} 
+          <CurrentIcon
+            size={24}
+            weight={rating ? 'fill' : 'bold'}
+            className={rating === 'love' ? 'text-red-500' : rating === 'like' ? 'text-blue-400' : rating === 'dislike' ? 'text-gray-400' : 'text-white'}
           />
         )}
       </div>
@@ -108,7 +108,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
     activePopupId, setActivePopupId,
-    globalMute, setGlobalMute, clearVideoState
+    globalMute, setGlobalMute, clearVideoState, isScrolling
   } = useGlobalContext();
   const [isHovered, setIsHovered] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -119,6 +119,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
   const [hasVideoEnded, setHasVideoEnded] = useState(false);
   const [logoFaded, setLogoFaded] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   useEffect(() => {
     if (isActuallyPlaying && !hasVideoEnded) {
@@ -140,6 +141,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const timerRef = useRef<any>(null);
   const leaveTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const posterRef = useRef<HTMLImageElement>(null);
+
+
 
   const getBadgeInfo = () => {
     const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
@@ -291,30 +295,30 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   // with videoId already known — playback starts almost instantly.
   // ──────────────────────────────────────────────────────────────────────────
 
-  const PRIME_DELAY = 300;      // ms: start warming the trailer cache
-  const SHOW_DELAY = 800;       // ms: reveal popup (must be > PRIME_DELAY)
+  const PRIME_DELAY = 300;        // ms: start warming the trailer cache
+  const SHOW_DELAY = 700;       // ms: reveal popup (must be > PRIME_DELAY)
 
   const handlePointerEnter = (e: React.PointerEvent) => {
-    if (!prefersHover) return;
+    if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
 
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
-      const EDGE_BUFFER = 160;
+      const EDGE_BUFFER = 120;
       let currentPos: 'center' | 'left' | 'right' = 'center';
       if (rect.left < EDGE_BUFFER) currentPos = 'left';
       else if (window.innerWidth - rect.right < EDGE_BUFFER) currentPos = 'right';
       setHoverPosition(currentPos);
     }
-    
+
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
-    const anotherCardIsActive = activeVideoId && 
-        activeVideoId.startsWith('card-') && 
-        activeVideoId !== `card-${movie.id}`;
+    const anotherCardIsActive = activeVideoId &&
+      activeVideoId.startsWith('card-') &&
+      activeVideoId !== `card-${movie.id}`;
 
     // ── STAGE 1: PRIME ─────────────────────────────────────────────────────
     // If another card is playing, the user is actively browsing — we can
@@ -329,9 +333,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       const type = movie.media_type || (movie.title ? 'movie' : 'tv');
       const isAnimation = movie.genre_ids?.includes(16) || movie.genres?.some(g => g.id === 16);
       const isAnime = isAnimation && movie.original_language === 'ja';
-      
+
       if (title) {
-        searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime })
+        searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime, tmdbId: movie.id.toString() })
           .then(result => {
             if (result) {
               // Proactively cache so useTrailer sees it immediately
@@ -359,11 +363,36 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     }, showDelay);
 
     // Store both timers so we can cancel either on leave
-    timerRef.current = { primeTimer, showTimer, clear: () => {
-      clearTimeout(primeTimer);
-      clearTimeout(showTimer);
-    }};
+    timerRef.current = {
+      primeTimer, showTimer, clear: () => {
+        clearTimeout(primeTimer);
+        clearTimeout(showTimer);
+      }
+    };
   };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (isScrolling || isHovered || timerRef.current) return;
+    handlePointerEnter(e);
+  };
+  // Force cancel if we start scrolling
+  useEffect(() => {
+    if (isScrolling && timerRef.current) {
+      timerRef.current.clear();
+      timerRef.current = null;
+    }
+  }, [isScrolling]);
+
+  // Handle "Snap-to-Hover" when scrolling stops
+  useEffect(() => {
+    if (!isScrolling && !isHovered && prefersHover && cardRef.current) {
+        if (cardRef.current.matches(':hover')) {
+            // Trigger hover manually as if pointerEnter just happened
+            const mockEvent = { pointerType: 'mouse', clientX: 0, clientY: 0 } as any;
+            handlePointerEnter(mockEvent);
+        }
+    }
+  }, [isScrolling, isHovered, prefersHover]);
 
   const handlePointerLeave = () => {
     if (timerRef.current) {
@@ -382,9 +411,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     // card if the user is moving directly from one card to another.
     if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
     leaveTimerRef.current = setTimeout(() => {
-        const myId = `card-${movie.id}`;
-        if (activePopupId === myId) setActivePopupId(null);
-        if (activeVideoId === myId) setActiveVideoId(null);
+      const myId = `card-${movie.id}`;
+      if (activePopupId === myId) setActivePopupId(null);
+      if (activeVideoId === myId) setActiveVideoId(null);
     }, 200);
   };
 
@@ -407,9 +436,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     }
     left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
     return {
-      position: 'fixed',
-      top: hoveredRect.top + TOP_OFFSET,
-      left,
+      position: 'absolute',
+      top: hoveredRect.top + window.scrollY + TOP_OFFSET,
+      left: left + window.scrollX,
       width: POPUP_W,
       zIndex: 9999,
     };
@@ -459,6 +488,13 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     ? movie.poster_path
     : `https://image.tmdb.org/t/p/w1280${movie.poster_path}`;
 
+  // Handle cached images for smooth reveal
+  useEffect(() => {
+    if (posterRef.current?.complete) {
+      setImageLoaded(true);
+    }
+  }, [imageSrc]);
+
   return (
     <div
       ref={cardRef}
@@ -471,14 +507,20 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       style={prefersHover ? { touchAction: 'none' } : undefined}
       onPointerEnter={prefersHover ? handlePointerEnter : undefined}
       onPointerLeave={prefersHover ? handlePointerLeave : undefined}
+      onPointerMove={prefersHover ? handlePointerMove : undefined}
       onClick={(e) => {
-  if (touchDidScroll.current) { touchDidScroll.current = false; return; }
-  handleOpenModal(e);
-}}
+        if (touchDidScroll.current) { touchDidScroll.current = false; return; }
+        handleOpenModal(e);
+      }}
     >
       <div className="w-full h-full relative rounded-sm overflow-hidden movie-card-glow">
-        <img
+        <motion.img
+          ref={posterRef}
           src={imageSrc}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: imageLoaded ? 1 : 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          onLoad={() => setImageLoaded(true)}
           className={`w-full h-full object-cover rounded-sm backdrop-pop ${isBook && !isGrid ? 'object-[50%_30%]' : 'object-center'}`}
           alt={movie.name || movie.title}
           loading="lazy"
@@ -571,10 +613,16 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
             <motion.div
               className="bg-[#141414] rounded-md movie-card-glow overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
               onClick={(e) => e.stopPropagation()}
-              initial={{ opacity: 0, y: 8, scale: 0.94 }}
+              initial={{ opacity: 0, y: 12, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 4, scale: 0.97 }}
-              transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{
+                type: 'spring',
+                stiffness: 450,
+                damping: 32,
+                mass: 0.8,
+                opacity: { duration: 0.15 }
+              }}
               style={{
                 ...getPopupFixedStyle(),
                 willChange: 'transform, opacity',
@@ -587,27 +635,27 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   <>
                     <img
                       src={imageSrc}
-                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 scale-[1.05] ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
+                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-300 scale-[1.05] ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
                       alt="preview"
                     />
-                    <div className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
-                        <TrailerPlayer 
-                            key={`card-player-${replayCount}`}
-                            movie={movie} 
-                            variant="card"
-                            cropFactor={1.35}
-                            onReady={() => setIsHoverVideoReady(true)}
-                            onPlay={() => setIsActuallyPlaying(true)}
-                            onEnded={() => {
-                                setIsHoverVideoReady(false);
-                                setIsActuallyPlaying(false);
-                                setHasVideoEnded(true);
-                            }}
-                            onErrored={() => {
-                                setIsHoverVideoReady(false);
-                                setIsActuallyPlaying(false);
-                            }}
-                        />
+                    <div className={`absolute inset-0 transition-opacity duration-300 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
+                      <TrailerPlayer
+                        key={`card-player-${replayCount}`}
+                        movie={movie}
+                        variant="card"
+                        cropFactor={1.35}
+                        onReady={() => setIsHoverVideoReady(true)}
+                        onPlay={() => setIsActuallyPlaying(true)}
+                        onEnded={() => {
+                          setIsHoverVideoReady(false);
+                          setIsActuallyPlaying(false);
+                          setHasVideoEnded(true);
+                        }}
+                        onErrored={() => {
+                          setIsHoverVideoReady(false);
+                          setIsActuallyPlaying(false);
+                        }}
+                      />
                     </div>
                   </>
                 ) : (
@@ -644,11 +692,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
                 <div className={`absolute bottom-3 left-4 right-12 pointer-events-none z-20 transition-opacity duration-1000 ${logoFaded ? 'opacity-0' : 'opacity-100'}`}>
                   {logoUrl && !imgFailed ? (
-                    <div className="relative inline-flex items-end">
+                    <div className="relative inline-flex items-end max-w-[260px]">
                       <img
                         src={logoUrl}
                         aria-hidden
-                        className={`absolute w-auto object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        className={`absolute w-auto max-w-[260px] object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
                         style={{
                           filter: 'blur(4px) brightness(0) opacity(0.8)',
                           transform: 'translate(1px, 2px) scale(1.01)',
@@ -658,7 +706,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       <img
                         src={logoUrl}
                         aria-hidden
-                        className={`absolute w-auto object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        className={`absolute w-auto max-w-[260px] object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
                         style={{
                           filter: 'blur(20px) brightness(0) opacity(0.5)',
                           transform: 'translate(2px, 4px) scale(1.06)',
@@ -668,7 +716,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       <img
                         src={logoUrl}
                         alt={movie.title || movie.name}
-                        className={`relative w-auto object-contain origin-bottom-left transition-all duration-300 z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        className={`relative w-auto max-w-[260px] object-contain origin-bottom-left transition-all duration-300 z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
                         onError={() => setImgFailed(true)}
                       />
                     </div>

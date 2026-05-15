@@ -11,7 +11,7 @@ if (YOUTUBE_API_KEYS.length === 0) {
 
 // Global throttle to prevent spamming Google APIs too hard
 let lastSearchTime = 0;
-const GLOBAL_SEARCH_THROTTLE_MS = 500;
+const GLOBAL_SEARCH_THROTTLE_MS = 5;
 
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -62,6 +62,7 @@ interface SearchOptions {
     company?: string;
     type?: 'movie' | 'tv';
     isAnime?: boolean;
+    tmdbId?: string;
 }
 
 // Full candidate with metadata — needed for local scoring
@@ -110,11 +111,15 @@ export function resetKeys() {
  * for most titles. company is used in scoring instead.
  */
 function buildSearchQueries(options: SearchOptions): string[] {
-    const { title, year, type } = options;
+    const { title, year } = options;
     const clean = title.trim();
-    const yearTerm = year ? ` ${year}` : '';
-    const typeTerm = type === 'tv' ? 'tv series' : 'movie';
-    return [`"${clean}" ${typeTerm} ${yearTerm}`];
+    
+    // Natural human-like searches. No quotes or forced "movie/series" tags.
+    // This allows YouTube's algorithm to find the best match naturally.
+    return [
+        `${clean} official trailer`,
+        `${clean} teaser`
+    ];
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
@@ -203,14 +208,10 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     if (/\bteaser\b/.test(t)) score += 100;
     if (/\bofficial\b/i.test(t)) score += 25;
 
-    // 2. Explicit content check — penalize if neither "trailer" nor "teaser" is present
-    if (!/\btrailer\b|\bteaser\b/i.test(t)) score -= 30;
     // Quality/resolution keywords are secondary to relevance
     if (/\b4k\b/.test(t)) score += 120;
     if (/\bhdr\b/.test(t)) score += 50;
     if (/\bhd\b/.test(t)) score += 75;
-    if (t.length > 50 && q.length > 10) score -= 100; // avoid very short titles
-
     // ── Regional & Annoying Content Penalties (Smart Ban) ──────────────────
 
     // 1. Regional / Localized Versions — title-level ban
@@ -271,7 +272,7 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
     }
 
     // 2. Meta-Content & Analysis (Not the actual trailer)
-    if (/\b(Reaction|Review|Breakdown|Explained|Ending\s*Explained|Hidden\s*Details|Easter\s*Eggs|Theory|Analysis|Discussion|specials|special|fake|hot_take|hot_takes|hot\s*takes|hot\s*take|hotstar|hotstar\s*specials)\b/i.test(t)) {
+    if (/\b(Reaction|Review|Breakdown|Explained|Ending\s*Explained|Hidden\s*Details|Easter\s*Eggs|Theory|Analysis|Discussion|specials|special|fake|hot_take|hot_takes|hot\s*takes|hot\s*take|hotstar|hotstar\s*specials|recap|cast|how\s*they\s*look|then\s*and\s*now)\b/i.test(t)) {
         score -= 200;
     }
 
@@ -285,8 +286,11 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
         score -= 250;
     }
 
-    // 5. Streaming companies
-    if (/\b(hbo|max|hulu|Crunchyroll|BBC|Paramount|Netflix|WB|Sony|Universal|Fox|MGM|Lionsgate|Miramax|prime)\b/i.test(t)) score += 25;
+    // 5. Boosting Major Studios / Official Channels
+    const studios = /\b(hbo|max|hulu|Crunchyroll|BBC|Paramount|Netflix|WB|Sony|Universal|Fox|MGM|Lionsgate|Miramax|prime|adult\s*swim|cartoon\s*network|disney|apple\s*tv|peacock|amc|the\s*cw|cw\b)\b/i;
+    if (studios.test(t) || studios.test(c)) {
+        score += 80; // Increased boost for verified studio presence
+    }
 
     // 6. Year boost: Exact match or one year before (trailers often release the year prior)
 
@@ -309,13 +313,8 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
         if (pattern.test(candidate.title)) { score -= 50; break; }
     }
 
-    // No-metadata candidates (backend fallback) can't be scored — push them last
-    if (!candidate.title && !candidate.channelTitle) score -= 100;
 
-    // Penalize long videos (usually full movies/scams, not trailers)
-    if (candidate.duration && candidate.duration > 400) {
-        score -= 200;
-    }
+
 
     return score;
 }
@@ -407,6 +406,9 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
 export interface TrailerResult {
     videoId: string;
     isTeaser: boolean;
+    title?: string;
+    channelTitle?: string;
+    isDirect?: boolean;
 }
 
 export const searchTrailersWithFallback = async (
@@ -454,9 +456,9 @@ export const searchTrailersWithFallback = async (
                     }
                 }
 
-                // If we already have enough candidates with real metadata, stop early
-                const withMeta = allCandidates.filter(c => c.title.length > 0);
-                if (withMeta.length >= maxResults * 2) break;
+                // SPEED OPTIMIZATION: If first query gave us ANY results, 
+                // stop here immediately. Sequential queries add 1-2s of latency.
+                if (allCandidates.length >= 1) break;
 
             } catch (error: any) {
                 console.error('[YouTubeService] Query failed:', query, error.message);
@@ -514,6 +516,12 @@ export const searchTrailersWithFallback = async (
     return result;
 };
 
+// Manual Premium Overrides: Map TMDB IDs to direct high-quality video URLs
+// Format: "tmdb-ID": "URL"
+const PREMIUM_OVERRIDES: Record<string, string> = {
+    "tmdb-4586": "https://res.cloudinary.com/dadwuvdhr/video/upload/v1778862129/1923066622425686017_1_hoiud9.mp4", // Gilmore Girls
+};
+
 /**
  * Like searchTrailersWithFallback but returns the top result with metadata.
  * Used by useTrailer to surface isTeaser so TrailerPlayer can adjust skip time.
@@ -521,12 +529,24 @@ export const searchTrailersWithFallback = async (
 export const searchTrailerWithMeta = async (
     options: SearchOptions
 ): Promise<TrailerResult | null> => {
+    const { title, year, type, tmdbId } = options;
+    const overrideKey = tmdbId ? `tmdb-${tmdbId}` : null;
+    
+    // Check for Premium Overrides first
+    if (overrideKey && PREMIUM_OVERRIDES[overrideKey]) {
+        console.log(`[YouTubeService] 💎 Premium Override found for ${title} (${tmdbId})`);
+        return {
+            videoId: PREMIUM_OVERRIDES[overrideKey],
+            title: `${title} (Premium 4K Trailer)`,
+            channelTitle: "P-Stream Premium",
+            isDirect: true,
+            isTeaser: false
+        };
+    }
+
     const ids = await searchTrailersWithFallback(options, 5);
     if (ids.length === 0) return null;
-    // Re-fetch the scored list from cache to get the title of the winner
-    const cacheKey = `${options.title}::${options.year || ''}::${options.type || ''}::5`;
-    // Winner is the first id; detect teaser from candidate title if still in the result cache
-    // We don't persist titles in cache, so we use the query title as a heuristic
+
     // The real detection: if the winner's score came primarily from 'teaser', flag it
     // Since we can't re-read per-candidate titles post-cache, we flag via a secondary teaser cache
     const winnerIsTeaser = teaserCache.has(ids[0]);

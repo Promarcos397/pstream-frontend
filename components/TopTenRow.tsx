@@ -122,7 +122,7 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
       >
         <g
           transform={isTen ? "scale(1.25, 1.08)" : "scale(1.5, 1.12)"}
-          transform-origin={isTen ? "130 205" : "70 205"}
+          style={{ transformOrigin: isTen ? "130px 205px" : "70px 205px" }}
         >
           {/* Outer Outline Stroke */}
           <text
@@ -179,7 +179,7 @@ const TopTenCard: React.FC<{
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
     activePopupId, setActivePopupId,
-    globalMute, setGlobalMute, clearVideoState
+    globalMute, setGlobalMute, clearVideoState, isScrolling
   } = useGlobalContext();
 
   const [isHovered, setIsHovered] = useState(false);
@@ -349,21 +349,24 @@ const TopTenCard: React.FC<{
     else left = hoveredRect.left + hoveredRect.width / 2 - POPUP_W / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
     return {
-      position: 'fixed',
-      top: hoveredRect.top + TOP_OFFSET,
-      left,
+      position: 'absolute',
+      top: hoveredRect.top + window.scrollY + TOP_OFFSET,
+      left: left + window.scrollX,
       width: POPUP_W,
       zIndex: 9999,
     };
   };
 
+  const PRIME_DELAY = 300;
+  const SHOW_DELAY = 700;
+
   const handlePointerEnter = (e: React.PointerEvent) => {
-    if (!prefersHover) return;
+    if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
 
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
-      const EDGE_BUFFER = 160;
+      const EDGE_BUFFER = 120;
       let currentPos: 'center' | 'left' | 'right' = 'center';
       if (rect.left < EDGE_BUFFER) currentPos = 'left';
       else if (window.innerWidth - rect.right < EDGE_BUFFER) currentPos = 'right';
@@ -371,11 +374,35 @@ const TopTenCard: React.FC<{
     }
 
     if (timerRef.current) {
-      clearTimeout(timerRef.current);
+      timerRef.current.clear();
       timerRef.current = null;
     }
 
-    timerRef.current = setTimeout(() => {
+    const anotherCardIsActive = activeVideoId && activeVideoId.startsWith('card-') && activeVideoId !== `card-${movie.id}`;
+
+    // STAGE 1: PRIME
+    const primeDelay = anotherCardIsActive ? 80 : PRIME_DELAY;
+    const primeTimer = setTimeout(() => {
+        const title = movie.original_title || movie.original_name || movie.title || movie.name || '';
+        const year = (movie.release_date || movie.first_air_date || '').slice(0, 4);
+        const type = movie.media_type || (movie.title ? 'movie' : 'tv');
+        const isAnimation = movie.genre_ids?.includes(16);
+        const isAnime = isAnimation && movie.original_language === 'ja';
+        
+        if (title) {
+            import('../services/YouTubeService').then(({ searchTrailerWithMeta }) => {
+                searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime, tmdbId: movie.id.toString() })
+                    .then(result => {
+                        if (result) updateVideoState(movie.id, 0, result.videoId);
+                    })
+                    .catch(() => {});
+            });
+        }
+    }, primeDelay);
+
+    // STAGE 2: SHOW
+    const showDelay = anotherCardIsActive ? 180 : SHOW_DELAY;
+    const showTimer = setTimeout(() => {
       const rect = cardRef.current?.getBoundingClientRect();
       if (!rect) return;
       const dx = e.clientX - rect.left - rect.width / 2;
@@ -387,12 +414,43 @@ const TopTenCard: React.FC<{
       const myId = `card-${movie.id}`;
       setActivePopupId(myId);
       setActiveVideoId(myId);
-    }, 500);
+    }, showDelay);
+
+    timerRef.current = {
+        primeTimer,
+        showTimer,
+        clear: () => {
+            clearTimeout(primeTimer);
+            clearTimeout(showTimer);
+        }
+    };
   };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (isScrolling || isHovered || timerRef.current) return;
+    handlePointerEnter(e);
+  };
+
+  useEffect(() => {
+    if (isScrolling && timerRef.current) {
+        timerRef.current.clear();
+        timerRef.current = null;
+    }
+  }, [isScrolling]);
+
+  // Handle "Snap-to-Hover" when scrolling stops
+  useEffect(() => {
+    if (!isScrolling && !isHovered && prefersHover && cardRef.current) {
+        if (cardRef.current.matches(':hover')) {
+            const mockEvent = { pointerType: 'mouse', clientX: 0, clientY: 0 } as any;
+            handlePointerEnter(mockEvent);
+        }
+    }
+  }, [isScrolling, isHovered, prefersHover]);
 
   const handlePointerLeave = () => {
     if (timerRef.current) {
-      clearTimeout(timerRef.current);
+      timerRef.current.clear();
       timerRef.current = null;
     }
 
@@ -422,6 +480,7 @@ const TopTenCard: React.FC<{
       style={prefersHover ? { touchAction: 'none' } : undefined}
       onPointerEnter={prefersHover ? handlePointerEnter : undefined}
       onPointerLeave={prefersHover ? handlePointerLeave : undefined}
+      onPointerMove={prefersHover ? handlePointerMove : undefined}
       onClick={handleOpenModal}
     >
       <RankNumber index={index} />
@@ -452,10 +511,16 @@ const TopTenCard: React.FC<{
             <motion.div
               className="bg-[#141414] rounded-md movie-card-glow overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
               onClick={(e) => e.stopPropagation()}
-              initial={{ opacity: 0, y: 8, scale: 0.94 }}
+              initial={{ opacity: 0, y: 12, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 4, scale: 0.97 }}
-              transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ 
+                type: 'spring',
+                stiffness: 450,
+                damping: 32,
+                mass: 0.8,
+                opacity: { duration: 0.15 }
+              }}
               style={{
                 ...getPopupFixedStyle(),
                 willChange: 'transform, opacity',
@@ -468,10 +533,10 @@ const TopTenCard: React.FC<{
                   <>
                     <img
                       src={imageSrc}
-                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-500 scale-[1.05] ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
+                      className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-300 scale-[1.05] ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
                       alt="preview"
                     />
-                    <div className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
+                    <div className={`absolute inset-0 transition-opacity duration-300 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
                       <TrailerPlayer
                         key={`card-player-${replayCount}`}
                         movie={movie}
@@ -527,23 +592,23 @@ const TopTenCard: React.FC<{
                 {/* Logo / Title overlay inside media */}
                 <div className={`absolute bottom-3 left-4 right-12 pointer-events-none z-20 transition-opacity duration-1000 ${logoFaded ? 'opacity-0' : 'opacity-100'}`}>
                   {logoUrl && !imgFailed ? (
-                    <div className="relative inline-flex items-end">
+                    <div className="relative inline-flex items-end max-w-[260px]">
                       <img
                         src={logoUrl}
                         aria-hidden
-                        className={`absolute w-auto object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        className={`absolute w-auto max-w-[260px] object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
                         style={{ filter: 'blur(4px) brightness(0) opacity(0.8)', transform: 'translate(1px, 2px) scale(1.01)', zIndex: 0 }}
                       />
                       <img
                         src={logoUrl}
                         aria-hidden
-                        className={`absolute w-auto object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        className={`absolute w-auto max-w-[260px] object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
                         style={{ filter: 'blur(20px) brightness(0) opacity(0.5)', transform: 'translate(2px, 4px) scale(1.06)', zIndex: 0 }}
                       />
                       <img
                         src={logoUrl}
                         alt={movie.title || movie.name}
-                        className={`relative w-auto object-contain origin-bottom-left transition-all duration-300 z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        className={`relative w-auto max-w-[260px] object-contain origin-bottom-left transition-all duration-300 z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
                         onError={() => setImgFailed(true)}
                       />
                     </div>
@@ -667,14 +732,31 @@ interface TopTenRowProps {
   fetchUrl?: string;
   data?: Movie[];
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
+  index?: number;
 }
 
-const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }) => {
+const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, index = 0 }) => {
   const { t } = useTranslation();
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
-  const rowRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({ left: false, right: false });
+  const [isInView, setIsInView] = useState(false);
+
+  // Viewport Observer for Lazy Loading
+  useEffect(() => {
+    if (data) {
+      setIsInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setIsInView(true); },
+      { rootMargin: '400px' }
+    );
+    if (viewRef.current) observer.observe(viewRef.current);
+    return () => observer.disconnect();
+  }, [data]);
 
   useEffect(() => {
     if (data) {
@@ -682,6 +764,8 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
       setLoading(false);
       return;
     }
+    if (!isInView) return;
+
     if (fetchUrl) {
       const loadData = async () => {
         setLoading(true);
@@ -696,11 +780,11 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
       };
       loadData();
     }
-  }, [fetchUrl, data]);
+  }, [fetchUrl, data, isInView]);
 
   const updateScrollState = () => {
-    if (!rowRef.current) return;
-    const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
+    if (!scrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
     setScrollState({
       left: scrollLeft > 5,
       right: scrollLeft + clientWidth < scrollWidth - 5,
@@ -708,7 +792,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
   };
 
   useEffect(() => {
-    const el = rowRef.current;
+    const el = scrollRef.current;
     if (!el) return;
     updateScrollState();
     el.addEventListener('scroll', updateScrollState, { passive: true });
@@ -720,8 +804,8 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
   }, [movies, loading]);
 
   const scroll = (direction: 'left' | 'right') => {
-    if (!rowRef.current) return;
-    const container = rowRef.current;
+    if (!scrollRef.current) return;
+    const container = scrollRef.current;
     const firstCard = container.querySelector('[data-card]') as HTMLElement | null;
     if (!firstCard) return;
 
@@ -787,8 +871,8 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
   };
 
   const handleManualScroll = () => {
-    if (!rowRef.current || movies.length === 0) return;
-    const container = rowRef.current;
+    if (!scrollRef.current || movies.length === 0) return;
+    const container = scrollRef.current;
     const firstCard = container.querySelector('[data-card]') as HTMLElement | null;
     if (!firstCard) return;
 
@@ -815,7 +899,17 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
     `transition-all duration-300 opacity-0 pointer-events-none`;
 
   return (
-    <div className="group relative my-4 md:my-6 space-y-2 z-10 hover:z-50 transition-all duration-300">
+    <motion.div
+      ref={viewRef}
+      initial={{ opacity: 0, y: 20 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ 
+        duration: 0.8, 
+        delay: Math.min(index * 0.1, 0.4), 
+        ease: [0.16, 1, 0.3, 1] 
+      }}
+      className="group relative my-4 md:my-6 space-y-2 z-10 hover:z-50 transition-all duration-300"
+    >
       <h2 className="pl-4 md:pl-10 lg:pl-16 pr-6 md:pr-14 lg:pr-20 text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
         {title}
         <span className="text-xs text-cyan-500 ml-2 opacity-0 group-hover/title:opacity-100 transition-opacity duration-300 flex items-center font-semibold">
@@ -834,7 +928,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
 
         {/* Scroll Container */}
         <div
-          ref={rowRef}
+          ref={scrollRef}
           onScroll={handleManualScroll}
           className="flex overflow-x-scroll scrollbar-hide space-x-0 py-10 -my-10 pl-8 md:pl-14 lg:pl-24 pr-6 md:pr-14 lg:pr-20 w-full items-center pointer-events-auto relative z-10"
         >
@@ -864,7 +958,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
           <CaretRightIcon size={64} weight="bold" className="text-white" />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
