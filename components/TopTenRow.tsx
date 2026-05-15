@@ -732,16 +732,16 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
 
     const visibleWidth = container.clientWidth;
     const V = Math.max(1, Math.floor(visibleWidth / step));
-    
+
     // Two-Step Set Logic: 
     // Step 1: Scroll by (V - 2) to reach the "overlap" point (e.g., Card 5).
     // Step 2: Scroll by the remainder (SetLength - Step 1) to hit Card 1 perfectly.
     const S1 = Math.max(1, V - 2);
     const S2 = Math.max(1, movies.length - S1);
-    
+
     // Detect current position in the 10-card cycle
     const currentPos = Math.round(container.scrollLeft / step) % movies.length;
-    
+
     let scrollCount = V; // Fallback
     if (direction === 'right') {
       // If we are at Card 1 (0), move to Card 5 (S1)
@@ -755,12 +755,12 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
       // If at Card 5 (S1), jump back to Card 1 (0)
       else if (currentPos === S1) scrollCount = S1;
     }
-      
+
     const amount = scrollCount * step;
 
     const oneSetWidth = movies.length * step;
-    let rawTarget = direction === 'right' 
-      ? container.scrollLeft + amount 
+    let rawTarget = direction === 'right'
+      ? container.scrollLeft + amount
       : container.scrollLeft - amount;
 
     // --- Infinity Warping Logic ---
@@ -803,7 +803,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect }
     } else if (container.scrollLeft < 0) {
       container.scrollLeft += oneSetWidth;
     }
-    
+
     updateScrollState(); // Update button visibility states if needed
   };
 

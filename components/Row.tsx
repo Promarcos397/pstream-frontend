@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CaretRightIcon, CaretLeftIcon } from '@phosphor-icons/react';
+import { animate } from 'framer-motion';
 import { Movie, RowProps } from '../types';
 import MovieCard from './MovieCard';
 import { fetchData } from '../services/api';
@@ -27,7 +28,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
   const [movies, setMovies] = useState<Movie[]>([]);
   const [initialLoad, setInitialLoad] = useState(!data && !!fetchUrl);
   const [isHidden, setIsHidden] = useState(false);
-  
+
   const [isFetching, setIsFetching] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -56,7 +57,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
       setHasMore(true);
       setInitialLoad(true);
       setIsHidden(false);
-      
+
       if (rowRef.current) {
         rowRef.current.scrollLeft = 0;
       }
@@ -72,17 +73,17 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
 
           // Deduplicate based on global context and filter out missing images + low-quality content
           const uniqueNew = results.filter((m: Movie) => {
-             const hasImage = m.backdrop_path || m.poster_path;
-             const notSeen = !pageSeenIds.includes(Number(m.id));
-             const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
-             return hasImage && notSeen && hasMinVotes;
+            const hasImage = m.backdrop_path || m.poster_path;
+            const notSeen = !pageSeenIds.includes(Number(m.id));
+            const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
+            return hasImage && notSeen && hasMinVotes;
           });
 
           if (uniqueNew.length < 5) {
-             setIsHidden(true); // Don't show sparse, awkward rows
+            setIsHidden(true); // Don't show sparse, awkward rows
           } else {
-             setMovies(uniqueNew);
-             registerSeenIds(uniqueNew.map((m: Movie) => Number(m.id)));
+            setMovies(uniqueNew);
+            registerSeenIds(uniqueNew.map((m: Movie) => Number(m.id)));
           }
         } catch (error) {
           console.error("Error loading row data:", error);
@@ -139,35 +140,64 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
     }
   };
 
-  const getScrollMetrics = () => {
-    if (!rowRef.current) return null;
-
+  const scroll = (direction: 'left' | 'right') => {
+    if (!rowRef.current) return;
     const container = rowRef.current;
     const cards = container.querySelectorAll('.movie-card-container');
-    if (cards.length === 0) return null;
+    if (cards.length === 0) return;
 
     const firstCard = cards[0] as HTMLElement;
     const style = window.getComputedStyle(firstCard);
     const marginRight = parseFloat(style.marginRight) || 0;
+    const step = firstCard.offsetWidth + marginRight;
 
-    const totalCardWidth = firstCard.offsetWidth + marginRight;
     const visibleWidth = container.clientWidth;
+    const visibleCardsCount = Math.floor(visibleWidth / step);
+    const amount = Math.max(1, visibleCardsCount) * step;
 
-    const visibleCardsCount = Math.floor(visibleWidth / totalCardWidth);
-    const cardsToScroll = Math.max(1, visibleCardsCount);
-    return cardsToScroll * totalCardWidth;
+    const oneSetWidth = movies.length * step;
+    let rawTarget = direction === 'right'
+      ? container.scrollLeft + amount
+      : container.scrollLeft - amount;
+
+    // --- Infinity Warping Logic ---
+    if (direction === 'left' && rawTarget < 0) {
+      container.scrollLeft += oneSetWidth;
+      rawTarget += oneSetWidth;
+    }
+    else if (direction === 'right' && rawTarget > oneSetWidth * 2) {
+      container.scrollLeft -= oneSetWidth;
+      rawTarget -= oneSetWidth;
+    }
+
+    // Snap to nearest card
+    const target = Math.round(rawTarget / step) * step;
+
+    animate(container.scrollLeft, target, {
+      type: "spring",
+      stiffness: 100,
+      damping: 20,
+      onUpdate: (val) => {
+        container.scrollLeft = val;
+      }
+    });
   };
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (rowRef.current) {
-      const scrollAmount = getScrollMetrics();
-      if (!scrollAmount) return;
+  const handleManualScroll = () => {
+    if (!rowRef.current || movies.length === 0) return;
+    const container = rowRef.current;
+    const firstCard = container.querySelector('.movie-card-container') as HTMLElement | null;
+    if (!firstCard) return;
 
-      if (direction === 'left') {
-        rowRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-      } else {
-        rowRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-      }
+    const style = window.getComputedStyle(firstCard);
+    const marginRight = parseFloat(style.marginRight) || 0;
+    const step = firstCard.offsetWidth + marginRight;
+    const oneSetWidth = movies.length * step;
+
+    if (container.scrollLeft > oneSetWidth * 2) {
+      container.scrollLeft -= oneSetWidth;
+    } else if (container.scrollLeft < 0) {
+      container.scrollLeft += oneSetWidth;
     }
   };
 
@@ -203,11 +233,12 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
       </div>
 
       {/* Row Content — no overflow-hidden so modal scale works */}
-      <div className="relative group/row row-scroll-outer">
+      <div className="relative group/row row-scroll-outer pl-6 md:pl-14 lg:pl-16">
         {/* Scroll Container */}
         <div
           ref={rowRef}
-          className={`row-scroll-strip flex overflow-x-scroll scrollbar-hide w-full pointer-events-auto relative z-10 scroll-smooth`}
+          onScroll={handleManualScroll}
+          className={`row-scroll-strip flex overflow-x-scroll scrollbar-hide w-full pointer-events-auto relative z-10`}
           style={{
             WebkitOverflowScrolling: 'touch',
             overscrollBehaviorX: 'contain',
@@ -220,8 +251,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
           }}
         >
 
-          {/* Left spacer */}
-          <div className="flex-none w-6 md:w-14 lg:w-16 pointer-events-none"></div>
+          {/* Infinite row: No static spacers needed anymore as cards loop */}
 
           {initialLoad
             ? Array.from({ length: 12 }).map((_, i) => (
@@ -237,9 +267,9 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
                 </div>
               </div>
             ))
-            : movies.slice(0, 36).map((movie) => (movie.backdrop_path || movie.poster_path) && (
+            : [...movies, ...movies, ...movies].map((movie, idx) => (movie.backdrop_path || movie.poster_path) && (
               <div
-                key={movie.id}
+                key={`${movie.id}-${idx}`}
                 className="movie-card-container relative pointer-events-auto mr-1 md:mr-1.5 lg:mr-2 overflow-visible"
                 style={{ zIndex: 'auto' }}
               >
@@ -248,15 +278,14 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
             ))
           }
 
-          {/* Right spacer */}
-          <div className="flex-none w-6 md:w-14 lg:w-16 pointer-events-none"></div>
+          {/* Infinite row: No static spacers needed anymore as cards loop */}
         </div>
 
         {/* Arrows — desktop only */}
         {!isMobile && (
           <>
             <div
-              className={`absolute top-0 bottom-0 left-0 z-[1000] w-[15px] md:w-[39px] lg:w-[55px] items-center justify-center cursor-pointer
+              className={`absolute top-0 bottom-0 left-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/70 flex
                 transition-opacity duration-300 pointer-events-none rounded-r-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
@@ -265,7 +294,7 @@ const Row: React.FC<RowProps> = ({ title, fetchUrl, data, onSelect, onPlay, rowK
               <CaretLeftIcon size={76} weight="bold" className="text-white drop-shadow-lg" />
             </div>
             <div
-              className={`absolute top-0 bottom-0 right-0 z-[1000] w-[15px] md:w-[39px] lg:w-[55px] items-center justify-center cursor-pointer
+              className={`absolute top-0 bottom-0 right-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/70 flex
                 transition-opacity duration-300 pointer-events-none rounded-l-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
