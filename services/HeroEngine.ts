@@ -407,8 +407,9 @@ class HeroEngineService {
       console.log(`[HeroEngine v3] Curating "${slotLabel}" (${slot}) for ${cacheKey}…`);
 
       const response = await tmdb.get<TMDBResponse>(url);
+      const BLACKLIST = [1087040];
       const results  = (response.data.results || []).filter(
-        (m: any) => m.backdrop_path && m.vote_count >= 200,
+        (m: any) => m.backdrop_path && m.vote_count >= 200 && !BLACKLIST.includes(m.id),
       );
 
       if (results.length === 0) throw new Error(`No results for "${slotLabel}"`);
