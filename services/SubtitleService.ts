@@ -1,4 +1,5 @@
 import { getExternalIds } from './api';
+import { LANG_LABELS, LANG_TO_OS } from '../constants';
 
 export interface SubtitleTrack {
     url: string;
@@ -6,27 +7,7 @@ export interface SubtitleTrack {
     label: string;
 }
 
-// Extensive ISO 639-1 lang code → English label map
-const LANG_LABELS: Record<string, string> = {
-    en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
-    pt: 'Portuguese', ru: 'Russian', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
-    ar: 'Arabic', tr: 'Turkish', nl: 'Dutch', pl: 'Polish', sv: 'Swedish',
-    da: 'Danish', fi: 'Finnish', no: 'Norwegian', hu: 'Hungarian', el: 'Greek',
-    he: 'Hebrew', cs: 'Czech', ro: 'Romanian', th: 'Thai', vi: 'Vietnamese',
-    id: 'Indonesian', uk: 'Ukrainian', hr: 'Croatian', sk: 'Slovak', bg: 'Bulgarian',
-    sr: 'Serbian', hi: 'Hindi', bn: 'Bengali', fa: 'Persian', ms: 'Malay',
-    ca: 'Catalan', lt: 'Lithuanian', lv: 'Latvian', et: 'Estonian', sl: 'Slovenian',
-};
 
-// OpenSubtitles legacy lang IDs
-const LANG_TO_OS: Record<string, string> = {
-    en: 'eng', es: 'spa', fr: 'fre', de: 'ger', it: 'ita', pt: 'por',
-    ru: 'rus', ja: 'jpn', ko: 'kor', zh: 'chi', ar: 'ara', tr: 'tur',
-    nl: 'dut', pl: 'pol', sv: 'swe', da: 'dan', fi: 'fin', no: 'nor',
-    hu: 'hun', el: 'ell', he: 'heb', cs: 'cze', ro: 'rum', th: 'tha',
-    vi: 'vie', id: 'ind', uk: 'ukr', hr: 'hrv', sk: 'slo', bg: 'bul',
-    sr: 'srp', hi: 'hin',
-};
 
 function labelToLangCode(label: string): string {
     const trimmed = label.trim().split(/[\s(]/)[0].toLowerCase();
@@ -47,27 +28,6 @@ const BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar3
 
 export const SubtitleService = {
 
-    getIntroSubtitles: async (
-        tmdbId: string,
-        type: 'movie' | 'tv',
-        season?: number,
-        episode?: number
-    ): Promise<SubtitleTrack[]> => {
-        try {
-            const url = `${BACKEND_URL}/api/introdb/subtitles?tmdb_id=${tmdbId}&type=${type}${season ? `&season=${season}` : ''}${episode ? `&episode=${episode}` : ''}`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-            if (!response.ok) return [];
-            const data = await response.json();
-            if (!data?.subtitles || !Array.isArray(data.subtitles)) return [];
-            return data.subtitles.map((sub: any) => ({
-                url: sub.url,
-                lang: (sub.lang || sub.language_code || 'en').toLowerCase().split('-')[0],
-                label: sub.label || sub.language_name || 'English',
-            }));
-        } catch {
-            return [];
-        }
-    },
 
     /**
      * Fetch subtitles for multiple languages from OpenSubtitles legacy API.
@@ -152,12 +112,6 @@ export const SubtitleService = {
         try {
             const allTracks: SubtitleTrack[] = [];
 
-            // 1. Try IntroDB first (fast, high quality)
-            const introSubs = await SubtitleService.getIntroSubtitles(tmdbId, type, season, episode);
-            if (introSubs.length > 0) {
-                console.log(`[SubtitleService] ✅ ${introSubs.length} tracks from IntroDB`);
-                allTracks.push(...introSubs);
-            }
 
             if (tmdbId) {
                 // 2. Get IMDB ID for OpenSubtitles

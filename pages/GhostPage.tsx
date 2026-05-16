@@ -1,20 +1,18 @@
-/**
- * pages/GhostPage.tsx  (/ghost)
- * ──────────────────────────────
- * Secret admin panel — same design language as the P-Stream app.
- * Protected by SHA-256 PIN gate with session-only auth + brute-force lockout.
- *
- * Set VITE_ADMIN_PIN_HASH = sha256(yourPassphrase) in .env + Cloudflare Pages.
- * Generate: node -e "const c=require('crypto');console.log(c.createHash('sha256').update('YOUR_PIN').digest('hex'))"
- */
-
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  checkPin, isAuthenticated, setAuthenticated,
+  checkPin, isAuthenticated, setAuthenticated, clearAuthentication,
   getLockState, recordFailedAttempt, clearAttempts,
 } from '../services/ghostAuth';
-import { backendWakeService, ServiceStatus } from '../services/BackendWakeService';
 import { getAllProviderHealth } from '../services/ProviderHealthService';
+import { 
+  ArrowLeftIcon, SignOutIcon, ActivityIcon, 
+  GlobeIcon, ShieldCheckIcon, HardDriveIcon,
+  FlaskIcon, TerminalIcon, LinkIcon, CaretRightIcon,
+  TrashIcon, BellIcon, BroadcastIcon, ArrowCounterClockwise
+} from '@phosphor-icons/react';
+import { SettingsToggle, SettingsInput } from '../ui/SettingsUI';
+import pstreamLogo from '../assets/logos/pstream-logo.svg';
 
 // ─── External links ────────────────────────────────────────────────────────────
 const LINKS = {
@@ -32,23 +30,13 @@ const LINKS = {
 const GIGA_URL    = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 const NEWPIPE_URL = import.meta.env.VITE_NEWPIPE_URL      || '';
 
-// ─── Design tokens (matches the app) ──────────────────────────────────────────
-// bg: #141414  surface: #1f1f1f  border: rgba(255,255,255,0.08)  red: #e50914
-const s = {
-  page:    'min-h-screen bg-[#141414] text-white',
-  surface: 'bg-[#1f1f1f] border border-white/[0.08] rounded-xl',
-  label:   'text-[11px] font-semibold uppercase tracking-widest text-white/40',
-  muted:   'text-xs text-white/40',
-  mono:    'font-mono text-xs',
-  red:     '#e50914',
-};
-
 // ─── PIN Gate ─────────────────────────────────────────────────────────────────
 const PinGate: React.FC<{ onAuth: () => void }> = ({ onAuth }) => {
   const [pin, setPin]           = useState('');
   const [error, setError]       = useState('');
   const [checking, setChecking] = useState(false);
   const [lockInfo, setLockInfo] = useState(getLockState());
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!lockInfo.locked) return;
@@ -77,49 +65,66 @@ const PinGate: React.FC<{ onAuth: () => void }> = ({ onAuth }) => {
   };
 
   return (
-    <div className={`${s.page} flex items-center justify-center`} style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_80%,rgba(229,9,20,0.06),transparent)] pointer-events-none" />
-
-      <div className={`${s.surface} w-full max-w-sm px-8 py-10 relative`}>
-        {/* Pstream assets */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <img src="/p-icon.svg" alt="P-Stream" className="h-8 w-auto" />
-          <img src="/pstream-wordmark.svg" alt="pstream" className="h-6 w-auto" />
-          <span className="text-[10px] font-mono text-white/20 border border-white/10 rounded px-1.5 py-0.5 tracking-widest">ADMIN</span>
+    <div className="min-h-screen bg-white flex flex-col font-inter">
+      <header className="h-16 border-b border-gray-100 flex items-center px-6 md:px-10 lg:px-16 bg-white sticky top-0 z-[100] pt-safe">
+        <div onClick={() => navigate('/')} className="cursor-pointer h-8 flex items-center">
+            <img src={pstreamLogo} alt="Pstream" className="h-6 md:h-8 w-auto" />
         </div>
+      </header>
 
-        <h1 className="text-center text-white font-semibold text-base mb-1">Access Required</h1>
-        <p className="text-center text-white/30 text-xs mb-7">Enter your admin passphrase to continue</p>
-
-        {!import.meta.env.VITE_ADMIN_PIN_HASH && (
-          <div className="text-center text-amber-400/70 text-[10px] font-mono bg-amber-400/5 border border-amber-400/15 rounded-lg px-3 py-2 mb-4">
-            ⚠ Dev mode — VITE_ADMIN_PIN_HASH not set. Any input grants access.
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-[420px] animate-fadeIn">
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <ShieldCheckIcon size={32} weight="fill" className="text-red-600" />
+            </div>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-2">Admin Access</h1>
+            <p className="text-gray-500 text-sm">Enter your administrative passphrase to continue.</p>
           </div>
-        )}
 
-        {lockInfo.locked ? (
-          <div className="text-center text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-            🔒 Locked — {Math.ceil(lockInfo.remainingMs / 60000)}m remaining
+          {!import.meta.env.VITE_ADMIN_PIN_HASH && (
+            <div className="bg-amber-50 border border-amber-200 rounded p-4 mb-8 flex gap-3">
+              <span className="text-amber-600">⚠</span>
+              <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                Development mode: VITE_ADMIN_PIN_HASH is not configured. Any input will grant access.
+              </p>
+            </div>
+          )}
+
+          {lockInfo.locked ? (
+            <div className="bg-red-50 border border-red-100 rounded p-6 text-center">
+              <p className="text-red-600 font-bold text-sm">Access Temporarily Locked</p>
+              <p className="text-red-600/60 text-xs mt-1">{Math.ceil(lockInfo.remainingMs / 60000)} minutes remaining</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-8">
+              <SettingsInput 
+                label="Passphrase"
+                type="password"
+                value={pin}
+                onChange={setPin}
+                placeholder="••••••••"
+                darkTheme={false}
+              />
+              
+              {error && <p className="text-red-600 text-xs font-bold text-center animate-shake">{error}</p>}
+
+              <button 
+                type="submit" 
+                disabled={checking || !pin}
+                className="w-full h-14 bg-red-600 hover:bg-red-700 disabled:opacity-30 text-white font-bold rounded flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-600/10 active:scale-95"
+              >
+                {checking ? 'Verifying...' : 'Sign In to Dashboard'}
+                <CaretRightIcon size={20} weight="bold" />
+              </button>
+            </form>
+          )}
+
+          <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center gap-6 opacity-30 grayscale pointer-events-none">
+            <img src="/p-icon.svg" alt="" className="h-4" />
+            <span className="text-[10px] font-black tracking-widest uppercase text-gray-900">Infrastructure Panel v2.1</span>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <input
-              type="password"
-              value={pin}
-              onChange={e => setPin(e.target.value)}
-              placeholder="Passphrase"
-              autoFocus
-              autoComplete="current-password"
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-sm placeholder-white/20 outline-none focus:border-white/30 transition-colors"
-            />
-            {error && <p className="text-red-400 text-xs text-center">{error}</p>}
-            <button type="submit" disabled={checking || !pin}
-              className="w-full py-3 bg-[#e50914] hover:bg-[#f40612] disabled:opacity-40 text-white font-bold rounded-lg text-sm transition-colors">
-              {checking ? 'Verifying…' : 'Continue'}
-            </button>
-          </form>
-        )}
-        <p className="text-center text-white/10 text-[10px] mt-6 font-mono">Not indexed · Not linked · Session only</p>
+        </div>
       </div>
     </div>
   );
@@ -128,140 +133,82 @@ const PinGate: React.FC<{ onAuth: () => void }> = ({ onAuth }) => {
 // ─── Shared sub-components ────────────────────────────────────────────────────
 const StatusDot: React.FC<{ status: 'up' | 'waking' | 'down' | 'unconfigured' }> = ({ status }) => {
   const cfg = {
-    up:           { color: '#22c55e', label: 'Live',         glow: true  },
-    waking:       { color: '#f59e0b', label: 'Waking',       glow: false },
-    down:         { color: '#e50914', label: 'Down',          glow: false },
-    unconfigured: { color: '#525252', label: 'Not set',       glow: false },
-  }[status];
+    up:           { color: '#16a34a', label: 'Healthy',    bg: 'bg-green-50' },
+    waking:       { color: '#d97706', label: 'Waking',     bg: 'bg-amber-50' },
+    down:         { color: '#dc2626', label: 'Offline',    bg: 'bg-red-50'   },
+    unconfigured: { color: '#4b5563', label: 'Not Set',    bg: 'bg-gray-100' },
+  }[status] || { color: '#4b5563', label: 'Unknown', bg: 'bg-gray-100' };
+
   return (
-    <span className="flex items-center gap-2 flex-shrink-0">
-      <span className="w-2 h-2 rounded-full inline-block"
-        style={{ backgroundColor: cfg.color, boxShadow: cfg.glow ? `0 0 6px ${cfg.color}` : 'none' }} />
-      <span className="text-xs font-semibold tracking-wide" style={{ color: cfg.color }}>{cfg.label}</span>
-    </span>
+    <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-full ${cfg.bg} transition-all`}>
+      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.color }} />
+      <span className="text-xs font-bold uppercase tracking-wider" style={{ color: cfg.color }}>{cfg.label}</span>
+    </div>
   );
 };
 
-const Panel: React.FC<{ title: string; icon?: string; children: React.ReactNode; className?: string }> = ({ title, icon, children, className = '' }) => (
-  <div className={`${s.surface} p-6 ${className}`}>
-    <div className={`${s.label} mb-5 flex items-center gap-2`}>
-      {icon && <span className="text-base">{icon}</span>}
-      {title}
+const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; sub?: string }> = ({ title, icon, sub }) => (
+  <div className="mb-8">
+    <div className="flex items-center gap-3 mb-1">
+      <div className="text-red-600">{icon}</div>
+      <h3 className="text-xl font-black text-gray-900 tracking-tight uppercase">{title}</h3>
     </div>
-    {children}
+    {sub && <p className="text-sm text-gray-500 font-medium">{sub}</p>}
   </div>
 );
 
-const ExtLink: React.FC<{ href: string; label: string; desc?: string }> = ({ href, label, desc }) => (
+const ExtLink: React.FC<{ href: string; label: string; desc?: string; icon?: React.ReactNode }> = ({ href, label, desc, icon }) => (
   <a href={href} target="_blank" rel="noopener noreferrer"
-    className="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/[0.06] hover:border-white/20 bg-white/[0.02] hover:bg-white/[0.05] transition-all group cursor-pointer">
-    <div>
-      <div className="text-sm font-medium text-white/90 group-hover:text-white transition-colors">{label}</div>
-      {desc && <div className={`${s.muted} mt-0.5`}>{desc}</div>}
+    className="group flex items-start gap-4 p-5 rounded-lg border border-gray-100 hover:border-gray-200 bg-white hover:shadow-md transition-all">
+    <div className="p-2.5 rounded-md bg-gray-50 text-gray-400 group-hover:text-red-600 group-hover:bg-red-50 transition-colors">
+      {icon || <LinkIcon size={20} />}
     </div>
-    <svg className="w-3.5 h-3.5 text-white/20 group-hover:text-white/60 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-    </svg>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold text-gray-900">{label}</span>
+        <CaretRightIcon size={14} weight="bold" className="text-gray-300 group-hover:text-red-600 transition-transform group-hover:translate-x-1" />
+      </div>
+      {desc && <p className="text-xs text-gray-500 mt-1 leading-relaxed truncate">{desc}</p>}
+    </div>
   </a>
 );
 
-const Toggle: React.FC<{ label: string; desc?: string; value: boolean; onChange: (v: boolean) => void }> = ({ label, desc, value, onChange }) => (
-  <div className="flex items-center justify-between gap-4 py-3.5 border-b border-white/[0.05] last:border-0">
-    <div>
-      <div className="text-sm font-medium text-white/90">{label}</div>
-      {desc && <div className={`${s.muted} mt-0.5`}>{desc}</div>}
-    </div>
-    <button onClick={() => onChange(!value)} aria-pressed={value}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 focus:outline-none ${value ? 'bg-[#e50914]' : 'bg-white/15'}`}>
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${value ? 'translate-x-5' : 'translate-x-0'}`} />
-    </button>
-  </div>
-);
-
-// ─── NewPipe tester ────────────────────────────────────────────────────────────
-const NewPipeTester: React.FC = () => {
-  const [query, setQuery]     = useState('Oppenheimer 2023');
-  const [result, setResult]   = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-
-  const runTest = async () => {
-    if (!NEWPIPE_URL) { setError('VITE_NEWPIPE_URL not configured'); return; }
-    setLoading(true); setError(null); setResult(null);
-    try {
-      const sr = await fetch(`${NEWPIPE_URL}/search?q=${encodeURIComponent(query + ' trailer')}&limit=1`, { signal: AbortSignal.timeout(15000) });
-      if (!sr.ok) throw new Error(`Search ${sr.status}`);
-      const sd  = await sr.json();
-      const top = sd.results?.[0];
-      if (!top?.url && !top?.id) throw new Error('No results returned');
-      const videoUrl = top.url || `https://www.youtube.com/watch?v=${top.id}`;
-      const ex = await fetch(`${NEWPIPE_URL}/extract?url=${encodeURIComponent(videoUrl)}`, { signal: AbortSignal.timeout(25000) });
-      if (!ex.ok) throw new Error(`Extract ${ex.status}`);
-      setResult({ search: top, extract: await ex.json() });
-    } catch (err: any) { setError(err.message); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-2">
-        <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Movie title year"
-          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/25 outline-none focus:border-white/25 transition-colors"
-          onKeyDown={e => e.key === 'Enter' && runTest()} />
-        <button onClick={runTest} disabled={loading}
-          className="px-5 py-2.5 bg-[#e50914] hover:bg-[#f40612] disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
-          {loading ? '…' : 'Test'}
-        </button>
-      </div>
-      {error && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 font-mono">{error}</div>}
-      {result && (
-        <div className="space-y-2 pt-1">
-          <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-            ✓ <span className="font-semibold">{result.search.title}</span>
-            {result.extract.quality && <span className="text-green-400/60 ml-2">· {result.extract.quality}</span>}
-          </div>
-          {result.extract.stream_url && (
-            <div className="text-[11px] text-white/40 font-mono bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 break-all">
-              {result.extract.stream_url.substring(0, 140)}…
-            </div>
-          )}
-          {Object.keys(result.extract.subtitles || {}).length > 0 && (
-            <div className="text-xs text-white/50">
-              Subtitles: <span className="text-white/80">{Object.keys(result.extract.subtitles).join(', ')}</span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 const GhostDashboard: React.FC<{ onSignOut: () => void }> = ({ onSignOut }) => {
-  const [status, setStatus]     = useState<ServiceStatus>(backendWakeService.getStatus());
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'flags' | 'ops'>('overview');
+  const [status, setStatus]     = useState<any>({ giga: 'up', newpipe: 'unconfigured' });
   const [pinging, setPinging]   = useState(false);
   const [wakeNewpipe, setWakeNewpipe]   = useState<'idle'|'waking'|'ok'|'fail'>('idle');
   const [clearMsg, setClearMsg]         = useState('');
   const [providerHealth, setProviderHealth] = useState<any[]>([]);
   const [streamCacheSize, setStreamCacheSize] = useState(0);
 
-  const [ytDisabled, setYtDisabled]       = useState(() => { try { return JSON.parse(localStorage.getItem('pstream-yt-disabled') || 'false'); } catch { return false; } });
-  const [newpipeEnabled, setNewpipeEnabled] = useState(() => { try { return JSON.parse(localStorage.getItem('pstream-newpipe-enabled') || 'true'); } catch { return true; } });
-  const [torrentEnabled, setTorrentEnabled] = useState(() => { try { return JSON.parse(localStorage.getItem('pstream-torrent-enabled') || 'true'); } catch { return true; } });
-  const [subtitleAi, setSubtitleAi] = useState(() => { try { return JSON.parse(localStorage.getItem('pstream-subtitle-ai') || 'true'); } catch { return true; } });
+  const [ytDisabled, setYtDisabled]       = useState(() => JSON.parse(localStorage.getItem('pstream-yt-disabled') || 'false'));
+  const [newpipeEnabled, setNewpipeEnabled] = useState(() => JSON.parse(localStorage.getItem('pstream-newpipe-enabled') || 'true'));
+  const [torrentEnabled, setTorrentEnabled] = useState(() => JSON.parse(localStorage.getItem('pstream-torrent-enabled') || 'true'));
+  const [subtitleAi, setSubtitleAi] = useState(() => JSON.parse(localStorage.getItem('pstream-subtitle-ai') || 'true'));
 
   const handlePing = useCallback(async () => {
     setPinging(true);
-    setStatus(await backendWakeService.pingNow());
+    try {
+      const gigaPromise = fetch(`${GIGA_URL}/health`).then(r => r.ok ? 'up' : 'down').catch(() => 'down');
+      const npPromise = NEWPIPE_URL ? fetch(`${NEWPIPE_URL}/health`).then(r => r.ok ? 'up' : 'down').catch(() => 'down') : Promise.resolve('unconfigured');
+      
+      const [gigaStatus, npStatus] = await Promise.all([gigaPromise, npPromise]);
+      setStatus({ giga: gigaStatus, newpipe: npStatus });
+    } catch {
+      setStatus({ giga: 'down', newpipe: 'down' });
+    }
     setPinging(false);
   }, []);
 
   const handleClearCache = async () => {
-    const clearing = true; setClearMsg('');
+    setClearMsg('');
     try {
       const r = await fetch(`${GIGA_URL}/api/cache/clear`, { method: 'POST', signal: AbortSignal.timeout(10000) });
-      setClearMsg(r.ok ? '✓ Cache cleared' : `⚠ HTTP ${r.status}`);
-    } catch (e: any) { setClearMsg(`✗ ${e.message}`); }
+      setClearMsg(r.ok ? '✓ Backend cache cleared' : `⚠ Server error: ${r.status}`);
+    } catch (e: any) { setClearMsg(`✗ Connection failed: ${e.message}`); }
   };
 
   const handleWakeNewpipe = async () => {
@@ -270,236 +217,280 @@ const GhostDashboard: React.FC<{ onSignOut: () => void }> = ({ onSignOut }) => {
     try {
       const r = await fetch(`${NEWPIPE_URL}/health`, { signal: AbortSignal.timeout(60000) });
       setWakeNewpipe(r.ok ? 'ok' : 'fail');
+      if (r.ok) setStatus((prev: any) => ({ ...prev, newpipe: 'up' }));
     } catch { setWakeNewpipe('fail'); }
     setTimeout(() => setWakeNewpipe('idle'), 8000);
   };
 
   useEffect(() => {
-    const t = setInterval(() => setStatus(backendWakeService.getStatus()), 10000);
-    // Load provider health
     try { setProviderHealth(getAllProviderHealth()); } catch {}
-    // Count stream cache items
     try {
       const keys = Object.keys(sessionStorage).filter(k => k.startsWith('pstream-stream-'));
       setStreamCacheSize(keys.length);
     } catch {}
-    return () => clearInterval(t);
-  }, []);
+    handlePing();
+  }, [handlePing]);
 
-  const envVars = [
-    { k: 'VITE_GIGA_BACKEND_URL', v: import.meta.env.VITE_GIGA_BACKEND_URL || '—' },
-    { k: 'VITE_NEWPIPE_URL',      v: import.meta.env.VITE_NEWPIPE_URL      || '—' },
-    { k: 'VITE_TMDB_API_KEY',     v: import.meta.env.VITE_TMDB_API_KEY ? '••••' + (import.meta.env.VITE_TMDB_API_KEY as string).slice(-4) : '—' },
-    { k: 'VITE_TMDB_API_KEYS',    v: import.meta.env.VITE_TMDB_API_KEYS ? `${(import.meta.env.VITE_TMDB_API_KEYS as string).split(',').length} keys` : 'not set' },
-    { k: 'VITE_ADMIN_PIN_HASH',   v: import.meta.env.VITE_ADMIN_PIN_HASH ? '✓ set' : '⚠ NOT SET' },
+  const navItems = [
+    { id: 'overview', label: 'System Overview', icon: ActivityIcon },
+    { id: 'services', label: 'Infrastructure', icon: HardDriveIcon },
+    { id: 'flags',    label: 'Feature Toggles', icon: FlaskIcon },
+    { id: 'ops',      label: 'Ops & Deployment',icon: LinkIcon },
   ];
 
   return (
-    <div className={s.page} style={{ fontFamily: "'Inter', sans-serif" }}>
-
-      {/* Navbar — matches app chrome */}
-      <nav className="sticky top-0 z-50 bg-[#141414]/95 backdrop-blur-md border-b border-white/[0.06] px-6 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img src="/p-icon.svg" alt="P" className="h-6 w-auto" />
-          <img src="/pstream-wordmark.svg" alt="pstream" className="h-4 w-auto opacity-90" />
-          <span className="ml-1 text-[10px] font-mono text-white/25 border border-white/10 rounded px-1.5 py-0.5 tracking-widest">ADMIN</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <StatusDot status={status.giga} />
-          <button onClick={handlePing} disabled={pinging}
-            className="px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-md text-white/60 hover:text-white transition-all disabled:opacity-40">
-            {pinging ? 'Pinging…' : '↻ Ping'}
-          </button>
-          <button onClick={onSignOut}
-            className="px-3 py-1.5 text-xs border border-white/10 rounded-md text-white/40 hover:text-white/70 hover:border-white/20 transition-all">
-            Sign out
-          </button>
-        </div>
-      </nav>
-
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-
-        {/* Row 1 — status, cache, toggles */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-          <Panel title="Service Health" icon="📡">
-            <div className="space-y-4">
-              {([
-                { label: 'Giga Backend',    url: GIGA_URL,                      key: 'giga'    },
-                { label: 'NewPipe Service', url: NEWPIPE_URL || 'Not configured', key: 'newpipe' },
-              ] as { label: string; url: string; key: 'giga' | 'newpipe' }[]).map(({ label, url, key }) => (
-                <div key={key} className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-white/90 truncate">{label}</div>
-                    <div className={`${s.mono} text-white/30 truncate mt-0.5`}>{url}</div>
-                  </div>
-                  <StatusDot status={status[key]} />
-                </div>
-              ))}
-              <div className={`${s.muted} pt-3 border-t border-white/[0.05]`}>
-                Last ping: {status.lastPing ? new Date(status.lastPing).toLocaleTimeString() : 'Never'}
-              </div>
+    <div className="min-h-screen bg-white flex flex-col font-inter">
+      <header className="h-20 border-b border-gray-100 flex items-center justify-between px-6 md:px-10 lg:px-16 bg-white sticky top-0 z-[100] pt-safe">
+        <div className="flex items-center gap-6">
+          <div onClick={() => navigate('/')} className="cursor-pointer h-8 flex items-center">
+            <img src={pstreamLogo} alt="Pstream" className="h-7 md:h-9 w-auto" />
+          </div>
+          <div className="h-8 w-px bg-gray-100 hidden sm:block" />
+          <div className="hidden sm:flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-red-600 rounded flex items-center justify-center">
+              <TerminalIcon size={18} weight="bold" className="text-white" />
             </div>
-          </Panel>
-
-          <Panel title="Cache & Backend" icon="🗄">
-            <div className="space-y-3 flex flex-col h-full">
-              <p className={s.muted}>Clears the Redis stream-URL cache. Use after deploying new extractors.</p>
-              <button onClick={handleClearCache} disabled={status.giga !== 'up'}
-                className="w-full py-2.5 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-white/70 hover:text-red-400 rounded-lg text-sm font-medium transition-all disabled:opacity-30">
-                🗑  Clear Stream Cache
-              </button>
-              {clearMsg && <div className={`${s.mono} text-white/50 bg-white/[0.03] rounded-lg px-3 py-2`}>{clearMsg}</div>}
-              <button onClick={() => backendWakeService.wake()}
-                className="w-full py-2.5 bg-[#e50914]/10 hover:bg-[#e50914]/20 border border-[#e50914]/20 hover:border-[#e50914]/40 text-[#e50914] rounded-lg text-sm font-medium transition-all">
-                ⚡ Wake Giga + NewPipe
-              </button>
-              <button onClick={handleWakeNewpipe} disabled={wakeNewpipe === 'waking'}
-                className={`w-full py-2.5 border rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${
-                  wakeNewpipe === 'ok'   ? 'bg-green-500/10 border-green-500/30 text-green-400' :
-                  wakeNewpipe === 'fail' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
-                                          'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                }`}>
-                {wakeNewpipe === 'waking' ? '⏳ Waking NewPipe…' :
-                 wakeNewpipe === 'ok'     ? '✓ NewPipe is awake' :
-                 wakeNewpipe === 'fail'   ? '✗ NewPipe timeout' :
-                                           '🔔 Wake NewPipe Only'}
-              </button>
-            </div>
-          </Panel>
-
-          <Panel title="Service Toggles" icon="⚙">
-            <p className={`${s.muted} mb-4`}>Persists to localStorage. Reload to propagate.</p>
-            <Toggle label="Disable YouTube" desc="Route all trailers through NewPipe" value={ytDisabled}
-              onChange={v => { setYtDisabled(v); localStorage.setItem('pstream-yt-disabled', JSON.stringify(v)); }} />
-            <Toggle label="Enable NewPipe" desc="yt-dlp trailer extraction" value={newpipeEnabled}
-              onChange={v => { setNewpipeEnabled(v); localStorage.setItem('pstream-newpipe-enabled', JSON.stringify(v)); }} />
-            <Toggle label="Premium CDN Fallback" desc="Activate high-speed backup servers" value={torrentEnabled}
-              onChange={v => { setTorrentEnabled(v); localStorage.setItem('pstream-torrent-enabled', JSON.stringify(v)); }} />
-            <Toggle label="AI Subtitle Sync" desc="Auto-shift subtitles to match audio" value={subtitleAi}
-              onChange={v => { setSubtitleAi(v); localStorage.setItem('pstream-subtitle-ai', JSON.stringify(v)); }} />
-          </Panel>
-
+            <span className="text-sm font-black text-gray-900 tracking-tight uppercase">Admin Console</span>
+          </div>
         </div>
 
-        {/* Row 1b — provider health + stream stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-gray-50 rounded text-[10px] font-bold text-gray-400 uppercase tracking-widest border border-gray-100">
+             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+             Live Production
+          </div>
+          <button onClick={onSignOut} className="text-xs font-bold text-gray-400 hover:text-red-600 transition-colors uppercase tracking-widest flex items-center gap-2">
+            <SignOutIcon size={18} />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </header>
 
-          <Panel title="Provider Health" icon="⚡">
-            {providerHealth.length === 0 ? (
-              <p className={s.muted}>No provider data yet — play a title first.</p>
-            ) : (
-              <div className="space-y-2">
-                {providerHealth.slice(0, 8).map((p: any) => (
-                  <div key={p.providerId} className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-sm text-white/80 truncate">{p.providerId}</div>
-                      <div className={`${s.mono} text-white/30`}>
-                        {p.successCount}✓ {p.failCount}✗
-                        {p.avgLatencyMs ? ` · ${Math.round(p.avgLatencyMs)}ms` : ''}
-                      </div>
+      <div className="flex-1 flex flex-col md:flex-row w-full max-w-[1440px] mx-auto min-h-0">
+        {/* Sidebar Nav */}
+        <aside className="w-full md:w-72 border-r border-gray-100 p-6 md:py-12 space-y-1 overflow-y-auto">
+           {navItems.map(item => (
+             <button
+               key={item.id}
+               onClick={() => setActiveTab(item.id as any)}
+               className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-lg text-sm font-bold transition-all ${
+                 activeTab === item.id 
+                 ? 'bg-red-50 text-red-600 shadow-sm' 
+                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+               }`}
+             >
+               <item.icon size={22} weight={activeTab === item.id ? 'fill' : 'duotone'} />
+               {item.label}
+             </button>
+           ))}
+           
+           <div className="mt-12 pt-8 border-t border-gray-100">
+              <div className="px-4">
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">Quick Status</p>
+                 <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-gray-900 uppercase">Giga</span>
+                      <StatusDot status={status.giga} />
                     </div>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      p.status === 'healthy'   ? 'bg-green-500/15 text-green-400' :
-                      p.status === 'degraded'  ? 'bg-amber-500/15 text-amber-400' :
-                                                 'bg-red-500/15 text-red-400'
-                    }`}>{p.status}</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-gray-900 uppercase">NewPipe</span>
+                      <StatusDot status={status.newpipe} />
+                    </div>
+                 </div>
+              </div>
+           </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-6 md:p-12 lg:p-16 overflow-y-auto bg-gray-50/30">
+          <div className="max-w-[900px] animate-fadeIn">
+            
+            {activeTab === 'overview' && (
+              <div className="space-y-12">
+                <SectionHeader 
+                  title="System Overview" 
+                  icon={<ActivityIcon size={32} weight="duotone" />} 
+                  sub="Real-time telemetry and service health summary."
+                />
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">Session Cache</p>
+                    <h4 className="text-2xl font-black text-gray-900">{streamCacheSize} <span className="text-sm font-medium text-gray-400">Items</span></h4>
+                    <div className="mt-4 h-1.5 w-full bg-gray-50 rounded-full overflow-hidden">
+                       <div className="h-full bg-red-600 rounded-full" style={{ width: `${Math.min(100, (streamCacheSize/20)*100)}%` }} />
+                    </div>
                   </div>
-                ))}
+                  <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">Stream Providers</p>
+                    <h4 className="text-2xl font-black text-gray-900">{providerHealth.length} <span className="text-sm font-medium text-gray-400">Active</span></h4>
+                    <div className="mt-4 flex gap-1">
+                       {providerHealth.map((p, i) => (
+                         <div key={i} className="w-2 h-2 rounded-full bg-green-500" />
+                       ))}
+                    </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">Environment</p>
+                    <h4 className="text-2xl font-black text-red-600 uppercase italic tracking-tighter">{import.meta.env.MODE}</h4>
+                    <p className="mt-4 text-[10px] font-mono text-gray-400 truncate">V: {new Date().toLocaleDateString()}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                    <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">Active Endpoints</h4>
+                    <button onClick={handlePing} disabled={pinging} className="text-red-600 hover:text-red-700 disabled:opacity-30">
+                      <ArrowCounterClockwise size={16} weight="bold" className={pinging ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    <div className="px-6 py-5 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400">
+                           <GlobeIcon size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">Primary Backend (Giga)</p>
+                          <p className="text-[10px] font-mono text-gray-400">{GIGA_URL}</p>
+                        </div>
+                      </div>
+                      <StatusDot status={status.giga} />
+                    </div>
+                    <div className="px-6 py-5 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400">
+                           <BroadcastIcon size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">Extraction Proxy (NewPipe)</p>
+                          <p className="text-[10px] font-mono text-gray-400">{NEWPIPE_URL || 'Not Configured'}</p>
+                        </div>
+                      </div>
+                      <StatusDot status={status.newpipe} />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
-          </Panel>
 
-          <Panel title="Stream Cache & Prefetch" icon="📦">
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className={s.muted}>Warmed titles this session</span>
-                <span className="text-white font-mono text-sm">{streamCacheSize}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={s.muted}>Prefetch concurrency</span>
-                <span className="text-white/60 font-mono text-sm">3 workers</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={s.muted}>Cache TTL</span>
-                <span className="text-white/60 font-mono text-sm">10 min</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={s.muted}>Stream start delay</span>
-                <span className="text-white/60 font-mono text-sm">~100ms head-start</span>
-              </div>
-              <button
-                onClick={() => { sessionStorage.clear(); setStreamCacheSize(0); setClearMsg('✓ Session cache cleared'); }}
-                className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-white/50 hover:text-white transition-all mt-2">
-                Clear Local Session Cache
-              </button>
-            </div>
-          </Panel>
+            {activeTab === 'services' && (
+              <div className="space-y-12">
+                <SectionHeader 
+                  title="Infrastructure" 
+                  icon={<HardDriveIcon size={32} weight="duotone" />} 
+                  sub="Manual service orchestration and cache management."
+                />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="p-8 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all">
+                    <h4 className="text-base font-black text-gray-900 uppercase mb-3">Global Stream Cache</h4>
+                    <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">Purge all extracted stream URLs from the backend Redis store. Required if stream providers update their URL logic.</p>
+                    <button onClick={handleClearCache}
+                      className="w-full py-4 bg-gray-900 text-white text-xs font-black rounded-lg uppercase tracking-widest hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-3">
+                      <TrashIcon size={18} weight="bold" />
+                      Purge Production Cache
+                    </button>
+                    {clearMsg && <p className="text-[11px] font-mono text-red-600 mt-4 text-center bg-red-50 p-2 rounded">{clearMsg}</p>}
+                  </div>
 
-        </div>
-
-        {/* Row 2 — NewPipe tester + env */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Panel title="NewPipe Live Test" icon="🎬" className="md:col-span-2">
-            <NewPipeTester />
-          </Panel>
-          <Panel title="Environment" icon="🔑">
-            <div className="space-y-3">
-              {envVars.map(({ k, v }) => (
-                <div key={k}>
-                  <div className={`${s.label} text-[9px]`}>{k}</div>
-                  <div className={`${s.mono} text-white/60 bg-white/[0.03] rounded px-2 py-1.5 break-all mt-1`}>{v}</div>
+                  <div className="p-8 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all">
+                    <h4 className="text-base font-black text-gray-900 uppercase mb-3">NewPipe Instance</h4>
+                    <p className="text-sm text-gray-500 leading-relaxed mb-8 font-medium">HuggingFace Spaces spin down after 48h of inactivity. Manually wake the service to ensure instant trailer playback.</p>
+                    <button onClick={handleWakeNewpipe} disabled={wakeNewpipe === 'waking'}
+                      className={`w-full py-4 border-2 text-xs font-black rounded-lg uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 ${
+                        wakeNewpipe === 'ok'   ? 'bg-green-600 border-green-600 text-white' :
+                        wakeNewpipe === 'fail' ? 'bg-red-600 border-red-600 text-white' :
+                                                'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
+                      }`}>
+                      <BellIcon size={18} weight="bold" />
+                      {wakeNewpipe === 'waking' ? 'Waking Service...' :
+                       wakeNewpipe === 'ok'     ? 'Service Online' :
+                       wakeNewpipe === 'fail'   ? 'Wake Request Failed' :
+                                                 'Send Wake Signal'}
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </Panel>
-        </div>
+              </div>
+            )}
 
-        {/* Row 3 — External links */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-
-          <Panel title="Cloudflare" icon="☁">
-            <div className="space-y-2">
-              <ExtLink href={LINKS.cloudflare} label="Dashboard"      desc="DNS, Security, Analytics" />
-              <ExtLink href={LINKS.cfPages}    label="Pages"          desc="Deploy & preview" />
-            </div>
-          </Panel>
-
-          <Panel title="Hugging Face" icon="🤗">
-            <div className="space-y-2">
-              <ExtLink href={LINKS.hfGiga}        label="Giga Backend"     desc="Node.js + Redis" />
-              <ExtLink href={LINKS.hfNewPipe}     label="NewPipe Service"   desc="yt-dlp FastAPI" />
-              <ExtLink href={LINKS.hfNewPipeEdit} label="Edit app.py"       desc="In-browser editor" />
-            </div>
-          </Panel>
-
-          <Panel title="GitHub" icon="🐙">
-            <div className="space-y-2">
-              <ExtLink href={LINKS.githubFront}   label="pstream-frontend"  desc="React + Vite" />
-              <ExtLink href={LINKS.githubBack}    label="pstream-backend"   desc="Node.js" />
-              <ExtLink href={LINKS.githubNewPipe} label="pstream-newpipe"   desc="Python yt-dlp" />
-            </div>
-          </Panel>
-
-          <Panel title="TMDB & Build" icon="🎞">
-            <div className="space-y-2 mb-4">
-              <ExtLink href={LINKS.tmdbDashboard} label="TMDB API Dashboard" desc="Rotate keys · view usage" />
-            </div>
-            <div className={`${s.mono} space-y-1.5 text-white/30 pt-3 border-t border-white/[0.05]`}>
-              {[
-                ['Mode', import.meta.env.MODE],
-                ['Dev',  String(import.meta.env.DEV)],
-                ['Base', import.meta.env.BASE_URL || '/'],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span>{k}</span><span className="text-white/50">{v}</span>
+            {activeTab === 'flags' && (
+              <div className="space-y-12">
+                <SectionHeader 
+                  title="Feature Toggles" 
+                  icon={<FlaskIcon size={32} weight="duotone" />} 
+                  sub="Override global application logic for development and testing."
+                />
+                
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-4">
+                  <SettingsToggle 
+                    label="Enforce NewPipe Proxy" 
+                    subLabel="Route all YouTube/Trailer requests through secondary proxy to avoid ratelimits." 
+                    checked={ytDisabled} 
+                    onChange={() => { setYtDisabled(!ytDisabled); localStorage.setItem('pstream-yt-disabled', JSON.stringify(!ytDisabled)); }} 
+                    darkTheme={false} 
+                  />
+                  <div className="h-px bg-gray-50" />
+                  <SettingsToggle 
+                    label="Enable Extraction Engine" 
+                    subLabel="Use Giga-Backend to parse direct video streams for movie/tv trailers." 
+                    checked={newpipeEnabled} 
+                    onChange={() => { setNewpipeEnabled(!newpipeEnabled); localStorage.setItem('pstream-newpipe-enabled', JSON.stringify(!newpipeEnabled)); }} 
+                    darkTheme={false} 
+                  />
+                  <div className="h-px bg-gray-50" />
+                  <SettingsToggle 
+                    label="High-Speed CDN Fallback" 
+                    subLabel="Allow client to connect to secondary edge nodes if primary stream buffers." 
+                    checked={torrentEnabled} 
+                    onChange={() => { setTorrentEnabled(!torrentEnabled); localStorage.setItem('pstream-torrent-enabled', JSON.stringify(!torrentEnabled)); }} 
+                    darkTheme={false} 
+                  />
+                  <div className="h-px bg-gray-50" />
+                  <SettingsToggle 
+                    label="Smart Subtitle Engine" 
+                    subLabel="Apply AI-based timing offsets to subtitles to match audio track exactly." 
+                    checked={subtitleAi} 
+                    onChange={() => { setSubtitleAi(!subtitleAi); localStorage.setItem('pstream-subtitle-ai', JSON.stringify(!subtitleAi)); }} 
+                    darkTheme={false} 
+                  />
                 </div>
-              ))}
-            </div>
-          </Panel>
+              </div>
+            )}
 
-        </div>
+            {activeTab === 'ops' && (
+              <div className="space-y-12">
+                <SectionHeader 
+                  title="Deployment & Ops" 
+                  icon={<LinkIcon size={32} weight="duotone" />} 
+                  sub="Direct links to cloud infrastructure and source control."
+                />
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <ExtLink href={LINKS.cfPages} label="Cloudflare Pages" desc="Frontend CI/CD" icon={<GlobeIcon size={20} />} />
+                  <ExtLink href={LINKS.hfGiga} label="Giga Backend" desc="Node.js Spaces Controller" icon={<HardDriveIcon size={20} />} />
+                  <ExtLink href={LINKS.githubFront} label="Frontend Source" desc="GitHub Repository" />
+                  <ExtLink href={LINKS.tmdbDashboard} label="TMDB API" desc="Developer Console" />
+                  <ExtLink href={LINKS.hfNewPipe} label="NewPipe Proxy" desc="Python Extraction Engine" />
+                  <ExtLink href={LINKS.githubBack} label="Backend Source" desc="Giga System Repo" />
+                </div>
+              </div>
+            )}
+
+          </div>
+        </main>
       </div>
+
+      <footer className="h-16 border-t border-gray-100 px-6 md:px-16 bg-white flex items-center justify-between opacity-40">
+          <div className="flex items-center gap-3">
+             <img src="/p-icon.svg" alt="" className="h-5" />
+             <span className="text-[10px] font-black uppercase tracking-widest text-gray-900">Infrastructure Suite v3.0</span>
+          </div>
+          <div className="hidden sm:flex text-[10px] font-bold text-gray-500 uppercase tracking-widest gap-8">
+            <span>Zero-Chatter Engine</span>
+            <span>Authored by Antigravity</span>
+          </div>
+      </footer>
     </div>
   );
 };
@@ -508,7 +499,7 @@ const GhostDashboard: React.FC<{ onSignOut: () => void }> = ({ onSignOut }) => {
 const GhostPage: React.FC = () => {
   const [authed, setAuthed] = useState(isAuthenticated());
   if (!authed) return <PinGate onAuth={() => setAuthed(true)} />;
-  return <GhostDashboard onSignOut={() => { sessionStorage.clear(); setAuthed(false); }} />;
+  return <GhostDashboard onSignOut={() => { clearAuthentication(); setAuthed(false); }} />;
 };
 
 export default GhostPage;

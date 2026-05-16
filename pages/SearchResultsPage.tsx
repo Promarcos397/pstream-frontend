@@ -1,8 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
+import { useNavigate } from 'react-router-dom';
 import MovieCard from '../components/MovieCard';
 import { SearchMode } from '../hooks/useSearch';
+import ExploreSuggestions from '../components/ExploreSuggestions';
+import { triggerSearch } from '../utils/search';
 
 interface SearchResultsPageProps {
   query: string;
@@ -16,17 +19,20 @@ interface SearchResultsPageProps {
 
 const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, onSelectMovie, onPlay, isLoading, mode, setMode }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   // Removed aggressive localized prefetching for search results
 
   return (
     <div className="pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen">
-      <div className="flex items-center justify-between mb-8">
-        <div className="text-gray-500 text-sm">
-          {t('search.explore')} <span className="text-white">"{query}"</span>
-        </div>
 
-
+      <div className="mb-8">
+        <ExploreSuggestions 
+        label={t('search.moreToExplore', { defaultValue: 'More to explore:' })}
+        // Skip the first 8 results to avoid repeating what's already visible in the top row
+        items={results.slice(8, 20).map(m => m.title || m.name || '').filter(Boolean)}
+        onItemClick={(title) => triggerSearch(navigate, title)}
+      />
       </div>
 
       {isLoading ? (

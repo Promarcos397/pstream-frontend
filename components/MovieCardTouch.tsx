@@ -138,8 +138,8 @@ const MovieCardTouch: React.FC<MovieCardTouchProps> = ({ movie, onSelect, onPlay
     }
     if (pct < 2) return null;
     return (
-      <div className="absolute pointer-events-none z-20" style={{ top: 'calc(100% + 8px)', left: '20%', right: '20%' }}>
-        <div className="h-[3px] w-full bg-white/20" style={{ borderRadius: 0 }}>
+      <div className="absolute pointer-events-none z-20" style={{ top: 'calc(100% + 8px)', left: '25%', right: '25%' }}>
+        <div className="h-[3px] w-full bg-[#808080]" style={{ borderRadius: 0 }}>
           <div className="h-full bg-[#e50914] transition-all duration-300" style={{ width: `${pct}%`, borderRadius: 0 }} />
         </div>
       </div>

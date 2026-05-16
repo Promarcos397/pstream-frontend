@@ -28,15 +28,13 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  // On mount, restore query from URL ?q= param (deep-link support)
+  // Sync UI expansion from URL (deep-link + shareability)
   useEffect(() => {
     const qFromUrl = searchParams.get('q');
-    if (qFromUrl && qFromUrl !== searchQuery) {
-      setSearchQuery(qFromUrl);
+    if (qFromUrl && !isActive) {
       setIsActive(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams, isActive]);
 
   // Auto-focus when active
   useEffect(() => {
@@ -66,9 +64,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
       return;
     }
     const timer = setTimeout(() => {
-      const params = new URLSearchParams(location.search);
-      params.set('q', searchQuery);
-      navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+      // Use manual string construction to enforce %20 encoding for spaces instead of +
+      const queryString = searchQuery ? `?q=${encodeURIComponent(searchQuery)}` : '';
+      navigate(`${location.pathname}${queryString}`, { replace: true });
     }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery, location.pathname, navigate]);
@@ -77,7 +75,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        if (!searchQuery) {
+        // Only collapse if the input is NOT focused and there is no text.
+        // This prevents autofill/autocorrect popups from closing the bar.
+        const isInputFocused = document.activeElement === inputRef.current;
+        if (!searchQuery && !isInputFocused) {
           setIsActive(false);
           onActiveChange?.(false);
         }
@@ -173,7 +174,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
           ref={inputRef}
           type="text"
           placeholder={t('common.search')}
-          className={`bg-transparent border-none outline-none text-white text-xs md:text-sm ml-2 transition-all duration-300 font-harmonia-condensed
+          className={`bg-transparent border-none outline-none text-white text-xs md:text-sm ml-2 transition-all duration-300 font-netflix
             ${effectiveActive ? 'w-full opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -186,7 +187,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
         {effectiveActive && (
           <button
             onMouseDown={searchQuery ? handleClear : closeSearch}
-            className="text-white/70 hover:text-white cursor-pointer mx-1 flex-shrink-0 transition-opacity"
+            className="text-white/70 hover:text-white cursor-pointer mx-1 flex-shrink-0 transition-all duration-200 hover:scale-125 active:scale-95"
             aria-label={searchQuery ? 'Clear search' : 'Close search'}
           >
             <XIcon size={20} />

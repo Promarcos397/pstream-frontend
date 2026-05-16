@@ -3,7 +3,7 @@ import { Movie } from '../types';
 import { searchMovies } from '../services/api';
 
 const CACHE_DURATION = 1000 * 60 * 5; // 5 minutes
-const MIN_VOTE_COUNT = 100; // Filter out obscure content with low votes
+const MIN_VOTE_COUNT = 10; // Lowered to be less restrictive as requested
 const BLACKLISTED_GENRES = [99]; // 99 = Documentary
 
 interface CacheEntry {

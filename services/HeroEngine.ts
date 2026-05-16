@@ -1,6 +1,6 @@
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
-import { getMovieImages, getExternalIds, prefetchStream, fetchData } from './api';
+import { getMovieImages, getExternalIds, fetchData } from './api';
 import tmdb from './tmdb';
 
 /**
@@ -473,13 +473,6 @@ class HeroEngineService {
     return finalPromise;
   }
 
-  async prepareAllHeroes() {
-    console.log('[HeroEngine v3] Warming up engines…');
-    // Stagger slightly to avoid hammering TMDB simultaneously
-    await this.getHero('home');
-    setTimeout(() => this.getHero('movie'), 300);
-    setTimeout(() => this.getHero('tv'),    600);
-  }
 
   subscribe(callback: (pageType: string, hero: HeroPackage) => void) {
     this.listeners.add(callback);

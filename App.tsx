@@ -4,11 +4,16 @@ import { Movie } from './types';
 import useSearch from './hooks/useSearch';
 import { useTitle } from './context/TitleContext';
 import { useGlobalContext } from './context/GlobalContext';
-import { prefetchStream } from './services/api';
 import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
-import { HeroEngine } from './services/HeroEngine';
-import { backendWakeService } from './services/BackendWakeService';
+import { initCodecSupport } from './utils/browserCodecSupport';
+
+// Warm browser codec detection immediately on app load.
+// By the time the user clicks Play, the profile is already cached.
+initCodecSupport().then(p => {
+  console.log(`[App] 🎵 Codec profile ready — AC3:${p.canPlayAC3} EAC3:${p.canPlayEAC3} Dolby:${p.isDolbyCapable} → transcode target: ${p.preferredTranscodeTarget}`);
+});
+
 
 
 // Components
@@ -43,12 +48,6 @@ const App: React.FC = () => {
   useEffect(() => {
     (window as any).reactNavigate = navigate;
   }, [navigate]);
-
-  // Wake the HF Space on app mount (prevents 503 storm after free-tier sleep)
-  useEffect(() => {
-    backendWakeService.wake();
-    return () => { /* keepalive continues until page unload */ };
-  }, []);
 
   // Sync search query from URL — reactive on location change
   useEffect(() => {
@@ -99,10 +98,6 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [location.pathname]);
 
-  useEffect(() => {
-    // Warm up the Hero Engines for all pages instantly
-    HeroEngine.prepareAllHeroes();
-  }, []);
 
   // Update page title based on route
   useEffect(() => {
@@ -137,12 +132,13 @@ const App: React.FC = () => {
     setInfoInitialTime(time || 0);
     setInfoVideoId(videoId);
     setSelectedMovie(movie);
-    // Push modal state to URL so back button restores context
+    
+    // Create additive params to preserve 'q' or other filters
     const type = movie.media_type || (movie.title ? 'movie' : 'tv');
-    const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(window.location.search);
     next.set('modal', String(movie.id));
     next.set('type', type);
-    setSearchParams(next, { replace: false });
+    setSearchParams(next, { replace: true });
   };
 
   const handleCloseModal = (finalTime?: number) => {
@@ -154,8 +150,9 @@ const App: React.FC = () => {
         updateVideoState(selectedMovie.id, finalTime);
       }
     }
-    // Remove modal params from URL
-    const next = new URLSearchParams(searchParams);
+    
+    // Carefully remove only modal params to preserve search 'q'
+    const next = new URLSearchParams(window.location.search);
     next.delete('modal');
     next.delete('type');
     setSearchParams(next, { replace: true });

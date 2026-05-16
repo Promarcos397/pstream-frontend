@@ -33,6 +33,10 @@ export function setAuthenticated() {
   sessionStorage.setItem(SESSION_KEY, '1');
 }
 
+export function clearAuthentication() {
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
 export function getLockState(): { locked: boolean; remainingMs: number } {
   try {
     const raw = localStorage.getItem(LOCK_KEY);

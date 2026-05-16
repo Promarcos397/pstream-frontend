@@ -88,6 +88,7 @@ export interface RowProps {
 export interface AppSettings {
   autoplayPreviews: boolean;
   autoplayNextEpisode: boolean;
+  autoplayVideo: boolean;
   showSubtitles: boolean;
   subtitleSize: 'tiny' | 'small' | 'medium' | 'large' | 'huge';
   subtitleColor: 'white' | 'yellow' | 'cyan' | 'green' | 'magenta' | 'red' | 'blue' | 'black';

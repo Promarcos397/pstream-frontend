@@ -4,11 +4,6 @@ import axios from 'axios';
 // Parse YouTube API keys from environment variables to avoid hardcoding
 const YOUTUBE_API_KEYS: string[] = (import.meta.env.VITE_YOUTUBE_API_KEYS || '').split(',').filter(Boolean);
 
-// Fallback keys if env is empty (legacy safety)
-if (YOUTUBE_API_KEYS.length === 0) {
-    YOUTUBE_API_KEYS.push('AIzaSyAPYK_Miisu65B_rzwUH8FoI83AVgmXA50');
-}
-
 // Global throttle to prevent spamming Google APIs too hard
 let lastSearchTime = 0;
 const GLOBAL_SEARCH_THROTTLE_MS = 5;
@@ -20,9 +15,7 @@ function sleep(ms: number) {
 let currentKeyIndex = 0;
 let failedKeys = new Set<number>();
 let allKeysExhaustedUntil = 0;
-const KEY_EXHAUST_COOLDOWN_MS = 15 * 60 * 1000;
-let backendFallbackMutedUntil = 0;
-const BACKEND_FALLBACK_COOLDOWN_MS = 60 * 1000;
+const ALL_KEYS_COOLDOWN_MS = 1000 * 60 * 60; // 1 hour
 
 // v3 = new scoring-based selection (invalidates old position-based cache entries)
 const CACHE_KEY = 'Pstream-youtube-cache-v3';
@@ -86,7 +79,7 @@ function rotateKey(): boolean {
         }
     }
     console.warn('[YouTubeService] All keys exhausted!');
-    allKeysExhaustedUntil = Date.now() + KEY_EXHAUST_COOLDOWN_MS;
+    allKeysExhaustedUntil = Date.now() + ALL_KEYS_COOLDOWN_MS;
     return false;
 }
 
@@ -94,32 +87,15 @@ export function resetKeys() {
     failedKeys.clear();
     currentKeyIndex = 0;
     allKeysExhaustedUntil = 0;
-    backendFallbackMutedUntil = 0;
 }
 
 // ─── Query Building ───────────────────────────────────────────────────────────
 
 /**
- * Build a tiered list of search queries from least to most specific.
- *
- * Strategy:
- * - Start from a single simple "4K trailer" query (user-friendly baseline)
- * - Add a tiny set of dynamic fallbacks only when needed
- * - Keep query count low to reduce API pressure and noisy results
- *
- * company and type are intentionally excluded from queries — they hurt recall
- * for most titles. company is used in scoring instead.
+ * Build a simple search query for YouTube.
  */
 function buildSearchQueries(options: SearchOptions): string[] {
-    const { title, year } = options;
-    const clean = title.trim();
-    
-    // Natural human-like searches. No quotes or forced "movie/series" tags.
-    // This allows YouTube's algorithm to find the best match naturally.
-    return [
-        `${clean} official trailer`,
-        `${clean} teaser`
-    ];
+    return [`${options.title} ${options.year || ''} trailer`];
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
@@ -324,7 +300,6 @@ function scoreCandidate(options: SearchOptions, candidate: YTCandidate): number 
 /**
  * Execute a single YouTube search query.
  * Returns full YTCandidate objects (videoId + snippet metadata) for scoring.
- * Falls back to scraper proxy if all API keys are exhausted.
  */
 async function executeSearch(query: string, maxResults: number): Promise<YTCandidate[]> {
 
@@ -372,24 +347,6 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
         }
     }
 
-    const GIGA_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
-
-    // ── Dedicated backend no-key fallback ─────────────────────────────────────
-    if (Date.now() >= backendFallbackMutedUntil) {
-        try {
-            const params = new URLSearchParams({ q: query, maxResults: String(maxResults) });
-            const response = await axios.get(`${GIGA_URL}/api/youtube/search?${params.toString()}`);
-            const ids: string[] = Array.isArray(response.data?.videoIds) ? response.data.videoIds : [];
-            if (ids.length > 0) {
-                console.log(`[YouTubeService] ✅ Backend fallback found ${ids.length} videos (${response.data?.source || 'unknown'})`);
-                return ids.map(id => ({ videoId: id, title: '', channelTitle: '' }));
-            }
-        } catch (e: any) {
-            backendFallbackMutedUntil = Date.now() + BACKEND_FALLBACK_COOLDOWN_MS;
-            console.warn(`[YouTubeService] Backend fallback failed: ${e.message}`);
-        }
-    }
-
     return [];
 }
 
@@ -397,7 +354,7 @@ async function executeSearch(query: string, maxResults: number): Promise<YTCandi
 
 /**
  * Smart search with:
- * - Tiered query fallbacks (clean queries first, "4K" only as last resort)
+ * - Specific title + year query optimization
  * - Local scoring (title relevance + quality signals + banlist penalties)
  * - Session cache + in-flight dedup
  *
@@ -411,7 +368,7 @@ export interface TrailerResult {
     isDirect?: boolean;
 }
 
-export const searchTrailersWithFallback = async (
+export const searchTrailers = async (
     options: SearchOptions,
     maxResults: number = 5
 ): Promise<string[]> => {
@@ -438,8 +395,7 @@ export const searchTrailersWithFallback = async (
         lastSearchTime = Date.now();
 
         const queries = buildSearchQueries(options);
-        const underQuotaPressure = allKeysExhaustedUntil > Date.now();
-        const effectiveQueries = underQuotaPressure ? queries.slice(0, 2) : queries;
+        const effectiveQueries = queries;
         const seenIds = new Set<string>();
         const allCandidates: YTCandidate[] = [];
 
@@ -523,7 +479,7 @@ const PREMIUM_OVERRIDES: Record<string, string> = {
 };
 
 /**
- * Like searchTrailersWithFallback but returns the top result with metadata.
+ * Like searchTrailers but returns the top result with metadata.
  * Used by useTrailer to surface isTeaser so TrailerPlayer can adjust skip time.
  */
 export const searchTrailerWithMeta = async (
@@ -544,22 +500,11 @@ export const searchTrailerWithMeta = async (
         };
     }
 
-    const ids = await searchTrailersWithFallback(options, 5);
+    const ids = await searchTrailers(options, 5);
     if (ids.length === 0) return null;
 
     // The real detection: if the winner's score came primarily from 'teaser', flag it
     // Since we can't re-read per-candidate titles post-cache, we flag via a secondary teaser cache
     const winnerIsTeaser = teaserCache.has(ids[0]);
     return { videoId: ids[0], isTeaser: winnerIsTeaser };
-};
-
-// ─── Backward Compatibility ───────────────────────────────────────────────────
-
-export const searchTrailers = async (query: string, maxResults: number = 5): Promise<string[]> => {
-    return searchTrailersWithFallback({ title: query }, maxResults);
-};
-
-export const searchTrailer = async (query: string): Promise<string | null> => {
-    const results = await searchTrailers(query, 1);
-    return results.length > 0 ? results[0] : null;
 };

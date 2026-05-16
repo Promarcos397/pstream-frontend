@@ -45,6 +45,22 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
   const viewRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isInView, setIsInView] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  // Sync window width for threshold calculation
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Infinity Loop Thresholds: 6 (Desktop), 5 (Tablet), 3 (Mobile)
+  const shouldLoop = useMemo(() => {
+    if (movies.length === 0) return false;
+    if (windowWidth >= 1024) return movies.length >= 6;
+    if (windowWidth >= 768)  return movies.length >= 5;
+    return movies.length >= 3;
+  }, [movies.length, windowWidth]);
 
   // Viewport Observer for Lazy Loading
   useEffect(() => {
@@ -180,13 +196,15 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
       : container.scrollLeft - amount;
 
     // --- Infinity Warping Logic ---
-    if (direction === 'left' && rawTarget < 0) {
-      container.scrollLeft += oneSetWidth;
-      rawTarget += oneSetWidth;
-    }
-    else if (direction === 'right' && rawTarget > oneSetWidth * 2) {
-      container.scrollLeft -= oneSetWidth;
-      rawTarget -= oneSetWidth;
+    if (shouldLoop) {
+      if (direction === 'left' && rawTarget < 0) {
+        container.scrollLeft += oneSetWidth;
+        rawTarget += oneSetWidth;
+      }
+      else if (direction === 'right' && rawTarget > oneSetWidth * 2) {
+        container.scrollLeft -= oneSetWidth;
+        rawTarget -= oneSetWidth;
+      }
     }
 
     // Snap to nearest card
@@ -203,7 +221,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
   };
 
   const handleManualScroll = () => {
-    if (!scrollRef.current || movies.length === 0) return;
+    if (!scrollRef.current || !shouldLoop || movies.length === 0) return;
     const container = scrollRef.current;
     const firstCard = container.querySelector('.movie-card-container') as HTMLElement | null;
     if (!firstCard) return;
@@ -257,10 +275,9 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
             ))}
           </div>
         )}
-      </div>
+      </div>      {/* Row Content — full width to allow left-side peek */}
+      <div className="relative group/row row-scroll-outer">
 
-      {/* Row Content — no overflow-hidden so modal scale works */}
-      <div className="relative group/row row-scroll-outer pl-6 md:pl-14 lg:pl-16">
         {/* Scroll Container */}
         <div
           ref={scrollRef}
@@ -269,32 +286,25 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
           style={{
             WebkitOverflowScrolling: 'touch',
             overscrollBehaviorX: 'contain',
-            // Prevent synthetic mouse events from touch scroll on iOS
-            touchAction: 'pan-x pan-y',  // allow both axes — never block vertical page scroll
-            // Extra bottom padding ONLY when this row has cards with progress bars.
-            // overflow-x:scroll implicitly clips overflow-y, which hides the floating
-            // progress bar that sits 6px below each card. This padding makes room for it.
+            touchAction: 'pan-x pan-y',
             paddingBottom: hasAnyProgress ? '8px' : '0px',
           }}
         >
-
-          {/* Infinite row: No static spacers needed anymore as cards loop */}
+          {/* Initial Spacer — aligns first card with title while allowing left peek when scrolled */}
+          <div className="flex-none w-6 md:w-14 lg:w-16 h-full pointer-events-none" />
 
           {initialLoad
             ? Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="movie-card-container relative flex-none w-[calc((100vw-3rem)/2.5)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[7/5] bg-[#1e1e1e] rounded-sm overflow-hidden border border-white/[0.04] pointer-events-auto mr-1 md:mr-1.5 lg:mr-2">
-                {/* Shimmer sweep */}
                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" style={{ animationDelay: `${i * 0.08}s` }} />
-                {/* Fake image area top gradient */}
                 <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
-                {/* Fake logo placeholder */}
                 <div className="absolute bottom-4 left-3 space-y-2">
                   <div className="h-2.5 bg-white/[0.08] rounded-full" style={{ width: `${48 + (i % 4) * 16}px` }} />
                   <div className="h-1.5 bg-white/[0.05] rounded-full" style={{ width: `${32 + (i % 3) * 12}px` }} />
                 </div>
               </div>
             ))
-            : [...movies, ...movies, ...movies].map((movie, idx) => (movie.backdrop_path || movie.poster_path) && (
+            : (shouldLoop ? [...movies, ...movies, ...movies] : movies).map((movie, idx) => (movie.backdrop_path || movie.poster_path) && (
               <div
                 key={`${movie.id}-${idx}`}
                 className="movie-card-container relative pointer-events-auto mr-1 md:mr-1.5 lg:mr-2 overflow-visible"
@@ -305,15 +315,16 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
             ))
           }
 
-          {/* Infinite row: No static spacers needed anymore as cards loop */}
+          {/* End Spacer — ensures the last card doesn't hit the right edge too abruptly */}
+          <div className="flex-none w-6 md:w-14 lg:w-16 h-full pointer-events-none" />
         </div>
 
-        {/* Arrows — desktop only */}
-        {!isMobile && (
+        {/* Arrows — desktop only, hidden if not enough content to loop */}
+        {!isMobile && shouldLoop && (
           <>
             <div
               className={`absolute top-0 bottom-0 left-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
-                bg-transparent hover:bg-[#141414]/70 flex
+                bg-transparent hover:bg-[#141414]/70 flex group/arrow-left
                 transition-opacity duration-300 pointer-events-none rounded-r-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
               onClick={() => scroll('left')}
@@ -322,7 +333,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
             </div>
             <div
               className={`absolute top-0 bottom-0 right-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
-                bg-transparent hover:bg-[#141414]/70 flex
+                bg-transparent hover:bg-[#141414]/70 flex group/arrow-right
                 transition-opacity duration-300 pointer-events-none rounded-l-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
               onClick={() => scroll('right')}

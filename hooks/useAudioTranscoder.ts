@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { getCodecProfile, initCodecSupport, isBrowserSafeCodec } from '../utils/browserCodecSupport';
 
 const FFMPEG_BASE_URL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
 
@@ -16,6 +17,12 @@ interface TranscodeResult {
  *
  * Uses ffmpeg.wasm to decode unsupported audio (AC3, DTS, TrueHD, E-AC3)
  * into AAC entirely in the browser — zero server transcoding.
+ *
+ * Architecture:
+ * - Fetch MKV directly from AllDebrid CDN (browser can access, backend cannot)
+ * - Use HTTP Range requests to get audio packets
+ * - Decode AC3->PCM via ffmpeg.audio.wasm
+ * - Feed PCM to Web Audio API
  *
  * Requirements (handled by vite.config.ts):
  *   Cross-Origin-Opener-Policy: same-origin
@@ -58,82 +65,90 @@ export function useAudioTranscoder() {
      * Transcode a remote URL's audio to AAC.
      * Returns a blob URL ready to be used as <audio src="...">
      * or fed into MediaSource.
+     *
+     * NOW: Fetches directly from AllDebrid CDN (browser can access)
+     * NO backend proxy needed - AllDebrid blocks server IPs (NO_SERVER)
      */
     const transcode = useCallback(async (
         sourceUrl: string,
         audioTrackIndex = 0,
+        /** Override output codec — defaults to browser preference (Opus for Chrome, AAC for Safari) */
+        forceOutputCodec?: 'aac' | 'opus',
     ): Promise<TranscodeResult> => {
         setStatus('transcoding');
         setProgress(0);
 
-        const ffmpeg = await loadFFmpeg();
-        const inputName = 'input.mkv';
-        const outputName = 'output.aac';
+        // Use browser-preferred transcode target (Opus for Chrome/FF, AAC for Safari)
+        const profile     = getCodecProfile();
+        const outputCodec = forceOutputCodec ?? profile?.preferredTranscodeTarget ?? 'aac';
+        const outputExt   = outputCodec === 'opus' ? 'ogg'                  : 'aac';
+        const outputMime  = outputCodec === 'opus' ? 'audio/ogg; codecs=opus' : 'audio/aac';
+        const ffmpegCodec = outputCodec === 'opus' ? 'libopus'              : 'aac';
+        const bitrate     = outputCodec === 'opus' ? '128k'                 : '192k';
+
+        const ffmpeg     = await loadFFmpeg();
+        const inputName  = 'input.mkv';
+        const outputName = `output.${outputExt}`;
 
         try {
-            const gigaBackend = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
-
-            // Use /api/media-probe for the first 2MB (fast, enough for audio track headers)
-            // Fall back to /proxy/stream for full file if probe doesn't have enough data
-            const probeUrl = `${gigaBackend}/api/media-probe?url=${encodeURIComponent(sourceUrl)}`;
-            console.log('[AudioTranscoder] Fetching via backend probe...');
+            // DIRECT fetch from CDN - browser can access AllDebrid CDN
+            // Server cannot (NO_SERVER error), so we fetch directly in browser
+            console.log(`[AudioTranscoder] Fetching directly from CDN → output: ${outputCodec.toUpperCase()}...`);
 
             let fileData: Uint8Array;
             try {
-                fileData = await fetchFile(probeUrl);
+                // Try direct fetch first (for AllDebrid CDN URLs)
+                fileData = await fetchFile(sourceUrl);
             } catch {
-                // Probe failed (Debrid may block HF) — try full stream proxy
-                const streamUrl = `${gigaBackend}/proxy/stream?url=${encodeURIComponent(sourceUrl)}`;
-                console.log('[AudioTranscoder] Probe failed, trying stream proxy...');
-                fileData = await fetchFile(streamUrl);
+                // Fallback: Try with range request for partial content
+                console.log('[AudioTranscoder] Direct fetch failed, trying Range request...');
+                const res = await fetch(sourceUrl, {
+                    headers: { Range: 'bytes=0-10485760' } // First 10MB should contain audio
+                });
+                if (!res.ok && res.status !== 206) {
+                    throw new Error(`Fetch failed with status ${res.status}`);
+                }
+                const buffer = await res.arrayBuffer();
+                fileData = new Uint8Array(buffer);
             }
 
             await ffmpeg.writeFile(inputName, fileData);
 
-            // -map 0:a:{audioTrackIndex} selects the specific audio track
-            // -c:a aac converts to AAC (universally supported)
-            // -vn drops video (audio only output)
-            // -b:a 192k good quality AAC
             await ffmpeg.exec([
                 '-i', inputName,
                 '-map', `0:a:${audioTrackIndex}`,
-                '-c:a', 'aac',
-                '-b:a', '192k',
+                '-c:a', ffmpegCodec,
+                '-b:a', bitrate,
                 '-vn',
                 outputName,
             ]);
 
             const data = await ffmpeg.readFile(outputName);
-            // FileData is Uint8Array | string — handle both without unsafe casts.
             let sourceBytes: Uint8Array;
             if (typeof data === 'string') {
                 sourceBytes = new TextEncoder().encode(data);
             } else {
                 sourceBytes = new Uint8Array(data);
             }
-            // Allocate a plain ArrayBuffer (not SharedArrayBuffer) so Blob is happy
             const plainBuffer = new ArrayBuffer(sourceBytes.byteLength);
             new Uint8Array(plainBuffer).set(sourceBytes);
-            const blob = new Blob([plainBuffer], { type: 'audio/aac' });
-            const url = URL.createObjectURL(blob);
+            const blob = new Blob([plainBuffer], { type: outputMime });
+            const url  = URL.createObjectURL(blob);
 
-            // Cleanup temp files from ffmpeg virtual FS
             await ffmpeg.deleteFile(inputName);
             await ffmpeg.deleteFile(outputName);
 
             setStatus('ready');
-            console.log('[AudioTranscoder] ✅ Transcoding complete');
+            console.log(`[AudioTranscoder] ✅ Transcoding complete (${outputCodec.toUpperCase()})`);
 
-            return {
-                url,
-                cleanup: () => URL.revokeObjectURL(url),
-            };
+            return { url, cleanup: () => URL.revokeObjectURL(url) };
         } catch (err) {
             setStatus('error');
             console.error('[AudioTranscoder] ❌ Failed:', err);
             throw err;
         }
     }, [loadFFmpeg]);
+
 
     const reset = useCallback(() => {
         setStatus('idle');
@@ -145,16 +160,9 @@ export function useAudioTranscoder() {
 
 /**
  * isAudioCodecSupported — determine if the browser can natively play this codec.
- * Exported here since it's tightly coupled to the transcoding decision.
+ * Uses the dynamic browser profile when available; falls back to conservative static check.
  */
 export function isAudioCodecSupported(codec: string): boolean {
     if (!codec) return true;
-    const c = codec.toUpperCase();
-    // Supported natively by Chrome/Firefox/Safari
-    if (c.includes('AAC') || c.includes('MP3') || c.includes('OPUS') || c.includes('VORBIS')) return true;
-    if (['A_AAC', 'A_MPEG/L3', 'A_OPUS', 'A_VORBIS', 'MP4-NATIVE'].includes(c)) return true;
-    // Unsupported — needs ffmpeg.wasm
-    if (c.includes('AC3') || c.includes('DTS') || c.includes('TRUEHD') || c.includes('EAC3')) return false;
-    // Unknown — let the browser try
-    return true;
+    return isBrowserSafeCodec(codec);
 }

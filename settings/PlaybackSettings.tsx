@@ -17,6 +17,13 @@ const PlaybackSettings: React.FC<PlaybackSettingsProps> = ({ settings, updateSet
             
             <div className="grid grid-cols-1 gap-4">
                 <SettingsToggle 
+                    label="Autoplay Video" 
+                    subLabel="Start video content immediately upon loading."
+                    checked={settings.autoplayVideo} 
+                    onChange={() => updateSettings({ autoplayVideo: !settings.autoplayVideo })}
+                    icon="play_arrow"
+                />
+                <SettingsToggle 
                     label="Autoplay Previews" 
                     subLabel="Play trailers while browsing content."
                     checked={settings.autoplayPreviews} 

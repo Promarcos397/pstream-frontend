@@ -179,7 +179,7 @@ const TopTenCard: React.FC<{
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
     activePopupId, setActivePopupId,
-    globalMute, setGlobalMute, clearVideoState, isScrolling
+    globalMute, setGlobalMute, clearVideoState, isScrolling, settings
   } = useGlobalContext();
 
   const [isHovered, setIsHovered] = useState(false);
@@ -383,6 +383,7 @@ const TopTenCard: React.FC<{
     // STAGE 1: PRIME
     const primeDelay = anotherCardIsActive ? 80 : PRIME_DELAY;
     const primeTimer = setTimeout(() => {
+        if (!settings.autoplayPreviews) return;
         const title = movie.original_title || movie.original_name || movie.title || movie.name || '';
         const year = (movie.release_date || movie.first_air_date || '').slice(0, 4);
         const type = movie.media_type || (movie.title ? 'movie' : 'tv');
@@ -403,6 +404,7 @@ const TopTenCard: React.FC<{
     // STAGE 2: SHOW
     const showDelay = anotherCardIsActive ? 180 : SHOW_DELAY;
     const showTimer = setTimeout(() => {
+      if (!settings.autoplayPreviews) return;
       const rect = cardRef.current?.getBoundingClientRect();
       if (!rect) return;
       const dx = e.clientX - rect.left - rect.width / 2;
@@ -626,13 +628,23 @@ const TopTenCard: React.FC<{
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-4">
                     {isCinemaOnly && !isBook ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
-                        className="bg-[#6d6d6e] text-white rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95 shadow-lg"
-                        title="In Theaters"
-                      >
-                        <TicketIcon size={22} weight="bold" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
+                          className="bg-[#6d6d6e] text-white rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95 shadow-lg"
+                          title={t('hero.inTheaters')}
+                        >
+                          <TicketIcon size={22} weight="bold" />
+                        </button>
+                        <Link
+                          to={`/watch/movie/${movie.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="bg-white/10 text-white border border-white/20 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-white hover:text-black hover:border-white transition active:scale-95 shadow-md"
+                          title={t('hero.playAnyway', { defaultValue: 'Play Anyway (Force)' })}
+                        >
+                          <PlayIcon size={24} weight="fill" />
+                        </Link>
+                      </div>
                     ) : (
                       <Link
                         to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
@@ -657,6 +669,16 @@ const TopTenCard: React.FC<{
                       rating={getMovieRating(movie.id)}
                       onRate={(r) => rateMovie(movie, r)}
                     />
+
+                    {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); clearVideoState(movie.id); }}
+                        className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
+                        title="Restart from beginning"
+                      >
+                        <ArrowCounterClockwiseIcon size={22} weight="bold" />
+                      </button>
+                    )}
                   </div>
 
                   <button

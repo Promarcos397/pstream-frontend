@@ -15,6 +15,18 @@ const PlaybackSection: React.FC<PlaybackSectionProps> = ({ settings, updateSetti
         <div className="text-gray-900 space-y-6 animate-fadeIn">
             <div>
                 <SettingsToggle
+                    label={t('playback.autoplayVideo')}
+                    subLabel={t('playback.autoplayVideoDesc')}
+                    checked={settings.autoplayVideo}
+                    onChange={() => updateSettings({ autoplayVideo: !settings.autoplayVideo })}
+                    darkTheme={false}
+                />
+            </div>
+
+            <div className="h-px bg-gray-100" />
+
+            <div>
+                <SettingsToggle
                     label={t('playback.autoplayPreviews')}
                     subLabel={t('playback.autoplayPreviewsDesc')}
                     checked={settings.autoplayPreviews}

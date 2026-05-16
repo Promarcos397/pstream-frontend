@@ -9,6 +9,8 @@ interface SubtitleSettingsProps {
     updateSettings: (s: Partial<AppSettings>) => void;
 }
 
+import { SUBTITLE_FONTS, SUBTITLE_COLORS, SUBTITLE_SIZES, SUBTITLE_EDGES } from '../constants';
+
 const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSettings }) => {
     const { t } = useTranslation();
 
@@ -25,7 +27,7 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                     className="w-full px-4 py-3 text-sm bg-white text-gray-900 border border-gray-300 rounded-sm appearance-none cursor-pointer focus:ring-2 focus:ring-black focus:border-black transition-all outline-none"
                 >
                     {options.map((opt) => (
-                        <option key={opt.id} value={opt.id}>{opt.label}</option>
+                        <option key={opt.id} value={opt.id}>{t(opt.label, { defaultValue: opt.id })}</option>
                     ))}
                 </select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-gray-600 transition-colors">
@@ -62,56 +64,28 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                         label={t('subtitles.fontFamily')}
                         selectedId={settings.subtitleFontFamily}
                         onChange={(val) => updateSettings({ subtitleFontFamily: val })}
-                        options={[
-                            { id: 'monospace', label: t('subtitles.fonts.monospace') },
-                            { id: 'typewriter', label: t('subtitles.fonts.typewriter') },
-                            { id: 'print', label: t('subtitles.fonts.print') },
-                            { id: 'block', label: t('subtitles.fonts.block') },
-                            { id: 'casual', label: t('subtitles.fonts.casual') },
-                            { id: 'cursive', label: t('subtitles.fonts.cursive') },
-                            { id: 'small-caps', label: t('subtitles.fonts.smallCaps') },
-                        ]}
+                        options={SUBTITLE_FONTS}
                     />
 
                     <BoxySelect
                         label={t('subtitles.edgeEffect')}
                         selectedId={settings.subtitleEdgeStyle}
                         onChange={(val) => updateSettings({ subtitleEdgeStyle: val })}
-                        options={[
-                            { id: 'none', label: t('subtitles.edges.none') },
-                            { id: 'raised', label: t('subtitles.edges.raised') },
-                            { id: 'depressed', label: t('subtitles.edges.depressed') },
-                            { id: 'uniform', label: t('subtitles.edges.uniform') },
-                            { id: 'drop-shadow', label: t('subtitles.edges.dropShadow') },
-                        ]}
+                        options={SUBTITLE_EDGES}
                     />
 
                     <BoxySelect
                         label={t('subtitles.textSize')}
                         selectedId={settings.subtitleSize}
                         onChange={(val) => updateSettings({ subtitleSize: val })}
-                        options={[
-                            { id: 'tiny', label: t('subtitles.sizes.tiny') },
-                            { id: 'small', label: t('subtitles.sizes.small') },
-                            { id: 'medium', label: t('subtitles.sizes.medium') },
-                            { id: 'large', label: t('subtitles.sizes.large') },
-                            { id: 'huge', label: t('subtitles.sizes.huge') },
-                        ]}
+                        options={SUBTITLE_SIZES}
                     />
 
                     <BoxySelect
                         label={t('subtitles.textColor')}
                         selectedId={settings.subtitleColor}
                         onChange={(val) => updateSettings({ subtitleColor: val })}
-                        options={[
-                            { id: 'white', label: t('colors.white', { defaultValue: 'White' }) },
-                            { id: 'yellow', label: t('colors.yellow', { defaultValue: 'Yellow' }) },
-                            { id: 'cyan', label: t('colors.cyan', { defaultValue: 'Cyan' }) },
-                            { id: 'green', label: t('colors.green', { defaultValue: 'Green' }) },
-                            { id: 'red', label: t('colors.red', { defaultValue: 'Red' }) },
-                            { id: 'blue', label: t('colors.blue', { defaultValue: 'Blue' }) },
-                            { id: 'black', label: t('colors.black', { defaultValue: 'Black' }) },
-                        ]}
+                        options={SUBTITLE_COLORS}
                     />
                 </div>
 

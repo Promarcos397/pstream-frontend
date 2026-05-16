@@ -118,14 +118,36 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                         }));
                         setAudioTracks(tracks as any);
                         
-                        // Pick preferred if multiple exist
                         if (tracks.length > 1) {
-                            const preferredId = pickPreferredAudioTrack(tracks as any, preferredAudioLanguage);
+                            // ── Secondary AAC track trick ────────────────────────────────
+                            // MKV files often have AC3/DTS as track 0 and AAC as track 1.
+                            // Browsers can't play AC3/DTS natively (except Safari/Edge on
+                            // some platforms). Always prefer the AAC/Opus track if one exists,
+                            // regardless of which track is marked "default" in the container.
+                            // This requires zero WASM, zero server — pure browser-native.
+                            const SAFE_CODECS = ['aac', 'mp3', 'opus', 'vorbis', 'mp4a'];
+                            const aacTrackIdx = Array.from(nativeTracks).findIndex((t: any) => {
+                                const kind = (t.kind || '').toLowerCase();
+                                const label = (t.label || '').toLowerCase();
+                                return SAFE_CODECS.some(c => kind.includes(c) || label.includes(c));
+                            });
+
+                            if (aacTrackIdx !== -1) {
+                                console.info(`[useHls] 🎯 Secondary AAC track found at index ${aacTrackIdx}. Switching from default (likely AC3/DTS) to ensure browser compatibility.`);
+                            }
+
+                            const preferredId = aacTrackIdx !== -1
+                                ? aacTrackIdx
+                                : pickPreferredAudioTrack(tracks as any, preferredAudioLanguage);
+
                             if (preferredId !== -1) {
                                 for (let i = 0; i < nativeTracks.length; i++) {
                                     nativeTracks[i].enabled = (i === preferredId);
                                 }
                                 setCurrentAudioTrack(preferredId);
+                                if (aacTrackIdx !== -1) {
+                                    console.log(`[useHls] 🎵 Secondary AAC track trick: switched to track ${preferredId} ("${tracks[preferredId]?.name}") over default AC3/DTS`);
+                                }
                             }
                         }
                     }
@@ -286,10 +308,8 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
 
                 if (onManifestParsed) onManifestParsed();
                 if (autoPlay) {
-                    // Small delay on mobile ensures the video element is ready
-                    // after HLS attaches — prevents silent autoplay failures on iOS/Android.
-                    // AbortError is expected when a new source loads mid-play (premium override) — suppress it.
-                    const delay = mobile ? 100 : 0;
+                    // Minimal delay ensures the video element is ready in the event loop.
+                    const delay = mobile ? 10 : 0;
                     setTimeout(() => video.play().catch(err => {
                         if (err?.name !== 'AbortError') {
                             console.warn('[useHls] Autoplay blocked:', err);

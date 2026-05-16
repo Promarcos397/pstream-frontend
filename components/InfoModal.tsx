@@ -299,7 +299,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     return (
         <div
-            className="fixed inset-0 z-[200] bg-black/70 flex justify-center overflow-y-auto backdrop-blur-[1px] scrollbar-hide animate-fadeIn cursor-default"
+            className="fixed inset-0 z-[10000] bg-black/70 flex justify-center overflow-y-auto backdrop-blur-[1px] scrollbar-hide animate-fadeIn cursor-default"
             onClick={handleClose}
         >
             <div
@@ -320,7 +320,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         e.stopPropagation();
                         handleClose();
                     }}
-                    className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#181818] flex items-center justify-center border-2 border-transparent hover:border-white transition z-50 cursor-pointer"
+                    className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#181818]/90 flex items-center justify-center border-2 border-transparent hover:border-white hover:scale-110 transition-all duration-200 z-50 cursor-pointer shadow-lg active:scale-95"
                 >
                     <XIcon size={24} className="text-white" />
                 </button>
@@ -384,9 +384,18 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
                         <div className={`flex items-center space-x-3 transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
                             {isCinemaOnly && mediaType === 'movie' ? (
-                                <div className="bg-[#6d6d6e]/80 text-white px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center select-none cursor-not-allowed">
-                                    <TicketIcon size={24} weight="bold" className="mr-2" />
-                                    {t('hero.inTheaters')}
+                                <div className="flex items-center gap-1.5">
+                                    <div className="bg-[#6d6d6e]/80 text-white px-6 sm:px-8 h-10 sm:h-12 rounded-[4px] font-bold text-base sm:text-lg flex items-center select-none cursor-default opacity-80 shadow-md">
+                                        <TicketIcon size={24} weight="bold" className="mr-2" />
+                                        {t('hero.inTheaters')}
+                                    </div>
+                                    <button
+                                        onClick={() => movie && onPlay(movie)}
+                                        className="bg-white/10 hover:bg-white hover:text-black text-white w-10 sm:w-12 h-10 sm:h-12 rounded-[4px] flex items-center justify-center transition-all duration-300 active:scale-90 border border-white/20 hover:border-white shadow-lg"
+                                        title={t('hero.playAnyway', { defaultValue: 'Play Anyway (Force)' })}
+                                    >
+                                        <PlayIcon size={22} weight="fill" />
+                                    </button>
                                 </div>
                             ) : (() => {
                                 let watchUrl = `/watch/${mediaType}/${activeMovie.id}`;
@@ -454,7 +463,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     ) : (
                     <div className="grid grid-cols-1 md:grid-cols-[3fr_1fr] gap-x-10 gap-y-5">
                         <div className="space-y-4">
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-white font-bold text-sm md:text-base mt-2 font-harmonia-condensed">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-white font-bold text-sm md:text-base mt-2 font-netflix">
                                 {matchScore !== null && (
                                     <span className="text-green-500 font-extrabold tracking-wide">{matchScore}% Match</span>
                                 )}

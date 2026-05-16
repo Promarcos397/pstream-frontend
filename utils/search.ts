@@ -8,10 +8,11 @@
  */
 export function triggerSearch(navigate: (path: string) => void, query: string) {
     if (!query?.trim()) return;
-    // Dispatch the custom event so App.tsx picks it up and calls setQuery()
+    const finalQuery = query.trim();
+    // Dispatch event for instant UI update
     window.dispatchEvent(
-        new CustomEvent('pstream:search', { detail: { query: query.trim() } })
+        new CustomEvent('pstream:search', { detail: { query: finalQuery } })
     );
-    // Navigate to home so the search results overlay appears
-    navigate('/');
+    // Navigate with the query in the URL for shareability and persistence
+    navigate(`/?q=${encodeURIComponent(finalQuery)}`);
 }

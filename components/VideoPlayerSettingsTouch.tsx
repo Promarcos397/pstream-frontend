@@ -32,7 +32,7 @@ export const PanelShellTouch: React.FC<{
                         onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
                         className="w-10 h-10 flex items-center justify-center text-white/50 active:text-white bg-white/5 rounded-full"
                     >
-                        <XIcon size={20} weight="bold" />
+                        <XIcon size={30} weight="bold" />
                     </button>
                 </div>
                 <div className="overflow-y-auto flex-1 scrollbar-none">{children}</div>
@@ -104,7 +104,7 @@ export const AudioSubPanelTouch: React.FC<{
                             onClick={(e) => { e.stopPropagation(); onAudioChange(track.id); }}
                         >
                             <div className="w-8 flex-shrink-0 flex justify-center">
-                                {currentAudioTrack === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                {currentAudioTrack === track.id && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                             </div>
                             <span className="text-base truncate">{track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}</span>
                         </li>
@@ -118,7 +118,7 @@ export const AudioSubPanelTouch: React.FC<{
                             onClick={(e) => { e.stopPropagation(); onInternalAudioChange?.(track.id); }}
                         >
                             <div className="w-8 flex-shrink-0 flex justify-center">
-                                {selectedAudioTrackId === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                {selectedAudioTrackId === track.id && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                             </div>
                             <div className="flex flex-col overflow-hidden">
                                 <span className="text-base truncate font-bold">{track.name || `Audio Track ${track.id}`}</span>
@@ -161,7 +161,7 @@ export const AudioSubPanelTouch: React.FC<{
                             onClick={(e) => { e.stopPropagation(); onSubtitleChange(null); onClose(); }}
                         >
                             <div className="w-8 flex-shrink-0 flex justify-center">
-                                {currentCaption === null && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                {currentCaption === null && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                             </div>
                             <span className="text-base">{t('player.off')}</span>
                         </li>
@@ -177,7 +177,7 @@ export const AudioSubPanelTouch: React.FC<{
                                         onClick={(e) => { e.stopPropagation(); onSubtitleChange(cap.url); onClose(); }}
                                     >
                                         <div className="w-8 flex-shrink-0 flex justify-center">
-                                            {isSelected && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                            {isSelected && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                                         </div>
                                         <span className="text-base truncate">{displayLabel}</span>
                                     </li>
@@ -193,7 +193,7 @@ export const AudioSubPanelTouch: React.FC<{
                                 onClick={(e) => { e.stopPropagation(); onInternalSubtitleChange?.(track.id); }}
                             >
                                 <div className="w-8 flex-shrink-0 flex justify-center">
-                                    {selectedSubtitleTrackId === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                    {selectedSubtitleTrackId === track.id && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                                 </div>
                                 <div className="flex flex-col overflow-hidden">
                                     <span className="text-base truncate font-bold">{track.name || `Internal Subtitle ${track.id}`}</span>
@@ -226,7 +226,7 @@ export const ServerPanelTouch: React.FC<{
                 <div key={i} className={`${rowCls} ${currentSourceIndex === i ? 'bg-white/5' : ''}`} onClick={() => { onSourceChange(i); onClose(); }}>
                     <div className="flex items-center gap-4 overflow-hidden">
                         <div className="w-8 flex-shrink-0 flex justify-center">
-                            {currentSourceIndex === i && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                            {currentSourceIndex === i && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                         </div>
                         <div className="flex flex-col overflow-hidden">
                             <span className={`text-base font-bold ${currentSourceIndex === i ? 'text-white' : 'text-white/80'}`}>
@@ -243,6 +243,47 @@ export const ServerPanelTouch: React.FC<{
             ))}
             
 
+        </div>
+    );
+};
+
+// ─── Playback settings panel ───────────────────────────────────────────────
+export const PlaybackPanelTouch: React.FC<{
+    onClose: () => void;
+}> = ({ onClose }) => {
+    const { settings, updateSettings } = useGlobalContext();
+
+    const rowCls = "flex items-center justify-between px-6 py-5 cursor-pointer active:bg-white/10 transition-colors duration-150 select-none group border-b border-white/5";
+
+    return (
+        <div className="flex flex-col h-full bg-[#262626]">
+            {/* Autoplay Video */}
+            <div 
+                className={rowCls}
+                onClick={() => updateSettings({ autoplayVideo: !settings.autoplayVideo })}
+            >
+                <div className="flex flex-col">
+                    <span className="text-white text-base font-bold">Autoplay Video</span>
+                    <span className="text-white/40 text-xs">Start video immediately when content loads</span>
+                </div>
+                <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${settings.autoplayVideo ? 'bg-red-600' : 'bg-zinc-700'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${settings.autoplayVideo ? 'left-7' : 'left-1'}`} />
+                </div>
+            </div>
+
+            {/* Autoplay Next Episode */}
+            <div 
+                className={rowCls}
+                onClick={() => updateSettings({ autoplayNextEpisode: !settings.autoplayNextEpisode })}
+            >
+                <div className="flex flex-col">
+                    <span className="text-white text-base font-bold">Autoplay Next Episode</span>
+                    <span className="text-white/40 text-xs">Automatically transition to the next episode</span>
+                </div>
+                <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${settings.autoplayNextEpisode ? 'bg-red-600' : 'bg-zinc-700'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${settings.autoplayNextEpisode ? 'left-7' : 'left-1'}`} />
+                </div>
+            </div>
         </div>
     );
 };
@@ -277,7 +318,7 @@ export const QualityMenuTouch: React.FC<{
                     return (
                         <div key={q.index} className={`${rowCls} ${isSelected ? 'bg-white/5' : ''}`} onClick={() => { if (onSourceChange) onSourceChange(q.index); onClose(); }}>
                             <div className="w-8 flex-shrink-0 flex justify-center">
-                                {isSelected && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                {isSelected && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                             </div>
                             <div className="flex flex-col">
                                 <span className={`text-base font-bold ${isSelected ? 'text-white' : 'text-white/80'}`}>{q.label}</span>
@@ -296,7 +337,7 @@ export const QualityMenuTouch: React.FC<{
             <div className="flex flex-col">
                 <div className={`${rowCls} ${currentQuality === -1 ? 'bg-white/5' : ''}`} onClick={() => { onQualityChange(-1); onClose(); }}>
                     <div className="w-8 flex-shrink-0 flex justify-center">
-                        {currentQuality === -1 && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                        {currentQuality === -1 && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                     </div>
                     <div className="flex flex-col gap-0.5">
                         <span className={`text-base font-bold ${currentQuality === -1 ? 'text-white' : 'text-white/60'}`}>Auto</span>
@@ -309,7 +350,7 @@ export const QualityMenuTouch: React.FC<{
                         onClick={() => { onQualityChange(q.level); onClose(); }}
                     >
                         <div className="w-8 flex-shrink-0 flex justify-center">
-                            {currentQuality === q.level && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                            {currentQuality === q.level && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                         </div>
                         <span className={`text-base font-bold ${currentQuality === q.level ? 'text-white' : 'text-white/60'}`}>
                             {q.height > 0 ? `${q.height}p` : 'Unknown'}
@@ -379,7 +420,7 @@ export const EpisodeExplorerTouch: React.FC<{
                             className={`flex items-center px-6 py-4 text-lg font-bold transition-colors active:bg-white/10 border-b border-white/5 ${selectedSeason === s ? 'bg-white/5' : ''}`}
                         >
                             <div className="w-8 flex-shrink-0">
-                                {selectedSeason === s && <CheckIcon size={20} weight="bold" className="text-red-500" />}
+                                {selectedSeason === s && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                             </div>
                             Season {s}
                         </div>
@@ -392,7 +433,7 @@ export const EpisodeExplorerTouch: React.FC<{
                         className="flex items-center gap-3 px-5 py-4 border-b border-white/10 bg-[#262626] flex-shrink-0 active:bg-white/5 transition-colors"
                         onClick={(e) => { e.stopPropagation(); setActivePanel('seasons'); }}
                     >
-                        <ArrowLeftIcon size={20} weight="bold" className="text-white" />
+                        <ArrowLeftIcon size={28} weight="bold" className="text-white" />
                         <span className="text-lg font-bold">Season {previewSeason}</span>
                     </div>
                     <div ref={episodesContainerRef} className="overflow-y-auto flex-1 scrollbar-hide pb-8">
@@ -426,7 +467,7 @@ export const EpisodeExplorerTouch: React.FC<{
                                             )}
                                         </div>
                                         <CaretRightIcon
-                                            size={18}
+                                            size={26}
                                             weight="bold"
                                             className={`flex-shrink-0 transition-transform text-white/40 ${isExpanded ? 'rotate-90' : ''}`}
                                         />
@@ -462,7 +503,7 @@ export const EpisodeExplorerTouch: React.FC<{
                                                     setExpandedEpisodeId(null); 
                                                 }}
                                             >
-                                                <PlayIcon size={20} weight="fill" />
+                                                <PlayIcon size={30} weight="fill" />
                                                 Play Episode {ep.episode_number}
                                             </button>
                                         </div>
@@ -492,7 +533,7 @@ export const EpisodeExplorerTouch: React.FC<{
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
                     <span className="text-white text-lg font-bold uppercase tracking-wider">{activePanel === 'seasons' ? 'Seasons' : 'Episodes'}</span>
                     <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="w-10 h-10 flex items-center justify-center text-white/60 active:text-white bg-white/5 rounded-full">
-                        <XIcon size={20} weight="bold" />
+                        <XIcon size={30} weight="bold" />
                     </button>
                 </div>
                 <div className="overflow-y-auto flex-1">{innerContent}</div>
@@ -503,7 +544,7 @@ export const EpisodeExplorerTouch: React.FC<{
 
 // ─── Main export ───────────────────────────────────────────────────────────
 interface VideoPlayerSettingsTouchProps {
-    activePanel: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers';
+    activePanel: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers' | 'playback';
     setActivePanel: (panel: any) => void;
     seasonList: number[];
     currentSeasonEpisodes: Episode[];
@@ -556,6 +597,11 @@ const VideoPlayerSettingsTouch: React.FC<VideoPlayerSettingsTouchProps> = (props
             {props.activePanel === 'servers' && (
                 <PanelShellTouch title="Servers" onClose={close}>
                     <ServerPanelTouch {...props} onClose={close} />
+                </PanelShellTouch>
+            )}
+            {props.activePanel === 'playback' && (
+                <PanelShellTouch title="Playback Settings" onClose={close}>
+                    <PlaybackPanelTouch onClose={close} />
                 </PanelShellTouch>
             )}
         </>

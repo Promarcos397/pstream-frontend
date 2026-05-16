@@ -14,6 +14,7 @@ import {
     CornersInIcon,
     ArrowLeftIcon,
     CropIcon,
+    GearIcon,
 } from '@phosphor-icons/react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { Episode } from '../types';
@@ -53,7 +54,7 @@ interface VideoPlayerControlsProps {
     onQualityChange?: (level: number) => void;
     isMenuOpen?: boolean;
     showUI: boolean;
-    activePanel?: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers';
+    activePanel?: 'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers' | 'playback';
     setActivePanel?: (panel: any) => void;
     onInteraction?: () => void;
     onControlsHoverChange?: (isHovered: boolean) => void;
@@ -65,6 +66,10 @@ interface VideoPlayerControlsProps {
     } | null;
     videoFit?: 'contain' | 'cover';
     onToggleFit?: () => void;
+    ppRippleTrigger?: number;
+    setPpRippleTrigger?: React.Dispatch<React.SetStateAction<number>>;
+    seekFlash?: { side: 'left' | 'right'; ts: number } | null;
+    setSeekFlash?: React.Dispatch<React.SetStateAction<{ side: 'left' | 'right'; ts: number } | null>>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -279,9 +284,9 @@ const NextEpisodePopup: React.FC<{
                 width: isMobile ? 'calc(100vw - 40px)' : 550,
                 maxWidth: isMobile ? 360 : 550,
                 backgroundColor: '#141414',
-                border: '2px solid #ffffff',
-                boxShadow: '0px 20px 50px rgba(0,0,0,0.9)',
-                borderRadius: isMobile ? 8 : 0,
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0px 10px 30px rgba(0,0,0,0.8)',
+                borderRadius: isMobile ? 8 : 4,
                 overflow: 'hidden',
                 zIndex: 100,
                 marginBottom: 12,
@@ -291,12 +296,14 @@ const NextEpisodePopup: React.FC<{
             onTouchEnd={(e) => e.stopPropagation()}
         >
             <div style={{
-                backgroundColor: '#262626',
+                backgroundColor: '#141414',
                 padding: isMobile ? '12px 16px' : '16px 22px',
-                fontSize: isMobile ? 16 : 22,
-                fontWeight: 700,
-                borderBottom: '1px solid #000',
-                fontFamily: 'Consolas, monospace',
+                fontSize: isMobile ? 14 : 18,
+                fontWeight: 800,
+                color: '#fff',
+                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
             }}>
                 Next episode
             </div>
@@ -326,16 +333,14 @@ const NextEpisodePopup: React.FC<{
                         background: 'rgba(0,0,0,0.2)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        <svg viewBox="0 0 24 24" style={{ width: isMobile ? 28 : 44, height: isMobile ? 28 : 44, fill: 'rgba(255,255,255,0.85)', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))' }}>
-                            <path d="M8 5v14l11-7z" />
-                        </svg>
+                        <PlayIcon size={isMobile ? 28 : 44} weight="fill" color="white" style={{ opacity: 0.9, filter: 'drop-shadow(0 2px 10px rgba(0,0,0,0.8))' }} />
                     </div>
                 </div>
 
                 {/* Text */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 2, flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', fontSize: isMobile ? 14 : 19, fontWeight: 700, fontFamily: 'Consolas, monospace', gap: 8 }}>
-                        <span>{data.episodeNumber}</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', fontSize: isMobile ? 14 : 18, fontWeight: 700, gap: 8 }}>
+                        <span className="text-red-600">E{data.episodeNumber}</span>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.name}</span>
                     </div>
                     {data.description && !isMobile && (
@@ -378,14 +383,14 @@ const PlayPauseRipple: React.FC<{ isPlaying: boolean; trigger: number }> = ({ is
     useEffect(() => {
         if (trigger === 0) return;
         setVisible(true);
-        const t = setTimeout(() => setVisible(false), 600);
+        const t = setTimeout(() => setVisible(false), 500);
         return () => clearTimeout(t);
     }, [trigger]);
 
     if (!visible) return null;
 
     return (
-        <div style={{
+        <div key={trigger} style={{
             position: 'absolute', inset: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             zIndex: 25, pointerEvents: 'none',
@@ -395,7 +400,7 @@ const PlayPauseRipple: React.FC<{ isPlaying: boolean; trigger: number }> = ({ is
                 borderRadius: '50%',
                 backgroundColor: 'rgba(0,0,0,0.45)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                animation: 'pp-ripple 0.55s ease-out forwards',
+                animation: 'pp-ripple 0.45s ease-out forwards',
             }}>
                 {isPlaying
                     ? <PlayIcon size={36} weight="fill" color="white" />
@@ -416,13 +421,13 @@ const PlayerTitle: React.FC<{
 }> = ({ title, episodeNumber, episodeName, mediaType, className = '' }) => {
     const isTV = mediaType === 'tv';
     return (
-        <span className={`font-consolas select-none leading-snug ${className}`}>
-            <strong>{title}</strong>
+        <span className={`select-none leading-snug ${className}`}>
+            <strong className="font-extrabold">{title}</strong>
             {isTV && episodeNumber != null && (
                 <>
-                    <strong>{'  '}E{episodeNumber}</strong>
+                    <strong className="text-white/60 ml-3">E{episodeNumber}</strong>
                     {episodeName && (
-                        <span className="font-normal text-white/75">{'  '}{episodeName}</span>
+                        <span className="font-medium text-white/50 ml-3">{episodeName}</span>
                     )}
                 </>
             )}
@@ -431,29 +436,68 @@ const PlayerTitle: React.FC<{
 };
 
 // ─── Seek Flash Overlay (double-tap) ─────────────────────────────────────────
-const SeekFlash: React.FC<{ side: 'left' | 'right' | null; seconds: number }> = ({ side, seconds }) => {
+const SeekFlash: React.FC<{ side: 'left' | 'right' | null; seconds: number; ts?: number }> = ({ side, seconds, ts }) => {
+    const isMobile = useIsMobile();
     if (!side) return null;
-    return (
-        <div style={{
-            position: 'absolute', top: 0, bottom: 0,
-            [side]: 0,
-            width: '33%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 28, pointerEvents: 'none',
-            backgroundColor: 'rgba(255,255,255,0.1)',
-            borderRadius: side === 'left' ? '0 80px 80px 0' : '80px 0 0 80px',
-            animation: 'seek-flash 0.4s ease-out forwards',
-        }}>
-            <span style={{
-                color: 'white',
-                fontFamily: 'Consolas, monospace',
-                fontSize: 15,
-                fontWeight: 700,
-                opacity: 0.95,
-                textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+
+    if (isMobile) {
+        return (
+            <div style={{
+                position: 'absolute', top: 0, bottom: 0,
+                [side]: 0,
+                width: '33%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                zIndex: 28, pointerEvents: 'none',
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: side === 'left' ? '0 80px 80px 0' : '80px 0 0 80px',
+                animation: 'seek-flash 0.4s ease-out forwards',
             }}>
-                {side === 'left' ? `◀◀ ${seconds}s` : `${seconds}s ▶▶`}
-            </span>
+                <span style={{
+                    color: 'white',
+                    fontFamily: 'inherit',
+                    fontSize: 24,
+                    fontWeight: 900,
+                    opacity: 0.95,
+                    textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+                }}>{side === 'left' ? '-' : '+'}{seconds}s</span>
+            </div>
+        );
+    }
+
+    // Premium Circular Desktop Version
+    const Icon = side === 'left' ? ArrowCounterClockwiseIcon : ArrowClockwiseIcon;
+    return (
+        <div key={side + '-' + (ts || 0)} style={{
+            position: 'absolute',
+            top: '50%',
+            [side === 'left' ? 'left' : 'right']: '10%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 100,
+            pointerEvents: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 80,
+            height: 80,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            borderRadius: '50%',
+            animation: 'seek-circle-flash 0.45s ease-out forwards',
+        }}>
+            <div className="relative flex items-center justify-center">
+                <Icon size={36} weight="fill" className="text-white" />
+                <span style={{
+                    position: 'absolute',
+                    top: '55%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    color: 'white',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: 'Inter, sans-serif',
+                    textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                }}>{seconds}</span>
+            </div>
         </div>
     );
 };
@@ -470,6 +514,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     onInteraction, onControlsHoverChange,
     nextEpisodeData,
     videoFit, onToggleFit,
+    ppRippleTrigger = 0, setPpRippleTrigger,
+    seekFlash = null, setSeekFlash,
 }) => {
     const isMobile = useIsMobile();
     const timelineRef = useRef<HTMLDivElement>(null);
@@ -479,15 +525,14 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const [hoverTime, setHoverTime] = useState(0);
     const [showVolume, setShowVolume] = useState(false);
     const [showNextEpPopup, setShowNextEpPopup] = useState(false);
-    const [ppRippleTrigger, setPpRippleTrigger] = useState(0);
-    const [seekFlash, setSeekFlash] = useState<{ side: 'left' | 'right'; ts: number } | null>(null);
+    // ── Internal animation state removed (lifted to parent) ──
     // Track live drag position separately from playback progress for smooth scrubbing
     const [dragProgress, setDragProgress] = useState(0);
 
     const isTV = mediaType === 'tv';
     const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup;
 
-    const ICON_SIZE = isMobile ? 34 : 30;
+    const ICON_SIZE = isMobile ? 40 : 48;
 
     useEffect(() => {
         onControlsHoverChange?.(isHovering || isDragging);
@@ -562,13 +607,15 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
     const handlePlayPause = () => {
         onPlayPause();
-        setPpRippleTrigger(t => t + 1);
+        setPpRippleTrigger?.(t => t + 1);
         onInteraction?.();
     };
 
+    const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const triggerSeekFlash = (side: 'left' | 'right') => {
-        setSeekFlash({ side, ts: Date.now() });
-        setTimeout(() => setSeekFlash(null), 450);
+        if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+        setSeekFlash?.({ side, ts: Date.now() });
+        seekTimeoutRef.current = setTimeout(() => setSeekFlash?.(null), 500);
     };
 
     const toggleVolume = () => {
@@ -597,17 +644,26 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
         else { setActivePanel?.('episodes'); setShowVolume(false); setShowNextEpPopup(false); }
         onInteraction?.();
     };
+    const togglePlayback = () => {
+        if (activePanel === 'playback') setActivePanel?.('none');
+        else { setActivePanel?.('playback'); setShowVolume(false); setShowNextEpPopup(false); }
+        onInteraction?.();
+    };
 
     // Display progress: use drag position while dragging for instant feedback
     const displayProgress = isDragging ? dragProgress : progress;
 
-    const btn = 'flex items-center justify-center text-white/80 hover:text-white active:text-white/40 transition-all duration-150 active:scale-90 select-none focus:outline-none rounded-sm p-1.5 hover:scale-110';
+    const btn = 'flex items-center justify-center text-white/80 hover:text-white active:text-white/40 transition-all duration-150 active:scale-90 select-none focus:outline-none rounded-sm p-2.5 hover:scale-110';
     const btnActive = 'text-white';
-    const remaining = formatRemaining(currentTime, duration);
 
-    // Responsive progress-bar sizing: thicker track + larger thumb on mobile for touch
-    const trackH  = isMobile ? 'h-[6px]' : 'h-[8px]';
-    const thumbSz = isMobile ? 'h-[20px] w-[20px]' : 'h-[16px] w-[16px]';
+
+    // Responsive progress-bar sizing: thinner track + scaled thumb
+    const isInteracting = isHovering || isDragging;
+    const trackH  = isMobile 
+        ? (isDragging ? 'h-[9px]' : 'h-[5px]') 
+        : (isInteracting ? 'h-[7px]' : 'h-[4px]');
+    const thumbSz = isMobile ? 'h-[22px] w-[22px]' : 'h-[14px] w-[14px]';
+    const thumbScale = isDragging ? 'scale-[1.5]' : (isHovering ? 'scale-[1.3]' : 'scale-100');
 
     // ── Safe-area padding for iOS home bar and notch ───────────────────────
     // Uses CSS env() so it's dynamic and works in both portrait and landscape
@@ -617,11 +673,11 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
     return (
         <>
-            {/* ── Ripple on play/pause ── */}
-            <PlayPauseRipple isPlaying={isPlaying} trigger={ppRippleTrigger} />
+            {/* ── Ripple on play/pause (Desktop only) ── */}
+            {!isMobile && <PlayPauseRipple isPlaying={isPlaying} trigger={ppRippleTrigger} />}
 
             {/* ── Seek flash ── */}
-            {seekFlash && <SeekFlash side={seekFlash.side} seconds={10} />}
+            {seekFlash && <SeekFlash side={seekFlash.side} seconds={10} ts={seekFlash.ts} />}
 
             {/* Background layer for dismissal when panels are open */}
             {isPanelOpen && (
@@ -664,7 +720,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         style={{ minWidth: 44, minHeight: 44 }}
                         aria-label="Close player"
                     >
-                        <ArrowLeftIcon size={28} weight="bold" />
+                        <ArrowLeftIcon size={40} weight="bold" />
                     </button>
                     <PlayerTitle
                         title={title}
@@ -700,7 +756,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         style={{ width: 64, height: 64 }}
                         aria-label="Rewind 10s"
                     >
-                        <ArrowCounterClockwiseIcon size={44} weight="bold" />
+                        <ArrowCounterClockwiseIcon size={60} weight="bold" />
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
@@ -710,7 +766,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         style={{ width: 80, height: 80 }}
                         aria-label={isPlaying ? 'Pause' : 'Play'}
                     >
-                        {isPlaying ? <PauseIcon size={64} weight="fill" /> : <PlayIcon size={64} weight="fill" />}
+                        {isPlaying ? <PauseIcon size={90} weight="fill" /> : <PlayIcon size={90} weight="fill" />}
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onSeek(10); triggerSeekFlash('right'); }}
@@ -720,7 +776,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         style={{ width: 64, height: 64 }}
                         aria-label="Fast-forward 10s"
                     >
-                        <ArrowClockwiseIcon size={44} weight="bold" />
+                        <ArrowClockwiseIcon size={60} weight="bold" />
                     </button>
                 </div>
             )}
@@ -729,7 +785,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             {!isMobile && (
                 <div className={`absolute top-0 inset-x-0 z-40 px-8 pt-8 flex items-center justify-between transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                     <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white/80 hover:text-white hover:scale-110 transition-all p-1.5" aria-label="Close player">
-                        <ArrowLeftIcon size={30} weight="bold" />
+                        <ArrowLeftIcon size={42} weight="bold" />
                     </button>
                     
                     {onToggleFit && (
@@ -765,22 +821,21 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     onTouchStart={handleTouchStart}
                     onTouchEnd={(e) => e.stopPropagation()}
                     style={{
-                        paddingLeft: `max(${safeLeft}, ${isMobile ? '16px' : '40px'})`,
-                        paddingRight: `max(${safeRight}, ${isMobile ? '16px' : '40px'})`,
+                        paddingLeft: `max(${safeLeft}, 8px)`,
+                        paddingRight: `max(${safeRight}, ${isMobile ? '16px' : '16px'})`,
                         paddingTop: isMobile ? 24 : 40,
                         paddingBottom: `max(${safeBottom}, ${isMobile ? '16px' : '24px'})`,
                     }}
                 >
                     {/* ── Progress bar ── */}
-                    <div className={`flex items-center gap-3 transition-all duration-200 ${isPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                    <div className={`flex items-center gap-2 transition-all duration-200 px-3 ${isPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                         style={{
                             height: isPanelOpen ? 0 : undefined,
                             marginBottom: isPanelOpen ? 0 : (isMobile ? 12 : 20),
                             overflow: isPanelOpen ? 'hidden' : undefined,
                         }}
                     >
-                        {/* Current time */}
-                        <span className="text-white text-xs font-consolas tabular-nums flex-shrink-0 select-none min-w-[50px] text-left">{formatTime(currentTime, duration)}</span>
+
 
                         <div
                             ref={timelineRef}
@@ -820,18 +875,18 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                             {/* Track — flat bars matching InfoModal/card style */}
                             <div className={`relative w-full flex items-center ${isMobile ? 'h-10' : 'h-8'}`}>
-                                <div className={`absolute left-0 w-full ${trackH} bg-white/20`} style={{ borderRadius: 0 }} />
-                                <div className={`absolute left-0 ${trackH} bg-white/30`} style={{ borderRadius: 0, width: `${buffered}%` }} />
-                                <div className={`absolute left-0 ${trackH} bg-[#e50914] transition-all`} style={{ borderRadius: 0, width: `${displayProgress}%` }} />
-                                {/* Thumb — square on desktop, round on mobile for thumb-friendliness */}
+                                <div className={`absolute left-0 w-full ${trackH} bg-[#808080] transition-all duration-200`} style={{ borderRadius: 0 }} />
+                                <div className={`absolute left-0 ${trackH} bg-white/30 transition-all duration-200`} style={{ borderRadius: 0, width: `${buffered}%` }} />
+                                <div className={`absolute left-0 ${trackH} bg-[#e50914] transition-all duration-200`} style={{ borderRadius: 0, width: `${displayProgress}%` }} />
+                                {/* Thumb — Always a red circle per request */}
                                 <div
-                                    className={`absolute ${thumbSz} bg-white shadow-lg -translate-x-1/2 transition-transform ${isMobile || isDragging ? 'scale-100 rounded-full' : 'scale-0 group-hover/timeline:scale-125 rounded-[2px]'}`}
+                                    className={`absolute ${thumbSz} bg-[#e50914] shadow-lg -translate-x-1/2 rounded-full transition-transform duration-200 ${isMobile ? (isDragging ? 'scale-[1.5]' : 'scale-100') : thumbScale}`}
                                     style={{ left: `${displayProgress}%` }}
                                 />
                             </div>
                         </div>
-                        {/* Remaining time */}
-                        <span className="text-white/60 text-xs font-consolas tabular-nums flex-shrink-0 select-none min-w-[60px] text-right">{remaining}</span>
+                        {/* Current time moved to right */}
+                        <span className="text-white/60 text-xs font-consolas tabular-nums flex-shrink-0 select-none min-w-[50px] text-right">{formatTime(currentTime, duration)}</span>
                     </div>
 
                     {/* ── Control Buttons Row ── */}
@@ -842,14 +897,14 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             {!isMobile ? (
                                 <>
                                     {/* Desktop: play | rewind | ff | volume */}
-                                    <button onClick={handlePlayPause} onMouseDown={() => onInteraction?.()} className={btn} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                                    <button onClick={handlePlayPause} onMouseDown={() => onInteraction?.()} className={`${btn} ml-2 md:ml-3`} aria-label={isPlaying ? 'Pause' : 'Play'}>
                                         {isPlaying ? <PauseIcon size={ICON_SIZE} weight="fill" /> : <PlayIcon size={ICON_SIZE} weight="fill" />}
                                     </button>
-                                    <button onClick={() => { onSeek(-10); onInteraction?.(); }} className={btn} aria-label="Rewind 10s">
-                                        <ArrowCounterClockwiseIcon size={ICON_SIZE} />
+                                    <button onClick={() => { onSeek(-10); onInteraction?.(); }} className={`${btn} -ml-4 md:-ml-6`} aria-label="Rewind 10s">
+                                        <ArrowCounterClockwiseIcon size={ICON_SIZE} weight="bold" />
                                     </button>
                                     <button onClick={() => { onSeek(10); onInteraction?.(); }} className={btn} aria-label="Fast-forward 10s">
-                                        <ArrowClockwiseIcon size={ICON_SIZE} />
+                                        <ArrowClockwiseIcon size={ICON_SIZE} weight="bold" />
                                     </button>
                                     {/* Volume */}
                                     <div className="relative">
@@ -857,7 +912,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                             <VolumePopup volume={volume} isMuted={isMuted} isMobile={false} onVolumeChange={onVolumeChange} onInteraction={onInteraction} />
                                         )}
                                         <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} onMouseDown={() => onInteraction?.()} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
-                                            {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} /> : <SpeakerHighIcon size={ICON_SIZE} />}
+                                            {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} weight="bold" /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} weight="bold" /> : <SpeakerHighIcon size={ICON_SIZE} weight="bold" />}
                                         </button>
                                     </div>
                                 </>
@@ -872,7 +927,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                 style={{ minWidth: 44, minHeight: 44 }}
                                                 aria-label="Episode Explorer"
                                             >
-                                                <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'regular'} />
+                                                <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'bold'} />
                                             </button>
                                         </div>
                                     )}
@@ -885,7 +940,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                 aria-label="Subtitles & Audio"
                                                 title="Subtitles (S)"
                                             >
-                                                <SubtitlesIcon size={ICON_SIZE} weight={activePanel === 'audioSubtitles' ? 'fill' : 'regular'} />
+                                                <SubtitlesIcon size={ICON_SIZE} weight={activePanel === 'audioSubtitles' ? 'fill' : 'bold'} />
                                             </button>
                                         </div>
                                     )}
@@ -922,7 +977,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         aria-label="Next episode"
                                         title="Next Episode (N)"
                                     >
-                                        <SkipForwardIcon size={ICON_SIZE} weight={showNextEp ? 'fill' : 'regular'} />
+                                        <SkipForwardIcon size={ICON_SIZE} weight={showNextEp ? 'fill' : 'bold'} />
                                     </button>
                                 </div>
                             )}
@@ -951,10 +1006,24 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
                                         aria-label="Episode Explorer"
                                     >
-                                        <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'regular'} />
+                                        <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'bold'} />
                                     </button>
                                 </div>
                             )}
+
+                            {/* Playback Settings */}
+                            <div className="relative">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); togglePlayback(); }}
+                                    onMouseDown={() => onInteraction?.()}
+                                    className={`${btn} ${activePanel === 'playback' ? btnActive : ''}`}
+                                    style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
+                                    aria-label="Playback Settings"
+                                    title="Playback Settings"
+                                >
+                                    <GearIcon size={ICON_SIZE} weight={activePanel === 'playback' ? 'fill' : 'bold'} />
+                                </button>
+                            </div>
 
                             {/* Fullscreen */}
                             <button
@@ -964,7 +1033,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 aria-label="Toggle fullscreen"
                                 title="Fullscreen (F)"
                             >
-                                <CornersOutIcon size={ICON_SIZE} />
+                                <CornersOutIcon size={ICON_SIZE} weight="bold" />
                             </button>
                         </div>
                     </div>

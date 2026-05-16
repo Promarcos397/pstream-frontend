@@ -30,6 +30,3 @@ export {
 
 // ─── Stream ───────────────────────────────────────────────────────────────────
 export { getStream, buildTorrentStreamUrl } from './stream';
-
-// ─── Prefetch ─────────────────────────────────────────────────────────────────
-export { prefetchStream, schedulePrefetchQueue } from './prefetch';

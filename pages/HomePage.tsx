@@ -6,7 +6,6 @@ import HeroCarousel from '../components/HeroCarousel';
 import Row from '../components/Row';
 import TopTenRow from '../components/TopTenRow';
 import { useGlobalContext } from '../context/GlobalContext';
-import { prefetchStream } from '../services/api';
 import { useDynamicManifest } from '../hooks/useDynamicManifest';
 import ManifestSkeleton from '../components/ManifestSkeleton';
 import HeroSkeleton from '../components/HeroSkeleton';
@@ -84,7 +83,8 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
           >
-             <main className="relative z-10 pb-12 mt-[45vh] space-y-4 md:space-y-6 px-4 md:px-14 lg:px-16">
+             <HeroSkeleton />
+             <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6 px-4 md:px-14 lg:px-16 pt-4 md:pt-10">
                 <ManifestSkeleton count={6} />
              </main>
           </motion.div>

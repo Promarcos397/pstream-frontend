@@ -158,7 +158,9 @@ export const REQUESTS = {
 export type { MicroGenreEntry } from './data/genres';
 export { MICRO_GENRES, DAY_STREAMS, GENRES } from './data/genres';
 
-export { DISPLAY_LANGUAGES, SUBTITLE_LANGUAGES } from './data/languages';
+export { DISPLAY_LANGUAGES, SUBTITLE_LANGUAGES, LANG_LABELS, LANG_TO_OS } from './data/languages';
+
+export { SUBTITLE_FONTS, SUBTITLE_COLORS, SUBTITLE_SIZES, SUBTITLE_EDGES, DEFAULT_SUBTITLE_SETTINGS } from './data/subtitles';
 
 export type { Avatar, AvatarCategory } from './data/avatars';
 export { AVATAR_CATEGORIES, ALL_AVATARS, DEFAULT_AVATAR } from './data/avatars';

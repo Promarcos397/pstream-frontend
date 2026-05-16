@@ -22,7 +22,7 @@ interface HeroCarouselProps {
 }
 
 const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie, genreId, pageType: explicitPageType }) => {
-  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState, setIsAppReady } = useGlobalContext();
+  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState, setIsAppReady, settings } = useGlobalContext();
   const networkQuality = useNetworkQuality();
   const isMobile = useIsMobile();
   const [movie, setMovie] = useState<Movie | null>(null);
@@ -200,7 +200,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
 
     const myVideoId = `hero-${movie.id}`;
 
-    if (isOutOfView || isMobile) {
+    if (isOutOfView || isMobile || !settings.autoplayPreviews) {
         if (showVideo) hasInterruptedRef.current = true;
         setShowVideo(false);
         setIsActuallyPlaying(false);
@@ -246,7 +246,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     }
 
     prevActiveIdRef.current = activeVideoId;
-  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId, isMobile, activeVideoId, showVideo]);
+  }, [isOutOfView, isTabVisible, loading, movie, networkQuality.isSlowNetwork, setActiveVideoId, isMobile, activeVideoId, showVideo, settings.autoplayPreviews]);
 
   const backdropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

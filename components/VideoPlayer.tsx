@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Movie, Episode, InternalTrack } from '../types';
 import { MediaProbe } from '../utils/mediaProbe';
-import { getSeasonDetails, getMovieDetails, getStream, getExternalIds, prefetchStream } from '../services/api';
+import { getSeasonDetails, getMovieDetails, getStream, getExternalIds } from '../services/api';
 import ISO6391 from 'iso-639-1';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
@@ -10,18 +10,19 @@ import { streamCache } from '../utils/streamCache';
 import { useTouchGestures } from '../hooks/useTouchGestures';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
-import { SkipService, SkipSegment } from '../services/SkipService';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 import { useDebridStream, BROWSER_SAFE_AUDIO } from '../hooks/useDebridStream';
 import { useAudioTranscoder, isAudioCodecSupported } from '../hooks/useAudioTranscoder';
+import { useAudioSilenceDetector } from '../hooks/useAudioSilenceDetector';
+import { useAudioSidecar } from '../hooks/useAudioSidecar';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 
-// These CDN hosts can only be reached via proxy â€” they do NOT block datacenter IPs.
+// These CDN hosts can only be reached via proxy — they do NOT block datacenter IPs.
 // VaPlayer/vidzee CDN domains rotate and block datacenter IPs, so they use noProxy:true
-// (direct browser fetch) â€” do NOT add them here.
+// (direct browser fetch) — do NOT add them here.
 const FORCE_PROXY_HOST_PATTERNS: RegExp[] = [];
 const RETRY_BASE_DELAY_MS = 1200;
 const RETRY_MAX_DELAY_MS = 5000;
@@ -46,7 +47,7 @@ interface VideoPlayerProps {
     movie: Movie;
     season?: number;
     episode?: number;
-    /** Seek to this time (seconds) when the video starts â€” restores watch progress */
+    /** Seek to this time (seconds) when the video starts — restores watch progress */
     resumeTime?: number;
     onClose?: () => void;
 }
@@ -120,7 +121,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [isStreamM3U8, setIsStreamM3U8] = useState<boolean>(true);
     const [isEmbed, setIsEmbed] = useState<boolean>(false);
-    // â”€â”€â”€ Retry guard: max backend refetches per episode load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Retry guard: max backend refetches per episode load ———————————————————————
     // Prevents the infinite 403 storm when a CDN IP-blocks the proxy.
     // After MAX_STREAM_RETRIES total backend re-fetches, show "no sources" error.
     const MAX_STREAM_RETRIES = 3;
@@ -136,7 +137,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // Holds the pending error from the standard resolver; cleared if premium succeeds
     const standardErrorRef = useRef<string | null>(null);
 
-    // â”€â”€â”€ Torrent fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Torrent fallback ——————————————————————————————————————————————————————————
     // Triggered silently after MAX_STREAM_RETRIES, only for logged-in users.
     const debridStream = useDebridStream();
     const [premiumAttempted, setPremiumAttempted] = useState(false);
@@ -151,6 +152,37 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     const { transcode, status: transcodeStatus, progress: transcodeProgress } = useAudioTranscoder();
 
+    // ── Audio Silence Detector ──────────────────────────────────────────────
+    // Catches cases where video plays but no audio is heard (common for AC3 on Chrome).
+    const { silenceDetected, dismiss: dismissSilence } = useAudioSilenceDetector(videoRef, !!streamUrl && !isEmbed);
+
+    // ── Audio Sidecar (client-side AC3 decode) ─────────────────────────
+    // When silence is detected, try to decode audio via WASM
+    const audioSidecar = useAudioSidecar(videoRef, {
+        onSyncLost: () => {
+            // Drift is too high — VLC fallback is the best option
+            console.warn('[VideoPlayer] Audio sync lost — recommending VLC fallback');
+        }
+    });
+
+    // Start sidecar when silence is detected (AC3/DTS unsupported codec)
+    useEffect(() => {
+        if (silenceDetected && streamUrl && !isStreamM3U8 && !isEmbed) {
+            console.log('[VideoPlayer] 🔊 Starting audio sidecar for AC3/DTS decode...');
+            audioSidecar.start(streamUrl).catch(err => {
+                console.warn('[VideoPlayer] Sidecar decode failed:', err);
+            });
+        } else if (!silenceDetected && audioSidecar.isActive) {
+            audioSidecar.stop();
+        }
+    }, [silenceDetected, streamUrl]);
+
+    useEffect(() => {
+        if (silenceDetected) {
+            console.warn('[VideoPlayer] ⚠️ Audio silence detected! This usually indicates an unsupported codec (AC3/DTS) on this browser.');
+        }
+    }, [silenceDetected]);
+
     // Route MKV through SW proxy — the SW probes the audio codec and streams without CORS issues.
     // Non-MKV URLs stay direct (HLS, MP4 from other sources).
     const activeStreamUrl = useMemo(() => streamUrl, [streamUrl]);
@@ -161,16 +193,25 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!streamUrl) return 'unknown';
         const name = decodeURIComponent(streamUrl).toLowerCase();
         if (name.includes('aac')) return 'aac';
-        if (name.includes('web-dl') || name.includes('webrip') || name.includes('amzn') || name.includes('nf.') || name.includes('hbo') || name.includes('dsnp')) return 'aac'; // Streaming rips always use AAC
+        if (name.includes('web-dl') || name.includes('webrip') || name.includes('amzn') || name.includes('nf.') || name.includes('hbo') || name.includes('dsnp')) return 'aac';
         if (name.includes('ac3') || name.includes('dts') || name.includes('truehd') || name.includes('dd+') || name.includes('eac3')) return 'ac3';
-        return 'unknown'; // Could be either — DVD/BluRay rips often have AC3
+        return 'unknown';
     }, [streamUrl]);
+
+    useEffect(() => {
+        if (streamUrl) {
+            console.info(`[VideoPlayer] 🎬 New source loaded: ${new URL(streamUrl).hostname}`);
+            console.info(`[VideoPlayer] 🔍 Guessed audio codec from filename: ${guessedAudioCodec.toUpperCase()}`);
+        }
+    }, [streamUrl, guessedAudioCodec]);
 
     // TV Show state
     const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
     const [currentEpisode, setCurrentEpisode] = useState(episode);
     const [playingSeasonNumber, setPlayingSeasonNumber] = useState(season);
-    const [browsedSeasonNumber, setBrowsedSeasonNumber] = useState(season);
+    const [browsedSeasonNumber, setBrowsedSeasonNumber] = useState(season || 1);
+    const [ppRippleTrigger, setPpRippleTrigger] = useState(0);
+    const [seekFlash, setSeekFlash] = useState<{ side: 'left' | 'right'; ts: number } | null>(null);
     const [seasonList, setSeasonList] = useState<number[]>([]);
     const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState<Episode[]>([]);
 
@@ -184,7 +225,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         reportedSuccessRef.current = null;
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
-    // â”€â”€â”€ Fullscreen toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Fullscreen toggle —————————————————————————————————————————————————————————
     const toggleFullscreen = useCallback(() => {
         const el = containerRef.current as any;
         const doc = document as any;
@@ -222,7 +263,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, [isFullscreen, isPseudoFullscreen]);
 
-    // â”€â”€â”€ Track fullscreen state changes from browser â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Track fullscreen state changes from browser ——————————————————————————————
     useEffect(() => {
         const handleFsChange = () => {
             const doc = document as any;
@@ -240,10 +281,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
     }, []);
 
-    // â”€â”€â”€ URL deep-link sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— URL deep-link sync ————————————————————————————————————————————————————————
     // Keep the address bar in sync so users can share/bookmark a specific episode.
     // Uses replaceState (not pushState) to avoid polluting browser history on every
-    // episode switch. Movies don't need query params â€” their URL is already canonical.
+    // episode switch. Movies don't need query params — their URL is already canonical.
     useEffect(() => {
         if (mediaType !== 'tv') return;
         const url = new URL(window.location.href);
@@ -253,7 +294,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, [mediaType, playingSeasonNumber, currentEpisode]);
 
     // Navigation state
-    const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers'>('none');
+    const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers' | 'playback'>('none');
 
     // Subtitles
     const [captions, setCaptions] = useState<{ id: string; label: string; url: string; lang: string }[]>([]);
@@ -272,8 +313,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         (window as any).__video_backdrop = backdrop;
     }, [movie.id]);
 
-    // â”€â”€â”€ Compute next episode / season â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Single canonical declaration â€” used by Media Session, auto-next trigger, and controls.
+    // ——— Compute next episode / season ————————————————————————————————————————————
+    // Single canonical declaration — used by Media Session, auto-next trigger, and controls.
     const nextEpisodeInfo = useMemo<{ episode: Episode; season: number } | null>(() => {
         if (mediaType !== 'tv') return null;
         // Find current episode index within the loaded season episode list
@@ -282,7 +323,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (currentIdx !== -1 && currentIdx < currentSeasonEpisodes.length - 1) {
             return { episode: currentSeasonEpisodes[currentIdx + 1], season: playingSeasonNumber };
         }
-        // Case 2: Last episode of the season â€” find the next season
+        // Case 2: Last episode of the season — find the next season
         const nextSeason = seasonList.find(s => s > playingSeasonNumber);
         if (nextSeason !== undefined) {
             // Return a placeholder ep; the real list loads when the season is fetched
@@ -294,7 +335,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return null;
     }, [mediaType, currentSeasonEpisodes, currentEpisode, playingSeasonNumber, seasonList]);
 
-    // â”€â”€â”€ Media Session API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Media Session API —————————————————————————————————————————————————————————
     // Powers: Android notification, iOS lock screen, Windows media flyout, macOS Control Center
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
@@ -307,11 +348,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             ? showTitle
             : showTitle;
         const notificationArtist = mediaType === 'tv' && epName
-            ? `S${playingSeasonNumber} E${currentEpisode} â€“ ${epName}`
+            ? `S${playingSeasonNumber} E${currentEpisode} — ${epName}`
             : (movie.release_date || movie.first_air_date || '').slice(0, 4) || 'Pstream';
         const notificationAlbum = mediaType === 'tv' ? `Season ${playingSeasonNumber}` : 'Movie';
 
-        // Use TMDB backdrop for all platforms (wide 16:9 â€” best for notifications)
+        // Use TMDB backdrop for all platforms (wide 16:9 — best for notifications)
         const backdropUrl = movie.backdrop_path
             ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
             : '';
@@ -387,19 +428,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [audioTracks, setAudioTracks] = useState<{ id: number; name: string; lang: string }[]>([]);
     const [currentAudioTrack, setCurrentAudioTrack] = useState<number>(-1);
 
-    // Skips
-    const [skipSegments, setSkipSegments] = useState<SkipSegment[]>([]);
-    const [showSkipIntro, setShowSkipIntro] = useState(false);
-    const [showSkipOutro, setShowSkipOutro] = useState(false);
-    const [activeSkipSegment, setActiveSkipSegment] = useState<SkipSegment | null>(null);
 
     // Derived data
     const title = movie.title || movie.name || '';
     const formattedDate = movie.release_date || movie.first_air_date || '';
     const currentEpisodeName = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode)?.name || '';
 
-    // â”€â”€â”€ Touch gestures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Double-tap left/right = Â±10s seek; double-tap center = play/pause
+    // ——— Touch gestures ————————————————————————————————————————————————————————————
+    // Double-tap left/right = ±10s seek; double-tap center = play/pause
     useTouchGestures(containerRef, {
         onDoubleTapLeft: () => { 
             lastTouchTimeRef.current = Date.now();
@@ -434,14 +470,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         },
     });
 
-    // â”€â”€â”€ (nextEpisodeInfo is declared above â€” single canonical useMemo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    // â”€â”€â”€ Apply stream result â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Apply stream result ———————————————————————————————————————————————————————
     const applyStreamResult = useCallback((sources: any[], subtitles: any[], globalReferer?: string | null) => {
         if (!sources || sources.length === 0) return;
         setError(null);
 
-        // "Torrent Preferred Always" â€” If premium already landed, prepend it to the list
+        // "Torrent Preferred Always" — If premium already landed, prepend it to the list
         let finalSources = [...sources];
         if (debridStream.streamUrl) {
             const premiumSource = {
@@ -465,11 +499,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         setAllSources(finalSources);
 
-        // "Torrent Preferred Always" â€” If we are already playing a premium source,
+        // "Torrent Preferred Always" — If we are already playing a premium source,
         // don't let regular scrapers auto-switch and interrupt the experience.
         const currentSource = allSources[currentSourceIndex];
         if (currentSource?.providerId === 'premium' && !isBuffering) {
-            console.log('[VideoPlayer] ðŸ’Ž Premium stream active. Ignoring regular scraper result.');
+            console.log('[VideoPlayer] 💎 Premium stream active. Ignoring regular scraper result.');
             return;
         }
 
@@ -484,15 +518,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 startIndex = i;
                 break;
             }
-            // All sources are in cooldown â€” use the one whose cooldown expires soonest
+            // All sources are in cooldown — use the one whose cooldown expires soonest
             if (i === sources.length - 1) {
-                console.warn('[VideoPlayer] All fresh sources are in cooldown â€” clearing cooldowns and retrying from 0');
+                console.warn('[VideoPlayer] All fresh sources are in cooldown — clearing cooldowns and retrying from 0');
                 sourceFailureCooldownRef.current.clear();
                 startIndex = 0;
             }
         }
         if (startIndex > 0) {
-            console.log(`[VideoPlayer] â­ï¸ Skipping ${startIndex} cooldown source(s), starting at index ${startIndex}`);
+            console.log(`[VideoPlayer] ⚠️ Skipping ${startIndex} cooldown source(s), starting at index ${startIndex}`);
         }
         setCurrentSourceIndex(startIndex);
         const hlsSource = sources[startIndex];
@@ -508,9 +542,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 const blob = new Blob([hlsSource.directManifest], { type: 'application/vnd.apple.mpegurl' });
                 finalUrl = URL.createObjectURL(blob);
             } else if (hlsSource.noProxy && !forceProxy) {
-                // noProxy: send URL directly to HLS.js (CDN is IP-locked â€” browser fetch works, server proxy fails)
+                // noProxy: send URL directly to HLS.js (CDN is IP-locked — browser fetch works, server proxy fails)
                 finalUrl = hlsSource.url;
-                console.log(`[VideoPlayer] âš¡ Direct (no-proxy) stream: ${finalUrl.substring(0, 60)}...`);
+                console.log(`[VideoPlayer] ⚡ Direct (no-proxy) stream: ${finalUrl.substring(0, 60)}...`);
             } else {
                 let origin = '';
                 try {
@@ -562,11 +596,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
 
         if (isEmbedFallback) {
-            setTimeout(() => setIsBuffering(false), 1500);
+            setTimeout(() => setIsBuffering(false), 500);
         }
     }, [settings.subtitleLanguage, settings.showSubtitles, debridStream.streamUrl, debridStream.quality]);
 
-    // â”€â”€â”€ Manual source change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Manual source change ——————————————————————————————————————————————————————
     const handleSourceChange = useCallback((index: number) => {
         if (!allSources[index]) return;
         const candidate = allSources[index];
@@ -579,7 +613,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
             return;
         }
-        console.log(`[VideoPlayer] ðŸ”„ Manual server change to: ${candidate.provider}`);
+        console.log(`[VideoPlayer] 🔄 Manual server change to: ${candidate.provider}`);
         setCurrentSourceIndex(index);
         retryCooldownUntilRef.current = 0;
         setError(null);
@@ -587,9 +621,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setLoadingMessage('Switching source...');
         reportedSuccessRef.current = null;
 
-        // âš ï¸ Do NOT call applyStreamResult here â€” it overwrites allSources with a single element,
-        // destroying the remaining sources and breaking subsequent source cycling.
-        // Instead, apply the URL/stream state directly.
         const isEmbedFallback = !!candidate.isEmbed;
         setIsEmbed(isEmbedFallback);
         const activeReferer = candidate.referer || '';
@@ -598,7 +629,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!isEmbedFallback) {
             if (candidate.noProxy && !forceProxy) {
                 finalUrl = candidate.url;
-                console.log(`[VideoPlayer] âš¡ Direct (no-proxy) stream: ${finalUrl.substring(0, 60)}...`);
+                console.log(`[VideoPlayer] ⚡ Direct (no-proxy) stream: ${finalUrl.substring(0, 60)}...`);
             } else {
                 let origin = '';
                 try {
@@ -612,10 +643,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setStreamUrl(finalUrl);
         setIsStreamM3U8(!!candidate.isM3U8);
         setStreamReferer(activeReferer || null);
-        if (isEmbedFallback) setTimeout(() => setIsBuffering(false), 1500);
+        if (isEmbedFallback) setTimeout(() => setIsBuffering(false), 500);
     }, [allSources]);
 
-    // â”€â”€â”€ Episode Selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ————————————————————————————————————————————————————————————————————————————————————————————————————
     const handleEpisodeSelect = useCallback(async (ep: Episode, seasonNum?: number, episodes?: Episode[]) => {
         setStreamUrl(null);
         setIsBuffering(true);
@@ -640,15 +671,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         handleEpisodeSelect(nextEpisodeInfo.episode, nextEpisodeInfo.season);
     }, [nextEpisodeInfo, handleEpisodeSelect]);
 
-    // Cleaned up auto-next logic
-
-    // â”€â”€â”€ Track episode/season prop changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Track episode/season prop changes ——————————————————————————————————————————
     useEffect(() => {
         if (season !== playingSeasonNumber) setPlayingSeasonNumber(season);
         if (episode !== currentEpisode) setCurrentEpisode(episode);
     }, [season, episode]);
 
-    // â”€â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Keyboard shortcuts ————————————————————————————————————————————————————————
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
             if (activePanel !== 'none') return;
@@ -664,22 +693,38 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 case ' ':
                 case 'k':
                     e.preventDefault();
-                    videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
+                    if (videoRef.current) {
+                        videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+                        setPpRippleTrigger(t => t + 1);
+                        showControls();
+                    }
                     break;
                 case 'ArrowRight':
                 case 'l':
                     e.preventDefault();
-                    if (videoRef.current) videoRef.current.currentTime += 10;
+                    if (videoRef.current) {
+                        videoRef.current.currentTime += 10;
+                        setSeekFlash({ side: 'right', ts: Date.now() });
+                        setTimeout(() => setSeekFlash(null), 450);
+                        showControls();
+                    }
                     break;
                 case 'ArrowLeft':
                 case 'j':
                     e.preventDefault();
-                    if (videoRef.current) videoRef.current.currentTime -= 10;
+                    if (videoRef.current) {
+                        videoRef.current.currentTime -= 10;
+                        setSeekFlash({ side: 'left', ts: Date.now() });
+                        setTimeout(() => setSeekFlash(null), 450);
+                        showControls();
+                    }
                     break;
                 case 'ArrowUp':
                 case 'ArrowDown':
                     e.preventDefault();
-                    if (videoRef.current) videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
+                    if (videoRef.current) {
+                        videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
+                    }
                     break;
                 case 'f':
                     e.preventDefault();
@@ -687,7 +732,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     break;
                 case 'm':
                     e.preventDefault();
-                    if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
+                    if (videoRef.current) {
+                        videoRef.current.muted = !videoRef.current.muted;
+                    }
                     break;
                 case 'n':
                     if (nextEpisodeInfo) { e.preventDefault(); handleNextEpisode(); }
@@ -709,7 +756,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return () => window.removeEventListener('keydown', handleKey);
     }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen]);
 
-    // â”€â”€â”€ AllDebrid / Torrent: Primary Source â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— AllDebrid / Torrent: Primary Source ——————————————————————————————————————
     // Fires immediately on mount. Extractors only activate if this fails.
     const [extractorEnabled, setExtractorEnabled] = useState(false);
 
@@ -750,7 +797,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             // If the browser auto-muted (userMutedRef is false), force-unmute now.
             if (!userMutedRef.current) {
                 video.muted = false;
-                console.log('[VideoPlayer] ðŸ”Š Overriding browser auto-mute');
+                console.log('[VideoPlayer] 🔊 Overriding browser auto-mute');
             }
             // Sync state back from the real element
             setVolume(video.volume);
@@ -765,7 +812,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useEffect(() => {
         const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
         const searchTitle = movie.title || movie.name || '';
-        console.log(`[VideoPlayer] ðŸŽ¯ AllDebrid resolver: ${searchTitle} (${type})`);
+        console.log(`[VideoPlayer] 🎯 AllDebrid resolver: ${searchTitle} (${type})`);
 
         const slowTimer  = setTimeout(() => setLoadingMessage('Establishing connection...'), 6000);
         const slowerTimer = setTimeout(() => setLoadingMessage('Preparing playback...'), 14000);
@@ -782,8 +829,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 clearTimeout(slowTimer);
                 clearTimeout(slowerTimer);
                 if (!result) {
-                    // AllDebrid couldn't find it â€” fall back to extractors
-                    console.log('[VideoPlayer] AllDebrid: no result â€” activating extractor fallback.');
+                    // AllDebrid couldn't find it — fall back to extractors
+                    console.log('[VideoPlayer] AllDebrid: no result — activating extractor fallback.');
                     setExtractorEnabled(true);
                 }
             });
@@ -849,8 +896,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }];
 
         // ── Source Manifest Log (for filename pattern study) ──────────────────
-        // Open DevTools Console → filter by "📦 SOURCE MANIFEST" to collect data.
-        // Share 7+ console outputs (different titles, seasons, episodes) to analyse naming patterns.
         try {
             const label = `${movie.title || movie.name || 'Unknown'}${mediaType === 'tv' ? ` S${playingSeasonNumber}E${currentEpisode}` : ''}`;
             console.groupCollapsed(`📦 SOURCE MANIFEST — ${label} (${debridSources.length} sources)`);
@@ -878,7 +923,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             return [...debridSources, ...filtered];
         });
 
-        // Always switch to it â€” use functional update to avoid stale streamUrl closure
+        // Always switch to it — use functional update to avoid stale streamUrl closure
         setStreamUrl(prev => {
             const bestUrl = debridSources[0].url;
             if (prev === bestUrl) return prev;
@@ -1027,50 +1072,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, [debridStream.streamUrl, (debridStream as any).subtitles, movie.id, mediaType, playingSeasonNumber, currentEpisode,
         settings.subtitleLanguage, settings.showSubtitles]);
 
-    // ——— Skip Segments (TV only) —————————————————————————————————————————————————
-    useEffect(() => {
-        const fetchSkips = async () => {
-            if (mediaType === 'tv') {
-                const segments = await SkipService.getSkipSegments(String(movie.id), playingSeasonNumber, currentEpisode);
-                setSkipSegments(segments);
-            } else {
-                setSkipSegments([]);
-            }
-        };
-        fetchSkips();
-    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
-
-    // â”€â”€â”€ Prefetch next episode at 30%+ progress â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Fires for ALL episode lengths (removed the >=3600s gate â€” a 22-min episode
-    // still needs its next episode preloaded). Threshold lowered 50â†’30% so on
-    // slow connections there's more runway before autoplay transition.
-    useEffect(() => {
-        if (mediaType !== 'tv' || !nextEpisodeInfo) return;
-        if (progress < 30 || duration < 60) return; // skip first 60s guard
-
-        const nextEp = nextEpisodeInfo.episode;
-        const nextSeason = nextEpisodeInfo.season;
-        const releaseYear = formattedDate ? parseInt(formattedDate.split('-')[0]) : undefined;
-
-        const cacheKey = {
-            title,
-            type: 'tv' as const,
-            year: releaseYear,
-            season: nextSeason,
-            episode: nextEp.episode_number,
-            tmdbId: String(movie.id)
-        };
-        const cacheKeyStr = JSON.stringify(cacheKey);
-
-        if (!streamCache.get(cacheKey) && !prefetchedNextEpsRef.current.has(cacheKeyStr)) {
-            prefetchedNextEpsRef.current.add(cacheKeyStr);
-            console.log(`[VideoPlayer] ðŸ”® Prefetching S${nextSeason}E${nextEp.episode_number} at ${Math.round(progress)}%...`);
-            prefetchStream(title, releaseYear || 0, String(movie.id), 'tv', nextSeason, nextEp.episode_number)
-                .catch(() => {});
-        }
-    }, [progress, duration, mediaType, nextEpisodeInfo]);
-
-    // â”€â”€â”€ HLS Hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— HLS Hook ——————————————————————————————————————————————————————————————————
     const {
         isBuffering: hlsBuffering,
         qualityLevels: hlsLevels,
@@ -1083,6 +1085,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     } = useHls(videoRef, {
         streamUrl: activeStreamUrl,
         isM3U8: isStreamM3U8 && !activeStreamUrl?.startsWith('/sw-proxy'),
+        autoPlay: settings.autoplayVideo,
         streamReferer: streamReferer,
         preferredAudioLanguage: settings.audioLanguage,
         onManifestParsed: () => {
@@ -1095,7 +1098,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     video.currentTime = saved.time;
                 }
             }
-            // Auto fullscreen on mobile â€” only on first load
+            // Auto fullscreen on mobile — only on first load
             if (isMobile && !hasAutoFullscreenedRef.current && containerRef.current) {
                 hasAutoFullscreenedRef.current = true;
                 requestMobileLandscapeFullscreen(containerRef.current);
@@ -1107,9 +1110,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const activeProviderId = activeSource?.providerId;
             const activeUrl = activeSource?.url || '';
 
-            // Torrent/AllDebrid stream â€” never retry on 403, CDN errors are transient
+            // Torrent/AllDebrid stream — never retry on 403, CDN errors are transient
             if (activeProviderId === 'torrent') {
-                console.warn('[VideoPlayer] 403 on AllDebrid stream â€” ignoring.');
+                console.warn('[VideoPlayer] 403 on AllDebrid stream — ignoring.');
                 return;
             }
 
@@ -1129,11 +1132,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             // Only fall back to a full backend re-fetch if we've exhausted all sources.
             const nextIdx = currentSourceIndex + 1;
             if (allSources[nextIdx]) {
-                console.log(`[VideoPlayer] ðŸ”„ 403 on source ${currentSourceIndex} â†’ trying source ${nextIdx}`);
+                console.log(`[VideoPlayer] 🔄 403 on source ${currentSourceIndex} → trying source ${nextIdx}`);
                 handleSourceChange(nextIdx);
             } else if (retryCountRef.current < MAX_STREAM_RETRIES) {
                 if (Date.now() < retryCooldownUntilRef.current) {
-                    console.log('[VideoPlayer] â¸ Retry cooldown active â€” waiting before backend re-fetch.');
+                    console.log('[VideoPlayer] 🕗 Retry cooldown active — waiting before backend re-fetch.');
                     return;
                 }
                 retryCountRef.current += 1;
@@ -1141,12 +1144,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 const jitter = Math.floor(Math.random() * 400);
                 const waitMs = exponentialDelay + jitter;
                 retryCooldownUntilRef.current = Date.now() + waitMs;
-                console.log(`[VideoPlayer] ðŸ” All sources failed, busting cache + backend re-fetch #${retryCountRef.current}`);
-                // âš ï¸ CRITICAL: Bust the cache so re-fetch doesn't return the same blocked URLs.
+                console.log(`[VideoPlayer] 🔄 All sources failed, busting cache + backend re-fetch #${retryCountRef.current}`);
+                // ⚠️ CRITICAL: Bust the cache so re-fetch doesn't return the same blocked URLs.
                 // The cache has no way to know a URL is 403-blocked (no expiry param).
                 if (cacheKeyRef.current) {
                     streamCache.remove(cacheKeyRef.current);
-                    console.log(`[VideoPlayer] ðŸ—‘ï¸ Cache busted for blocked stream`);
+                    console.log(`[VideoPlayer] 🗑️ Cache busted for blocked stream`);
                 }
                 // Reset source index so cycling restarts from 0 on the fresh sources
                 setCurrentSourceIndex(0);
@@ -1154,7 +1157,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     setRetryCount(c => c + 1);
                 }, waitMs);
             } else {
-                console.warn(`[VideoPlayer] âŒ Max retries (${MAX_STREAM_RETRIES}) reached â€” activating extractor fallback.`);
+                console.warn(`[VideoPlayer] ❌ Max retries (${MAX_STREAM_RETRIES}) reached — activating extractor fallback.`);
                 if (!extractorEnabled) {
                     setExtractorEnabled(true);
                     setLoadingMessage('Searching alternatives...');
@@ -1193,7 +1196,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             if (currentSourceIndex < allSources.length - 1) {
                 handleSourceChange(currentSourceIndex + 1);
             } else if (user && !premiumAttempted) {
-                console.log('[VideoPlayer] ðŸ’Ž All sources errored â€” activating premium fallback...');
+                console.log('[VideoPlayer] 💎 All sources errored — activating premium fallback...');
                 setPremiumAttempted(true);
                 setLoadingMessage('Connecting to high-speed server...');
                 setIsBuffering(true);
@@ -1240,7 +1243,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         reportStreamSuccess(activeProvider, activeProviderId);
     }, [isPlaying, isBuffering, currentTime, allSources, currentSourceIndex]);
 
-    // â”€â”€â”€ Seek to resume time on load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Seek to resume time on load ———————————————————————————————————————————————
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
@@ -1268,7 +1271,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const t = getResumeTime();
             if (t > 0 && video.currentTime < 2) {
                 video.currentTime = t;
-                console.log(`[VideoPlayer] â–¶ Resuming from ${Math.round(t)}s`);
+                console.log(`[VideoPlayer] ▶ Resuming from ${Math.round(t)}s`);
             }
             // Mark video as ready so subtitles can render
             setIsVideoReady(true);
@@ -1283,7 +1286,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return () => video.removeEventListener('canplay', handleCanPlay);
     }, [streamUrl, mediaType, playingSeasonNumber, currentEpisode]);
 
-    // â”€â”€â”€ Time Update & History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Time Update & History —————————————————————————————————————————————————————
     const handleTimeUpdate = useCallback(() => {
         const video = videoRef.current;
         if (!video || isNaN(video.duration) || video.duration === 0) return;
@@ -1302,12 +1305,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             } catch (_) {}
         }
 
-        // Skip detection
-        const intro = skipSegments.find(s => s.type === 'intro' && time >= s.startTime && time <= (s.endTime - 2));
-        const outro = skipSegments.find(s => s.type === 'outro' && time >= (s.startTime - 10));
-        setShowSkipIntro(!!intro);
-        setShowSkipOutro(!!outro);
-        setActiveSkipSegment(intro || null);
 
         if (time > 0 && Math.abs(time - lastSavedTimeRef.current) > 5) {
             lastSavedTimeRef.current = time;
@@ -1323,10 +1320,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const bufferedEnd = video.buffered.end(video.buffered.length - 1);
             setBufferedAmount((bufferedEnd / dur) * 100);
         }
-    }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, skipSegments, addToHistory, updateEpisodeProgress, updateVideoState]);
+    }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, addToHistory, updateEpisodeProgress, updateVideoState]);
 
-    // â”€â”€â”€ Instant progress save on manual scrub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // timeupdate only fires every ~250ms and has a 5s throttle gate â€” so if the
+    // ——— Instant progress save on manual scrub —————————————————————————————————————
+    // timeupdate only fires every ~250ms and has a 5s throttle gate — so if the
     // user jumps with the seek bar we must catch it on 'seeked' immediately.
     useEffect(() => {
         const video = videoRef.current;
@@ -1346,9 +1343,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return () => video.removeEventListener('seeked', onSeeked);
     }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, updateEpisodeProgress, updateVideoState]);
 
-    // Subtitle management below...
-
-    // â”€â”€â”€ Custom Subtitle Cue Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Custom Subtitle Cue Engine ———————————————————————————————————————————————
     // We parse the VTT file directly and drive currentCueText via a polling ref.
     const parsedCuesRef = useRef<Array<{ start: number; end: number; text: string }>>([]);
 
@@ -1385,7 +1380,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 }
                 parsedCuesRef.current = cues;
 
-                // Immediately snap to the cue at current playtime â€” no waiting for next timeupdate.
+                // Immediately snap to the cue at current playtime — no waiting for next timeupdate.
                 // This is the "precision" fix: caption is correct the instant you switch tracks.
                 if (isMounted && videoRef.current) {
                     const now = videoRef.current.currentTime - subtitleOffset;
@@ -1450,10 +1445,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
     }, [streamUrl]);
 
-
-
-    // â”€â”€â”€ TV Details init (two separate effects to avoid double-fetching) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Effect 1: Fetch season list once â€” only needs movie.id and mediaType
+    // ——— TV Details init ——————————————————————————————————————————————————————————
+    // Effect 1: Fetch season list once — only needs movie.id and mediaType
     useEffect(() => {
         if (mediaType !== 'tv') return;
         const init = async () => {
@@ -1484,7 +1477,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return () => { cancelled = true; };
     }, [movie.id, mediaType, playingSeasonNumber]);
 
-    // â”€â”€â”€ UI show/hide â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— UI show/hide —————————————————————————————————————————————————————————————
     const isControlsHovered = useRef(false);
     const lastTouchTimeRef = useRef(0);
 
@@ -1557,10 +1550,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             lastTouchTimeRef.current = Date.now();
             toggleUI();
         },
-        onDoubleTapCenter: () => {
-            lastTouchTimeRef.current = Date.now();
-            videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
-        },
         onDoubleTapLeft: () => {
             lastTouchTimeRef.current = Date.now();
             if (videoRef.current) videoRef.current.currentTime -= 10;
@@ -1575,8 +1564,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     return (
         <div
             ref={containerRef}
-            className={`fixed z-[100] flex flex-col font-sans select-none overflow-hidden bg-black ${isPseudoFullscreen ? 'inset-0' : (isFullscreen ? '' : 'inset-0')}`}
-            style={isPseudoFullscreen ? { position: 'fixed', zIndex: 9999 } : {}}
+            className={`fixed z-[20000] flex flex-col font-sans select-none overflow-hidden bg-black ${isPseudoFullscreen ? 'inset-0' : (isFullscreen ? '' : 'inset-0')}`}
+            style={isPseudoFullscreen ? { position: 'fixed', zIndex: 20001 } : {}}
             onMouseMove={showControls}
             onTouchStart={() => { lastTouchTimeRef.current = Date.now(); }}
             // Double-click on the video container = toggle fullscreen (desktop)
@@ -1616,6 +1605,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 // Aggressive pre-buffering: tell the browser to download as much as possible
                 preload="auto"
                 playsInline
+                onEnded={() => {
+                    if (settings.autoplayNextEpisode) {
+                        handleNextEpisode();
+                    }
+                }}
             />
 
             {/* â”€â”€ Custom Subtitle Overlay â”€â”€ */}
@@ -1765,6 +1759,57 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 </div>
             )}
 
+            {/* ── Silence Detection Toast ── */}
+            {/* Shows when audio codec is unsupported (AC3/DTS on Chrome) */}
+            {silenceDetected && (
+                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex items-center gap-4 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="w-10 h-10 rounded-full bg-[#e50914]/20 flex items-center justify-center text-[#e50914]">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M13.5 4.06c-.22-.13-.48-.13-.7 0L6.47 8.38H4c-.55 0-1 .45-1 1v5.25c0 .55.45 1 1 1h2.47l6.33 4.32c.11.07.24.11.37.11s.26-.03.37-.11c.26-.18.43-.47.43-.79V4.85c0-.32-.17-.61-.47-.79z" opacity=".3"/><path d="M20.5 12c0-3.31-1.95-6.17-4.78-7.5-.38-.18-.84-.02-1.02.36-.18.38-.02.84.36 1.02C17.38 7.03 19 9.33 19 12s-1.62 4.97-4.94 6.12c-.38.13-.58.55-.45.93.1.3.38.48.68.48.08 0 .17-.02.25-.05 3.82-1.32 6.46-4.9 6.46-8.98z"/></svg>
+                    </div>
+                    <div>
+                        <h4 className="text-white text-sm font-bold">No Audio Detected</h4>
+                        <p className="text-white/50 text-xs">This file uses an unsupported audio codec (AC3/DTS).</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {/* VLC Fallback - opens direct CDN URL in VLC */}
+                        <button
+                            onClick={() => {
+                                // Extract the actual CDN URL from the stream
+                                const currentSrc = allSources[currentSourceIndex];
+                                if (currentSrc?.url) {
+                                    const vlcUrl = currentSrc.url;
+                                    // Try VLC protocol first, fallback to intent:// for mobile
+                                    const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+                                    const protocol = isMobile ? 'intent://' : 'vlc://';
+                                    const encodedUrl = encodeURIComponent(vlcUrl);
+                                    window.open(`${protocol}${encodedUrl}`, '_blank');
+                                }
+                            }}
+                            className="px-4 py-2 bg-[#e50914] text-white rounded-lg text-xs font-bold hover:bg-[#e50914]/90 transition-colors"
+                        >
+                            Open in VLC
+                        </button>
+                        <button
+                            onClick={() => {
+                                const nextIdx = currentSourceIndex + 1;
+                                if (allSources[nextIdx]) handleSourceChange(nextIdx);
+                                dismissSilence();
+                            }}
+                            className="px-4 py-2 bg-white text-black rounded-lg text-xs font-bold hover:bg-white/90 transition-colors"
+                        >
+                            Switch Server
+                        </button>
+                        <button
+                            onClick={dismissSilence}
+                            className="px-4 py-2 bg-white/10 text-white rounded-lg text-xs font-bold hover:bg-white/20 transition-colors"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            )}
+
+
             <VideoPlayerControls
                 showUI={showUI}
                 isPlaying={isPlaying}
@@ -1810,6 +1855,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     : undefined}
                 videoFit={videoFit}
                 onToggleFit={() => setVideoFit(prev => prev === 'contain' ? 'cover' : 'contain')}
+                ppRippleTrigger={ppRippleTrigger}
+                setPpRippleTrigger={setPpRippleTrigger}
+                seekFlash={seekFlash}
+                setSeekFlash={setSeekFlash}
             />
 
             {isMobile ? (
@@ -1890,38 +1939,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 />
             )}
 
-            {/* â”€â”€ Skip Intro pill â”€â”€ */}
-            {showSkipIntro && activeSkipSegment && (
-                <button
-                    onClick={() => {
-                        if (videoRef.current) videoRef.current.currentTime = activeSkipSegment.endTime;
-                        setShowSkipIntro(false);
-                    }}
-                    className="absolute z-40 pointer-events-auto flex items-center gap-2 transition-opacity hover:opacity-90 active:scale-95"
-                    style={{
-                        bottom: isMobile ? 90 : 110,
-                        right: isMobile ? 16 : 40,
-                        padding: isMobile ? '9px 20px' : '11px 26px',
-                        background: 'rgba(255,255,255,0.95)',
-                        color: '#000',
-                        border: 'none',
-                        borderRadius: 9999,
-                        fontWeight: 700,
-                        fontSize: isMobile ? 13 : 15,
-                        cursor: 'pointer',
-                        letterSpacing: '0.01em',
-                        fontFamily: 'Consolas, monospace',
-                        boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
-                        animation: 'slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-                        whiteSpace: 'nowrap',
-                    }}
-                >
-                    <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, fill: '#000', flexShrink: 0 }}><path d="M8 5v14l11-7z"/></svg>
-                    Skip Intro
-                </button>
-            )}
-
-            {/* Auto-Next removed as requested */}
         </div>
     );
 };

@@ -27,20 +27,34 @@ export const DISPLAY_LANGUAGES = [
   { code: 'sv-SE', label: 'Svenska' },
 ];
 
-export const SUBTITLE_LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'it', label: 'Italiano' },
-  { code: 'pt', label: 'Português' },
-  { code: 'ja', label: '日本語' },
-  { code: 'ko', label: '한국어' },
-  { code: 'zh', label: '中文' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'hi', label: 'हिन्दी' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'tr', label: 'Türkçe' },
-  { code: 'pl', label: 'Polski' },
-  { code: 'nl', label: 'Nederlands' },
-];
+/** 
+ * Central ISO 639-1 → Display Label map.
+ * Used for UI display and detecting languages from raw subtitle labels.
+ */
+export const LANG_LABELS: Record<string, string> = {
+  en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+  pt: 'Portuguese', ru: 'Russian', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
+  ar: 'Arabic', tr: 'Turkish', nl: 'Dutch', pl: 'Polish', sv: 'Swedish',
+  da: 'Danish', fi: 'Finnish', no: 'Norwegian', hu: 'Hungarian', el: 'Greek',
+  he: 'Hebrew', cs: 'Czech', ro: 'Romanian', th: 'Thai', vi: 'Vietnamese',
+  id: 'Indonesian', uk: 'Ukrainian', hr: 'Croatian', sk: 'Slovak', bg: 'Bulgarian',
+  sr: 'Serbian', hi: 'Hindi', bn: 'Bengali', fa: 'Persian', ms: 'Malay',
+  ca: 'Catalan', lt: 'Lithuanian', lv: 'Latvian', et: 'Estonian', sl: 'Slovenian',
+};
+
+/**
+ * OpenSubtitles Legacy Language IDs (ISO 639-2/3 equivalents).
+ */
+export const LANG_TO_OS: Record<string, string> = {
+  en: 'eng', es: 'spa', fr: 'fre', de: 'ger', it: 'ita', pt: 'por',
+  ru: 'rus', ja: 'jpn', ko: 'kor', zh: 'chi', ar: 'ara', tr: 'tur',
+  nl: 'dut', pl: 'pol', sv: 'swe', da: 'dan', fi: 'fin', no: 'nor',
+  hu: 'hun', el: 'ell', he: 'heb', cs: 'cze', ro: 'rum', th: 'tha',
+  vi: 'vie', id: 'ind', uk: 'ukr', hr: 'hrv', sk: 'slo', bg: 'bul',
+  sr: 'srp', hi: 'hin',
+};
+
+export const SUBTITLE_LANGUAGES = Object.entries(LANG_LABELS).map(([code, label]) => ({
+  code,
+  label
+})).sort((a, b) => a.label.localeCompare(b.label));

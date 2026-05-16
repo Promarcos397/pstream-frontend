@@ -163,6 +163,18 @@ export const getRecommendations = async (id: number | string, type: 'movie' | 't
   }
 };
 
+export const getMovieKeywords = async (id: number | string, type: 'movie' | 'tv') => {
+  try {
+    const url = `/${type}/${id}/keywords`;
+    const { data } = await tmdb.get(url);
+    // TV results are in .results, Movie results are in .keywords
+    return type === 'movie' ? (data.keywords || []) : (data.results || []);
+  } catch (e) {
+    console.error(`[TMDB] Keywords ${type}/${id}:`, e);
+    return [];
+  }
+};
+
 export const getReleaseDates = async (id: number | string, type: 'movie' | 'tv') => {
   try {
     const { data } = await tmdb.get(`/${type}/${id}/release_dates`);

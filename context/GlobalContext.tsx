@@ -2,9 +2,8 @@ import React, { createContext, useState, useEffect, useCallback, useContext, Rea
 import { Movie, AppSettings } from '../types';
 import { setApiLanguage } from '../services/api';
 import { AuthService, UserProfile } from '../services/AuthService';
-import { DEFAULT_AVATAR } from '../constants';
+import { DEFAULT_AVATAR, DEFAULT_SUBTITLE_SETTINGS } from '../constants';
 import i18n from '../i18n';
-import { usePrefetchQueue } from '../hooks/usePrefetchQueue';
 import Cookies from 'js-cookie';
 
 interface VideoState {
@@ -78,19 +77,11 @@ interface GlobalContextType {
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  ...DEFAULT_SUBTITLE_SETTINGS,
   autoplayPreviews: true,
   autoplayNextEpisode: true,
-  showSubtitles: true,
-  subtitleSize: 'medium',
-  subtitleColor: 'white',
-  subtitleBackground: 'none',
-  subtitleOpacity: 75,
-  subtitleBlur: 0,
-  subtitleFontFamily: "'Harmonia Sans Mono', 'Consolas', monospace",
-  subtitleEdgeStyle: 'drop-shadow',
-  subtitleWindowColor: 'black',
+  autoplayVideo: true,
   displayLanguage: 'en-US',
-  subtitleLanguage: 'en',
   audioLanguage: 'en',
   avatarUrl: DEFAULT_AVATAR,
   isKidsMode: false,
@@ -118,9 +109,19 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch { return DEFAULT_SETTINGS; }
   });
 
-  const [videoStates, setVideoStates] = useState<{ [key: string]: VideoState }>({});
+  const [videoStates, setVideoStates] = useState<{ [key: string]: VideoState }>(() => {
+    try {
+      const saved = localStorage.getItem('pstream-video-states');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
 
-  const [episodeProgress, setEpisodeProgress] = useState<{ [key: string]: EpisodeProgress }>({});
+  const [episodeProgress, setEpisodeProgress] = useState<{ [key: string]: EpisodeProgress }>(() => {
+    try {
+      const saved = localStorage.getItem('pstream-episode-progress');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
 
   const [likedMovies, setLikedMovies] = useState<Record<string, LikedEntry>>(() => {
     try {
@@ -162,6 +163,8 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => { localStorage.setItem('pstream-history', JSON.stringify(continueWatching)); }, [continueWatching]);
   useEffect(() => { localStorage.setItem('pstream-settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { localStorage.setItem('pstream-liked', JSON.stringify(likedMovies)); }, [likedMovies]);
+  useEffect(() => { localStorage.setItem('pstream-video-states', JSON.stringify(videoStates)); }, [videoStates]);
+  useEffect(() => { localStorage.setItem('pstream-episode-progress', JSON.stringify(episodeProgress)); }, [episodeProgress]);
   
   // Use a ref to keep track of current videoStates without triggering re-renders 
   // for components that only need the *getter* function.
@@ -357,9 +360,8 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   // ── Smart prefetch: warm HF Space + Redis for last 3 watched + last 3 in list ──
-  // Fires 5 seconds after app load, staggered every 1.5s. Always runs (lists are
-  // hydrated from localStorage synchronously, no async wait needed).
-  usePrefetchQueue({ continueWatching, myList, isReady: true });
+  // DISABLED: Purely demand-driven, zero-background-chatter environment.
+  // usePrefetchQueue({ continueWatching, myList, isReady: true });
 
   return (
     <GlobalContext.Provider value={{

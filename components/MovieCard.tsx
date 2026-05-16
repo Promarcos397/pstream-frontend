@@ -108,7 +108,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
     activePopupId, setActivePopupId,
-    globalMute, setGlobalMute, clearVideoState, isScrolling
+    globalMute, setGlobalMute, clearVideoState, isScrolling, settings
   } = useGlobalContext();
   const [isHovered, setIsHovered] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -288,16 +288,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   }, []);
 
 
-  // ─── TWO-STAGE HOVER PIPELINE ─────────────────────────────────────────────
-  // Stage 1 (PRIME): At ~300ms we pre-fetch the trailer so the YouTube API
-  // search is already warm by the time the popup appears.
-  // Stage 2 (SHOW): At ~800ms the popup appears and TrailerPlayer mounts
-  // with videoId already known — playback starts almost instantly.
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const PRIME_DELAY = 300;        // ms: start warming the trailer cache
-  const SHOW_DELAY = 700;       // ms: reveal popup (must be > PRIME_DELAY)
-
+  const SHOW_DELAY = 600; 
   const handlePointerEnter = (e: React.PointerEvent) => {
     if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
@@ -320,35 +311,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       activeVideoId.startsWith('card-') &&
       activeVideoId !== `card-${movie.id}`;
 
-    // ── STAGE 1: PRIME ─────────────────────────────────────────────────────
-    // If another card is playing, the user is actively browsing — we can
-    // afford to prime even faster because they're clearly in "trailer mode".
-    const primeDelay = anotherCardIsActive ? 80 : PRIME_DELAY;
-    const primeTimer = setTimeout(() => {
-      // Warm the trailer cache in the background. This calls YouTubeService
-      // which caches the result globally. When TrailerPlayer mounts at SHOW
-      // time, useTrailer will hit the cache instantly.
-      const title = movie.original_title || movie.original_name || movie.title || movie.name || '';
-      const year = (movie.release_date || movie.first_air_date || '').slice(0, 4);
-      const type = movie.media_type || (movie.title ? 'movie' : 'tv');
-      const isAnimation = movie.genre_ids?.includes(16) || movie.genres?.some(g => g.id === 16);
-      const isAnime = isAnimation && movie.original_language === 'ja';
-
-      if (title) {
-        searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime, tmdbId: movie.id.toString() })
-          .then(result => {
-            if (result) {
-              // Proactively cache so useTrailer sees it immediately
-              updateVideoState(movie.id, 0, result.videoId);
-            }
-          })
-          .catch(() => { /* silent — TrailerPlayer will retry if needed */ });
-      }
-    }, primeDelay);
-
-    // ── STAGE 2: SHOW ──────────────────────────────────────────────────────
+    // ── STAGE: SHOW ──────────────────────────────────────────────────────
     const showDelay = anotherCardIsActive ? 180 : SHOW_DELAY;
     const showTimer = setTimeout(() => {
+      if (!settings.autoplayPreviews) return;
       const rect = cardRef.current?.getBoundingClientRect();
       if (!rect) return;
       const dx = e.clientX - rect.left - rect.width / 2;
@@ -362,42 +328,12 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       setActiveVideoId(myId);
     }, showDelay);
 
-    // Store both timers so we can cancel either on leave
-    timerRef.current = {
-      primeTimer, showTimer, clear: () => {
-        clearTimeout(primeTimer);
-        clearTimeout(showTimer);
-      }
-    };
+    timerRef.current = showTimer;
   };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (isScrolling || isHovered || timerRef.current) return;
-    handlePointerEnter(e);
-  };
-  // Force cancel if we start scrolling
-  useEffect(() => {
-    if (isScrolling && timerRef.current) {
-      timerRef.current.clear();
-      timerRef.current = null;
-    }
-  }, [isScrolling]);
-
-  // Handle "Snap-to-Hover" when scrolling stops
-  useEffect(() => {
-    if (!isScrolling && !isHovered && prefersHover && cardRef.current) {
-        if (cardRef.current.matches(':hover')) {
-            // Trigger hover manually as if pointerEnter just happened
-            const mockEvent = { pointerType: 'mouse', clientX: 0, clientY: 0 } as any;
-            handlePointerEnter(mockEvent);
-        }
-    }
-  }, [isScrolling, isHovered, prefersHover]);
 
   const handlePointerLeave = () => {
     if (timerRef.current) {
-      // Cancel both PRIME and SHOW timers
-      timerRef.current.clear();
+      clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
@@ -450,7 +386,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       e.stopPropagation();
     }
 
-    if (timerRef.current) { timerRef.current.clear(); timerRef.current = null; }
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
     if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
     setIsHovered(false);
     setHoveredRect(null);
@@ -498,7 +434,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   return (
     <div
       ref={cardRef}
-      className={`relative z-10 group/card select-none
+      className={`relative z-10 group group/card select-none
         ${isHovered && prefersHover ? 'z-[999]' : 'z-10'}
         ${isGrid
           ? 'w-full aspect-video cursor-pointer'
@@ -507,7 +443,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       style={prefersHover ? { touchAction: 'none' } : undefined}
       onPointerEnter={prefersHover ? handlePointerEnter : undefined}
       onPointerLeave={prefersHover ? handlePointerLeave : undefined}
-      onPointerMove={prefersHover ? handlePointerMove : undefined}
       onClick={(e) => {
         if (touchDidScroll.current) { touchDidScroll.current = false; return; }
         handleOpenModal(e);
@@ -595,9 +530,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
         return (
           <div
             className="absolute pointer-events-none z-20"
-            style={{ top: 'calc(100% + 4px)', left: '10%', right: '10%' }}
+            style={{ top: 'calc(100% + 5px)', left: '25%', right: '25%' }}
           >
-            <div className="h-[4px] w-full" style={{ background: 'rgba(200,200,200,0.28)', borderRadius: 0 }}>
+            <div className="h-[4px] group-hover:h-[6px] w-full transition-all duration-300" style={{ background: '#808080', borderRadius: 0 }}>
               <div
                 className="h-full transition-all duration-300"
                 style={{ width: `${pct}%`, background: '#e50914', borderRadius: 0 }}
@@ -682,7 +617,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                   >
                     {hasVideoEnded
-                      ? <ArrowCounterClockwiseIcon size={24} className="text-white" />
+                      ? <ArrowCounterClockwiseIcon size={24} weight="bold" className="text-white" />
                       : globalMute ? <SpeakerSlashIcon size={24} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
                     }
                   </button>
@@ -730,13 +665,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-4">
                     {isCinemaOnly && !isBook ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
-                        className="bg-[#6d6d6e] text-white rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95 shadow-lg"
-                        title="In Theaters"
-                      >
-                        <TicketIcon size={22} weight="bold" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
+                          className="bg-[#6d6d6e] text-white rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95 shadow-lg"
+                          title={t('hero.inTheaters')}
+                        >
+                          <TicketIcon size={22} weight="bold" />
+                        </button>
+                        <Link
+                          to={`/watch/movie/${movie.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="bg-white/10 text-white border border-white/20 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-white hover:text-black hover:border-white transition active:scale-95 shadow-md"
+                          title={t('hero.playAnyway', { defaultValue: 'Play Anyway (Force)' })}
+                        >
+                          <PlayIcon size={24} weight="fill" />
+                        </Link>
+                      </div>
                     ) : (
                       <Link
                         to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}

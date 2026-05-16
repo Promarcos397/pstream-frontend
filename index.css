@@ -1,74 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Carter+One&display=swap');
 
 @font-face {
-  font-family: 'Bebas Neue';
-  src: url('./BebasNeue-Regular.ttf') format('truetype');
-}
-
-/* Consolas: system font on Windows/macOS — no @font-face needed.
-   The bundled TTF files have invalid sfntVersion (OTS parse error) and
-   cannot be used as web fonts. Relying on system font stack instead. */
-.font-consolas {
-  font-family: 'Consolas', 'Cascadia Code', 'SF Mono', 'Courier New', monospace;
-}
-
-
-@font-face {
-  font-family: 'Leaner Bold';
-  src: url('./assets/fonts/LeanerBold.otf') format('opentype');
+  font-family: 'Netflix Sans';
+  src: url('./assets/fonts/netflix-sans.woff2') format('woff2');
+  font-weight: 100 900;
   font-display: swap;
 }
 
-@font-face {
-  font-family: 'Harmonia Sans';
-  src: url('./assets/fonts/Harmonia Sans W01 Regular.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
+.font-netflix {
+  font-family: 'Netflix Sans', sans-serif;
 }
 
-@font-face {
-  font-family: 'Harmonia Sans';
-  src: url('./assets/fonts/Harmonia Sans W01 Bold.ttf') format('truetype');
-  font-weight: bold;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Harmonia Sans Mono';
-  src: url('./assets/fonts/Harmonia Sans Mono W01 Bold.ttf') format('truetype');
-  font-weight: bold;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Harmonia Sans Condensed';
-  src: url('./assets/fonts/Harmonia Sans W06 Condensed.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Harmonia Sans Black Italic';
-  src: url('./assets/fonts/Harmonia Sans W06 Black Italic.ttf') format('truetype');
-  font-weight: 900;
-  font-style: italic;
-  font-display: swap;
-}
-
+/* Fallback utilities for legacy class names to point to Netflix Sans */
+.font-harmonia, 
+.font-harmonia-mono, 
+.font-harmonia-condensed, 
 .font-leaner {
-  font-family: 'Leaner Bold', sans-serif;
-}
-
-.font-harmonia {
-  font-family: 'Harmonia Sans', sans-serif;
-}
-
-.font-harmonia-mono {
-  font-family: 'Harmonia Sans Mono', monospace;
+  font-family: 'Netflix Sans', sans-serif;
 }
 
 @tailwind base;
@@ -89,7 +37,9 @@ html {
 }
 
 body {
-  @apply font-harmonia antialiased;
+  font-family: 'Netflix Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   background-color: #141414;
   color: white;
   overscroll-behavior-y: none; /* Prevent elastic bouncing on mobile */
@@ -228,6 +178,7 @@ button, [role="button"] {
 .text-gradient-red {
   background: linear-gradient(to right, #E50914, #ff5f6d);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -242,20 +193,20 @@ button, [role="button"] {
 }
 
 @keyframes scaleIn {
-  0% { opacity: 0; transform: scale(0.95); }
+  0% { opacity: 0; transform: scale(0.98); }
   100% { opacity: 1; transform: scale(1); }
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 0.2s ease-out forwards;
 }
 
 .animate-slideIn {
-  animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-scaleIn {
-  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ─── Subtitle Overlay ─────────────────────────────────────────────────────── */
@@ -293,10 +244,10 @@ button, [role="button"] {
 
 /* ─── Play/Pause Ripple ───────────────────────────────────────────────────────── */
 @keyframes pp-ripple {
-  0%   { opacity: 0; transform: scale(0.6); }
-  30%  { opacity: 1; transform: scale(1.05); }
-  70%  { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.2); }
+  0%   { opacity: 0; transform: scale(0.8); }
+  25%  { opacity: 1; transform: scale(1); }
+  60%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1); }
 }
 
 /* ─── Seek Flash ─────────────────────────────────────────────────────────────── */
@@ -304,6 +255,13 @@ button, [role="button"] {
   0%   { opacity: 0.6; }
   60%  { opacity: 0.5; }
   100% { opacity: 0; }
+}
+
+@keyframes seek-circle-flash {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  60% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
 }
 /* ─── Auto-Next Episode Popup Animation ──────────────────────────────────────── */
 @keyframes slide-in-right {
@@ -316,4 +274,4 @@ button, [role="button"] {
   0%   { opacity: 1; transform: translateX(0); }
   100% { opacity: 0; transform: translateX(40px); }
 }
-
+

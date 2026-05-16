@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { InfoIcon, TicketIcon, PlayCircle } from '@phosphor-icons/react';
+import { InfoIcon, TicketIcon, PlayIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
@@ -124,13 +124,22 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                 {/* Netflix-style CTA Buttons */}
                 <div className={`flex items-center flex-wrap gap-2 md:gap-3 transition-transform duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'translate-y-4 md:translate-y-2' : ''}`}>
                     {isCinemaOnly ? (
-                        <button
-                            onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                            className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 sm:px-8 h-[34px] md:h-[40px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/60 transition-colors text-[14px] md:text-[17px] gap-2 md:gap-2.5  active:scale-95"
-                        >
-                            <TicketIcon weight="bold" className="text-lg md:text-2xl" />
-                            <span className="whitespace-nowrap">{t('hero.inTheaters', { defaultValue: 'In Theaters' })}</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => onSelect(movie, undefined, trailerVideoId)}
+                                className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 sm:px-8 h-[34px] md:h-[40px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/60 transition-colors text-[14px] md:text-[17px] gap-2 md:gap-2.5 active:scale-95 shadow-md"
+                            >
+                                <TicketIcon weight="bold" className="text-lg md:text-2xl" />
+                                <span className="whitespace-nowrap">{t('hero.inTheaters', { defaultValue: 'In Theaters' })}</span>
+                            </button>
+                            <Link
+                                to={`/watch/${movie?.media_type === 'tv' || (!movie?.media_type && !movie?.title) ? 'tv' : 'movie'}/${movie?.id}`}
+                                className="bg-white/10 hover:bg-white hover:text-black text-white w-[34px] md:w-[40px] h-[34px] md:h-[40px] rounded-[4px] flex items-center justify-center transition-all duration-300 active:scale-90 border border-white/20 hover:border-white shadow-lg"
+                                title={t('hero.playAnyway', { defaultValue: 'Play Anyway (Force)' })}
+                            >
+                                <PlayIcon size={20} weight="fill" />
+                            </Link>
+                        </div>
                     ) : (
                         <Link
                             to={`/watch/${movie?.media_type === 'tv' || (!movie?.media_type && !movie?.title) ? 'tv' : 'movie'}/${movie?.id}`}
