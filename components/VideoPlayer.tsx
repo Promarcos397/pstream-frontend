@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Movie, Episode, InternalTrack } from '../types';
-import { MediaProbe } from '../utils/mediaProbe';
-import { getSeasonDetails, getMovieDetails, getStream, getExternalIds } from '../services/api';
+import { getSeasonDetails, getMovieDetails, getExternalIds } from '../services/api';
 import ISO6391 from 'iso-639-1';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
@@ -12,10 +11,10 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
-import { useDebridStream, BROWSER_SAFE_AUDIO } from '../hooks/useDebridStream';
-import { useAudioTranscoder, isAudioCodecSupported } from '../hooks/useAudioTranscoder';
+import { useDebridStream } from '../hooks/useDebridStream';
 import { useAudioSilenceDetector } from '../hooks/useAudioSilenceDetector';
 import { useAudioSidecar } from '../hooks/useAudioSidecar';
+import { isBrowserSafeCodec } from '../utils/browserCodecSupport';
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -146,49 +145,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [internalTracks, setInternalTracks] = useState<InternalTrack[]>([]);
     const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<number | null>(null);
     const [selectedSubtitleTrackId, setSelectedSubtitleTrackId] = useState<number | null>(null);
-    const [transcodedAudioUrl, setTranscodedAudioUrl] = useState<string | null>(null);
-    const transcodedAudioRef = useRef<HTMLAudioElement | null>(null);
-    const transcodedCleanupRef = useRef<(() => void) | null>(null);
 
-    const { transcode, status: transcodeStatus, progress: transcodeProgress } = useAudioTranscoder();
 
     // ── Audio Silence Detector ──────────────────────────────────────────────
     // Catches cases where video plays but no audio is heard (common for AC3 on Chrome).
     const { silenceDetected, dismiss: dismissSilence } = useAudioSilenceDetector(videoRef, !!streamUrl && !isEmbed);
 
-    // ── Audio Sidecar (client-side AC3 decode) ─────────────────────────
-    // When silence is detected, try to decode audio via WASM
-    const audioSidecar = useAudioSidecar(videoRef, {
-        onSyncLost: () => {
-            // Drift is too high — VLC fallback is the best option
-            console.warn('[VideoPlayer] Audio sync lost — recommending VLC fallback');
-        }
-    });
-
-    // Start sidecar when silence is detected (AC3/DTS unsupported codec)
-    useEffect(() => {
-        if (silenceDetected && streamUrl && !isStreamM3U8 && !isEmbed) {
-            console.log('[VideoPlayer] 🔊 Starting audio sidecar for AC3/DTS decode...');
-            audioSidecar.start(streamUrl).catch(err => {
-                console.warn('[VideoPlayer] Sidecar decode failed:', err);
-            });
-        } else if (!silenceDetected && audioSidecar.isActive) {
-            audioSidecar.stop();
-        }
-    }, [silenceDetected, streamUrl]);
-
-    useEffect(() => {
-        if (silenceDetected) {
-            console.warn('[VideoPlayer] ⚠️ Audio silence detected! This usually indicates an unsupported codec (AC3/DTS) on this browser.');
-        }
-    }, [silenceDetected]);
-
-    // Route MKV through SW proxy — the SW probes the audio codec and streams without CORS issues.
-    // Non-MKV URLs stay direct (HLS, MP4 from other sources).
-    const activeStreamUrl = useMemo(() => streamUrl, [streamUrl]);
-
     // Detect likely audio codec from filename — instant, no network needed.
-    // Most real-world torrent filenames include codec info (AAC, AC3, DTS, etc.)
+    // MUST be declared before any effect that uses it.
     const guessedAudioCodec = useMemo((): 'aac' | 'ac3' | 'unknown' => {
         if (!streamUrl) return 'unknown';
         const name = decodeURIComponent(streamUrl).toLowerCase();
@@ -197,6 +161,40 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (name.includes('ac3') || name.includes('dts') || name.includes('truehd') || name.includes('dd+') || name.includes('eac3')) return 'ac3';
         return 'unknown';
     }, [streamUrl]);
+
+    // ── Audio Sidecar (client-side AC3 decode) ─────────────────────────
+    const audioSidecar = useAudioSidecar(videoRef, {
+      onError: (msg) => console.error('[VideoPlayer] Sidecar error:', msg),
+      onVlcFallback: () => {
+        console.warn('[VideoPlayer] VLC fallback triggered');
+      }
+    });
+
+    // Start sidecar when silence is detected (AC3/DTS unsupported codec)
+    useEffect(() => {
+      if (!silenceDetected || !streamUrl || isStreamM3U8 || isEmbed) return;
+      
+      const currentSrc = allSources[currentSourceIndex];
+      const isMkv = streamUrl.toLowerCase().includes('.mkv');
+      if (!isMkv) return;
+
+      const audioCodec = currentSrc?._audio || 'unknown';
+      const isUnsupported = audioCodec === 'A_AC3' || audioCodec === 'A_EAC3' || audioCodec === 'A_DTS' || 
+                           audioCodec === 'unknown' || guessedAudioCodec === 'ac3';
+      
+      if (isUnsupported) {
+        console.log('[VideoPlayer] 🔊 Starting browser-side audio decode...');
+        audioSidecar.start(streamUrl);
+      }
+    }, [silenceDetected, streamUrl, isStreamM3U8, isEmbed, currentSourceIndex, allSources, guessedAudioCodec]);
+
+    useEffect(() => {
+        if (silenceDetected) {
+            console.warn('[VideoPlayer] ⚠️ Audio silence detected! This usually indicates an unsupported codec (AC3/DTS) on this browser.');
+        }
+    }, [silenceDetected]);
+
+    const activeStreamUrl = useMemo(() => streamUrl, [streamUrl]);
 
     useEffect(() => {
         if (streamUrl) {
@@ -935,67 +933,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         });
     }, [debridStream.streamUrl, (debridStream as any).alternatives]);
 
-    // Internal MKV/MP4 track probing — skip for Debrid (IP blocked) but run for others
-    useEffect(() => {
-        if (!streamUrl || isStreamM3U8 || isEmbed) {
-            setInternalTracks([]);
-            setSelectedAudioTrackId(null);
-            setSelectedSubtitleTrackId(null);
-            setTranscodedAudioUrl(null);
-            return;
-        }
 
-        // Debrid URLs are blocked by the backend (503), so we can't probe them.
-        const isDebrid = streamUrl.includes('.debrid.it') || streamUrl.includes('.alldebrid.com');
-        if (isDebrid) {
-            setInternalTracks([]);
-            setTranscodedAudioUrl(null);
-            return;
-        }
-
-        const controller = new AbortController();
-
-        const probe = async () => {
-            try {
-                const tracks = await MediaProbe.probe(streamUrl);
-                if (controller.signal.aborted) return;
-
-                if (tracks && tracks.length > 0) {
-                    console.log('[VideoPlayer] 🎵 Internal tracks:', tracks.map(t => `${t.type}:${t.codec}(${t.language || '?'})`).join(', '));
-                    setInternalTracks(tracks);
-
-                    // Auto-select default audio track
-                    const defAudio = tracks.find(t => t.type === 'audio' && t.isDefault) ?? tracks.find(t => t.type === 'audio');
-                    if (defAudio) {
-                        setSelectedAudioTrackId(defAudio.id);
-
-                        // Transcode if unsupported (standard extractors often support CORS or we proxy them)
-                        if (!isAudioCodecSupported(defAudio.codec)) {
-                            console.log(`[VideoPlayer] 🔄 Unsupported codec ${defAudio.codec} — transcoding via ffmpeg.wasm`);
-                            const trackIndex = tracks.filter(t => t.type === 'audio').indexOf(defAudio);
-                            const result = await transcode(streamUrl, trackIndex);
-                            if (!controller.signal.aborted) {
-                                transcodedCleanupRef.current?.();
-                                transcodedCleanupRef.current = result.cleanup;
-                                setTranscodedAudioUrl(result.url);
-                            } else {
-                                result.cleanup();
-                            }
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('[VideoPlayer] Probe/Transcode failed:', e);
-            }
-        };
-
-        probe();
-        return () => {
-            controller.abort();
-            transcodedCleanupRef.current?.();
-            transcodedCleanupRef.current = null;
-        };
-    }, [streamUrl, isStreamM3U8, isEmbed]);
 
     // ── MKV Audio Safety Fallback (Debrid only) ──────────────────────────────
     // Since we can't probe Debrid URLs directly via the browser, we rely on the
@@ -1533,8 +1471,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         console.log(`[VideoPlayer] Switched internal audio to track ${id}`);
         
         const track = internalTracks.find(t => t.id === id);
-        if (track && !isAudioCodecSupported(track.codec)) {
-            console.log(`[VideoPlayer] Unsupported codec ${track.codec} detected. Routing through Background Interceptor...`);
+        if (track && !isBrowserSafeCodec(track.codec)) {
+            console.log(`[VideoPlayer] Unsupported codec ${track.codec} detected. Sidecar will handle if needed.`);
         }
     };
 
@@ -1791,9 +1729,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         </button>
                         <button
                             onClick={() => {
-                                const nextIdx = currentSourceIndex + 1;
-                                if (allSources[nextIdx]) handleSourceChange(nextIdx);
-                                dismissSilence();
+                              dismissSilence();
+                              // Try next source first
+                              const nextIdx = currentSourceIndex + 1;
+                              if (allSources[nextIdx]) {
+                                handleSourceChange(nextIdx);
+                              } else {
+                                // No more sources — force VLC deep link
+                                const currentSrc = allSources[currentSourceIndex];
+                                if (currentSrc?.url) {
+                                  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+                                  const protocol = isMobile ? 'intent://' : 'vlc://';
+                                  window.open(`${protocol}${encodeURIComponent(currentSrc.url)}`, '_blank');
+                                }
+                              }
                             }}
                             className="px-4 py-2 bg-white text-black rounded-lg text-xs font-bold hover:bg-white/90 transition-colors"
                         >

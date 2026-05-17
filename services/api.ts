@@ -28,5 +28,5 @@ export {
   default,
 } from './tmdb';
 
-// ─── Stream ───────────────────────────────────────────────────────────────────
-export { getStream, buildTorrentStreamUrl } from './stream';
+// Stream functions removed — AllDebrid is handled client-side via useDebridStream
+// No server-side stream proxy needed (AllDebrid blocks server IPs with NO_SERVER)
