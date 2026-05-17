@@ -12,9 +12,7 @@ import { SubtitleService } from '../services/SubtitleService';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 import { useDebridStream } from '../hooks/useDebridStream';
-import { useAudioSilenceDetector } from '../hooks/useAudioSilenceDetector';
-import { useAudioSidecar } from '../hooks/useAudioSidecar';
-import { isBrowserSafeCodec } from '../utils/browserCodecSupport';
+
 
 // Giga Engine Backend URL
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
@@ -147,61 +145,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [selectedSubtitleTrackId, setSelectedSubtitleTrackId] = useState<number | null>(null);
 
 
-    // ── Audio Silence Detector ──────────────────────────────────────────────
-    // Catches cases where video plays but no audio is heard (common for AC3 on Chrome).
-    const { silenceDetected, dismiss: dismissSilence } = useAudioSilenceDetector(videoRef, !!streamUrl && !isEmbed);
-
-    // Detect likely audio codec from filename — instant, no network needed.
-    // MUST be declared before any effect that uses it.
-    const guessedAudioCodec = useMemo((): 'aac' | 'ac3' | 'unknown' => {
-        if (!streamUrl) return 'unknown';
-        const name = decodeURIComponent(streamUrl).toLowerCase();
-        if (name.includes('aac')) return 'aac';
-        if (name.includes('web-dl') || name.includes('webrip') || name.includes('amzn') || name.includes('nf.') || name.includes('hbo') || name.includes('dsnp')) return 'aac';
-        if (name.includes('ac3') || name.includes('dts') || name.includes('truehd') || name.includes('dd+') || name.includes('eac3')) return 'ac3';
-        return 'unknown';
-    }, [streamUrl]);
-
-    // ── Audio Sidecar (client-side AC3 decode) ─────────────────────────
-    const audioSidecar = useAudioSidecar(videoRef, {
-      onError: (msg) => console.error('[VideoPlayer] Sidecar error:', msg),
-      onVlcFallback: () => {
-        console.warn('[VideoPlayer] VLC fallback triggered');
-      }
-    });
-
-    // Start sidecar when silence is detected (AC3/DTS unsupported codec)
-    useEffect(() => {
-      if (!silenceDetected || !streamUrl || isStreamM3U8 || isEmbed) return;
-      
-      const currentSrc = allSources[currentSourceIndex];
-      const isMkv = streamUrl.toLowerCase().includes('.mkv');
-      if (!isMkv) return;
-
-      const audioCodec = currentSrc?._audio || 'unknown';
-      const isUnsupported = audioCodec === 'A_AC3' || audioCodec === 'A_EAC3' || audioCodec === 'A_DTS' || 
-                           audioCodec === 'unknown' || guessedAudioCodec === 'ac3';
-      
-      if (isUnsupported) {
-        console.log('[VideoPlayer] 🔊 Starting browser-side audio decode...');
-        audioSidecar.start(streamUrl);
-      }
-    }, [silenceDetected, streamUrl, isStreamM3U8, isEmbed, currentSourceIndex, allSources, guessedAudioCodec]);
-
-    useEffect(() => {
-        if (silenceDetected) {
-            console.warn('[VideoPlayer] ⚠️ Audio silence detected! This usually indicates an unsupported codec (AC3/DTS) on this browser.');
-        }
-    }, [silenceDetected]);
-
     const activeStreamUrl = useMemo(() => streamUrl, [streamUrl]);
 
     useEffect(() => {
         if (streamUrl) {
             console.info(`[VideoPlayer] 🎬 New source loaded: ${new URL(streamUrl).hostname}`);
-            console.info(`[VideoPlayer] 🔍 Guessed audio codec from filename: ${guessedAudioCodec.toUpperCase()}`);
         }
-    }, [streamUrl, guessedAudioCodec]);
+    }, [streamUrl]);
 
     // TV Show state
     const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
@@ -1469,11 +1419,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const handleInternalAudioChange = (id: number) => {
         setSelectedAudioTrackId(id);
         console.log(`[VideoPlayer] Switched internal audio to track ${id}`);
-        
-        const track = internalTracks.find(t => t.id === id);
-        if (track && !isBrowserSafeCodec(track.codec)) {
-            console.log(`[VideoPlayer] Unsupported codec ${track.codec} detected. Sidecar will handle if needed.`);
-        }
     };
 
     const handleInternalSubtitleChange = (id: number) => {
@@ -1697,66 +1642,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 </div>
             )}
 
-            {/* ── Silence Detection Toast ── */}
-            {/* Shows when audio codec is unsupported (AC3/DTS on Chrome) */}
-            {silenceDetected && (
-                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex items-center gap-4 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="w-10 h-10 rounded-full bg-[#e50914]/20 flex items-center justify-center text-[#e50914]">
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M13.5 4.06c-.22-.13-.48-.13-.7 0L6.47 8.38H4c-.55 0-1 .45-1 1v5.25c0 .55.45 1 1 1h2.47l6.33 4.32c.11.07.24.11.37.11s.26-.03.37-.11c.26-.18.43-.47.43-.79V4.85c0-.32-.17-.61-.47-.79z" opacity=".3"/><path d="M20.5 12c0-3.31-1.95-6.17-4.78-7.5-.38-.18-.84-.02-1.02.36-.18.38-.02.84.36 1.02C17.38 7.03 19 9.33 19 12s-1.62 4.97-4.94 6.12c-.38.13-.58.55-.45.93.1.3.38.48.68.48.08 0 .17-.02.25-.05 3.82-1.32 6.46-4.9 6.46-8.98z"/></svg>
-                    </div>
-                    <div>
-                        <h4 className="text-white text-sm font-bold">No Audio Detected</h4>
-                        <p className="text-white/50 text-xs">This file uses an unsupported audio codec (AC3/DTS).</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {/* VLC Fallback - opens direct CDN URL in VLC */}
-                        <button
-                            onClick={() => {
-                                // Extract the actual CDN URL from the stream
-                                const currentSrc = allSources[currentSourceIndex];
-                                if (currentSrc?.url) {
-                                    const vlcUrl = currentSrc.url;
-                                    // Try VLC protocol first, fallback to intent:// for mobile
-                                    const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-                                    const protocol = isMobile ? 'intent://' : 'vlc://';
-                                    const encodedUrl = encodeURIComponent(vlcUrl);
-                                    window.open(`${protocol}${encodedUrl}`, '_blank');
-                                }
-                            }}
-                            className="px-4 py-2 bg-[#e50914] text-white rounded-lg text-xs font-bold hover:bg-[#e50914]/90 transition-colors"
-                        >
-                            Open in VLC
-                        </button>
-                        <button
-                            onClick={() => {
-                              dismissSilence();
-                              // Try next source first
-                              const nextIdx = currentSourceIndex + 1;
-                              if (allSources[nextIdx]) {
-                                handleSourceChange(nextIdx);
-                              } else {
-                                // No more sources — force VLC deep link
-                                const currentSrc = allSources[currentSourceIndex];
-                                if (currentSrc?.url) {
-                                  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-                                  const protocol = isMobile ? 'intent://' : 'vlc://';
-                                  window.open(`${protocol}${encodeURIComponent(currentSrc.url)}`, '_blank');
-                                }
-                              }
-                            }}
-                            className="px-4 py-2 bg-white text-black rounded-lg text-xs font-bold hover:bg-white/90 transition-colors"
-                        >
-                            Switch Server
-                        </button>
-                        <button
-                            onClick={dismissSilence}
-                            className="px-4 py-2 bg-white/10 text-white rounded-lg text-xs font-bold hover:bg-white/20 transition-colors"
-                        >
-                            Dismiss
-                        </button>
-                    </div>
-                </div>
-            )}
+
 
 
             <VideoPlayerControls

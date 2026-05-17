@@ -201,75 +201,8 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
     return flat[0].url;
 }
 
-// ─── EBML Audio Probe ──────────────────────────────────────────────────────
-// MKV Tracks section (containing codec IDs) is almost always within the first
-// 256KB. Fetching a small range and walking the EBML bytes gives us the actual
-// codec before the player ever touches the file.
-
-export const BROWSER_SAFE_AUDIO = new Set([
-    'A_AAC', 'A_OPUS', 'A_VORBIS', 'A_MPEG/L3', 'A_MPEG/L2', 'A_MPEG/L1',
-]);
-
-function findAllAudioCodecIds(bytes: Uint8Array): string[] {
-    const codecs: string[] = [];
-    for (let i = 0; i < bytes.length - 24; i++) {
-        if (bytes[i] !== 0x86) continue;
-
-        const vint = bytes[i + 1];
-        if (!(vint & 0x80)) continue;
-        const len = vint & 0x7F;
-        if (len < 4 || len > 32) continue;
-
-        const end = i + 2 + len;
-        if (end > bytes.length) continue;
-
-        const id = String.fromCharCode(...bytes.slice(i + 2, end))
-            .replace(/\0+$/, '');
-
-        if (/^[AV]_[A-Z0-9/_]+$/.test(id) && id.startsWith('A_')) {
-            codecs.push(id);
-            i = end - 1; // skip past this match
-        }
-    }
-    return codecs;
-}
-
-// Keep backward-compat alias
-function findAudioCodecId(bytes: Uint8Array): string | null {
-    const all = findAllAudioCodecIds(bytes);
-    return all[0] ?? null;
-}
-
-async function probeAudioCodec(url: string, signal: AbortSignal): Promise<string> {
-    if (!url.toLowerCase().includes('.mkv')) return 'A_AAC';
-
-    try {
-        const res = await fetch(url, {
-            headers: { Range: 'bytes=0-262143' },
-            signal,
-        });
-
-        if (!res.ok && res.status !== 206) return 'unknown';
-
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        const codecs = findAllAudioCodecIds(bytes);
-        console.log(`[DebridStream] 🎵 Probed ${url.split('/').pop()?.slice(0, 60)}: tracks=[${codecs.join(', ')}]`);
-
-        if (codecs.length === 0) return 'unknown';
-
-        // If any track is browser-safe, we can play this MKV (via secondary track trick)
-        const hasSafeTrack = codecs.some(c => BROWSER_SAFE_AUDIO.has(c));
-        if (hasSafeTrack) {
-            // Return the safe codec so the source isn't skipped
-            return codecs.find(c => BROWSER_SAFE_AUDIO.has(c))!;
-        }
-
-        // All tracks are unsupported — return primary codec so caller can decide
-        return codecs[0];
-    } catch {
-        return 'unknown';
-    }
-}
+// ─── EBML Audio Probe (REMOVED) ───────────────────────────────────────────
+// MKV probing has been removed to restore the pure direct-fetch pipeline.
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export function useDebridStream() {
@@ -384,27 +317,17 @@ export function useDebridStream() {
                     if (!cdnUrl) continue;
 
                     // ── Audio strategy (browser-aware) ───────────────────────────────────────
-                    const audioCodec = await probeAudioCodec(cdnUrl, signal);
-                    const browserSafeSet = getCodecProfile()?.safeEbmlCodecs ?? BROWSER_SAFE_AUDIO;
-                    const audioOk = audioCodec === 'unknown' || browserSafeSet.has(audioCodec);
-
+                    // MKV probing removed. We rely on qualityScore to prioritize WEB-DLs with AAC.
+                    
                     let finalUrl = cdnUrl;
                     let isHls = false;
-
-                    if (!audioOk) {
-                        // Audio is AC3/DTS/EAC3 — mark source as needing client-side decode
-                        // DO NOT call server-side HLS endpoint — AllDebrid blocks server IPs (NO_SERVER error)
-                        // Instead, return the CDN URL and let the client handle it
-                        console.log(`[DebridStream] 🎬 Unsupported audio (${audioCodec}) — will use client-side decode or VLC fallback`);
-                        // Keep the original CDN URL - client will handle the audio
-                    }
 
                     alternatives.push({
                         url: finalUrl,
                         name: candidate.name,
                         quality: candidate.quality || 'Auto',
                         seeders: candidate.seeders || 0,
-                        _audio: audioCodec,
+                        _audio: 'unknown',
                         ...(isHls ? { isM3U8: true } : {}),
                     } as any);
 
