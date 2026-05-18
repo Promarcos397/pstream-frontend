@@ -1443,6 +1443,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     });
 
+    // Show UI on any keyboard key press
+    useEffect(() => {
+        const handleAnyKey = () => {
+            showControls();
+        };
+        window.addEventListener('keydown', handleAnyKey);
+        return () => window.removeEventListener('keydown', handleAnyKey);
+    }, [showControls]);
 
     return (
         <div
@@ -1450,6 +1458,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             className={`fixed z-[20000] flex flex-col font-sans select-none overflow-hidden bg-black ${isPseudoFullscreen ? 'inset-0' : (isFullscreen ? '' : 'inset-0')}`}
             style={isPseudoFullscreen ? { position: 'fixed', zIndex: 20001 } : {}}
             onMouseMove={showControls}
+            onClick={(e) => {
+                const target = e.target as HTMLElement;
+                // Only act on clicks directly on the background/video
+                if (target === containerRef.current || target === videoRef.current) {
+                    // Ignore synthesized clicks from touch devices
+                    if (Date.now() - lastTouchTimeRef.current < 900) return;
+                    
+                    if (showUIRef.current && videoRef.current) {
+                        videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+                        setPpRippleTrigger(t => t + 1);
+                    }
+                    showControls();
+                } else {
+                    // Clicked on controls; just keep UI awake
+                    showControls();
+                }
+            }}
             onTouchStart={() => { lastTouchTimeRef.current = Date.now(); }}
             // Double-click on the video container = toggle fullscreen (desktop)
             onDoubleClick={(e) => {
@@ -1517,7 +1542,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             className="subtitle-overlay"
                             style={{
                                 ...overlayStyle,
-                                bottom: showUI ? (isMobile ? '8rem' : '7rem') : '2.5rem',
+                                bottom: showUI ? (isMobile ? '12rem' : '10.5rem') : '6rem',
                                 left: '0',
                                 transform: 'none',
                                 maxWidth: '100%',
@@ -1563,7 +1588,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         className="subtitle-overlay"
                         style={{
                             ...overlayStyle,
-                            bottom: showUI ? (isMobile ? '8rem' : '7rem') : '2.5rem',
+                            bottom: showUI ? (isMobile ? '12rem' : '10.5rem') : '6rem',
                             left: '50%',
                             transform: 'translateX(-50%)',
                             background: 'transparent',
