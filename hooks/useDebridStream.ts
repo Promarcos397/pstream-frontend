@@ -107,7 +107,7 @@ function qualityScore(q: string = '', name: string = ''): number {
         lc.includes('hulu') || lc.includes('hbo') || lc.includes('itunes') || lc.includes('atvp');
 
     if (lc.includes('aac') || lc.includes('mp3') || lc.includes('opus') ||
-        lc.includes('2.0') || lc.includes('stereo') || isWebSource) {
+        lc.includes('2.0') || lc.includes('stereo') || isWebSource || lc.includes('mp4')) {
         score += 15.0;
     }
 
@@ -118,8 +118,7 @@ function qualityScore(q: string = '', name: string = ''): number {
         } else if (
             lc.includes('dts') || lc.includes('ac3') || lc.includes('eac3') ||
             lc.includes('dd5.1') || lc.includes('ddp') || lc.includes('dd+') ||
-            lc.includes('5.1') || lc.includes('7.1') ||
-            lc.includes('bluray') || lc.includes('bdrip') || lc.includes('brrip')
+            lc.includes('5.1') || lc.includes('7.1')
         ) {
             if (!lc.includes('aac') && !lc.includes('opus') && !lc.includes('mp3')) {
                 score -= 20.0;
@@ -154,12 +153,66 @@ function qualityScore(q: string = '', name: string = ''): number {
 
 // ── File extraction ───────────────────────────────────────────────────────────
 // AllDebrid file structure: folders use "e" for entries, files have "l" (link) + "s" (size)
+function isWrongEpisode(name: string, targetSeason: number, targetEpisode: number): boolean {
+    const lc = name.toLowerCase();
+
+    // 1. Check for SxxExx or SxEpp pattern (e.g. s02e18, s2e18)
+    const seRegex = /[sS](\d+)[eE](\d+)/g;
+    let match;
+    while ((match = seRegex.exec(lc)) !== null) {
+        const s = parseInt(match[1], 10);
+        const e = parseInt(match[2], 10);
+        if (s !== targetSeason || e !== targetEpisode) {
+            return true; // Wrong season or wrong episode
+        }
+    }
+
+    // 2. Check for Season x Episode pattern (e.g. 2x18, 02x18)
+    const xRegex = /\b(\d+)x(\d+)\b/g;
+    while ((match = xRegex.exec(lc)) !== null) {
+        const s = parseInt(match[1], 10);
+        const e = parseInt(match[2], 10);
+        if (s !== targetSeason || e !== targetEpisode) {
+            return true;
+        }
+    }
+
+    // 3. Check for standalone Ep / Episode tag (e.g. ep 18, episode 18, ep.18, e18)
+    // but only if it's not a range like ep 01-12 or e01-10
+    const epRegex = /\b(?:ep|episode|e)[. -]?(\d+)\b/g;
+    while ((match = epRegex.exec(lc)) !== null) {
+        // Skip if there's a range following it, like e10-12
+        const nextCharIdx = match.index + match[0].length;
+        const nextChar = lc[nextCharIdx];
+        if (nextChar === '-' || nextChar === '~') continue; 
+        
+        const e = parseInt(match[1], 10);
+        if (e !== targetEpisode) {
+            // Check if it's part of a range beforehand (e.g. e01-18)
+            const prevText = lc.substring(Math.max(0, match.index - 5), match.index);
+            if (prevText.includes('-') || prevText.includes('~')) continue;
+            
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// ── File extraction ───────────────────────────────────────────────────────────
+// AllDebrid file structure: folders use "e" for entries, files have "l" (link) + "s" (size)
 function findBestFileUrl(files: any[], targetIdx: number | null = null, season?: number, episode?: number): string | null {
     const flat: { name: string; size: number; url: string }[] = [];
 
     function flatten(items: any[]) {
         for (const item of items || []) {
-            if (item.l) flat.push({ name: item.n || '', size: item.s || 0, url: item.l });
+            if (item.l) {
+                const name = item.n || '';
+                // Only consider actual playable video files (skip .nfo, .txt, .srt, image files, etc.)
+                if (/\.(mp4|mkv|m4v|avi|webm|flv|mov|ts|m2ts|ogv)$/i.test(name)) {
+                    flat.push({ name, size: item.s || 0, url: item.l });
+                }
+            }
             if (item.e) flatten(item.e);
             if (item.files) flatten(item.files);
         }
@@ -170,19 +223,21 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
 
     // 1. If it's a TV show, try to find the specific episode file by name
     if (season != null && episode != null) {
-        const sPad = String(season).padStart(2, '0');
-        const ePad = String(episode).padStart(2, '0');
-
         const patterns = [
-            new RegExp(`[sS]${sPad}[eE]${ePad}\\b`), // S01E02
-            new RegExp(`[sS]${season}[eE]${ePad}\\b`), // S1E02
-            new RegExp(`\\b${season}x${ePad}\\b`), // 1x02
-            new RegExp(`[eE]${ePad}\\b`), // E02
-            new RegExp(`\\b${ePad}\\b`) // 02
+            // S02E02, S2E2, S02 E02, S2 E2, S02 - E02, s02.e02, etc.
+            new RegExp(`[sS]0*${season}[. -]*[eE]0*${episode}\\b`, 'i'),
+            // 2x02, 2x2, 02x02
+            new RegExp(`\\b0*${season}x0*${episode}\\b`, 'i'),
+            // Episode 2, Ep 02, Ep.2, Ep-2
+            new RegExp(`\\b(?:ep|episode)[. -]*0*${episode}\\b`, 'i'),
+            // E02, E2, e02
+            new RegExp(`\\b[eE]0*${episode}\\b`, 'i'),
+            // Standalone number (e.g. 02, 2)
+            new RegExp(`\\b0*${episode}\\b`, 'i')
         ];
 
         for (const regex of patterns) {
-            const matches = flat.filter(f => regex.test(f.name) && /\.(mp4|mkv|m4v|avi)$/i.test(f.name));
+            const matches = flat.filter(f => regex.test(f.name));
             if (matches.length === 1) return matches[0].url; // Perfect single match
             if (matches.length > 1) {
                 // If multiple matches (e.g. sample files), pick the largest
@@ -190,6 +245,23 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
                 return matches[0].url;
             }
         }
+        
+        // If we found no matches, but this is a single-episode torrent (<= 2 video files total),
+        // we can safely fall back to the largest video file!
+        if (flat.length <= 2) {
+            flat.sort((a, b) => b.size - a.size);
+            return flat[0].url;
+        }
+
+        // If it's a season pack (> 2 video files) and we found no episode matches, 
+        // try to fallback to Torrentio's targetIdx BEFORE giving up.
+        if (targetIdx != null && flat[targetIdx]) {
+            console.log(`[DebridStream] ⚠️ TV regex failed on Season Pack. Falling back to targetIdx ${targetIdx}`);
+            return flat[targetIdx].url;
+        }
+
+        // Complete failure
+        return null;
     }
 
     // 2. Fallback to Torrentio's targetIdx if provided
@@ -201,8 +273,77 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
     return flat[0].url;
 }
 
-// ─── EBML Audio Probe (REMOVED) ───────────────────────────────────────────
-// MKV probing has been removed to restore the pure direct-fetch pipeline.
+// ─── Frontend Scraping (Stremio Addons) ───────────────────────────────────────────
+async function fetchFrontendSources(imdbId: string, type: MediaType, season?: number, episode?: number, signal?: AbortSignal) {
+    const isMovie = type === 'movie';
+    const idParam = isMovie ? imdbId : `${imdbId}:${season || 1}:${episode || 1}`;
+    
+    const addons = [
+        `https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,horriblesubs,nyaasi,tokyotosho,anidex|qualityfilter=scr,cam|sort=qualityseeders/stream/${type}/${idParam}.json`,
+        `https://comet.elfhosted.com/stream/${type}/${idParam}.json`,
+        `https://mediafusion.elfhosted.com/stream/${type}/${idParam}.json`,
+        `https://jackettio.elfhosted.com/stream/${type}/${idParam}.json`,
+        `https://stremio-jackett.strem.fun/stream/${type}/${idParam}.json`
+    ];
+
+    let results: any[] = [];
+    const fetchPromises = addons.map(async (url) => {
+        try {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 2500); // Super fast 2.5s timeout!
+            const combinedSignal = signal ? (signal.aborted ? signal : controller.signal) : controller.signal;
+            if (signal) signal.addEventListener('abort', () => controller.abort());
+            
+            const res = await fetch(url, { signal: combinedSignal });
+            clearTimeout(id);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.streams || [];
+        } catch { return []; }
+    });
+
+    const settled = await Promise.allSettled(fetchPromises);
+    settled.forEach((r) => {
+        if (r.status === 'fulfilled' && r.value) {
+            results = results.concat(r.value);
+        }
+    });
+
+    // Parse and normalize results
+    const normalized = results.map(s => {
+        if (!s.infoHash) return null;
+        const titleLine = s.title || s.description || '';
+        const nameLine = s.name || '';
+        const seedMatch = titleLine.match(/👤\s*(\d+)/) || titleLine.match(/Seeders:\s*(\d+)/i) || nameLine.match(/👤\s*(\d+)/);
+        const seeders = seedMatch ? parseInt(seedMatch[1]) : 0;
+        
+        let quality = 'unknown';
+        const combinedText = `${titleLine} ${nameLine}`.toLowerCase();
+        if (combinedText.includes('4k') || combinedText.includes('2160')) quality = '4k';
+        else if (combinedText.includes('1080')) quality = '1080p';
+        else if (combinedText.includes('720')) quality = '720p';
+        else if (combinedText.includes('480')) quality = '480p';
+
+        return {
+            name: titleLine.split('\n')[0] || nameLine.replace('\n', ' '),
+            infoHash: s.infoHash.toLowerCase(),
+            seeders,
+            quality,
+            fileIdx: s.fileIdx ?? null
+        };
+    }).filter(Boolean);
+
+    // Deduplicate by infoHash
+    const unique = new Map();
+    for (const item of normalized) {
+        if (!item) continue;
+        if (!unique.has(item.infoHash) || item.seeders > unique.get(item.infoHash).seeders) {
+            unique.set(item.infoHash, item);
+        }
+    }
+
+    return Array.from(unique.values());
+}
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export function useDebridStream() {
@@ -224,7 +365,8 @@ export function useDebridStream() {
         season?: number,
         episode?: number,
         title?: string,
-        tmdbId?: string
+        tmdbId?: string,
+        forceFresh?: boolean
     ): Promise<string | null> => {
         if (!ALLDEBRID_KEY) {
             console.warn('[DebridStream] No VITE_ALLDEBRID_KEY — skipping');
@@ -241,27 +383,60 @@ export function useDebridStream() {
 
         try {
             // ── Cache hit ──────────────────────────────────────────────────────────
-            const cached = readCache(ck);
-            if (cached) {
-                console.log(`[DebridStream] 💾 Cache: ${cached.quality} | ${cached.url.substring(0, 60)}...`);
-                setState({ streamUrl: cached.url, name: cached.name, loading: false, error: null, seeders: cached.seeders, quality: cached.quality, subtitles: cached.subtitles || [] });
-                return JSON.stringify({ streamUrl: cached.url, name: cached.name, quality: cached.quality, seeders: cached.seeders });
+            if (!forceFresh) {
+                const cached = readCache(ck);
+                if (cached) {
+                    console.log(`[DebridStream] 💾 Cache: ${cached.quality} | ${cached.url.substring(0, 60)}...`);
+                    setState({ streamUrl: cached.url, name: cached.name, loading: false, error: null, seeders: cached.seeders, quality: cached.quality, subtitles: cached.subtitles || [] });
+                    return JSON.stringify({ streamUrl: cached.url, name: cached.name, quality: cached.quality, seeders: cached.seeders });
+                }
             }
 
-            // ── Step 1: Fetch quality-sorted sources from backend ──────────────────
+            // ── Step 1: Fetch quality-sorted sources from frontend addons ──────────────────
             const params = new URLSearchParams({ imdbId, type });
             if (season) params.set('season', String(season));
             if (episode) params.set('episode', String(episode));
             if (title) params.set('title', title);
             if (tmdbId) params.set('tmdbId', tmdbId);
+            if (forceFresh) params.set('nocache', 'true');
 
-            const sourcesRes = await fetch(`${BACKEND_URL}/api/torrent/sources?${params}`, { signal });
-            if (!sourcesRes.ok) {
-                const body = await sourcesRes.json().catch(() => ({}));
-                throw new Error(body.error || `Sources ${sourcesRes.status}`);
+            // Fetch backend streams and subtitles in parallel
+            let subtitles: any[] = [];
+            const backendPromise = fetch(`${BACKEND_URL}/api/torrent/sources?${params}`, { signal })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.subtitles?.length) {
+                        subtitles = d.subtitles;
+                        setState(s => ({ ...s, subtitles: d.subtitles }));
+                    }
+                    return d.streams || [];
+                }).catch(() => []);
+
+            // Fetch high-speed streams from frontend addons directly!
+            const frontendPromise = fetchFrontendSources(imdbId, type, season, episode, signal);
+
+            const [backendStreams, frontendStreams] = await Promise.all([backendPromise, frontendPromise]);
+            
+            // Combine, filter out wrong episodes, and deduplicate
+            const combined = [...backendStreams, ...frontendStreams];
+            const unique = new Map();
+            for (const item of combined) {
+                if (!item?.infoHash) continue;
+
+                // CRITICAL: Filter out wrong single episode torrents
+                if (type === 'tv' && season != null && episode != null) {
+                    if (isWrongEpisode(item.name || '', season, episode)) {
+                        console.log(`[DebridStream] 🚫 Filtered out wrong episode torrent: "${item.name}"`);
+                        continue;
+                    }
+                }
+
+                if (!unique.has(item.infoHash) || item.seeders > unique.get(item.infoHash).seeders) {
+                    unique.set(item.infoHash, item);
+                }
             }
-
-            const { streams, subtitles } = await sourcesRes.json();
+            const streams = Array.from(unique.values());
+            
             if (!streams?.length) throw new Error('No torrent sources found');
 
             // Re-sort: prefer 1080p streamable over 4K remux
@@ -272,80 +447,180 @@ export function useDebridStream() {
 
             console.log(`[DebridStream] ${sorted.length} sources. Top: ${sorted.slice(0, 3).map(s => s.quality).join(', ')}`);
 
-            // ── Steps 2–4: Cascade through sources until one is AllDebrid-cached ───
-            const alternatives: Array<{ url: string; name: string; quality: string; seeders: number; _audio?: string }> = [];
+            // ── Steps 2–4: Bulk cache check and intelligent file selection ───
+            let upData: any = null;
+            let readyMagnets: any[] = [];
+            let currentCandidates: any[] = [];
+            let batchIndex = 0;
+            const batchSize = 10;
+            const maxBatches = 3;
 
-            for (const candidate of sorted.slice(0, MAX_TRY)) {
+            while (batchIndex < maxBatches && batchIndex * batchSize < sorted.length) {
+                if (signal?.aborted) throw new Error('Aborted');
+                
+                const batch = sorted.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize);
+                const uploadParams = batch.map(c => `magnets[]=${encodeURIComponent(`magnet:?xt=urn:btih:${c.infoHash}&${TRACKERS}`)}`).join('&');
+                
+                const upRes = await fetch(`${ALLDEBRID_API}/magnet/upload?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&${uploadParams}`, { signal });
+                const batchUpData = await upRes.json();
+                
+                if (batchUpData?.status === 'success' && batchUpData?.data?.magnets) {
+                    const batchReady = batchUpData.data.magnets.filter((m: any) => m.ready);
+                    if (batchReady.length > 0) {
+                        upData = batchUpData;
+                        readyMagnets = batchReady;
+                        currentCandidates = batch;
+                        console.log(`[DebridStream] Waterfall hit at batch ${batchIndex + 1}: ${readyMagnets.length} cached sources found`);
+                        break;
+                    }
+                }
+                
+                console.log(`[DebridStream] Waterfall batch ${batchIndex + 1} empty, trying next...`);
+                batchIndex++;
+            }
+
+            if (!readyMagnets.length || !upData) {
+                throw new Error('No cached sources available');
+            }
+
+            const fileParams = readyMagnets.map((m: any) => `id[]=${m.id}`).join('&');
+            const fRes = await fetch(`${ALLDEBRID_API}/magnet/files?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&${fileParams}`, { signal });
+            const fData = await fRes.json();
+            
+            const fileMagnets = fData?.data?.magnets || readyMagnets; // Fallback to upload data if file fetch fails
+            
+            const playableFiles: Array<{ candidate: any; fileUrl: string; fileName: string; magnetId?: any }> = [];
+
+            for (const mInfo of fileMagnets) {
+                const cIndex = upData.data.magnets.findIndex((m: any) => String(m.id) === String(mInfo.id));
+                if (cIndex === -1) {
+                    console.warn(`[DebridStream] ⚠️ Missing magnet ID mapping for ${mInfo.id}`);
+                    continue;
+                }
+                
+                const candidate = currentCandidates[cIndex];
+                const fList = mInfo.files || [];
+                if (!mInfo.files || fList.length === 0) {
+                    console.warn(`[DebridStream] ⚠️ Magnet ${mInfo.id} has no files or empty array. Fallback issue? mInfo:`, mInfo);
+                }
+                const bestUrl = findBestFileUrl(fList, candidate.fileIdx ?? null, type === 'tv' ? season : undefined, type === 'tv' ? episode : undefined);
+                
+                if (bestUrl) {
+                    // Extract filename from the AllDebrid short link or find it in fList
+                    let fileName = '';
+                    const flat: any[] = [];
+                    function flatten(items: any[]) {
+                        for (const item of items || []) {
+                            if (item.l) flat.push({ name: item.n || '', url: item.l });
+                            if (item.e) flatten(item.e);
+                            if (item.files) flatten(item.files);
+                        }
+                    }
+                    flatten(fList);
+                    const fileObj = flat.find(f => f.url === bestUrl);
+                    fileName = fileObj ? fileObj.name : candidate.name;
+                    
+                    playableFiles.push({ candidate, fileUrl: bestUrl, fileName, magnetId: mInfo.id });
+                }
+            }
+
+            const isDolbyCapable = getCodecProfile()?.isDolbyCapable ?? false;
+
+            // SCORE THE ACTUAL FILES! (This is much smarter than scoring torrent names)
+            playableFiles.sort((a, b) => {
+                const aName = a.fileName.toLowerCase();
+                const bName = b.fileName.toLowerCase();
+                
+                let aFileScore = 0;
+                let bFileScore = 0;
+                
+                // Boost browser-native containers/codecs gently
+                if (aName.endsWith('.mp4') || aName.includes('aac') || aName.includes('h264') || aName.includes('x264')) {
+                    aFileScore += 8;
+                }
+                if (bName.endsWith('.mp4') || bName.includes('aac') || bName.includes('h264') || bName.includes('x264')) {
+                    bFileScore += 8;
+                }
+                
+                // Penalize heavy/incompatible codecs gently ONLY if the browser is NOT Dolby capable
+                if (!isDolbyCapable) {
+                    if (aName.endsWith('.mkv') || aName.includes('ac3') || aName.includes('dts') || aName.includes('truehd')) {
+                        aFileScore -= 5;
+                    }
+                    if (bName.endsWith('.mkv') || bName.includes('ac3') || bName.includes('dts') || bName.includes('truehd')) {
+                        bFileScore -= 5;
+                    }
+                }
+
+                // Base candidate score (resolution + source keywords) is paramount!
+                // We multiply candidate quality score by 20 so it dominates the file-level codec tweaks,
+                // ensuring we never downgrade resolution (e.g. 1080p -> 720p) just for a codec.
+                const aCandidateScore = qualityScore(a.candidate.quality, a.candidate.name) * 20 + aFileScore;
+                const bCandidateScore = qualityScore(b.candidate.quality, b.candidate.name) * 20 + bFileScore;
+                
+                if (aCandidateScore !== bCandidateScore) return bCandidateScore - aCandidateScore;
+                return (b.candidate.seeders || 0) - (a.candidate.seeders || 0);
+            });
+
+            const alternatives: Array<{ url: string; name: string; quality: string; seeders: number; _audio?: string }> = [];
+            let winnerFile: any = null;
+
+            for (const file of playableFiles.slice(0, 10)) {
                 if (signal.aborted) break;
-                if (alternatives.length >= 10) break;
 
                 try {
-                    // 2a: Upload magnet (idempotent) — tells us if it's instant
-                    const magnet = `magnet:?xt=urn:btih:${candidate.infoHash}&${TRACKERS}`;
-                    const upRes = await fetch(
-                        `${ALLDEBRID_API}/magnet/upload?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&magnets[]=${encodeURIComponent(magnet)}`,
-                        { signal }
-                    );
-                    const upData = await upRes.json();
-                    if (upData?.status !== 'success') continue;
-
-                    const mInfo = upData?.data?.magnets?.[0];
-                    if (!mInfo?.ready) {
-                        console.log(`[DebridStream] ⏳ ${candidate.quality} not cached → next`);
-                        continue;
-                    }
-
-                    // 2b: Fetch file list
-                    const fRes = await fetch(
-                        `${ALLDEBRID_API}/magnet/files?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&id[]=${mInfo.id}`,
-                        { signal }
-                    );
-                    const fData = await fRes.json();
-                    const fInfo = fData?.data?.magnets?.[0];
-                    const fList = fInfo?.files ?? mInfo.files ?? [];
-
-                    const shortUrl = findBestFileUrl(fList, candidate.fileIdx ?? null, type === 'tv' ? season : undefined, type === 'tv' ? episode : undefined);
-                    if (!shortUrl) continue;
-
-                    // 2c: Unlock short link → CDN URL
                     const uRes = await fetch(
-                        `${ALLDEBRID_API}/link/unlock?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&link=${encodeURIComponent(shortUrl)}`,
+                        `${ALLDEBRID_API}/link/unlock?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&link=${encodeURIComponent(file.fileUrl)}`,
                         { signal }
                     );
                     const uData = await uRes.json();
                     const cdnUrl = uData?.data?.link;
-                    if (!cdnUrl) continue;
-
-                    // ── Audio strategy (browser-aware) ───────────────────────────────────────
-                    // MKV probing removed. We rely on qualityScore to prioritize WEB-DLs with AAC.
-                    
-                    let finalUrl = cdnUrl;
-                    let isHls = false;
+                    if (!cdnUrl) {
+                        console.warn(`[DebridStream] ⚠️ Unlock failed for ${file.fileName}:`, uData);
+                        continue;
+                    }
 
                     alternatives.push({
-                        url: finalUrl,
-                        name: candidate.name,
-                        quality: candidate.quality || 'Auto',
-                        seeders: candidate.seeders || 0,
+                        url: cdnUrl,
+                        name: file.fileName,
+                        quality: file.candidate.quality || 'Auto',
+                        seeders: file.candidate.seeders || 0,
                         _audio: 'unknown',
-                        ...(isHls ? { isM3U8: true } : {}),
-                    } as any);
+                    });
 
-                    // Update state progressively as we find them
-                    setState(prev => ({
-                        ...prev,
-                        streamUrl: alternatives[0].url,
-                        name: alternatives[0].name,
-                        quality: alternatives[0].quality,
-                        seeders: alternatives[0].seeders,
-                        loading: false,
-                        subtitles: subtitles || [],
-                        alternatives: [...alternatives]
-                    }));
-
+                    if (alternatives.length === 1) {
+                        winnerFile = file;
+                        // Start playback immediately on the first (best) file found!
+                        setState(prev => ({
+                            ...prev,
+                            streamUrl: alternatives[0].url,
+                            name: alternatives[0].name,
+                            quality: alternatives[0].quality,
+                            seeders: alternatives[0].seeders,
+                            loading: false,
+                            subtitles: subtitles || [],
+                            alternatives: [...alternatives]
+                        }));
+                    }
                 } catch (e: any) {
                     if (e.name === 'AbortError') throw e;
                     console.warn(`[DebridStream] Candidate failed: ${e.message}`);
+                }
+            }
+
+            // Smart Cleanup: Delete all non-winning magnets from the user's account in the background
+            if (winnerFile) {
+                const winningMagnetId = winnerFile.magnetId;
+                const idsToDelete = upData.data.magnets
+                    .map((m: any) => m.id)
+                    .filter((id: any) => id && id !== winningMagnetId);
+
+                if (idsToDelete.length > 0) {
+                    const deleteParams = idsToDelete.map((id: any) => `id[]=${id}`).join('&');
+                    fetch(`${ALLDEBRID_API}/magnet/delete?agent=${AGENT}&apikey=${ALLDEBRID_KEY}&${deleteParams}`)
+                        .then(res => res.json())
+                        .then(() => console.log('[DebridStream] 🧹 Smart Cleanup complete. Deleted losing magnets:', idsToDelete))
+                        .catch(err => console.warn('[DebridStream] Smart Cleanup failed:', err));
                 }
             }
 
@@ -378,6 +653,13 @@ export function useDebridStream() {
         } catch (err: any) {
             if (err.name === 'AbortError') return null;
             const msg = err.message || 'AllDebrid resolution failed';
+            
+            // Self-healing retry with fresh scraping!
+            if (!forceFresh && (msg.includes('cached') || msg.includes('torrent') || msg.includes('sources'))) {
+                console.log('[DebridStream] 🔄 Retrying with fresh live scraping (forceFresh)...');
+                return resolve(imdbId, type, season, episode, title, tmdbId, true);
+            }
+
             setState(prev => ({ ...prev, loading: false, error: msg }));
             console.warn('[DebridStream] ❌', msg);
             return null;
