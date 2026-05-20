@@ -265,17 +265,17 @@ const TopTenCard: React.FC<{
   // Unify Popup logic via Context (replaces module singleton)
   useEffect(() => {
     const myId = `card-${movie.id}`;
-    if (activePopupId && activePopupId !== myId && isHovered) {
+    if (activePopupId && isHovered && (activePopupId !== myId || activePopupId.startsWith('modal-'))) {
       setIsHovered(false);
       setHoveredRect(null);
       setIsHoverVideoReady(false);
     }
   }, [activePopupId, movie.id, isHovered]);
 
-  // Force close if another video (e.g. Hero) takes control
+  // Force close if another video (e.g. Hero, Modal) takes control
   useEffect(() => {
     const myId = `card-${movie.id}`;
-    if (activeVideoId && activeVideoId !== myId && isHovered && activeVideoId.indexOf('modal') === -1) {
+    if (activeVideoId && isHovered && (activeVideoId !== myId || activeVideoId.startsWith('modal-'))) {
       setIsHovered(false);
       setHoveredRect(null);
     }
@@ -368,9 +368,9 @@ const TopTenCard: React.FC<{
     else left = hoveredRect.left + hoveredRect.width / 2 - POPUP_W / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
     return {
-      position: 'absolute',
-      top: hoveredRect.top + window.scrollY + TOP_OFFSET,
-      left: left + window.scrollX,
+      position: 'fixed',
+      top: hoveredRect.top + TOP_OFFSET,
+      left: left,
       width: POPUP_W,
       zIndex: 9999,
     };

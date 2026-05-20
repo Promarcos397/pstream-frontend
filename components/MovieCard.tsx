@@ -250,11 +250,20 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   useEffect(() => {
     const myId = `card-${movie.id}`;
-    if (activeVideoId && activeVideoId !== myId && isHovered && activeVideoId.indexOf('modal') === -1) {
+    if (activeVideoId && isHovered && (activeVideoId !== myId || activeVideoId.startsWith('modal-'))) {
       setIsHovered(false);
       setHoveredRect(null);
     }
   }, [activeVideoId, movie.id, isHovered]);
+
+  useEffect(() => {
+    if (!isScrolling && prefersHover && cardRef.current) {
+      if (cardRef.current.matches(':hover') && !isHovered) {
+        const mockEvent = { pointerType: 'mouse', clientX: 0, clientY: 0 } as any;
+        handlePointerEnter(mockEvent);
+      }
+    }
+  }, [isScrolling, prefersHover, isHovered]);
 
   useEffect(() => {
     if (!isHovered) return;
