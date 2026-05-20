@@ -125,14 +125,14 @@ export function getWatchData(movie: Movie, getLastWatchedEpisode: any, getVideoS
 }
 
 // ─── ProgressIndicator ────────────────────────────────────────────────────────
-// Thin flat red bar BELOW the card thumbnail (not overlapping)
+// Thin flat red bar at the very bottom edge of the card thumbnail (not leaking outside)
 export const ProgressIndicator: React.FC<ProgressProps> = React.memo(({ movie, getLastWatchedEpisode, getVideoState }) => {
   const { pct } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
   if (pct <= 0) return null;
   return (
     <div
-      className="absolute left-[15%] right-[15%] h-[3px] pointer-events-none z-20"
-      style={{ bottom: '-3px', borderRadius: 0 }}
+      className="absolute left-[15%] right-[15%] h-[2px] pointer-events-none z-20"
+      style={{ bottom: '0', borderRadius: 0 }}
     >
       <div className="w-full h-full bg-[#808080]" style={{ borderRadius: 0 }}>
         <div className="h-full bg-[#E50914]" style={{ width: `${pct}%`, borderRadius: 0 }} />
