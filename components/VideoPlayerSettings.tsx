@@ -52,7 +52,8 @@ export const PanelShell: React.FC<{
                     <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 flex-shrink-0">
                         <span className="text-white text-xl font-bold tracking-wide uppercase">{title}</span>
                         <button
-                            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+                            onClick={(e) => { e.stopPropagation(); onClose(); }}
+                            onTouchStart={(e) => e.stopPropagation()}
                             className="w-10 h-10 flex items-center justify-center text-white/50 active:text-white"
                         >
                             <XIcon size={28} weight="bold" />

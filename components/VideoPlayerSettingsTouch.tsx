@@ -29,7 +29,8 @@ export const PanelShellTouch: React.FC<{
                 <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 flex-shrink-0">
                     <span className="text-white text-lg font-bold tracking-wide uppercase">{title}</span>
                     <button
-                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+                        onClick={(e) => { e.stopPropagation(); onClose(); }}
+                        onTouchStart={(e) => e.stopPropagation()}
                         className="w-10 h-10 flex items-center justify-center text-white/50 active:text-white bg-white/5 rounded-full"
                     >
                         <XIcon size={30} weight="bold" />
@@ -555,7 +556,11 @@ export const EpisodeExplorerTouch: React.FC<{
             >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
                     <span className="text-white text-lg font-bold uppercase tracking-wider">{activePanel === 'seasons' ? (showTitle || 'Seasons') : `Season ${selectedSeason}`}</span>
-                    <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="w-10 h-10 flex items-center justify-center text-white/60 active:text-white bg-white/5 rounded-full">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); if (onClose) onClose(); else setActivePanel('none'); }}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        className="w-10 h-10 flex items-center justify-center text-white/60 active:text-white bg-white/5 rounded-full"
+                    >
                         <XIcon size={30} weight="bold" />
                     </button>
                 </div>
