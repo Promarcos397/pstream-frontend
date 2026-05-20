@@ -311,7 +311,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   }, []);
 
 
-  const SHOW_DELAY = 350; 
+  const SHOW_DELAY = 200; 
   const handlePointerEnter = (e: React.PointerEvent) => {
     if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
@@ -355,12 +355,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       timerRef.current = null;
     }
 
-    const anotherCardIsActive = activeVideoId &&
-      activeVideoId.startsWith('card-') &&
-      activeVideoId !== `card-${movie.id}`;
-
     // ── STAGE: SHOW ──────────────────────────────────────────────────────
-    const showDelay = anotherCardIsActive ? 250 : SHOW_DELAY;
+    const showDelay = SHOW_DELAY;
     const showTimer = setTimeout(() => {
       if (!settings.autoplayPreviews) return;
       const rect = cardRef.current?.getBoundingClientRect();

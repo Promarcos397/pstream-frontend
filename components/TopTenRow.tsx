@@ -386,7 +386,7 @@ const TopTenCard: React.FC<{
     };
   };
 
-  const SHOW_DELAY = 350;
+  const SHOW_DELAY = 200;
 
   const handlePointerEnter = (e: React.PointerEvent) => {
     if (!prefersHover || isScrolling) return;
@@ -426,10 +426,8 @@ const TopTenCard: React.FC<{
       timerRef.current = null;
     }
 
-    const anotherCardIsActive = activeVideoId && activeVideoId.startsWith('card-') && activeVideoId !== `card-${movie.id}`;
-
     // ── STAGE: SHOW ──────────────────────────────────────────────────────
-    const showDelay = anotherCardIsActive ? 250 : SHOW_DELAY;
+    const showDelay = SHOW_DELAY;
     const showTimer = setTimeout(() => {
       if (!settings.autoplayPreviews) return;
       const rect = cardRef.current?.getBoundingClientRect();
