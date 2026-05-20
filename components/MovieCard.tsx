@@ -351,7 +351,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       activeVideoId !== `card-${movie.id}`;
 
     // ── STAGE: SHOW ──────────────────────────────────────────────────────
-    const showDelay = anotherCardIsActive ? 80 : SHOW_DELAY;
+    const showDelay = anotherCardIsActive ? 250 : SHOW_DELAY;
     const showTimer = setTimeout(() => {
       if (!settings.autoplayPreviews) return;
       const rect = cardRef.current?.getBoundingClientRect();
