@@ -12,6 +12,7 @@ import { Movie } from '../types';
 import { TrailerPlayer } from './TrailerPlayer';
 import { MaturityBadge, BadgeOverlay, HoverProgressBar, getWatchData } from './MovieCardBadges';
 import { searchTrailerWithMeta } from '../services/YouTubeService';
+import { preloadTrailer } from '../hooks/useTrailer';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 type _PHListener = (v: boolean) => void;
@@ -49,6 +50,7 @@ interface MovieCardProps {
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
   onPlay?: (movie: Movie) => void;
   isGrid?: boolean;
+  preload?: boolean;
 }
 
 
@@ -99,7 +101,7 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
   );
 };
 
-const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false }) => {
+const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false, preload = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const prefersHover = usePrefersHover();
@@ -226,6 +228,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   }, [isVisible, movie.id, movie.media_type, movie.title]);
 
   useEffect(() => {
+    if (preload && settings.autoplayPreviews) {
+      const t = setTimeout(() => {
+        preloadTrailer(movie);
+      }, 1000 + (Number(movie.id) % 5) * 200); // staggered to prevent visual/network spikes
+      return () => clearTimeout(t);
+    }
+  }, [preload, movie, settings.autoplayPreviews]);
+
+  useEffect(() => {
     const myId = `card-${movie.id}`;
     if (activePopupId && activePopupId !== myId && isHovered) {
       setIsHovered(false);
@@ -288,10 +299,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   }, []);
 
 
-  const SHOW_DELAY = 600; 
+  const SHOW_DELAY = 350; 
   const handlePointerEnter = (e: React.PointerEvent) => {
     if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
+
+    // Immediately start preloading the trailer video ID (0ms latency!)
+    if (settings.autoplayPreviews) {
+      preloadTrailer(movie);
+    }
 
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
@@ -312,7 +328,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       activeVideoId !== `card-${movie.id}`;
 
     // ── STAGE: SHOW ──────────────────────────────────────────────────────
-    const showDelay = anotherCardIsActive ? 180 : SHOW_DELAY;
+    const showDelay = anotherCardIsActive ? 80 : SHOW_DELAY;
     const showTimer = setTimeout(() => {
       if (!settings.autoplayPreviews) return;
       const rect = cardRef.current?.getBoundingClientRect();

@@ -310,7 +310,12 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
                 className="movie-card-container relative pointer-events-auto mr-1 md:mr-1.5 lg:mr-2 overflow-visible"
                 style={{ zIndex: 'auto' }}
               >
-                <MovieCard movie={movie} onSelect={onSelect} onPlay={onPlay} />
+                <MovieCard 
+                  movie={movie} 
+                  onSelect={onSelect} 
+                  onPlay={onPlay} 
+                  preload={movies.indexOf(movie) < 5} 
+                />
               </div>
             ))
           }

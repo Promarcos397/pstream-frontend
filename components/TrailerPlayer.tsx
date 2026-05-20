@@ -246,6 +246,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                     ) : (
                         <YouTube
                             videoId={videoId}
+                            host="https://www.youtube-nocookie.com"
                             className="w-full h-full flex items-center justify-center"
                             onReady={handleReady}
                             onStateChange={handleStateChange}
