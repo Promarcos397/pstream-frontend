@@ -335,7 +335,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 </button>
 
                 {/* --- Media Container --- */}
-                <div ref={heroRef} className="relative aspect-[16/8] w-full bg-black group overflow-hidden">
+                <div ref={heroRef} className="relative aspect-[16/9] sm:aspect-[16/8] w-full bg-black group overflow-hidden">
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
@@ -361,8 +361,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 }}
                             />
                         </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent z-10 pointer-events-none" />
                     </div>
+
+                    {/* Cinematic gradient — direct child of heroRef so it's flush with the bottom edge */}
+                    <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#181818] via-[#181818]/40 to-transparent z-10 pointer-events-none" />
 
                     <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 space-y-3 md:space-y-4 z-20 pointer-events-auto">
                         <div className={`inline-flex flex-col max-w-[80%] transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
