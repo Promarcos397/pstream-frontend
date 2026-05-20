@@ -569,25 +569,25 @@ const LoginPage: React.FC = () => {
 
 
 
-        <div className="relative z-10 max-w-[720px] mx-auto space-y-6">
+        <div className="relative z-10 max-w-[720px] mx-auto space-y-6 w-full px-4">
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-black leading-tight tracking-tight drop-shadow-2xl">
             {t('auth.landingTitle', { defaultValue: 'Unlimited films, series and more' })}
           </h1>
-          <p className="text-lg md:text-2xl font-medium text-white/90">
+          <p className="text-base sm:text-lg md:text-xl font-normal text-white/90 max-w-[600px] mx-auto leading-relaxed">
             {t('auth.readyToWatch', { defaultValue: 'Ready to watch? Enter your email to create or restart your membership.' })}
           </p>
 
-          <form onSubmit={handleGetStarted} className="flex flex-col sm:flex-row gap-3 justify-center mt-8 max-w-xl mx-auto">
+          <form onSubmit={handleGetStarted} className="flex flex-col sm:flex-row gap-2.5 justify-center mt-8 max-w-[600px] mx-auto w-full">
             <input
               type="email"
               value={heroEmail}
               onChange={e => setHeroEmail(e.target.value)}
               placeholder="Email address"
-              className="flex-1 h-14 bg-black/50 border border-white/30 text-white rounded px-4 text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/40 backdrop-blur-md"
+              className="w-full sm:w-[65%] h-14 bg-black/50 border border-white/30 text-white rounded px-4 text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/40 backdrop-blur-md"
             />
             <button
               type="submit"
-              className="h-14 px-8 bg-[#e50914] hover:bg-[#f40612] text-white font-bold text-lg rounded flex items-center gap-2 whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95 shadow-xl"
+              className="w-full sm:w-[35%] h-14 bg-[#e50914] hover:bg-[#f40612] text-white font-bold text-lg rounded flex items-center justify-center gap-2 whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95 shadow-xl"
             >
               Get Started
               <CaretRightIcon size={22} weight="bold" />
@@ -617,24 +617,24 @@ const LoginPage: React.FC = () => {
 
 
       {/* ── Bottom CTA ───────────────────────────────────────────────────── */}
-      <section className="py-16 px-6 text-center bg-black">
-        <p className="text-white text-lg md:text-xl font-normal mb-6">
+      <section className="py-16 px-6 text-center bg-black flex flex-col items-center w-full">
+        <p className="text-base sm:text-lg md:text-xl font-normal mb-6 max-w-[600px] mx-auto leading-relaxed text-white/90">
           {t('auth.readyToWatch', { defaultValue: 'Ready to watch? Enter your email to create or log in to your account.' })}
         </p>
         <form
           onSubmit={handleGetStarted}
-          className="flex flex-col sm:flex-row gap-3 justify-center max-w-xl mx-auto"
+          className="flex flex-col sm:flex-row gap-2.5 justify-center max-w-[600px] mx-auto w-full"
         >
           <input
             type="email"
             value={heroEmail}
             onChange={e => setHeroEmail(e.target.value)}
             placeholder="Email address"
-            className="flex-1 h-14 bg-black/50 border border-white/30 text-white rounded px-4 text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/40 backdrop-blur-md"
+            className="w-full sm:w-[65%] h-14 bg-black/50 border border-white/30 text-white rounded px-4 text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/40 backdrop-blur-md"
           />
           <button
             type="submit"
-            className="h-14 px-8 bg-[#e50914] hover:bg-[#f40612] text-white font-bold text-lg rounded flex items-center gap-2 whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95 shadow-xl"
+            className="w-full sm:w-[35%] h-14 bg-[#e50914] hover:bg-[#f40612] text-white font-bold text-lg rounded flex items-center justify-center gap-2 whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95 shadow-xl"
           >
             Get Started <CaretRightIcon size={22} weight="bold" />
           </button>
