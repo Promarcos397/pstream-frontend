@@ -23,9 +23,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const location = useLocation();
   const { settings, user, logout } = useGlobalContext();
   const isSettings = location.pathname.startsWith('/settings');
-  // Only treat as a real custom avatar if user has changed it from the default
-  const rawAvatarUrl = settings.avatarUrl;
-  const avatarUrl = (rawAvatarUrl && rawAvatarUrl !== DEFAULT_AVATAR) ? rawAvatarUrl : null;
+  const avatarUrl = settings.avatarUrl || DEFAULT_AVATAR;
   const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
 
   const navItems = [

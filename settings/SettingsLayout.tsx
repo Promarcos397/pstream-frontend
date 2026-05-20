@@ -229,8 +229,7 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
 
     const handleSaveName = async () => {
         const trimmed = displayName.trim();
-        // Fallback update local state if needed (displayName is removed from formal AppSettings)
-        // updateSettings({ displayName: trimmed || undefined });
+        updateSettings({ displayName: trimmed });
     };
 
     return (

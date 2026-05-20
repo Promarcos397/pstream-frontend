@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabaseClient';
-import { useSettingsStore } from './useSettingsStore';
+import { useSettingsStore, DEFAULT_SETTINGS } from './useSettingsStore';
 import { useWatchStore } from './useWatchStore';
 import { useLibraryStore } from './useLibraryStore';
 
@@ -53,26 +53,57 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
 
     try {
       // 1. Sync Settings
-      const { data: settingsData } = await supabase
+      const { data: settingsData, error: settingsError } = await supabase
         .from('user_settings')
         .select('*')
         .eq('user_id', user.id)
         .single();
         
-      if (settingsData) {
+      if (settingsError && settingsError.code === 'PGRST116') {
+        // Settings do not exist in database yet (e.g. brand new signup). Let's initialize!
+        const initialAvatar = user.user_metadata?.avatar_url || DEFAULT_SETTINGS.avatarUrl;
+        const initialName = user.user_metadata?.display_name || user.user_metadata?.full_name || '';
+        
+        const dbPayload = {
+          user_id: user.id,
+          display_language: DEFAULT_SETTINGS.displayLanguage,
+          audio_language: DEFAULT_SETTINGS.audioLanguage,
+          subtitle_language: DEFAULT_SETTINGS.subtitleLanguage,
+          show_subtitles: DEFAULT_SETTINGS.showSubtitles,
+          subtitle_size: DEFAULT_SETTINGS.subtitleSize,
+          subtitle_bg_opacity: DEFAULT_SETTINGS.subtitleOpacity,
+          subtitle_color: DEFAULT_SETTINGS.subtitleColor,
+          subtitle_bg_color: DEFAULT_SETTINGS.subtitleWindowColor,
+          autoplay_previews: DEFAULT_SETTINGS.autoplayPreviews,
+          autoplay_next_episode: DEFAULT_SETTINGS.autoplayNextEpisode,
+          autoplay_video: DEFAULT_SETTINGS.autoplayVideo,
+          avatar_url: initialAvatar,
+          updated_at: new Date().toISOString()
+        };
+        
+        const { error: insertError } = await supabase.from('user_settings').insert(dbPayload);
+        if (!insertError) {
+          useSettingsStore.getState().syncFromCloud({
+            ...DEFAULT_SETTINGS,
+            avatarUrl: initialAvatar,
+            displayName: initialName
+          });
+        }
+      } else if (settingsData) {
         useSettingsStore.getState().syncFromCloud({
           displayLanguage: settingsData.display_language,
           audioLanguage: settingsData.audio_language,
           subtitleLanguage: settingsData.subtitle_language,
           showSubtitles: settingsData.show_subtitles,
           subtitleSize: settingsData.subtitle_size,
-          subtitleBgOpacity: settingsData.subtitle_bg_opacity,
+          subtitleOpacity: settingsData.subtitle_bg_opacity,
           subtitleColor: settingsData.subtitle_color,
-          subtitleBgColor: settingsData.subtitle_bg_color,
+          subtitleWindowColor: settingsData.subtitle_bg_color,
           autoplayPreviews: settingsData.autoplay_previews,
           autoplayNextEpisode: settingsData.autoplay_next_episode,
           autoplayVideo: settingsData.autoplay_video,
-          avatarUrl: settingsData.avatar_url
+          avatarUrl: settingsData.avatar_url,
+          displayName: user.user_metadata?.display_name || user.user_metadata?.full_name || ''
         });
       }
 

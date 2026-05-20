@@ -37,7 +37,11 @@ export const useWatchStore = create<WatchStore>()(
         const updatedAt = Date.now();
         const key = data.type === 'tv' ? `${data.tmdbId}-S${data.season}E${data.episode}` : data.tmdbId;
         
-        const newEntry: WatchProgress = { ...data, percentage, updatedAt };
+        // Preserve movieData if not provided
+        const existing = get().history[key];
+        const movieData = data.movieData || existing?.movieData;
+        
+        const newEntry: WatchProgress = { ...data, percentage, updatedAt, movieData };
         
         set((state) => ({
           history: { ...state.history, [key]: newEntry }
@@ -57,7 +61,7 @@ export const useWatchStore = create<WatchStore>()(
                 watched_time: data.watchedTime,
                 duration: data.duration,
                 percentage: percentage,
-                movie_data: data.movieData || null,
+                movie_data: movieData || null,
                 updated_at: new Date(updatedAt).toISOString()
               };
 
@@ -73,8 +77,16 @@ export const useWatchStore = create<WatchStore>()(
       },
 
       getProgress: (tmdbId, season, episode) => {
-        const key = season && episode ? `${tmdbId}-S${season}E${episode}` : String(tmdbId);
-        return get().history[key];
+        if (season !== undefined && episode !== undefined) {
+          const key = `${tmdbId}-S${season}E${episode}`;
+          return get().history[key];
+        }
+        // Fallback for TV show if no season/episode: find the most recently updated episode entry
+        const entries = Object.values(get().history).filter(
+          h => h.tmdbId === String(tmdbId)
+        );
+        if (entries.length === 0) return undefined;
+        return entries.sort((a, b) => b.updatedAt - a.updatedAt)[0];
       },
 
       getHistoryList: () => {

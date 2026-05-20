@@ -135,17 +135,26 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const myList = React.useMemo(() => libraryStore.getListArray(), [libraryRatings, libraryList]);
   
   const continueWatching = React.useMemo(() => {
-    return Object.values(watchHistory)
+    const seen = new Set<string>();
+    const list: Movie[] = [];
+    Object.values(watchHistory)
       .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map(entry => entry.movieData)
-      .filter(Boolean) as Movie[];
+      .forEach(entry => {
+        if (entry.movieData && !seen.has(entry.tmdbId)) {
+          seen.add(entry.tmdbId);
+          list.push(entry.movieData);
+        }
+      });
+    return list;
   }, [watchHistory]);
 
   const videoStates = React.useMemo(() => {
     const states: { [key: string]: VideoState } = {};
-    Object.values(watchHistory).forEach(w => {
-      states[w.tmdbId] = { time: w.watchedTime, duration: w.duration };
-    });
+    Object.values(watchHistory)
+      .sort((a, b) => a.updatedAt - b.updatedAt)
+      .forEach(w => {
+        states[w.tmdbId] = { time: w.watchedTime, duration: w.duration };
+      });
     return states;
   }, [watchHistory]);
 

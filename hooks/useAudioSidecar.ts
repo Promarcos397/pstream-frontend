@@ -89,7 +89,7 @@ export function useAudioSidecar(videoRef: React.RefObject<HTMLVideoElement | nul
     await ffmpeg.deleteFile(output);
 
     const ctx = ctxRef.current!;
-    return ctx.decodeAudioData(bytes.buffer.slice(0));
+    return ctx.decodeAudioData(bytes.buffer.slice(0) as ArrayBuffer);
   }, []);
 
   /** Start sidecar for an MKV URL */

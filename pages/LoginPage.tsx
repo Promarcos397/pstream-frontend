@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CaretRightIcon, GoogleLogoIcon, EnvelopeIcon, LockSimpleIcon,
-  EyeIcon, EyeSlashIcon, CaretLeftIcon } from '@phosphor-icons/react';
+  EyeIcon, EyeSlashIcon, CaretLeftIcon, UserIcon } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -49,6 +49,202 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
           </text>
         </g>
       </svg>
+    </div>
+  );
+};
+
+interface AuthModalProps {
+  initialView: 'signin' | 'signup';
+  initialEmail: string;
+  onClose: () => void;
+}
+
+const SIGNUP_AVATARS = [
+  'https://lh3.googleusercontent.com/d/198aosLkzeCyglhaKy5vPMeWktSJhFui_', // Red
+  'https://lh3.googleusercontent.com/d/1i3UrprAcfhKSNaSwFE1FXwTD6NXOfjaV', // Blue
+  'https://lh3.googleusercontent.com/d/1ZYyoo8gUHeugXIa5ciA6pJySe3OPdkNB', // Yellow
+  'https://lh3.googleusercontent.com/d/1wW1ox6Uc1g368rqZ5CAphVSH84KW711n', // Tommy Shelby
+  'https://lh3.googleusercontent.com/d/1CCWWd9W3ODzxAn1lJ6TsKRYyAxdLxeq8', // Luffy
+];
+
+const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClose }) => {
+  const [view, setView] = useState<'signin' | 'signup'>(initialView);
+  const [email, setEmail] = useState(initialEmail);
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState(SIGNUP_AVATARS[0]);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const navigate = useNavigate();
+
+  // Reset view state when initialView prop changes (e.g. user toggles signin/signup outside modal)
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
+
+  // Sync email from landing page input when it changes
+  useEffect(() => {
+    setEmail(initialEmail);
+  }, [initialEmail]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      if (view === 'signup') {
+        const { error: err } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              display_name: displayName.trim(),
+              avatar_url: selectedAvatar
+            }
+          }
+        });
+        if (err) throw err;
+        setSuccessMsg('Account created! Check your email to confirm, then sign in.');
+        setView('signin');
+      } else {
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) throw err;
+        navigate('/');
+      }
+    } catch (err: any) {
+      const errMsg = err.message || '';
+      if (
+        errMsg.toLowerCase().includes('already registered') ||
+        errMsg.toLowerCase().includes('already exists') ||
+        err.code === 'user_already_exists'
+      ) {
+        setView('signin');
+        setError('An account with this email already exists. Please enter your password to sign in.');
+      } else {
+        setError(errMsg || 'Something went wrong. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/' }
+    });
+    if (err) { setError(err.message); setGoogleLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-[410px] bg-black/90 border border-white/10 rounded-xl p-8 shadow-2xl animate-fadeIn"
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="text-2xl font-bold text-white mb-1">
+          {view === 'signin' ? 'Sign In' : 'Create Account'}
+        </h2>
+        <p className="text-white/40 text-sm mb-6">
+          {view === 'signin' ? 'Welcome back!' : 'Start watching in seconds.'}
+        </p>
+
+        {/* Google */}
+        <button
+          onClick={handleGoogle}
+          disabled={googleLoading}
+          className="w-full h-12 mb-5 bg-white text-black rounded-lg font-bold flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-[0.98] disabled:opacity-60"
+        >
+          <GoogleLogoIcon size={20} weight="bold" />
+          {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+        </button>
+
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex-1 h-px bg-white/10" />
+          <span className="text-white/30 text-xs uppercase tracking-widest">or</span>
+          <div className="flex-1 h-px bg-white/10" />
+        </div>
+
+        {successMsg && (
+          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded text-green-300 text-sm">{successMsg}</div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {view === 'signup' && (
+            <div className="relative">
+              <UserIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+              <input
+                type="text" required value={displayName} onChange={e => setDisplayName(e.target.value)}
+                placeholder="Display name"
+                className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
+              />
+            </div>
+          )}
+          <div className="relative">
+            <EnvelopeIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+            <input
+              type="email" required value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="Email address" autoComplete="email"
+              className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
+            />
+          </div>
+          <div className="relative">
+            <LockSimpleIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+            <input
+              type={showPassword ? 'text' : 'password'} required minLength={6}
+              value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="Password" autoComplete={view === 'signup' ? 'new-password' : 'current-password'}
+              className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-10 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
+            />
+            <button type="button" onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors">
+              {showPassword ? <EyeSlashIcon size={16} /> : <EyeIcon size={16} />}
+            </button>
+          </div>
+          
+          {view === 'signup' && (
+            <div className="space-y-2 pt-1 pb-1">
+              <span className="text-white/40 text-xs font-semibold block">Choose Profile Icon</span>
+              <div className="flex gap-3 justify-center pb-2">
+                {SIGNUP_AVATARS.map((url) => {
+                  const isSelected = selectedAvatar === url;
+                  return (
+                    <div
+                      key={url}
+                      onClick={() => setSelectedAvatar(url)}
+                      className={`w-11 h-11 rounded-md overflow-hidden cursor-pointer border-[2px] transition-all
+                        ${isSelected ? 'border-red-500 scale-105 shadow-md shadow-red-500/20' : 'border-transparent hover:scale-105'}`}
+                    >
+                      <img src={url} className="w-full h-full object-cover" alt="" />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50 mt-1">
+            {loading
+              ? (view === 'signup' ? 'Creating…' : 'Signing in…')
+              : (view === 'signup' ? 'Create Account' : 'Sign In')}
+          </button>
+        </form>
+
+        <p className="mt-5 text-center text-white/40 text-sm">
+          {view === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+          <button
+            onClick={() => { setView(view === 'signin' ? 'signup' : 'signin'); setError(''); setSuccessMsg(''); }}
+            className="text-white hover:underline font-medium">
+            {view === 'signin' ? 'Sign up' : 'Sign in'}
+          </button>
+        </p>
+      </div>
     </div>
   );
 };
@@ -329,150 +525,7 @@ const FeatureCard: React.FC<Feature> = ({ id, title, desc }) => (
   </div>
 );
 
-interface AuthModalProps {
-  initialView: 'signin' | 'signup';
-  initialEmail: string;
-  onClose: () => void;
-}
 
-const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClose }) => {
-  const [view, setView] = useState<'signin' | 'signup'>(initialView);
-  const [email, setEmail] = useState(initialEmail);
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const navigate = useNavigate();
-
-  // Reset view state when initialView prop changes (e.g. user toggles signin/signup outside modal)
-  useEffect(() => {
-    setView(initialView);
-  }, [initialView]);
-
-  // Sync email from landing page input when it changes
-  useEffect(() => {
-    setEmail(initialEmail);
-  }, [initialEmail]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      if (view === 'signup') {
-        const { error: err } = await supabase.auth.signUp({ email, password });
-        if (err) throw err;
-        setSuccessMsg('Account created! Check your email to confirm, then sign in.');
-        setView('signin');
-      } else {
-        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-        if (err) throw err;
-        navigate('/');
-      }
-    } catch (err: any) {
-      const errMsg = err.message || '';
-      if (
-        errMsg.toLowerCase().includes('already registered') ||
-        errMsg.toLowerCase().includes('already exists') ||
-        err.code === 'user_already_exists'
-      ) {
-        setView('signin');
-        setError('An account with this email already exists. Please enter your password to sign in.');
-      } else {
-        setError(errMsg || 'Something went wrong. Please try again.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogle = async () => {
-    setGoogleLoading(true);
-    const { error: err } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/' }
-    });
-    if (err) { setError(err.message); setGoogleLoading(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="w-full max-w-[410px] bg-black/90 border border-white/10 rounded-xl p-8 shadow-2xl animate-fadeIn"
-        onClick={e => e.stopPropagation()}
-      >
-        <h2 className="text-2xl font-bold text-white mb-1">
-          {view === 'signin' ? 'Sign In' : 'Create Account'}
-        </h2>
-        <p className="text-white/40 text-sm mb-6">
-          {view === 'signin' ? 'Welcome back!' : 'Start watching in seconds.'}
-        </p>
-
-        {/* Google */}
-        <button
-          onClick={handleGoogle}
-          disabled={googleLoading}
-          className="w-full h-12 mb-5 bg-white text-black rounded-lg font-bold flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-[0.98] disabled:opacity-60"
-        >
-          <GoogleLogoIcon size={20} weight="bold" />
-          {googleLoading ? 'Redirecting…' : 'Continue with Google'}
-        </button>
-
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-white/30 text-xs uppercase tracking-widest">or</span>
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
-
-        {successMsg && (
-          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded text-green-300 text-sm">{successMsg}</div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="relative">
-            <EnvelopeIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
-            <input
-              type="email" required value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="Email address" autoComplete="email"
-              className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
-            />
-          </div>
-          <div className="relative">
-            <LockSimpleIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
-            <input
-              type={showPassword ? 'text' : 'password'} required minLength={6}
-              value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="Password" autoComplete={view === 'signup' ? 'new-password' : 'current-password'}
-              className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-10 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
-            />
-            <button type="button" onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors">
-              {showPassword ? <EyeSlashIcon size={16} /> : <EyeIcon size={16} />}
-            </button>
-          </div>
-          {error && <p className="text-red-400 text-xs">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50 mt-1">
-            {loading
-              ? (view === 'signup' ? 'Creating…' : 'Signing in…')
-              : (view === 'signup' ? 'Create Account' : 'Sign In')}
-          </button>
-        </form>
-
-        <p className="mt-5 text-center text-white/40 text-sm">
-          {view === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-          <button
-            onClick={() => { setView(view === 'signin' ? 'signup' : 'signin'); setError(''); setSuccessMsg(''); }}
-            className="text-white hover:underline font-medium">
-            {view === 'signin' ? 'Sign up' : 'Sign in'}
-          </button>
-        </p>
-      </div>
-    </div>
-  );
-};
 
 // ─── Landing Page ────────────────────────────────────────────────────────────
 type AuthView = 'none' | 'signin' | 'signup';

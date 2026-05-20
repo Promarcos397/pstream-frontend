@@ -2,21 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_SUBTITLE_SETTINGS } from '../constants';
 import { supabase } from '../services/supabaseClient';
-
-export interface AppSettings {
-  displayLanguage: string;
-  audioLanguage: string;
-  subtitleLanguage: string;
-  showSubtitles: boolean;
-  subtitleSize: 'small' | 'medium' | 'large';
-  subtitleBgOpacity: number;
-  subtitleColor: string;
-  subtitleBgColor: string;
-  autoplayPreviews: boolean;
-  autoplayNextEpisode: boolean;
-  autoplayVideo: boolean;
-  avatarUrl: string;
-}
+import { AppSettings } from '../types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   ...DEFAULT_SUBTITLE_SETTINGS,
@@ -25,7 +11,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoplayVideo: true,
   displayLanguage: 'en-US',
   audioLanguage: 'en',
-  avatarUrl: 'https://i.pinimg.com/736x/c0/74/9b/c0749b7cc40142166cb17b19b9d1a6b6.jpg',
+  avatarUrl: 'https://lh3.googleusercontent.com/d/198aosLkzeCyglhaKy5vPMeWktSJhFui_',
+  displayName: '',
 };
 
 interface SettingsStore {
@@ -54,9 +41,9 @@ export const useSettingsStore = create<SettingsStore>()(
               subtitle_language: state.settings.subtitleLanguage,
               show_subtitles: state.settings.showSubtitles,
               subtitle_size: state.settings.subtitleSize,
-              subtitle_bg_opacity: state.settings.subtitleBgOpacity,
+              subtitle_bg_opacity: state.settings.subtitleOpacity,
               subtitle_color: state.settings.subtitleColor,
-              subtitle_bg_color: state.settings.subtitleBgColor,
+              subtitle_bg_color: state.settings.subtitleWindowColor,
               autoplay_previews: state.settings.autoplayPreviews,
               autoplay_next_episode: state.settings.autoplayNextEpisode,
               autoplay_video: state.settings.autoplayVideo,
@@ -68,6 +55,15 @@ export const useSettingsStore = create<SettingsStore>()(
               .then(({ error }) => {
                 if (error) console.error('[Sync] Settings sync error:', error.message);
               });
+
+            // Sync display_name to Supabase Auth metadata
+            if (newSettings.displayName !== undefined) {
+              supabase.auth.updateUser({
+                data: { display_name: newSettings.displayName.trim() }
+              }).then(({ error }) => {
+                if (error) console.error('[Sync] Auth metadata sync error:', error.message);
+              });
+            }
           }
         });
       },

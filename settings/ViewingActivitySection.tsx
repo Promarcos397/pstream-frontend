@@ -2,9 +2,11 @@ import React from 'react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useTranslation } from 'react-i18next';
 import { TMDB_IMAGE_BASE } from '../constants';
+import { useWatchStore } from '../store/useWatchStore';
 
 const ViewingActivitySection: React.FC = () => {
-    const { continueWatching, myList, getVideoState } = useGlobalContext();
+    const { continueWatching, myList } = useGlobalContext();
+    const history = useWatchStore(s => s.history);
     const { t } = useTranslation();
     const hasActivity = continueWatching.length > 0 || myList.length > 0;
 
@@ -25,8 +27,9 @@ const ViewingActivitySection: React.FC = () => {
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                         {continueWatching.map((movie, idx) => {
-                            const state = getVideoState(movie.id);
-                            const progress = state && state.duration ? (state.time / state.duration) * 100 : 0;
+                            const entries = Object.values(history).filter(h => h.tmdbId === String(movie.id));
+                            const latestEntry = entries.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+                            const progress = latestEntry && latestEntry.duration ? (latestEntry.watchedTime / latestEntry.duration) * 100 : 0;
                             
                             return (
                                 <div 
@@ -51,8 +54,16 @@ const ViewingActivitySection: React.FC = () => {
                                         {movie.title || movie.name}
                                     </h4>
                                     <div className="text-xs text-gray-500 font-medium">
-                                        {movie.release_date || movie.first_air_date ? new Date(movie.release_date || movie.first_air_date).getFullYear() : ''}
-                                        {movie.media_type === 'tv' ? ` · ${t('common.series')}` : ` · ${t('common.movie')}`}
+                                        {latestEntry?.type === 'tv' && latestEntry.season !== undefined && latestEntry.episode !== undefined ? (
+                                            <span>
+                                                {t('common.seasonNum', { num: latestEntry.season, defaultValue: `Season ${latestEntry.season}` })} · {t('common.episodeNum', { num: latestEntry.episode, defaultValue: `Episode ${latestEntry.episode}` })}
+                                            </span>
+                                        ) : (
+                                            <span>
+                                                {movie.release_date || movie.first_air_date ? new Date(movie.release_date || movie.first_air_date).getFullYear() : ''}
+                                                {movie.media_type === 'tv' ? ` · ${t('common.series')}` : ` · ${t('common.movie')}`}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             );
