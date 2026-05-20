@@ -144,6 +144,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const timerRef = useRef<any>(null);
   const leaveTimerRef = useRef<any>(null);
   const neighborsTimerRef = useRef<any>(null);
+  const preloadTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const posterRef = useRef<HTMLImageElement>(null);
 
@@ -306,21 +307,24 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
 
-    // Immediately start preloading the trailer video ID (0ms latency!)
+    // Hover intent delay: Wait 80ms before we actually trigger preload
     if (settings.autoplayPreviews) {
-      preloadTrailer(movie);
+      if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
+      preloadTimerRef.current = setTimeout(() => {
+        preloadTrailer(movie);
 
-      // Debounce neighbor preloading (150ms) to avoid spamming the APIs on quick cursor sweeps
-      if (neighbors && neighbors.length > 0) {
-        if (neighborsTimerRef.current) clearTimeout(neighborsTimerRef.current);
-        neighborsTimerRef.current = setTimeout(() => {
-          neighbors.forEach(neighbor => {
-            if (neighbor) {
-              preloadTrailer(neighbor);
-            }
-          });
-        }, 150);
-      }
+        // Debounce neighbor preloading (150ms after hover intent is confirmed)
+        if (neighbors && neighbors.length > 0) {
+          if (neighborsTimerRef.current) clearTimeout(neighborsTimerRef.current);
+          neighborsTimerRef.current = setTimeout(() => {
+            neighbors.forEach(neighbor => {
+              if (neighbor) {
+                preloadTrailer(neighbor);
+              }
+            });
+          }, 150);
+        }
+      }, 80);
     }
 
     if (cardRef.current) {
@@ -365,6 +369,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
+    }
+    if (preloadTimerRef.current) {
+      clearTimeout(preloadTimerRef.current);
+      preloadTimerRef.current = null;
     }
     if (neighborsTimerRef.current) {
       clearTimeout(neighborsTimerRef.current);
