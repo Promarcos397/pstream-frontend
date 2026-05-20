@@ -953,7 +953,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         {/* CENTER: Title (desktop only) */}
                         {!isMobile && (
                             <div className="flex justify-center px-4 text-center items-center pointer-events-none min-w-0" style={{ flex: '2 1 0%', maxWidth: '50%', transform: 'translateX(-20px)' }}>
-                                <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[19px] drop-shadow-lg line-clamp-2" />
+                                <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[21px] drop-shadow-lg line-clamp-2" />
                             </div>
                         )}
 
