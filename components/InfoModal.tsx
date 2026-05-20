@@ -335,7 +335,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                 </button>
 
                 {/* --- Media Container --- */}
-                <div ref={heroRef} className="relative aspect-[16/8] max-sm:aspect-[16/9] w-full bg-black group overflow-hidden">
+                <div ref={heroRef} className="relative aspect-video w-full bg-black group overflow-hidden">
                     <div className="absolute inset-0 z-0 text-[0px]">
                         <img
                             src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
