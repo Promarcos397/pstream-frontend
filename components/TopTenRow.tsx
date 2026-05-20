@@ -363,7 +363,17 @@ const TopTenCard: React.FC<{
     const POPUP_W = 342;
     const TOP_OFFSET = -88;
     let left: number;
-    if (hoverPosition === 'left') left = hoveredRect.left;
+    if (hoverPosition === 'left') {
+      let targetLeft = hoveredRect.left;
+      if (window.innerWidth >= 1024) {
+        targetLeft -= 32; // align to normal row's 64px padding
+      } else if (window.innerWidth >= 768) {
+        // already aligned
+      } else {
+        targetLeft -= 8; // align to normal row's 24px padding
+      }
+      left = targetLeft;
+    }
     else if (hoverPosition === 'right') left = hoveredRect.right - POPUP_W;
     else left = hoveredRect.left + hoveredRect.width / 2 - POPUP_W / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
