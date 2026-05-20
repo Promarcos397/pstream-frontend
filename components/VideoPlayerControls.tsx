@@ -895,7 +895,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     <div className="flex items-center justify-between relative">
 
                         {/* LEFT GROUP */}
-                        <div className={`flex items-center gap-5 md:gap-8 ${!isMobile ? 'flex-1' : ''}`}>
+                        <div className={`flex items-center gap-5 md:gap-8 min-w-0`} style={!isMobile ? { flex: '1 1 0%' } : {}}>
                             {!isMobile ? (
                                 <>
                                     {/* Desktop: play | rewind | ff | volume */}
@@ -952,13 +952,13 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                         {/* CENTER: Title (desktop only) */}
                         {!isMobile && (
-                            <div className="flex-initial flex justify-center px-4 text-center items-center pointer-events-none min-w-0" style={{ maxWidth: '46%' }}>
+                            <div className="flex justify-center px-4 text-center items-center pointer-events-none min-w-0" style={{ flex: '2 1 0%', maxWidth: '50%' }}>
                                 <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[19px] drop-shadow-lg line-clamp-2" />
                             </div>
                         )}
 
                         {/* RIGHT GROUP */}
-                        <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-5 md:gap-8 flex-1 justify-end'}`}>
+                        <div className={`flex items-center min-w-0 ${isMobile ? 'gap-4' : 'gap-5 md:gap-8 justify-end'}`} style={!isMobile ? { flex: '1 1 0%' } : {}}>
 
                             {/* Next Episode */}
                             {isTV && hasNextEpisode && onNextEpisode && (
