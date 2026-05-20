@@ -424,12 +424,12 @@ const PlayerTitle: React.FC<{
     const isTV = mediaType === 'tv';
     return (
         <span className={`select-none leading-snug ${className}`}>
-            <strong className="font-extrabold">{title}</strong>
+            <strong className="font-extrabold text-white">{title}</strong>
             {isTV && episodeNumber != null && (
                 <>
-                    <strong className="text-white/60 ml-3">E{episodeNumber}</strong>
+                    <strong className="text-white ml-3 font-extrabold">E{episodeNumber}</strong>
                     {episodeName && (
-                        <span className="font-medium text-white/50 ml-3">{episodeName}</span>
+                        <span className="font-bold text-white ml-3">{episodeName}</span>
                     )}
                 </>
             )}
