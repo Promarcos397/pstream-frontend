@@ -67,14 +67,19 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const setGlobalMuteState = useSettingsStore(s => s.setGlobalMute);
 
   const watchHistory = useWatchStore(s => s.history);
-  const watchStore = useWatchStore();
+  const updateProgress = useWatchStore(s => s.updateProgress);
+  const getProgress = useWatchStore(s => s.getProgress);
+  const removeHistoryItem = useWatchStore(s => s.removeHistoryItem);
 
   const libraryRatings = useLibraryStore(s => s.ratings);
   const libraryList = useLibraryStore(s => s.myList);
-  const libraryStore = useLibraryStore();
+  const toggleMyList = useLibraryStore(s => s.toggleMyList);
+  const setRating = useLibraryStore(s => s.setRating);
+  const getRating = useLibraryStore(s => s.getRating);
+  const getListArray = useLibraryStore(s => s.getListArray);
 
   const user = useAuthStore(s => s.user);
-  const authStore = useAuthStore();
+  const signOut = useAuthStore(s => s.signOut);
 
   const [isScrolling, setIsScrolling] = useState(false);
   const [isAppReady, setIsAppReady] = useState(false);
@@ -132,7 +137,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const clearSeenIds = useCallback(() => { setPageSeenIds([]); }, []);
 
   // Shim Implementations
-  const myList = React.useMemo(() => libraryStore.getListArray(), [libraryRatings, libraryList]);
+  const myList = React.useMemo(() => getListArray(), [libraryRatings, libraryList, getListArray]);
   
   const continueWatching = React.useMemo(() => {
     const seen = new Set<string>();
@@ -159,40 +164,40 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [watchHistory]);
 
   const toggleList = useCallback((movie: Movie) => {
-    libraryStore.toggleMyList(movie);
-  }, [libraryStore]);
+    toggleMyList(movie);
+  }, [toggleMyList]);
 
   const addToHistory = useCallback((movie: Movie) => {
-    watchStore.updateProgress({
+    updateProgress({
       tmdbId: String(movie.id),
       type: movie.media_type === 'tv' || movie.name ? 'tv' : 'movie',
       watchedTime: 0,
       duration: 0,
       movieData: movie
     });
-  }, [watchStore]);
+  }, [updateProgress]);
 
   const updateVideoState = useCallback((movieId: string | number, time: number, videoId?: string, duration?: number) => {
-    watchStore.updateProgress({
+    updateProgress({
       tmdbId: String(movieId),
       type: 'movie',
       watchedTime: time,
       duration: duration || 0
     });
-  }, [watchStore]);
+  }, [updateProgress]);
 
   const getVideoState = useCallback((movieId: number | string) => {
-    const state = watchStore.getProgress(String(movieId));
+    const state = getProgress(String(movieId));
     if (state) return { time: state.watchedTime, duration: state.duration };
     return undefined;
-  }, [watchStore]);
+  }, [getProgress]);
 
   const clearVideoState = useCallback((movieId: number | string) => {
-    watchStore.removeHistoryItem(String(movieId));
-  }, [watchStore]);
+    removeHistoryItem(String(movieId));
+  }, [removeHistoryItem]);
 
   const updateEpisodeProgress = useCallback((showId: number | string, season: number, episode: number, time: number, duration: number) => {
-    watchStore.updateProgress({
+    updateProgress({
       tmdbId: String(showId),
       type: 'tv',
       season,
@@ -200,13 +205,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       watchedTime: time,
       duration
     });
-  }, [watchStore]);
+  }, [updateProgress]);
 
   const getEpisodeProgress = useCallback((showId: number | string, season: number, episode: number) => {
-    const state = watchStore.getProgress(String(showId), season, episode);
+    const state = getProgress(String(showId), season, episode);
     if (state) return { time: state.watchedTime, duration: state.duration, season, episode, updatedAt: state.updatedAt };
     return undefined;
-  }, [watchStore]);
+  }, [getProgress]);
 
   const getLastWatchedEpisode = useCallback((showId: number | string) => {
     const hist = Object.values(watchHistory).filter(w => w.tmdbId === String(showId) && w.type === 'tv');
@@ -216,12 +221,12 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [watchHistory]);
 
   const rateMovie = useCallback((movie: Movie, rating: MovieRating) => {
-    libraryStore.setRating(String(movie.id), movie.media_type === 'tv' || movie.name ? 'tv' : 'movie', rating, movie);
-  }, [libraryStore]);
+    setRating(String(movie.id), movie.media_type === 'tv' || movie.name ? 'tv' : 'movie', rating, movie);
+  }, [setRating]);
 
   const getMovieRating = useCallback((movieId: number | string) => {
-    return libraryStore.getRating(String(movieId));
-  }, [libraryStore]);
+    return getRating(String(movieId));
+  }, [getRating]);
 
   const getLikedMovies = useCallback(() => {
     return Object.values(libraryRatings)
@@ -234,7 +239,9 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return { success: true };
   };
 
-  const logout = () => { authStore.signOut(); };
+  const logout = useCallback(() => {
+    signOut();
+  }, [signOut]);
   const deleteAccountData = async () => { return true; };
   const importProfileData = async (data: any) => { return true; };
 
