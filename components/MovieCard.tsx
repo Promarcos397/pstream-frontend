@@ -51,6 +51,7 @@ interface MovieCardProps {
   onPlay?: (movie: Movie) => void;
   isGrid?: boolean;
   preload?: boolean;
+  neighbors?: Movie[];
 }
 
 
@@ -101,7 +102,7 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
   );
 };
 
-const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false, preload = false }) => {
+const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid = false, preload = false, neighbors }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const prefersHover = usePrefersHover();
@@ -142,6 +143,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const timerRef = useRef<any>(null);
   const leaveTimerRef = useRef<any>(null);
+  const neighborsTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const posterRef = useRef<HTMLImageElement>(null);
 
@@ -307,6 +309,18 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     // Immediately start preloading the trailer video ID (0ms latency!)
     if (settings.autoplayPreviews) {
       preloadTrailer(movie);
+
+      // Debounce neighbor preloading (150ms) to avoid spamming the APIs on quick cursor sweeps
+      if (neighbors && neighbors.length > 0) {
+        if (neighborsTimerRef.current) clearTimeout(neighborsTimerRef.current);
+        neighborsTimerRef.current = setTimeout(() => {
+          neighbors.forEach(neighbor => {
+            if (neighbor) {
+              preloadTrailer(neighbor);
+            }
+          });
+        }, 150);
+      }
     }
 
     if (cardRef.current) {
@@ -351,6 +365,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
+    }
+    if (neighborsTimerRef.current) {
+      clearTimeout(neighborsTimerRef.current);
+      neighborsTimerRef.current = null;
     }
 
     // Hide popup immediately for visual cleanliness

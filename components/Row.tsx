@@ -304,20 +304,29 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
                 </div>
               </div>
             ))
-            : (shouldLoop ? [...movies, ...movies, ...movies] : movies).map((movie, idx) => (movie.backdrop_path || movie.poster_path) && (
-              <div
-                key={`${movie.id}-${idx}`}
-                className="movie-card-container relative pointer-events-auto mr-1 md:mr-1.5 lg:mr-2 overflow-visible"
-                style={{ zIndex: 'auto' }}
-              >
-                <MovieCard 
-                  movie={movie} 
-                  onSelect={onSelect} 
-                  onPlay={onPlay} 
-                  preload={movies.indexOf(movie) < 5} 
-                />
-              </div>
-            ))
+            : (() => {
+                const listSource = shouldLoop ? [...movies, ...movies, ...movies] : movies;
+                return listSource.map((movie, idx) => {
+                  if (!movie.backdrop_path && !movie.poster_path) return null;
+                  const leftNeighbor = idx > 0 ? listSource[idx - 1] : null;
+                  const rightNeighbor = idx < listSource.length - 1 ? listSource[idx + 1] : null;
+                  return (
+                    <div
+                      key={`${movie.id}-${idx}`}
+                      className="movie-card-container relative pointer-events-auto mr-1 md:mr-1.5 lg:mr-2 overflow-visible"
+                      style={{ zIndex: 'auto' }}
+                    >
+                      <MovieCard 
+                        movie={movie} 
+                        onSelect={onSelect} 
+                        onPlay={onPlay} 
+                        preload={movies.indexOf(movie) < 5} 
+                        neighbors={[leftNeighbor, rightNeighbor].filter(Boolean) as Movie[]}
+                      />
+                    </div>
+                  );
+                });
+              })()
           }
 
           {/* End Spacer — ensures the last card doesn't hit the right edge too abruptly */}

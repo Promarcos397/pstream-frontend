@@ -17,6 +17,7 @@
 export {
   getMovieImages,
   getMovieDetails,
+  getMovieVideos,
   getMovieCredits,
   getSeasonDetails,
   getExternalIds,

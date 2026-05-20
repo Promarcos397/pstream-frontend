@@ -120,6 +120,20 @@ export const getMovieDetails = async (id: number | string, type: 'movie' | 'tv')
   }
 };
 
+export const getMovieVideos = async (id: number | string, type: 'movie' | 'tv') => {
+  const url = `/${type}/${id}/videos`;
+  if (_dataCache.has(url)) return _dataCache.get(url);
+  try {
+    const { data } = await tmdb.get(url);
+    _dataCache.set(url, data);
+    return data;
+  } catch (e) {
+    console.error(`[TMDB] Videos ${type}/${id}:`, e);
+    return null;
+  }
+};
+
+
 export const getMovieCredits = async (id: number | string, type: 'movie' | 'tv') => {
   try {
     const { data } = await tmdb.get(`/${type}/${id}/credits`);
