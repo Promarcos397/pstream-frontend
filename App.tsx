@@ -3,10 +3,12 @@ import { Routes, Route, useNavigate, useLocation, useSearchParams } from 'react-
 import { Movie } from './types';
 import useSearch from './hooks/useSearch';
 import { useTitle } from './context/TitleContext';
-import { useGlobalContext } from './context/GlobalContext';
 import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
 import { initCodecSupport } from './utils/browserCodecSupport';
+import { useAuthStore } from './store/useAuthStore';
+import { useWatchStore } from './store/useWatchStore';
+import { LoginWall } from './components/LoginWall';
 
 // Warm browser codec detection immediately on app load.
 // By the time the user clicks Play, the profile is already cached.
@@ -28,8 +30,8 @@ import NewPopularPage from './pages/NewPopularPage';
 import MyListPage from './pages/MyListPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import SettingsPage from './pages/SettingsPage';
-import LoginPage from './pages/LoginPage';
 import BrowseGridPage from './pages/BrowseGridPage';
+import LoginPage from './pages/LoginPage';
 import GhostPage from './pages/GhostPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { Navigate } from 'react-router-dom';
@@ -41,8 +43,13 @@ const App: React.FC = () => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { setPageTitle } = useTitle();
-  const { updateVideoState, getLastWatchedEpisode } = useGlobalContext();
   const { t } = useTranslation();
+  const { isInitialized, user, initializeAuth } = useAuthStore();
+  const { updateProgress, getProgress } = useWatchStore();
+
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
 
   // Inject navigate into window for non-React context access
   useEffect(() => {
@@ -147,7 +154,12 @@ const App: React.FC = () => {
     if (finalTime && finalTime > 0) {
       setHeroSeekTime(finalTime);
       if (selectedMovie) {
-        updateVideoState(selectedMovie.id, finalTime);
+        updateProgress({
+          tmdbId: String(selectedMovie.id),
+          type: selectedMovie.media_type === 'tv' || selectedMovie.name ? 'tv' : 'movie',
+          watchedTime: finalTime,
+          duration: 0 // Will be updated when actually watching
+        });
       }
     }
     
@@ -165,8 +177,8 @@ const App: React.FC = () => {
     const type = movie.media_type || (movie.title ? 'movie' : 'tv');
 
     if (type === 'tv' && !finalSeason && !finalEpisode) {
-      const lastWatched = getLastWatchedEpisode(movie.id);
-      if (lastWatched) {
+      const lastWatched = getProgress(String(movie.id));
+      if (lastWatched && lastWatched.season && lastWatched.episode) {
         finalSeason = lastWatched.season;
         finalEpisode = lastWatched.episode;
       } else {
@@ -247,6 +259,14 @@ const App: React.FC = () => {
     );
   }
 
+  if (!isInitialized) {
+    return <div className="h-screen w-screen bg-black flex items-center justify-center"></div>;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
 
   const mainContent = (
     <div>
@@ -256,9 +276,9 @@ const App: React.FC = () => {
         <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
         <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/login" element={<LoginPage />} />
         <Route path="/settings/*" element={<SettingsPage />} />
         <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </div>

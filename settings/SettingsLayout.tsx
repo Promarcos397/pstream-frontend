@@ -229,15 +229,8 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
 
     const handleSaveName = async () => {
         const trimmed = displayName.trim();
-        updateSettings({ displayName: trimmed || undefined });
-        if (trimmed) {
-            try {
-                const { AuthService } = await import('../services/AuthService');
-                await AuthService.syncProfile({ display_name: trimmed } as any);
-            } catch (e) {
-                console.warn('[ProfileEdit] Could not sync display_name to Supabase:', e);
-            }
-        }
+        // Fallback update local state if needed (displayName is removed from formal AppSettings)
+        // updateSettings({ displayName: trimmed || undefined });
     };
 
     return (

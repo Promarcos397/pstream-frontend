@@ -1,319 +1,608 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useGlobalContext } from '../context/GlobalContext';
-import { AuthService } from '../services/AuthService';
-import { ArrowLeftIcon, InfoIcon, CopyIcon, DownloadIcon, ShieldCheckIcon, CaretRightIcon } from '@phosphor-icons/react';
+import { CaretRightIcon, GoogleLogoIcon, EnvelopeIcon, LockSimpleIcon,
+  EyeIcon, EyeSlashIcon, CaretLeftIcon } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import logo from '../assets/logos/pstream-logo.svg';
 import landingBg from '../assets/landing-bg.png';
-import * as bip39 from 'bip39';
+import { supabase } from '../services/supabaseClient';
+import { useAuthStore } from '../store/useAuthStore';
+import Footer from '../components/Footer';
+import { fetchData } from '../services/api';
+import { REQUESTS } from '../constants';
+import { Movie } from '../types';
+
+// ─── Read-only Top 10 Card (no hover popup, no click) ──────────────────────
+const SIZES = {
+  card: 'h-[110px] w-[75px] sm:h-[140px] sm:w-[95px] md:h-[170px] md:w-[115px] lg:h-[200px] lg:w-[135px]',
+};
+
+const RankNumber: React.FC<{ index: number }> = ({ index }) => {
+  const isTen = index === 9;
+  return (
+    <div
+      className={`absolute left-[-20px] sm:left-[-26px] md:left-[-34px] lg:left-[-42px] bottom-[8%] h-[48%] z-20 pointer-events-none overflow-visible drop-shadow-[0_0_8px_rgba(0,0,0,0.8)]`}
+      style={{ width: isTen ? '60%' : '50%' }}
+    >
+      <svg
+        viewBox={isTen ? '0 0 280 210' : '0 0 200 210'}
+        className="h-full w-auto"
+        preserveAspectRatio="xMinYMid meet"
+        style={{ overflow: 'visible' }}
+      >
+        <g
+          transform={isTen ? 'scale(1.0, 0.98)' : 'scale(1.1, 1.0)'}
+          style={{ transformOrigin: '0px 205px' }}
+        >
+          <text x="8" y="195" textAnchor="start" dominantBaseline="auto"
+            fill="none" stroke="#737373" strokeWidth="12" strokeLinejoin="round"
+            fontSize="180" fontWeight="900"
+            fontFamily="'Inter', sans-serif" letterSpacing={isTen ? '-22' : '-6'}>
+            {index + 1}
+          </text>
+          <text x="8" y="195" textAnchor="start" dominantBaseline="auto"
+            fill="#090909" stroke="#090909" strokeWidth="4" strokeLinejoin="round"
+            fontSize="180" fontWeight="900"
+            fontFamily="'Inter', sans-serif" letterSpacing={isTen ? '-22' : '-6'}>
+            {index + 1}
+          </text>
+        </g>
+      </svg>
+    </div>
+  );
+};
+
+const LandingTopTenCard: React.FC<{ movie: Movie; index: number }> = ({ movie, index }) => {
+  const posterSrc = movie.poster_path?.startsWith('http')
+    ? movie.poster_path
+    : `https://image.tmdb.org/t/p/w780${movie.poster_path}`;
+
+  return (
+    <motion.div
+      whileHover={{ scale: 1.05, y: -4 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      className={`relative flex-none ${SIZES.card} ml-6 sm:ml-8 md:ml-10 lg:ml-12 mr-4 md:mr-6 flex items-end select-none z-10 cursor-default`}
+    >
+      <RankNumber index={index} />
+      <div className={`absolute right-0 bottom-0 w-full h-full z-10 rounded-lg overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.5)]`}>
+        <img
+          src={posterSrc}
+          className="w-full h-full object-cover object-top"
+          alt={movie.title || movie.name}
+          loading="lazy"
+          draggable={false}
+        />
+        {/* Subtle blur overlay so it looks intentionally non-interactive */}
+        <div className="absolute inset-0 bg-black/10 pointer-events-none" />
+      </div>
+    </motion.div>
+  );
+};
+
+const LandingTopTenRow: React.FC<{ title: string; fetchUrl: string }> = ({ title, fetchUrl }) => {
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollState, setScrollState] = useState({ left: false, right: true });
+
+  useEffect(() => {
+    fetchData(fetchUrl).then(res => {
+      setMovies((res || []).slice(0, 10));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [fetchUrl]);
+
+  const updateScrollState = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setScrollState({ left: el.scrollLeft > 0, right: el.scrollLeft < el.scrollWidth - el.clientWidth - 4 });
+  };
+
+  const scroll = (dir: 'left' | 'right') => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const amount = el.clientWidth * 0.8;
+    el.scrollBy({ left: dir === 'right' ? amount : -amount, behavior: 'smooth' });
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h2 className="text-white text-xl md:text-2xl font-black mb-4 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56">{title}</h2>
+        <div className="flex gap-2 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56">
+          {Array(6).fill(0).map((_, i) => (
+            <div key={i} className={`${SIZES.card} flex-none bg-[#333] rounded animate-pulse`} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative group/row">
+      <h2 className="text-white text-xl md:text-2xl font-black mb-4 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56">{title}</h2>
+      <div className="relative mx-6 md:mx-20 lg:mx-32 xl:mx-44 2xl:mx-56">
+        {/* Left arrow */}
+        {scrollState.left && (
+          <button
+            onClick={() => scroll('left')}
+            className="absolute left-0 top-0 bottom-0 z-20 w-12 md:w-16 flex items-center justify-center bg-gradient-to-r from-black/90 to-transparent opacity-0 group-hover/row:opacity-100 transition-opacity"
+          >
+            <CaretLeftIcon size={36} weight="bold" className="text-white drop-shadow-lg" />
+          </button>
+        )}
+        {/* Right arrow */}
+        {scrollState.right && (
+          <button
+            onClick={() => scroll('right')}
+            className="absolute right-0 top-0 bottom-0 z-20 w-12 md:w-16 flex items-center justify-center bg-gradient-to-l from-black/90 to-transparent opacity-0 group-hover/row:opacity-100 transition-opacity"
+          >
+            <CaretRightIcon size={36} weight="bold" className="text-white drop-shadow-lg" />
+          </button>
+        )}
+        <div
+          ref={scrollRef}
+          onScroll={updateScrollState}
+          className="flex gap-0 overflow-x-auto overflow-y-hidden scroll-smooth py-4 -my-4"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {movies.map((movie, i) => (
+            <LandingTopTenCard key={movie.id} movie={movie} index={i} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Custom SVGs with gradients for Feature Cards
+const FeatureIcon: React.FC<{ id: string }> = ({ id }) => {
+  if (id === 'tv') {
+    return (
+      <div className="relative w-20 h-16 flex flex-col items-center justify-end">
+        {/* Screen glow behind */}
+        <div className="absolute top-0 w-16 h-12 rounded bg-gradient-to-br from-[#ff1f75]/20 to-[#8000ff]/20 blur-md pointer-events-none" />
+        
+        {/* Monitor Screen */}
+        <div className="w-16 h-11 bg-[#101018] rounded-t-md border-2 border-[#2b2b3d] p-[1.5px] relative overflow-hidden flex items-center justify-center shadow-lg">
+          {/* Glossy display gradient */}
+          <div className="w-full h-full rounded-[2px] bg-gradient-to-tr from-[#9900ff] via-[#ff007c] to-[#ff8c00] opacity-80 relative">
+            {/* Reflection shine overlay */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-transparent rotate-12 scale-150 transform -translate-y-4" />
+          </div>
+        </div>
+        
+        {/* Stand neck */}
+        <div className="w-2.5 h-2 bg-gradient-to-b from-[#2b2b3d] to-[#12121c] border-x border-[#3f3f5a]" />
+        
+        {/* Base */}
+        <div className="w-10 h-[3px] bg-gradient-to-r from-[#ff0055] via-[#ff7700] to-[#ff0055] rounded-full shadow-md" />
+      </div>
+    );
+  }
+
+  if (id === 'stream') {
+    return (
+      <div className="relative w-16 h-16 flex items-center justify-center">
+        {/* Outer Glow */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#ff007f]/30 to-[#7b2cbf]/30 blur-md pointer-events-none" />
+        
+        {/* Glossy circular disk */}
+        <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#7b2cbf] via-[#d90429] to-[#ff007f] p-[1.5px] shadow-[0_4px_12px_rgba(0,0,0,0.5)] relative flex items-center justify-center overflow-hidden">
+          {/* Radial highlight for 3D look */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_60%)]" />
+          
+          {/* Downward arrow SVG */}
+          <svg className="w-6 h-6 text-white relative z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 4V16M12 16L6 10M12 16L18 10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 20H20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  if (id === 'subtitles') {
+    return (
+      <div className="relative w-16 h-16 flex items-center justify-center">
+        {/* Stars and sparks */}
+        <div className="absolute -top-1 right-2 text-[#ff0055] text-xs animate-pulse font-bold">✦</div>
+        <div className="absolute bottom-2 -left-1 text-[#ff7700] text-[10px] animate-pulse font-bold">✦</div>
+        <div className="absolute top-4 -left-2 text-[#ff0055] text-[8px] animate-pulse font-bold">✦</div>
+        
+        {/* Soft glow behind */}
+        <div className="absolute inset-2 rounded-full bg-[#ff007f]/10 blur-lg pointer-events-none" />
+        
+        {/* Telescope SVG with rich gradient fills */}
+        <svg className="w-14 h-14 relative z-10" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="scopeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ff007f" />
+              <stop offset="50%" stopColor="#7e0fff" />
+              <stop offset="100%" stopColor="#ff5500" />
+            </linearGradient>
+            <linearGradient id="standGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#555577" />
+              <stop offset="100%" stopColor="#222233" />
+            </linearGradient>
+          </defs>
+          
+          {/* Tripod Stand */}
+          <line x1="32" y1="36" x2="20" y2="58" stroke="url(#standGrad)" strokeWidth="3" strokeLinecap="round" />
+          <line x1="32" y1="36" x2="44" y2="58" stroke="url(#standGrad)" strokeWidth="3" strokeLinecap="round" />
+          <line x1="32" y1="36" x2="32" y2="55" stroke="url(#standGrad)" strokeWidth="3.5" strokeLinecap="round" />
+          
+          {/* Joint */}
+          <circle cx="32" cy="36" r="4.5" fill="#3f3f5a" stroke="#fff" strokeWidth="1" />
+          
+          {/* Main Telescope Body */}
+          <g transform="rotate(-30 32 32)">
+            {/* Large lens cap */}
+            <rect x="42" y="24" width="6" height="16" rx="1" fill="#fff" />
+            {/* Main barrel */}
+            <path d="M16 26H42V38H16C15 38 14 37 14 36V28C14 27 15 26 16 26Z" fill="url(#scopeGrad)" stroke="#fff" strokeWidth="1" />
+            {/* Focus ring */}
+            <rect x="22" y="25" width="3" height="14" fill="#ffea00" />
+            {/* Small end barrel */}
+            <rect x="6" y="29" width="8" height="6" fill="#222" stroke="#fff" strokeWidth="1" />
+            {/* Eyepiece */}
+            <path d="M2 28H6V36H2C1 36 0 35 0 34V30C0 29 1 28 2 28Z" fill="#555" />
+          </g>
+        </svg>
+      </div>
+    );
+  }
+
+  // place
+  return (
+    <div className="relative w-16 h-16 flex items-center justify-center">
+      {/* Soft Glow */}
+      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#ff0055]/10 to-[#ff500f]/10 blur-md pointer-events-none" />
+      
+      {/* Back profile card (Beige/Pink) */}
+      <div className="absolute top-2 left-2 w-10 h-10 rounded-lg bg-gradient-to-br from-[#ffd2a0] to-[#ff9f68] border border-white/20 shadow-md flex flex-col items-center justify-center transform -rotate-6">
+        {/* Cute eyes */}
+        <div className="flex gap-2.5 mb-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#3d1e03]" />
+          <div className="w-1.5 h-1.5 rounded-full bg-[#3d1e03]" />
+        </div>
+        {/* Smiling mouth */}
+        <svg className="w-3.5 h-1.5 text-[#3d1e03]" viewBox="0 0 24 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 2C6 9 18 9 22 2" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+        </svg>
+      </div>
+      
+      {/* Front profile card (Vibrant red/magenta gradient) */}
+      <div className="absolute bottom-2 right-2 w-11 h-11 rounded-lg bg-gradient-to-br from-[#ff0055] to-[#ff500f] border border-white/30 shadow-lg flex flex-col items-center justify-center transform rotate-6">
+        {/* Cute eyes */}
+        <div className="flex gap-3 mb-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+        </div>
+        {/* Smiling mouth */}
+        <svg className="w-4 h-2 text-white" viewBox="0 0 24 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 2C6 9 18 9 22 2" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+interface Feature {
+  id: string;
+  title: string;
+  desc: string;
+}
+
+const FEATURES: Feature[] = [
+  {
+    id: 'tv',
+    title: 'Watch on any screen',
+    desc: 'Stream on your smart TV, laptop, tablet or phone. Wherever you are, Pstream comes with you.',
+  },
+  {
+    id: 'stream',
+    title: 'Stream in HD & 4K',
+    desc: 'Enjoy stunning picture quality with HD and Ultra HD streams, powered by the best available sources.',
+  },
+  {
+    id: 'subtitles',
+    title: 'Subtitles your way',
+    desc: 'Choose from 40+ languages. Customise font size, colour, and background to your taste.',
+  },
+  {
+    id: 'place',
+    title: 'Never lose your place',
+    desc: 'Continue Watching picks up exactly where you left off — across every show and season, on any device.',
+  },
+];
+
+const FeatureCard: React.FC<Feature> = ({ id, title, desc }) => (
+  <div className="bg-gradient-to-br from-[#1A2144] from-40% to-[#30181b] rounded-2xl p-5 md:p-7 flex flex-col justify-between min-h-[175px] md:min-h-[210px] relative overflow-hidden group transition-all duration-300">
+    <div>
+      <h3 className="text-white text-xl md:text-2xl font-black mb-2.5 leading-tight">{title}</h3>
+      <p className="text-zinc-400 text-sm md:text-base font-normal leading-relaxed">{desc}</p>
+    </div>
+    <div className="mt-4 self-end opacity-90 transition-transform duration-300 group-hover:scale-110">
+      <FeatureIcon id={id} />
+    </div>
+  </div>
+);
+
+interface AuthModalProps {
+  initialView: 'signin' | 'signup';
+  initialEmail: string;
+  onClose: () => void;
+}
+
+const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClose }) => {
+  const [view, setView] = useState<'signin' | 'signup'>(initialView);
+  const [email, setEmail] = useState(initialEmail);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const navigate = useNavigate();
+
+  // Reset view state when initialView prop changes (e.g. user toggles signin/signup outside modal)
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
+
+  // Sync email from landing page input when it changes
+  useEffect(() => {
+    setEmail(initialEmail);
+  }, [initialEmail]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      if (view === 'signup') {
+        const { error: err } = await supabase.auth.signUp({ email, password });
+        if (err) throw err;
+        setSuccessMsg('Account created! Check your email to confirm, then sign in.');
+        setView('signin');
+      } else {
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) throw err;
+        navigate('/');
+      }
+    } catch (err: any) {
+      const errMsg = err.message || '';
+      if (
+        errMsg.toLowerCase().includes('already registered') ||
+        errMsg.toLowerCase().includes('already exists') ||
+        err.code === 'user_already_exists'
+      ) {
+        setView('signin');
+        setError('An account with this email already exists. Please enter your password to sign in.');
+      } else {
+        setError(errMsg || 'Something went wrong. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/' }
+    });
+    if (err) { setError(err.message); setGoogleLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-[410px] bg-black/90 border border-white/10 rounded-xl p-8 shadow-2xl animate-fadeIn"
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="text-2xl font-bold text-white mb-1">
+          {view === 'signin' ? 'Sign In' : 'Create Account'}
+        </h2>
+        <p className="text-white/40 text-sm mb-6">
+          {view === 'signin' ? 'Welcome back!' : 'Start watching in seconds.'}
+        </p>
+
+        {/* Google */}
+        <button
+          onClick={handleGoogle}
+          disabled={googleLoading}
+          className="w-full h-12 mb-5 bg-white text-black rounded-lg font-bold flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-[0.98] disabled:opacity-60"
+        >
+          <GoogleLogoIcon size={20} weight="bold" />
+          {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+        </button>
+
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex-1 h-px bg-white/10" />
+          <span className="text-white/30 text-xs uppercase tracking-widest">or</span>
+          <div className="flex-1 h-px bg-white/10" />
+        </div>
+
+        {successMsg && (
+          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded text-green-300 text-sm">{successMsg}</div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="relative">
+            <EnvelopeIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+            <input
+              type="email" required value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="Email address" autoComplete="email"
+              className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
+            />
+          </div>
+          <div className="relative">
+            <LockSimpleIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+            <input
+              type={showPassword ? 'text' : 'password'} required minLength={6}
+              value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="Password" autoComplete={view === 'signup' ? 'new-password' : 'current-password'}
+              className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-10 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
+            />
+            <button type="button" onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors">
+              {showPassword ? <EyeSlashIcon size={16} /> : <EyeIcon size={16} />}
+            </button>
+          </div>
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50 mt-1">
+            {loading
+              ? (view === 'signup' ? 'Creating…' : 'Signing in…')
+              : (view === 'signup' ? 'Create Account' : 'Sign In')}
+          </button>
+        </form>
+
+        <p className="mt-5 text-center text-white/40 text-sm">
+          {view === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+          <button
+            onClick={() => { setView(view === 'signin' ? 'signup' : 'signin'); setError(''); setSuccessMsg(''); }}
+            className="text-white hover:underline font-medium">
+            {view === 'signin' ? 'Sign up' : 'Sign in'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ─── Landing Page ────────────────────────────────────────────────────────────
+type AuthView = 'none' | 'signin' | 'signup';
 
 const LoginPage: React.FC = () => {
-    const { login, syncStatus, user, updateSettings } = useGlobalContext();
-    const { t } = useTranslation();
-    const [view, setView] = useState<'landing' | 'signin' | 'create-name' | 'savekey'>('landing');
-    const [mnemonic, setMnemonic] = useState('');
-    const [displayName, setDisplayName] = useState('');
-    const [error, setError] = useState('');
-    const [newMnemonic, setNewMnemonic] = useState<string | null>(null);
-    const [showInfo, setShowInfo] = useState(false);
-    const navigate = useNavigate();
-    
-    const formRef = useRef<HTMLFormElement>(null);
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const user = useAuthStore(s => s.user);
+  const [authView, setAuthView] = useState<AuthView>('none');
+  const [heroEmail, setHeroEmail] = useState('');
 
-    useEffect(() => {
-        if (user) navigate('/');
-    }, [user, navigate]);
+  useEffect(() => { if (user) navigate('/'); }, [user, navigate]);
 
-    const handleLogin = async (e?: React.FormEvent, customMnemonic?: string) => {
-        if (e) e.preventDefault();
-        setError('');
-        
-        const phrase = (customMnemonic || mnemonic).trim().toLowerCase();
-        if (!phrase) {
-            setError(t('auth.invalidKey', { defaultValue: 'Please enter your recovery phrase' }));
-            return;
-        }
+  const handleGetStarted = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthView('signup');
+  };
 
-        // Frontend BIP39 validation — rejects random/invalid words before hitting the backend
-        const isSignUp = view === 'savekey';
-        if (!isSignUp) {
-            const words = phrase.split(/\s+/);
-            if (words.length !== 12) {
-                setError('Recovery phrase must be exactly 12 words.');
-                return;
-            }
-            if (!bip39.validateMnemonic(phrase)) {
-                setError('Invalid recovery phrase. Please check the words and try again.');
-                return;
-            }
-        }
-        const result = await login(phrase, displayName.trim(), isSignUp);
-        if (!result.success) {
-            setError(result.error || t('auth.invalidKey', { defaultValue: 'Login failed' }));
-        } else {
-            if (isSignUp && formRef.current) {
-                const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
-                formRef.current.dispatchEvent(submitEvent);
-            }
-            navigate('/');
-        }
-    };
+  return (
+    <div className="bg-black text-white font-inter min-h-screen">
 
-    const changeView = (newView: typeof view) => {
-        setError('');
-        setDisplayName('');
-        setMnemonic('');
-        setView(newView);
-    };
+      {/* ── Navbar (logo + sign in only) ─────────────────────────────────── */}
+      <nav className="fixed top-0 w-full z-[80] bg-gradient-to-b from-black/80 to-transparent px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56 py-4 flex items-center justify-between">
+        <img src={logo} alt="Pstream" className="h-5 md:h-7 cursor-pointer" onClick={() => {}} />
+        <button
+          onClick={() => setAuthView('signin')}
+          className="px-5 py-2 bg-[#e50914] text-white text-sm font-bold rounded hover:bg-[#f40612] transition-all active:scale-95"
+        >
+          Sign In
+        </button>
+      </nav>
 
-    const handleStartCreation = () => changeView('create-name');
-    const handleStartSignIn = () => changeView('signin');
-
-    const handleGenerate = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!displayName.trim()) {
-            setError(t('settings.nameRequired', { defaultValue: 'Please enter your name to continue' }));
-            return;
-        }
-        const m = AuthService.generateMnemonic();
-        setNewMnemonic(m);
-        setMnemonic(m);
-        setView('savekey');
-    };
-
-    const copyToClipboard = () => {
-        if (newMnemonic) navigator.clipboard.writeText(newMnemonic);
-    };
-
-    const downloadKey = () => {
-        if (newMnemonic) {
-            const element = document.createElement("a");
-            const file = new Blob([newMnemonic], {type: 'text/plain'});
-            element.href = URL.createObjectURL(file);
-            element.download = "pstream-recovery-phrase.txt";
-            document.body.appendChild(element);
-            element.click();
-        }
-    };
-
-    const saveToPasskey = () => {
-        if (formRef.current) {
-             formRef.current.dispatchEvent(new Event('submit'));
-             alert("Safe! Your phrase has been added to your browser's secure vault.");
-        }
-    };
-
-    return (
-        <div className="relative min-h-screen bg-black flex flex-col font-['Consolas'] overflow-hidden selection:bg-red-600/30">
-            {/* Cinematic Background */}
-            <div className="absolute inset-0 z-0">
-                <img src={landingBg} className="w-full h-full object-cover opacity-60 scale-105" alt="background" />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/10 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                <div className="absolute inset-0 bg-black/30" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,black_80%)] opacity-60" />
-            </div>
-
-            <header className="relative z-[90] px-6 md:px-14 lg:px-16 pt-[calc(1rem+env(safe-area-inset-top))] pb-4">
-                <div className="flex items-center justify-between">
-                    <img 
-                        src={logo} 
-                        alt="Pstream" 
-                        onClick={() => navigate('/')}
-                        className="h-4 sm:h-5 md:h-6 lg:h-7 cursor-pointer drop-shadow-md transition-transform hover:scale-105" 
-                    />
-                </div>
-            </header>
-
-            {/* Hidden credential form — only submitted during sign-up via ref.dispatchEvent.
-                Username must be set from displayName so the browser saves the right name.
-                We do NOT dispatch/submit this on sign-in so the browser never prompts to save. */}
-            <form ref={formRef} className="hidden" method="POST" action="/#login-success" autoComplete="on">
-                <input type="text" name="username" value={displayName || ''} readOnly autoComplete="username" />
-                <input type="password" name="password" value={mnemonic} readOnly autoComplete="new-password" />
-                <button type="submit">Save</button>
-            </form>
-
-            <main className="relative z-10 flex-grow flex items-center justify-center px-6 py-12 md:py-20 lg:py-24">
-                {view === 'landing' && (
-                    <div className="max-w-4xl w-full text-center space-y-8 md:space-y-12 animate-fadeIn">
-                        <div className="space-y-4">
-                            <h1 className="text-3xl sm:text-4xl md:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-2xl">
-                                {t('auth.landingTitle', { defaultValue: 'Unlimited films, series and more' })}
-                            </h1>
-                            <p className="text-lg md:text-2xl text-white font-medium max-w-2xl mx-auto">
-                                {t('auth.readyToWatch', { defaultValue: 'Ready to watch? Create an account or sign in to restore your collection.' })}
-                            </p>
-                        </div>
-
-                        <div className="flex flex-col items-center gap-4 pt-4 md:pt-8">
-                            <button
-                                onClick={handleStartCreation}
-                                className="w-full md:w-[460px] h-14 md:h-20 bg-[#e50914] text-white text-xl md:text-3xl font-bold rounded flex items-center justify-center gap-3 hover:bg-[#f40612] transition-all shadow-2xl hover:scale-[1.02] active:scale-95 group"
-                            >
-                                {t('auth.getStarted', { defaultValue: 'Get Started' })}
-                                <CaretRightIcon size={28} weight="bold" className="group-hover:translate-x-1 transition-transform" />
-                            </button>
-                            
-                            <button
-                                onClick={() => changeView('signin')}
-                                className="w-full md:w-[460px] h-12 text-white/60 hover:text-white text-base md:text-lg font-bold transition-colors uppercase tracking-widest"
-                            >
-                                {t('auth.alreadyHaveKey', { defaultValue: 'Already have a recovery key?' })}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {view === 'create-name' && (
-                    <div className="max-w-[450px] w-full bg-black/75 p-8 md:p-16 rounded border border-white/10 backdrop-blur-md shadow-2xl animate-fadeIn">
-                        <div className="mb-8">
-                            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">
-                                {t('auth.createTitle', { defaultValue: 'Create Account' })}
-                            </h1>
-                            <p className="text-white/50 text-sm">
-                                {t('auth.createSubtitle', { defaultValue: 'Enter your name to generate your unique Pstream recovery key.' })}
-                            </p>
-                        </div>
-
-                        <form onSubmit={handleGenerate} className="space-y-6">
-                            <div className="relative">
-                                <input 
-                                    type="text"
-                                    value={displayName}
-                                    onChange={(e) => setDisplayName(e.target.value)}
-                                    placeholder={t('settings.profileName', { defaultValue: 'Profile name' })}
-                                    className="w-full h-14 bg-[#333] border-b-2 border-transparent text-white rounded px-4 py-4 text-base focus:outline-none focus:bg-[#444] focus:border-red-600 transition-all placeholder:text-white/30"
-                                />
-                                {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
-                            </div>
-
-                            <button
-                                type="submit"
-                                className="w-full py-4 bg-red-600 text-white rounded font-bold uppercase tracking-widest text-sm hover:bg-red-700 transition-all active:scale-[0.98]"
-                            >
-                                {t('common.continue', { defaultValue: 'Continue' })}
-                            </button>
-
-                            <div className="pt-4 text-center">
-                                <button type="button" onClick={() => changeView('landing')} className="text-white/40 hover:text-white text-xs underline">
-                                    {t('common.back', { defaultValue: 'Back' })}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
-
-                {view === 'signin' && (
-                    <div className="max-w-[450px] w-full bg-black/75 p-8 md:p-16 rounded border border-white/5 backdrop-blur-md shadow-2xl animate-fadeIn">
-                        <div className="mb-8">
-                            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">{t('auth.signIn')}</h1>
-                            <p className="text-white/40 text-sm">
-                                {t('auth.signInSubtitle', { defaultValue: 'Enter your 12-word recovery phrase to restore your account.' })}
-                            </p>
-                        </div>
-
-                        <form onSubmit={handleLogin} className="space-y-6">
-                            <div className="space-y-4">
-                                <div className="relative group">
-                                    {/* Hidden username field for password managers to contextually recognize the sign in */}
-                                    <input type="text" name="username" value={displayName} onChange={() => {}} autoComplete="username" style={{display: 'none'}} />
-                                    <textarea
-                                        name="password"
-                                        id="password"
-                                        value={mnemonic}
-                                        onChange={(e) => setMnemonic(e.target.value)}
-                                        className="w-full h-32 bg-[#333] border-b-2 border-transparent text-white rounded px-4 py-4 text-sm focus:outline-none focus:bg-[#444] focus:border-red-600 transition-all resize-none placeholder:text-white/30"
-                                        placeholder={t('auth.mnemonicPlaceholderLarge')}
-                                        autoComplete="current-password"
-                                    />
-                                    <div onClick={() => setShowInfo(!showInfo)} className="absolute right-3 bottom-3 text-white/20 hover:text-white/60 cursor-pointer">
-                                        <InfoIcon size={18} />
-                                    </div>
-                                </div>
-                                {showInfo && (
-                                    <div className="bg-white/5 border border-white/10 rounded p-3 text-[11px] text-white/50 leading-relaxed animate-slideUp">
-                                        {t('auth.infoText')}
-                                    </div>
-                                )}
-                            </div>
-
-                            {error && <div className="text-red-500 text-xs">{error}</div>}
-
-                            <button
-                                type="submit"
-                                disabled={syncStatus === 'syncing'}
-                                className="w-full py-4 bg-red-600 text-white rounded font-bold uppercase tracking-widest text-sm hover:bg-red-700 transition-all active:scale-[0.98]"
-                            >
-                                {syncStatus === 'syncing' ? t('auth.syncing') : t('auth.signIn', { defaultValue: 'Sign In' })}
-                            </button>
-
-                            <div className="pt-4 text-center">
-                                <button 
-                                    type="button"
-                                    onClick={() => changeView('landing')}
-                                    className="text-white/40 hover:text-white text-xs underline"
-                                >
-                                    {t('auth.backToLanding')}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
-
-                {view === 'savekey' && (
-                    <div className="max-w-[450px] w-full bg-black/80 p-10 md:p-12 rounded border border-white/10 backdrop-blur-md shadow-2xl animate-slideUp">
-                        <div className="space-y-6">
-                            <div className="flex flex-col items-center text-center gap-4">
-                                <div className="w-16 h-16 rounded-full bg-red-600/10 border border-red-600/20 flex items-center justify-center text-red-500">
-                                    <ShieldCheckIcon size={40} weight="duotone" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-white tracking-tight">{t('auth.identityReady')}</h2>
-                                <p className="text-white/50 text-sm">{t('auth.identityDesc')}</p>
-                            </div>
-
-                            <div className="p-4 bg-white/5 border border-white/10 rounded grid grid-cols-3 gap-2">
-                                {newMnemonic?.split(' ').map((word, i) => (
-                                    <div key={i} className="text-[10px] text-white/40 bg-black/30 p-1 rounded border border-white/5 text-center">
-                                        <span className="opacity-20 mr-1">{i+1}</span> {word}
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="space-y-3">
-                                <button
-                                    onClick={() => handleLogin()}
-                                    className="w-full h-14 bg-red-600 text-white rounded font-bold uppercase tracking-widest text-xs hover:bg-red-700 transition-all active:scale-95 shadow-lg shadow-red-600/20"
-                                >
-                                    {t('auth.confirmEnter')}
-                                </button>
-                                
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button onClick={copyToClipboard} className="h-10 border border-white/10 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-all flex items-center justify-center gap-2">
-                                        <CopyIcon size={16} /> {t('auth.copy')}
-                                    </button>
-                                    <button onClick={downloadKey} className="h-10 border border-white/10 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-all flex items-center justify-center gap-2">
-                                        <DownloadIcon size={16} /> {t('auth.saveFile')}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </main>
-
-            <footer className="relative z-10 py-10 px-8 text-white/30 text-[13px] text-center md:text-left md:px-32 bg-black/80">
-                <p className="mb-6 opacity-60">{t('auth.footerReady')}</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl opacity-50">
-                    <span className="hover:underline cursor-pointer">{t('auth.footerHelp')}</span>
-                    <span className="hover:underline cursor-pointer">{t('auth.footerTerms')}</span>
-                    <span className="hover:underline cursor-pointer">{t('auth.footerPrivacy')}</span>
-                    <span className="hover:underline cursor-pointer">{t('auth.footerCookies')}</span>
-                </div>
-            </footer>
+      {/* ── Hero Section ─────────────────────────────────────────────────── */}
+      <section className="relative min-h-[60vh] sm:min-h-[65vh] md:min-h-[70vh] pt-32 pb-20 md:pt-44 md:pb-28 flex flex-col items-center justify-center text-center px-6 overflow-hidden">
+        {/* Background */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
+          <img src={landingBg} className="w-full h-full object-cover opacity-50 scale-105" alt="" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-black" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.6)_100%)]" />
         </div>
-    );
+
+
+
+        <div className="relative z-10 max-w-[720px] mx-auto space-y-6">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-black leading-tight tracking-tight drop-shadow-2xl">
+            {t('auth.landingTitle', { defaultValue: 'Unlimited films, series and more' })}
+          </h1>
+          <p className="text-lg md:text-2xl font-medium text-white/90">
+            {t('auth.readyToWatch', { defaultValue: 'Ready to watch? Enter your email to create or restart your membership.' })}
+          </p>
+
+          <form onSubmit={handleGetStarted} className="flex flex-col sm:flex-row gap-3 justify-center mt-8 max-w-xl mx-auto">
+            <input
+              type="email"
+              value={heroEmail}
+              onChange={e => setHeroEmail(e.target.value)}
+              placeholder="Email address"
+              className="flex-1 h-14 bg-black/50 border border-white/30 text-white rounded px-4 text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/40 backdrop-blur-md"
+            />
+            <button
+              type="submit"
+              className="h-14 px-8 bg-[#e50914] hover:bg-[#f40612] text-white font-bold text-lg rounded flex items-center gap-2 whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95 shadow-xl"
+            >
+              Get Started
+              <CaretRightIcon size={22} weight="bold" />
+            </button>
+          </form>
+        </div>
+      </section>
+
+      {/* ── Top 10 Trending Row ──────────────────────────────────────────── */}
+      <section className="pt-12 pb-6 bg-black">
+        <LandingTopTenRow
+          title="Trending now"
+          fetchUrl={REQUESTS.fetchTrending}
+        />
+      </section>
+
+
+
+      {/* ── More Reasons to Join ─────────────────────────────────────────── */}
+      <section className="py-12 md:py-20 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56 bg-black">
+        <h2 className="text-white text-2xl md:text-4xl font-black mb-8 md:mb-12">More reasons to join</h2>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
+          {FEATURES.map(f => <FeatureCard key={f.title} {...f} />)}
+        </div>
+      </section>
+
+
+
+      {/* ── Bottom CTA ───────────────────────────────────────────────────── */}
+      <section className="py-16 px-6 text-center bg-black">
+        <p className="text-white text-lg md:text-xl font-normal mb-6">
+          {t('auth.readyToWatch', { defaultValue: 'Ready to watch? Enter your email to create or log in to your account.' })}
+        </p>
+        <form
+          onSubmit={handleGetStarted}
+          className="flex flex-col sm:flex-row gap-3 justify-center max-w-xl mx-auto"
+        >
+          <input
+            type="email"
+            value={heroEmail}
+            onChange={e => setHeroEmail(e.target.value)}
+            placeholder="Email address"
+            className="flex-1 h-14 bg-black/50 border border-white/30 text-white rounded px-4 text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/40 backdrop-blur-md"
+          />
+          <button
+            type="submit"
+            className="h-14 px-8 bg-[#e50914] hover:bg-[#f40612] text-white font-bold text-lg rounded flex items-center gap-2 whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95 shadow-xl"
+          >
+            Get Started <CaretRightIcon size={22} weight="bold" />
+          </button>
+        </form>
+      </section>
+
+
+
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <Footer />
+
+      {/* ── Auth Modal ───────────────────────────────────────────────────── */}
+      {authView !== 'none' && (
+        <AuthModal
+          initialView={authView === 'signin' ? 'signin' : 'signup'}
+          initialEmail={heroEmail}
+          onClose={() => setAuthView('none')}
+        />
+      )}
+    </div>
+  );
 };
 
 export default LoginPage;
