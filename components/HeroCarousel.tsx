@@ -117,6 +117,11 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     const applyHeroPackage = (pkg: HeroPackage) => {
       setMovie(pkg.movie);
       if (pkg.logoUrl) setLogoUrl(pkg.logoUrl);
+      if (pkg.movie) {
+        import('../hooks/useTrailer').then(({ preloadTrailer }) => {
+          preloadTrailer(pkg.movie);
+        });
+      }
     };
 
     const getHeroPageType = (url: string): string => {

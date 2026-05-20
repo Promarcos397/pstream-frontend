@@ -163,6 +163,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             setReplayCount(0);
             setOverrideMovie(null);
 
+            import('../hooks/useTrailer').then(({ preloadTrailer }) => {
+                preloadTrailer(movie);
+            });
+
             const type = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
             if (type === 'tv') {
@@ -262,6 +266,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         setEpisodes([]);
         setSelectedSeason(1);
         setReplayCount(c => c + 1);
+
+        import('../hooks/useTrailer').then(({ preloadTrailer }) => {
+            preloadTrailer(rec);
+        });
+
         const type = rec.media_type || (rec.title ? 'movie' : 'tv');
         setSearchParams(prev => {
             const next = new URLSearchParams(prev);
