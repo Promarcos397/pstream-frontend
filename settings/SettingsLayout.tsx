@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
     ArrowLeftIcon, HouseIcon, UserCircleIcon, TranslateIcon,
@@ -223,9 +223,29 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
     const navigate = useNavigate();
     const { t } = useTranslation();
     const { user } = useGlobalContext();
-    const [displayName, setDisplayName] = useState(settings.displayName || user?.display_name || '');
+    
+    // Resolve a sensible non-empty name from fallback properties
+    const resolvedFallback = settings.displayName || 
+                             user?.display_name || 
+                             user?.user_metadata?.display_name || 
+                             user?.user_metadata?.full_name || 
+                             (user?.email ? user.email.split('@')[0] : '');
+
+    const [displayName, setDisplayName] = useState(resolvedFallback);
     const [imgFailed, setImgFailed] = useState(false);
     const avatarSrc = imgFailed ? FALLBACK_AVATAR : (settings.avatarUrl || DEFAULT_AVATAR);
+
+    // Sync displayName if user or settings load asynchronously
+    useEffect(() => {
+        const currentFallback = settings.displayName || 
+                                user?.display_name || 
+                                user?.user_metadata?.display_name || 
+                                user?.user_metadata?.full_name || 
+                                (user?.email ? user.email.split('@')[0] : '');
+        if (currentFallback && !displayName) {
+            setDisplayName(currentFallback);
+        }
+    }, [settings.displayName, user]);
 
     const handleSaveName = async () => {
         const trimmed = displayName.trim();
