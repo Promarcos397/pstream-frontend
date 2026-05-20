@@ -131,7 +131,7 @@ const CharacterRow: React.FC<CharacterRowProps> = ({ onSelectMovie, title = "Cha
                         >
                             <div className="w-full aspect-square rounded-full overflow-hidden border-[3px] border-transparent group-hover/char:border-white transition-all duration-300 bg-[#222] shadow-[0_4px_10px_rgba(0,0,0,0.5)] group-hover/char:shadow-[0_0_25px_rgba(255,255,255,0.6)] relative z-10">
                                 <img
-                                    src={`${IMG_PATH}${show.poster_path}`}
+                                    src={`https://image.tmdb.org/t/p/w342${show.poster_path}`}
                                     alt={show.name}
                                     className="w-full h-full object-cover object-top scale-[1.15] group-hover/char:scale-[1.4] transition-transform duration-500 ease-out"
                                     loading="lazy"

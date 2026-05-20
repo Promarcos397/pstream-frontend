@@ -418,11 +418,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
     ? (movie.backdrop_path || movie.poster_path)
-    : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path || movie.poster_path}`;
+    : `https://image.tmdb.org/t/p/w500${movie.backdrop_path || movie.poster_path}`;
 
   const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
     ? movie.poster_path
-    : `https://image.tmdb.org/t/p/w1280${movie.poster_path}`;
+    : `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
 
   // Handle cached images for smooth reveal
   useEffect(() => {

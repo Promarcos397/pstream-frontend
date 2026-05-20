@@ -124,7 +124,7 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
                                 </div>
                                 <div className="relative w-28 h-16 md:w-36 md:h-20 bg-gray-800 flex-shrink-0 rounded-sm overflow-hidden mr-4">
                                     {ep.still_path ? (
-                                        <img src={`${IMG_PATH}${ep.still_path}`} className="w-full h-full object-cover group-hover:brightness-50 transition duration-200" alt={ep.name} />
+                                        <img src={`https://image.tmdb.org/t/p/w300${ep.still_path}`} className="w-full h-full object-cover group-hover:brightness-50 transition duration-200" alt={ep.name} />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-gray-600">{t('common.noImage')}</div>
                                     )}

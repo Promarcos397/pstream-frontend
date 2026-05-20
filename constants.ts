@@ -3,7 +3,7 @@
 // Set VITE_TMDB_API_KEY in your .env file (and Cloudflare Pages env vars).
 export const API_KEY = (import.meta as any).env?.VITE_TMDB_API_KEY || '';
 export const BASE_URL = 'https://api.themoviedb.org/3';
-export const IMG_PATH = 'https://image.tmdb.org/t/p/original';
+export const IMG_PATH = 'https://image.tmdb.org/t/p/w780';
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 export const LOGO_SIZE = 'w780'; // Higher resolution for professional display
 

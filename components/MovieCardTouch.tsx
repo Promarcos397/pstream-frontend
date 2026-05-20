@@ -55,7 +55,7 @@ const MovieCardTouch: React.FC<MovieCardTouchProps> = ({ movie, onSelect, onPlay
 
   const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
     ? (movie.backdrop_path || movie.poster_path)
-    : `https://image.tmdb.org/t/p/w780${movie.backdrop_path || movie.poster_path}`;
+    : `https://image.tmdb.org/t/p/w500${movie.backdrop_path || movie.poster_path}`;
 
   // Intersection Observer for lazy logo fetch
   useEffect(() => {
