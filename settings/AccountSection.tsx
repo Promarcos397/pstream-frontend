@@ -31,7 +31,7 @@ const AccountSection: React.FC = () => {
     }
 
     const avatarSrc = settings.avatarUrl || DEFAULT_AVATAR;
-    const profileName = settings.displayName || user.display_name || user.public_key.slice(0, 12);
+    const profileName = settings.displayName || user.display_name || user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || user.id.slice(0, 12);
 
     const SettingsRow: React.FC<{
         icon: React.ReactNode;

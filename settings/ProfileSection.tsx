@@ -20,7 +20,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ settings }) => {
     const [imgFailed, setImgFailed] = useState(false);
 
     const avatarSrc = imgFailed ? FALLBACK_AVATAR : (settings.avatarUrl || DEFAULT_AVATAR);
-    const profileName = settings.displayName || user?.display_name || (user ? user.public_key.slice(0, 12) + '...' : 'Guest');
+    const profileName = settings.displayName || user?.display_name || user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || (user ? user.id.slice(0, 12) + '...' : 'Guest');
 
     return (
         <div className="text-gray-900 animate-fadeIn space-y-6">
