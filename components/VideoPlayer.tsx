@@ -257,7 +257,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers' | 'playback'>('none');
 
     // Subtitles
-    const [captions, setCaptions] = useState<{ id: string; label: string; url: string; lang: string }[]>([]);
+    const [captions, setCaptions] = useState<{ id: string; label: string; url: string; lang: string; duration?: number }[]>([]);
     const [currentCaption, setCurrentCaption] = useState<string | null>(null);
     const [subtitleObjectUrl, setSubtitleObjectUrl] = useState<string | null>(null);
     // Subtitle offset in seconds: positive = show later, negative = show earlier
@@ -290,6 +290,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             return {
                 episode: { id: -1, episode_number: 1, name: 'Next Season', season_number: nextSeason } as Episode,
                 season: nextSeason,
+            };
+        }
+        return null;
+    }, [mediaType, currentSeasonEpisodes, currentEpisode, playingSeasonNumber, seasonList]);
+
+    const previousEpisodeInfo = useMemo<{ episode: Episode; season: number } | null>(() => {
+        if (mediaType !== 'tv') return null;
+        // Find current episode index within the loaded season episode list
+        const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
+        // Case 1: There is a previous episode in this same season
+        if (currentIdx > 0) {
+            return { episode: currentSeasonEpisodes[currentIdx - 1], season: playingSeasonNumber };
+        }
+        // Case 2: First episode of the season — find the previous season
+        const prevSeason = [...seasonList].reverse().find(s => s < playingSeasonNumber);
+        if (prevSeason !== undefined) {
+            // Return a placeholder ep; the real list loads when the season is fetched
+            return {
+                episode: { id: -1, episode_number: 99, name: 'Previous Season', season_number: prevSeason } as Episode,
+                season: prevSeason,
             };
         }
         return null;
@@ -631,6 +651,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         handleEpisodeSelect(nextEpisodeInfo.episode, nextEpisodeInfo.season);
     }, [nextEpisodeInfo, handleEpisodeSelect]);
 
+    const handlePreviousEpisode = useCallback(() => {
+        if (!previousEpisodeInfo) return;
+        
+        // If it was a placeholder episode from the previous season (episode_number 99),
+        // we should fetch the previous season details to get the actual last episode of that season!
+        if (previousEpisodeInfo.episode.id === -1) {
+            setStreamUrl(null);
+            setIsBuffering(true);
+            setActivePanel('none');
+            const targetSeason = previousEpisodeInfo.season;
+            setPlayingSeasonNumber(targetSeason);
+            setBrowsedSeasonNumber(targetSeason);
+            getSeasonDetails(String(movie.id), targetSeason).then(data => {
+                if (data?.episodes && data.episodes.length > 0) {
+                    setCurrentSeasonEpisodes(data.episodes);
+                    // Select the last episode of the previous season
+                    const lastEp = data.episodes[data.episodes.length - 1];
+                    setCurrentEpisode(lastEp.episode_number);
+                }
+            }).catch(() => {});
+        } else {
+            handleEpisodeSelect(previousEpisodeInfo.episode, previousEpisodeInfo.season);
+        }
+    }, [previousEpisodeInfo, handleEpisodeSelect, movie.id]);
+
     // ——— Track episode/season prop changes ——————————————————————————————————————————
     useEffect(() => {
         if (season !== playingSeasonNumber) setPlayingSeasonNumber(season);
@@ -699,6 +744,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 case 'n':
                     if (nextEpisodeInfo) { e.preventDefault(); handleNextEpisode(); }
                     break;
+                case 'p':
+                    if (previousEpisodeInfo) { e.preventDefault(); handlePreviousEpisode(); }
+                    break;
                 case 's':
                     // Toggle subtitles on/off (cycle through available or disable)
                     e.preventDefault();
@@ -714,7 +762,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen]);
+    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen]);
 
     // ——— AllDebrid / Torrent: Primary Source ——————————————————————————————————————
     // Fires immediately on mount. Extractors only activate if this fails.
@@ -933,6 +981,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         const debridSubs = (debridStream as any).subtitles || [];
 
+        let expectedDurationSec = 0;
+        if (mediaType === 'movie') {
+            expectedDurationSec = (movie.runtime || 0) * 60;
+        } else if (mediaType === 'tv') {
+            const currentEpObj = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode);
+            expectedDurationSec = (currentEpObj?.runtime || 0) * 60;
+        }
+        const actualDurationSec = videoRef.current?.duration || 0;
+        const targetDuration = actualDurationSec > 0 ? actualDurationSec : expectedDurationSec;
+
         SubtitleService.getSubtitleTracks(
             String(movie.id), type,
             mediaType === 'tv' ? playingSeasonNumber : undefined,
@@ -956,7 +1014,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 label: sub.label,
                 url: sub.url,
                 lang: sub.lang,
+                duration: sub.duration,
             }));
+
+            // Sort subtitles: those with closer duration to targetDuration go first
+            if (targetDuration > 0) {
+                mappedCaptions.sort((a, b) => {
+                    const diffA = a.duration ? Math.abs(a.duration - targetDuration) : Infinity;
+                    const diffB = b.duration ? Math.abs(b.duration - targetDuration) : Infinity;
+                    
+                    // Prioritize close matches (within 90s)
+                    const aIsClose = diffA <= 90;
+                    const bIsClose = diffB <= 90;
+                    if (aIsClose && !bIsClose) return -1;
+                    if (!aIsClose && bIsClose) return 1;
+
+                    if (diffA !== diffB) {
+                        return diffA - diffB;
+                    }
+                    return 0; // Maintain download count sorting
+                });
+            }
 
             setCaptions(prev => {
                 // If we already have HLS/Embedded captions, keep them but append these
@@ -968,8 +1046,34 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             if (!settings.showSubtitles) return;
 
             // Pick: preferred lang → 3rd English (avoids SDH/CC) → 1st English → anything
+            // But we prioritize the track with the closest duration!
+            const matchingLangs = mappedCaptions.filter(s => s.lang === preferredLang);
             const enTracks = mappedCaptions.filter(s => s.lang === 'en');
-            const target = mappedCaptions.find(s => s.lang === preferredLang)
+            
+            const findBestTrack = (tracksList: typeof mappedCaptions) => {
+                if (tracksList.length === 0) return null;
+                if (targetDuration > 0) {
+                    const closeMatches = tracksList.filter(t => t.duration && Math.abs(t.duration - targetDuration) <= 90);
+                    if (closeMatches.length > 0) return closeMatches[0];
+                    
+                    const sortedByCloseness = [...tracksList].sort((a, b) => {
+                        const diffA = a.duration ? Math.abs(a.duration - targetDuration) : Infinity;
+                        const diffB = b.duration ? Math.abs(b.duration - targetDuration) : Infinity;
+                        return diffA - diffB;
+                    });
+                    if (sortedByCloseness[0] && sortedByCloseness[0].duration && Math.abs(sortedByCloseness[0].duration - targetDuration) < 300) {
+                        return sortedByCloseness[0];
+                    }
+                }
+                return null;
+            };
+
+            const bestPreferred = findBestTrack(matchingLangs);
+            const bestEnglish = findBestTrack(enTracks);
+
+            const target = bestPreferred 
+                || matchingLangs[0]
+                || bestEnglish
                 || enTracks[2] || enTracks[0]
                 || mappedCaptions[0];
 
@@ -978,7 +1082,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         return () => { cancelled = true; };
     }, [debridStream.streamUrl, (debridStream as any).subtitles, movie.id, mediaType, playingSeasonNumber, currentEpisode,
-        settings.subtitleLanguage, settings.showSubtitles]);
+        currentSeasonEpisodes, settings.subtitleLanguage, settings.showSubtitles]);
 
     // ——— HLS Hook ——————————————————————————————————————————————————————————————————
     const {
@@ -1155,6 +1259,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
+
+        // Reset video time immediately to prevent previous episode's progress leak
+        try {
+            video.currentTime = 0;
+        } catch (_) {}
 
         // Calculate the best resume time:
         // 1. For TV: getEpisodeProgress for this S+E
@@ -1506,6 +1615,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         >
             <video
                 ref={videoRef}
+                preload="auto"
                 className={`w-full h-full ${videoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={() => setIsPlaying(true)}
@@ -1530,8 +1640,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onWaiting={() => { if (!isStreamM3U8) setIsBuffering(true); }}
                 onPlaying={() => { if (!isStreamM3U8) setIsBuffering(false); }}
                 onCanPlay={() => { if (!isStreamM3U8) setIsBuffering(false); }}
-                // Aggressive pre-buffering: tell the browser to download as much as possible
-                preload="auto"
                 playsInline
                 onEnded={() => {
                     if (settings.autoplayNextEpisode) {
@@ -1713,7 +1821,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
             {/* Desktop Paused Overlay (Netflix style) */}
             {!isMobile && showPausedOverlay && !isBuffering && isVideoReady && !error && (
-                <div className="absolute inset-0 pointer-events-none flex flex-col justify-center p-12 z-[50] bg-black/40">
+                <div className="absolute inset-0 pointer-events-none flex flex-col justify-center p-12 z-[50] bg-black/60">
                     <div className="flex flex-col gap-1 max-w-2xl ml-24">
                         <p className="text-white/80 text-[1.1rem] font-normal tracking-wide drop-shadow-md">You're watching</p>
                         <h1 className="text-white text-6xl font-bold tracking-tight mb-2 drop-shadow-lg">{title}</h1>
@@ -1767,6 +1875,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 mediaType={mediaType}
                 hasNextEpisode={!!nextEpisodeInfo}
                 onNextEpisode={handleNextEpisode}
+                hasPreviousEpisode={!!previousEpisodeInfo}
+                onPrevEpisode={handlePreviousEpisode}
                 showNextEp={!!nextEpisodeInfo}
                 onInteraction={showControls}
                 onControlsHoverChange={(h) => isControlsHovered.current = h}
@@ -1823,6 +1933,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     allSources={allSources}
                     currentSourceIndex={currentSourceIndex}
                     onSourceChange={handleSourceChange}
+                    showTitle={title || movie.title || movie.name}
+                    videoDuration={duration}
                 />
             ) : (
                 <VideoPlayerSettings
@@ -1861,6 +1973,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     allSources={allSources}
                     currentSourceIndex={currentSourceIndex}
                     onSourceChange={handleSourceChange}
+                    showTitle={title || movie.title || movie.name}
+                    videoDuration={duration}
                 />
             )}
 

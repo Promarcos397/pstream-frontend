@@ -75,7 +75,7 @@ export const PanelShell: React.FC<{
                     <span className="text-white text-2xl font-bold">{title}</span>
                 </div>
             )}
-            <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-[#666] scrollbar-track-transparent">
+            <div className="overflow-y-auto flex-1 flex flex-col scrollbar-thin scrollbar-thumb-[#666] scrollbar-track-transparent">
                 {children}
             </div>
         </div>
@@ -84,7 +84,7 @@ export const PanelShell: React.FC<{
 
 // ─── Audio & Subtitle combined menu ─────────────────────────────────────────
 export const AudioSubPanel: React.FC<{
-    captions: Array<{ id: string; label: string; url: string; lang: string }>;
+    captions: Array<{ id: string; label: string; url: string; lang: string; duration?: number }>;
     currentCaption: string | null;
     onSubtitleChange: (url: string | null) => void;
     audioTracks: Array<{ id: number; name: string; lang: string }>;
@@ -98,7 +98,8 @@ export const AudioSubPanel: React.FC<{
     onClose: () => void;
     subtitleOffset?: number;
     onSubtitleOffsetChange?: (offset: number) => void;
-}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, internalTracks = [], selectedAudioTrackId, selectedSubtitleTrackId, onInternalAudioChange, onInternalSubtitleChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange }) => {
+    videoDuration?: number;
+}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, internalTracks = [], selectedAudioTrackId, selectedSubtitleTrackId, onInternalAudioChange, onInternalSubtitleChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange, videoDuration }) => {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
     const [activeLangGroup, setActiveLangGroup] = React.useState<string | null>(null);
@@ -124,9 +125,30 @@ export const AudioSubPanel: React.FC<{
     const STEP = 0.5; // seconds per +/- press
     const offsetLabel = subtitleOffset === 0 ? '0.0s' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s`;
 
+    const formatSubDuration = (sec: number): string => {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m}m`;
+    };
+
+    const getSubtitleDisplayLabel = (cap: any, fallbackLabel: string) => {
+        if (cap.duration) {
+            const formatted = formatSubDuration(cap.duration);
+            if (videoDuration && videoDuration > 0) {
+                const diff = Math.abs(cap.duration - videoDuration);
+                if (diff <= 90) {
+                    return `${fallbackLabel} (${formatted} - Match)`;
+                }
+            }
+            return `${fallbackLabel} (${formatted})`;
+        }
+        return fallbackLabel;
+    };
+
 
     const renderAudioColumn = () => (
-        <div className="flex flex-col flex-1 border-r border-white/10 min-w-[160px] h-full py-3">
+        <div className="flex flex-col border-r border-white/10 min-w-[180px] h-full py-3" style={{ flex: 1 }}>
             <div className="text-white font-bold mb-3 px-4 pt-2 text-sm uppercase tracking-wider text-white/60">
                 Audio
             </div>
@@ -169,7 +191,7 @@ export const AudioSubPanel: React.FC<{
     );
 
     const renderSubtitleColumn = () => (
-        <div className="flex flex-col flex-1 min-w-[160px] h-full py-3">
+        <div className="flex flex-col min-w-[220px] h-full py-3" style={{ flex: 1.4 }}>
             {/* Header + offset adjuster */}
             <div className="flex items-center justify-between px-4 pt-2 mb-1 flex-shrink-0">
                 <span className="text-sm uppercase tracking-wider text-white/60 font-bold">Subtitles</span>
@@ -206,7 +228,7 @@ export const AudioSubPanel: React.FC<{
                     return (
                         <li 
                             key={langKey} 
-                            className={`${rowCls} justify-between ${hasActiveChild ? 'text-white' : 'text-[#b3b3b3]'}`} 
+                            className={`${rowCls} justify-between font-semibold ${hasActiveChild ? 'text-white' : 'text-[#b3b3b3]'}`} 
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (isMulti) { setActiveLangGroup(langKey); }
@@ -217,7 +239,7 @@ export const AudioSubPanel: React.FC<{
                                 <div className="w-6 flex-shrink-0 flex justify-center">
                                     {hasActiveChild && <CheckIcon size={16} weight="bold" className="text-white" />}
                                 </div>
-                                <span className="text-sm truncate">{caps[0].label}</span>
+                                <span className="text-sm truncate">{getSubtitleDisplayLabel(caps[0], caps[0].label)}</span>
                             </div>
                             {isMulti && <CaretRightIcon size={20} weight="bold" className="text-[#b3b3b3] group-hover:text-white ml-2 flex-shrink-0" />}
                         </li>
@@ -228,7 +250,7 @@ export const AudioSubPanel: React.FC<{
                 {internalTracks.filter(t => t.type === 'subtitle').map((track) => (
                     <li 
                         key={`internal-sub-${track.id}`} 
-                        className={`${rowCls} ${selectedSubtitleTrackId === track.id ? 'text-white' : 'text-[#b3b3b3]'}`} 
+                        className={`${rowCls} font-semibold ${selectedSubtitleTrackId === track.id ? 'text-white' : 'text-[#b3b3b3]'}`} 
                         onClick={(e) => { e.stopPropagation(); onInternalSubtitleChange?.(track.id); }}
                     >
                         <div className="w-6 flex-shrink-0 flex justify-center">
@@ -271,7 +293,7 @@ export const AudioSubPanel: React.FC<{
                                 <div className="w-8 flex-shrink-0 flex justify-center">
                                     {isSelected && <CheckIcon size={20} weight="bold" className="text-white" />}
                                 </div>
-                                <span className="text-base truncate">{displayLabel}</span>
+                                <span className="text-base truncate">{getSubtitleDisplayLabel(cap, displayLabel)}</span>
                             </li>
                         );
                     })}
@@ -472,15 +494,9 @@ export const EpisodeExplorer: React.FC<{
         }
     }, [activePanel, currentEpisode, currentSeasonEpisodes.length]);
 
-    // Two-click handler
+    // Two-click handler -> now simple accordion toggle
     const handleEpisodeClick = (ep: Episode) => {
-        if (expandedEpisodeId === ep.id) {
-            onEpisodeSelect(ep);
-            setActivePanel('none');
-            setExpandedEpisodeId(null);
-        } else {
-            setExpandedEpisodeId(ep.id);
-        }
+        setExpandedEpisodeId(expandedEpisodeId === ep.id ? null : ep.id);
     };
 
 
@@ -533,7 +549,7 @@ export const EpisodeExplorer: React.FC<{
                                 <div
                                     key={ep.id}
                                     ref={isCurrentlyPlaying ? currentEpisodeRef : null}
-                                    className={`transition-colors border-b border-white/5 ${isCurrentlyPlaying || isExpanded ? 'bg-[#121212]' : 'hover:bg-white/5'}`}
+                                    className={`transition-colors border-b border-white/5 ${isExpanded ? 'bg-[#121212]' : 'hover:bg-white/5'}`}
                                 >
                                     <div
                                         className="flex items-center px-7 py-[18px] cursor-pointer gap-4"
@@ -557,7 +573,7 @@ export const EpisodeExplorer: React.FC<{
                                         <CaretRightIcon
                                             size={isMobile ? 24 : 22}
                                             weight="bold"
-                                            className={`flex-shrink-0 transition-transform text-white/40 ${isExpanded ? 'rotate-90' : ''}`}
+                                            className={`flex-shrink-0 transition-all ${isExpanded ? 'rotate-90 text-white' : 'text-white/40'}`}
                                         />
                                     </div>
 
@@ -707,7 +723,7 @@ interface VideoPlayerSettingsProps {
     qualities: Array<{ height: number; bitrate: number; level: number }>;
     currentQuality: number;
     onQualityChange: (level: number) => void;
-    captions: Array<{ id: string; label: string; url: string; lang: string }>;
+    captions: Array<{ id: string; label: string; url: string; lang: string; duration?: number }>;
     currentCaption: string | null;
     onSubtitleChange: (url: string | null) => void;
     subtitleOffset?: number;
@@ -726,6 +742,7 @@ interface VideoPlayerSettingsProps {
     allSources: any[];
     currentSourceIndex: number;
     onSourceChange: (index: number) => void;
+    videoDuration?: number;
 }
 
 const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
@@ -740,7 +757,7 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
                     onClose={close}
                     onHover={() => { /* keep panel open */ }}
                     onLeave={() => { /* handled via hover timeout in controls */ }}
-                    desktopClass="bottom-16 right-0 w-[380px] lg:w-[480px] h-[380px]"
+                    desktopClass="bottom-16 right-0 w-[480px] lg:w-[680px] h-[520px]"
                 >
                     <AudioSubPanel {...props} onClose={close} />
                 </PanelShell>

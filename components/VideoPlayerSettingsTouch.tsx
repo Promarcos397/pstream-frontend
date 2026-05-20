@@ -42,7 +42,7 @@ export const PanelShellTouch: React.FC<{
 };
 
 export const AudioSubPanelTouch: React.FC<{
-    captions: Array<{ id: string; label: string; url: string; lang: string }>;
+    captions: Array<{ id: string; label: string; url: string; lang: string; duration?: number }>;
     currentCaption: string | null;
     onSubtitleChange: (url: string | null) => void;
     audioTracks: Array<{ id: number; name: string; lang: string }>;
@@ -56,7 +56,8 @@ export const AudioSubPanelTouch: React.FC<{
     onClose: () => void;
     subtitleOffset?: number;
     onSubtitleOffsetChange?: (offset: number) => void;
-}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, internalTracks = [], selectedAudioTrackId, selectedSubtitleTrackId, onInternalAudioChange, onInternalSubtitleChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange }) => {
+    videoDuration?: number;
+}> = ({ captions, currentCaption, onSubtitleChange, audioTracks, currentAudioTrack, onAudioChange, internalTracks = [], selectedAudioTrackId, selectedSubtitleTrackId, onInternalAudioChange, onInternalSubtitleChange, onClose, subtitleOffset = 0, onSubtitleOffsetChange, videoDuration }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'audio' | 'subtitles'>('subtitles');
 
@@ -77,6 +78,27 @@ export const AudioSubPanelTouch: React.FC<{
     }, [captions]);
 
     const rowCls = `flex items-center px-4 py-4 cursor-pointer active:bg-white/10 transition-colors duration-150 select-none group border-b border-white/5`;
+
+    const formatSubDuration = (sec: number): string => {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m}m`;
+    };
+
+    const getSubtitleDisplayLabel = (cap: any, fallbackLabel: string) => {
+        if (cap.duration) {
+            const formatted = formatSubDuration(cap.duration);
+            if (videoDuration && videoDuration > 0) {
+                const diff = Math.abs(cap.duration - videoDuration);
+                if (diff <= 90) {
+                    return `${fallbackLabel} (${formatted} - Match)`;
+                }
+            }
+            return `${fallbackLabel} (${formatted})`;
+        }
+        return fallbackLabel;
+    };
 
     return (
         <div className="flex flex-col h-full">
@@ -157,13 +179,13 @@ export const AudioSubPanelTouch: React.FC<{
                     )}
                     <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
                         <li 
-                            className={`${rowCls} ${currentCaption === null ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
+                            className={`${rowCls} font-semibold ${currentCaption === null ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
                             onClick={(e) => { e.stopPropagation(); onSubtitleChange(null); onClose(); }}
                         >
                             <div className="w-8 flex-shrink-0 flex justify-center">
                                 {currentCaption === null && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                             </div>
-                            <span className="text-base">{t('player.off')}</span>
+                            <span className="text-base font-semibold">{t('player.off')}</span>
                         </li>
 
                         {groupedCaptions.flatMap(([langKey, caps]) => {
@@ -173,13 +195,13 @@ export const AudioSubPanelTouch: React.FC<{
                                 return (
                                     <li 
                                         key={cap.id || `${langKey}-${index}`} 
-                                        className={`${rowCls} ${isSelected ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
+                                        className={`${rowCls} font-semibold ${isSelected ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
                                         onClick={(e) => { e.stopPropagation(); onSubtitleChange(cap.url); onClose(); }}
                                     >
                                         <div className="w-8 flex-shrink-0 flex justify-center">
                                             {isSelected && <CheckIcon size={30} weight="bold" className="text-red-500" />}
                                         </div>
-                                        <span className="text-base truncate">{displayLabel}</span>
+                                        <span className="text-base font-semibold truncate">{getSubtitleDisplayLabel(cap, displayLabel)}</span>
                                     </li>
                                 );
                             });
@@ -189,7 +211,7 @@ export const AudioSubPanelTouch: React.FC<{
                         {internalTracks.filter(t => t.type === 'subtitle').map((track) => (
                             <li 
                                 key={`internal-sub-${track.id}`} 
-                                className={`${rowCls} ${selectedSubtitleTrackId === track.id ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
+                                className={`${rowCls} font-semibold ${selectedSubtitleTrackId === track.id ? 'text-white bg-white/5' : 'text-[#b3b3b3]'}`} 
                                 onClick={(e) => { e.stopPropagation(); onInternalSubtitleChange?.(track.id); }}
                             >
                                 <div className="w-8 flex-shrink-0 flex justify-center">
@@ -380,8 +402,9 @@ export const EpisodeExplorerTouch: React.FC<{
     onEpisodeSelect: (ep: Episode) => void;
     activePanel: string;
     setActivePanel: (panel: any) => void;
+    showTitle?: string;
     onClose?: () => void;
-}> = ({ seasonList, currentSeasonEpisodes, selectedSeason, currentEpisode, playingSeason, showId, onSeasonSelect, onEpisodeSelect, activePanel, setActivePanel, onClose }) => {
+}> = ({ seasonList, currentSeasonEpisodes, selectedSeason, currentEpisode, playingSeason, showId, onSeasonSelect, onEpisodeSelect, activePanel, setActivePanel, showTitle, onClose }) => {
     const { getEpisodeProgress } = useGlobalContext();
     const [previewSeason, setPreviewSeason] = React.useState(selectedSeason);
     const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
@@ -447,7 +470,7 @@ export const EpisodeExplorerTouch: React.FC<{
                                 <div
                                     key={ep.id}
                                     ref={isCurrentlyPlaying ? currentEpisodeRef : null}
-                                    className={`transition-colors border-b border-white/5 ${isCurrentlyPlaying || isExpanded ? 'bg-[#1a1a1a]' : 'active:bg-white/5'}`}
+                                    className={`transition-colors border-b border-white/5 ${isExpanded ? 'bg-[#1a1a1a]' : 'active:bg-white/5'}`}
                                 >
                                     <div
                                         className="flex items-center px-5 py-4 gap-3"
@@ -469,7 +492,7 @@ export const EpisodeExplorerTouch: React.FC<{
                                         <CaretRightIcon
                                             size={26}
                                             weight="bold"
-                                            className={`flex-shrink-0 transition-transform text-white/40 ${isExpanded ? 'rotate-90' : ''}`}
+                                            className={`flex-shrink-0 transition-all ${isExpanded ? 'rotate-90 text-white' : 'text-white/40'}`}
                                         />
                                     </div>
 
@@ -531,7 +554,7 @@ export const EpisodeExplorerTouch: React.FC<{
                 onTouchStart={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
-                    <span className="text-white text-lg font-bold uppercase tracking-wider">{activePanel === 'seasons' ? 'Seasons' : 'Episodes'}</span>
+                    <span className="text-white text-lg font-bold uppercase tracking-wider">{activePanel === 'seasons' ? (showTitle || 'Seasons') : `Season ${selectedSeason}`}</span>
                     <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="w-10 h-10 flex items-center justify-center text-white/60 active:text-white bg-white/5 rounded-full">
                         <XIcon size={30} weight="bold" />
                     </button>
@@ -557,7 +580,7 @@ interface VideoPlayerSettingsTouchProps {
     qualities: Array<{ height: number; bitrate: number; level: number }>;
     currentQuality: number;
     onQualityChange: (level: number) => void;
-    captions: Array<{ id: string; label: string; url: string; lang: string }>;
+    captions: Array<{ id: string; label: string; url: string; lang: string; duration?: number }>;
     currentCaption: string | null;
     onSubtitleChange: (url: string | null) => void;
     subtitleOffset?: number;
@@ -570,9 +593,11 @@ interface VideoPlayerSettingsTouchProps {
     selectedSubtitleTrackId: number | null;
     onInternalAudioChange: (id: number) => void;
     onInternalSubtitleChange: (id: number) => void;
+    showTitle?: string;
     allSources: any[];
     currentSourceIndex: number;
     onSourceChange: (index: number) => void;
+    videoDuration?: number;
 }
 
 const VideoPlayerSettingsTouch: React.FC<VideoPlayerSettingsTouchProps> = (props) => {

@@ -5,6 +5,7 @@ export interface SubtitleTrack {
     url: string;
     lang: string;
     label: string;
+    duration?: number;
 }
 
 
@@ -83,13 +84,21 @@ export const SubtitleService = {
                 let label = LANG_LABELS[lang] || sub.LanguageName || lang.toUpperCase();
 
                 langCounts[lang] = (langCounts[lang] || 0) + 1;
+                
+                let releaseName = sub.MovieReleaseName || sub.SubFileName || '';
+                if (releaseName) {
+                    releaseName = releaseName.replace(/\.(srt|vtt|ass|ssa)$/i, '');
+                    if (releaseName.length > 40) releaseName = releaseName.substring(0, 40) + '...';
+                    label = `${label} - ${releaseName}`;
+                } else if (langCounts[lang] > 1) {
+                    label = `${label} (${langCounts[lang]})`;
+                }
 
-                // Allow up to 5 tracks per language to provide more options without clutter
-                if (langCounts[lang] <= 5) {
-                    if (langCounts[lang] > 1) {
-                        label = `${label} (${langCounts[lang]})`;
-                    }
-                    tracks.push({ url, lang, label });
+                const duration = sub.MovieTimeMS ? parseFloat(sub.MovieTimeMS) / 1000 : undefined;
+
+                // Allow up to 10 tracks per language to provide more options without clutter
+                if (langCounts[lang] <= 10) {
+                    tracks.push({ url, lang, label, duration });
                 }
                 
                 if (tracks.length >= 50) break; // Relaxed total cap to 50

@@ -30,6 +30,7 @@ interface VideoPlayerControlsProps {
     isBuffering: boolean;
     showNextEp: boolean;
     hasNextEpisode?: boolean;
+    hasPreviousEpisode?: boolean;
     nextEpisode?: Episode;
     title: string;
     episodeNumber?: number;
@@ -42,6 +43,7 @@ interface VideoPlayerControlsProps {
     onToggleMute: () => void;
     onTimelineSeek: (percentage: number) => void;
     onNextEpisode?: () => void;
+    onPrevEpisode?: () => void;
     onClose: () => void;
     onToggleFullscreen: () => void;
     onSubtitlesClick?: () => void;
@@ -422,14 +424,14 @@ const PlayerTitle: React.FC<{
     const isTV = mediaType === 'tv';
     return (
         <span className={`select-none leading-snug ${className}`}>
-            <strong className="font-extrabold">{title}</strong>
+            <span className="text-white font-bold drop-shadow-md">{title}</span>
             {isTV && episodeNumber != null && (
-                <>
-                    <strong className="text-white/60 ml-3">E{episodeNumber}</strong>
+                <span className="text-white/60 font-medium text-[0.9em] ml-2.5">
+                    <span>E{episodeNumber}</span>
                     {episodeName && (
-                        <span className="font-medium text-white/50 ml-3">{episodeName}</span>
+                        <span className="ml-2.5 opacity-80">{episodeName}</span>
                     )}
-                </>
+                </span>
             )}
         </span>
     );
@@ -505,9 +507,9 @@ const SeekFlash: React.FC<{ side: 'left' | 'right' | null; seconds: number; ts?:
 // ─── Main Controls Component ──────────────────────────────────────────────────
 const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     isPlaying, isMuted, progress, duration, currentTime = 0, buffered = 0,
-    isBuffering, showNextEp, hasNextEpisode, title, episodeNumber, episodeName, mediaType,
+    isBuffering, showNextEp, hasNextEpisode, hasPreviousEpisode, title, episodeNumber, episodeName, mediaType,
     onPlayPause, onSeek, volume, onVolumeChange, onToggleMute, onTimelineSeek,
-    onNextEpisode, onToggleFullscreen,
+    onNextEpisode, onPrevEpisode, onToggleFullscreen,
     onSubtitlesClick, onEpisodesClick,
     showUI, onClose,
     activePanel = 'none', setActivePanel,
@@ -893,7 +895,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     <div className="flex items-center justify-between relative">
 
                         {/* LEFT GROUP */}
-                        <div className={`flex items-center gap-5 md:gap-8`}>
+                        <div className={`flex items-center gap-5 md:gap-8 ${!isMobile ? 'flex-1' : ''}`}>
                             {!isMobile ? (
                                 <>
                                     {/* Desktop: play | rewind | ff | volume */}
@@ -950,13 +952,30 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                         {/* CENTER: Title (desktop only) */}
                         {!isMobile && (
-                            <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none px-4 text-center" style={{ maxWidth: '46%', bottom: 0 }}>
-                                <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[22px] drop-shadow-lg line-clamp-2" />
+                            <div className="flex-[2] flex justify-center px-4 overflow-hidden pointer-events-none items-center min-w-0">
+                                <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[clamp(16px,1.6vw,20px)] drop-shadow-lg truncate block text-center font-medium" />
                             </div>
                         )}
 
                         {/* RIGHT GROUP */}
-                        <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-5 md:gap-8'}`}>
+                        <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-5 md:gap-8 flex-1 justify-end'}`}>
+
+                            {/* Previous Episode */}
+                            {isTV && hasPreviousEpisode && onPrevEpisode && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onPrevEpisode(); }}
+                                    onMouseDown={() => onInteraction?.()}
+                                    className={btn}
+                                    style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
+                                    aria-label="Previous episode"
+                                    title="Previous Episode (P)"
+                                >
+                                    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ transform: 'rotate(180deg)' }}>
+                                        <path d="M72,60 V196 L160,128 Z" stroke="currentColor" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round"/>
+                                        <line x1="208" y1="56" x2="208" y2="200" stroke="currentColor" strokeWidth="24" strokeLinecap="round"/>
+                                    </svg>
+                                </button>
+                            )}
 
                             {/* Next Episode */}
                             {isTV && hasNextEpisode && onNextEpisode && (
@@ -977,7 +996,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         aria-label="Next episode"
                                         title="Next Episode (N)"
                                     >
-                                        <SkipForwardIcon size={ICON_SIZE} weight={showNextEp ? 'fill' : 'bold'} />
+                                        <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M72,60 V196 L160,128 Z" stroke="currentColor" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round"/>
+                                            <line x1="208" y1="56" x2="208" y2="200" stroke="currentColor" strokeWidth="24" strokeLinecap="round"/>
+                                        </svg>
                                     </button>
                                 </div>
                             )}

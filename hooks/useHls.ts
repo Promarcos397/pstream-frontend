@@ -182,10 +182,10 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             const mobile = isMobileDevice();
 
             const hlsConfig: Partial<Hls['config']> = {
-                // Buffer: shorter on mobile to reduce RAM usage and initial stall time
-                maxBufferLength:    mobile ? 20 : 30,
-                maxMaxBufferLength: mobile ? 40 : 60,
-                backBufferLength:   mobile ? 15 : 30,
+                // Buffer: larger buffers to prevent constant stuttering
+                maxBufferLength:    mobile ? 30 : 60,
+                maxMaxBufferLength: mobile ? 60 : 120,
+                backBufferLength:   mobile ? 30 : 60,
 
                 enableWorker: true,
                 lowLatencyMode: false,
