@@ -39,13 +39,34 @@ export const useWatchStore = create<WatchStore>()(
         
         // Preserve movieData if not provided
         const existing = get().history[key];
-        const movieData = data.movieData || existing?.movieData;
+        let movieData = data.movieData || existing?.movieData;
+        
+        // Auto-heal/lookup movieData from other entries of the same show/movie if missing
+        if (!movieData) {
+          const matchingEntry = Object.values(get().history).find(
+            h => h.tmdbId === String(data.tmdbId) && h.movieData
+          );
+          if (matchingEntry) {
+            movieData = matchingEntry.movieData;
+          }
+        }
         
         const newEntry: WatchProgress = { ...data, percentage, updatedAt, movieData };
         
-        set((state) => ({
-          history: { ...state.history, [key]: newEntry }
-        }));
+        set((state) => {
+          const nextHistory = { ...state.history, [key]: newEntry };
+          
+          // If we have movieData, propagate it to all other episodes of the same show
+          if (movieData) {
+            Object.keys(nextHistory).forEach(k => {
+              if (nextHistory[k].tmdbId === String(data.tmdbId) && !nextHistory[k].movieData) {
+                nextHistory[k] = { ...nextHistory[k], movieData };
+              }
+            });
+          }
+          
+          return { history: nextHistory };
+        });
 
         // Debounce cloud sync slightly to avoid spam
         if ((window as any)._syncTimer) clearTimeout((window as any)._syncTimer);
@@ -127,13 +148,37 @@ export const useWatchStore = create<WatchStore>()(
       syncFromCloud: (cloudHistory) => {
         set((state) => {
           const merged = { ...state.history };
+          
+          // First, merge cloud items
           cloudHistory.forEach(cloudItem => {
             const key = cloudItem.type === 'tv' ? `${cloudItem.tmdbId}-S${cloudItem.season}E${cloudItem.episode}` : cloudItem.tmdbId;
             const localItem = merged[key];
             if (!localItem || cloudItem.updatedAt > localItem.updatedAt) {
-              merged[key] = cloudItem;
+              merged[key] = {
+                ...cloudItem,
+                movieData: cloudItem.movieData || localItem?.movieData
+              };
             }
           });
+
+          // Second, propagate movieData to all entries sharing the same tmdbId
+          const tmdbIdToMovieData: Record<string, Movie> = {};
+          Object.values(merged).forEach(item => {
+            if (item.tmdbId && item.movieData) {
+              tmdbIdToMovieData[String(item.tmdbId)] = item.movieData;
+            }
+          });
+
+          Object.keys(merged).forEach(key => {
+            const item = merged[key];
+            if (item.tmdbId && !item.movieData && tmdbIdToMovieData[String(item.tmdbId)]) {
+              merged[key] = {
+                ...item,
+                movieData: tmdbIdToMovieData[String(item.tmdbId)]
+              };
+            }
+          });
+
           return { history: merged };
         });
       }

@@ -137,7 +137,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
 
-  const isAdded = myList.find(m => m.id === movie.id);
+  const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const timerRef = useRef<any>(null);
   const leaveTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);

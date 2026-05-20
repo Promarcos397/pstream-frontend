@@ -23,7 +23,7 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
     const [logoFailed, setLogoFailed] = useState(false);
     const [logoLoading, setLogoLoading] = useState(true);
 
-    const isAdded = !!myList.find(m => m.id === rec.id);
+    const isAdded = myList.some(m => String(m.id) === String(rec.id));
     const mediaType = (rec.media_type || (rec.title ? 'movie' : 'tv')) as 'movie' | 'tv';
     const year = (rec.release_date || rec.first_air_date)?.substring(0, 4) || '';
     const title = rec.title || rec.name || '';

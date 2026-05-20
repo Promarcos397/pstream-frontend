@@ -206,7 +206,7 @@ export const useDynamicManifest = (
     if (continueWatching.length > 0) {
       const activelyWatching = continueWatching.filter(m => {
         const wd = getWatchData(m, getLastWatchedEpisode, getVideoState);
-        return wd.pct >= 5;
+        return wd.pct >= 1 && wd.pct < 92;
       });
       const filtered = selectedGenreId
         ? activelyWatching.filter(m => m.genre_ids?.includes(selectedGenreId))

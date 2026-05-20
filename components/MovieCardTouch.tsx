@@ -50,7 +50,7 @@ const MovieCardTouch: React.FC<MovieCardTouchProps> = ({ movie, onSelect, onPlay
   const touchDidScroll = useRef(false);
   const SCROLL_THRESHOLD = 8;
 
-  const isAdded = myList.find(m => m.id === movie.id);
+  const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const isBook = ['series', 'comic', 'manga', 'local'].includes(movie.media_type || '');
 
   const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))

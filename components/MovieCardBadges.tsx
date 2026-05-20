@@ -100,7 +100,7 @@ export function getWatchData(movie: Movie, getLastWatchedEpisode: any, getVideoS
     const ep = getLastWatchedEpisode(movie.id);
     if (ep && ep.duration) {
       const pct = (ep.time / ep.duration) * 100;
-      if (pct >= 5) {
+      if (pct >= 1) {
         return {
           pct: Math.min(100, pct),
           watchMins: Math.round(ep.time / 60),
@@ -110,9 +110,9 @@ export function getWatchData(movie: Movie, getLastWatchedEpisode: any, getVideoS
     }
   } else {
     const state = getVideoState(movie.id);
-    if (state && state.duration && state.time > 30) {
+    if (state && state.duration && state.time > 10) {
       const pct = (state.time / state.duration) * 100;
-      if (pct >= 5) {
+      if (pct >= 1) {
         return {
           pct: Math.min(100, pct),
           watchMins: Math.round(state.time / 60),

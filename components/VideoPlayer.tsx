@@ -1218,9 +1218,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             lastSavedTimeRef.current = time;
             addToHistory(movie);
             if (mediaType === 'tv') {
-                updateEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode, time, dur);
+                updateEpisodeProgress(movie, playingSeasonNumber, currentEpisode, time, dur);
             } else {
-                updateVideoState(movie.id, time, undefined, dur);
+                updateVideoState(movie, time, undefined, dur);
             }
         }
 
@@ -1228,7 +1228,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const bufferedEnd = video.buffered.end(video.buffered.length - 1);
             setBufferedAmount((bufferedEnd / dur) * 100);
         }
-    }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, addToHistory, updateEpisodeProgress, updateVideoState]);
+    }, [mediaType, movie, playingSeasonNumber, currentEpisode, addToHistory, updateEpisodeProgress, updateVideoState]);
 
     // ——— Instant progress save on manual scrub —————————————————————————————————————
     // timeupdate only fires every ~250ms and has a 5s throttle gate — so if the
@@ -1242,14 +1242,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             if (!time || !dur || isNaN(dur)) return;
             lastSavedTimeRef.current = time; // reset throttle so next tick saves cleanly
             if (mediaType === 'tv') {
-                updateEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode, time, dur);
+                updateEpisodeProgress(movie, playingSeasonNumber, currentEpisode, time, dur);
             } else {
-                updateVideoState(movie.id, time, undefined, dur);
+                updateVideoState(movie, time, undefined, dur);
             }
         };
         video.addEventListener('seeked', onSeeked);
         return () => video.removeEventListener('seeked', onSeeked);
-    }, [mediaType, movie.id, playingSeasonNumber, currentEpisode, updateEpisodeProgress, updateVideoState]);
+    }, [mediaType, movie, playingSeasonNumber, currentEpisode, updateEpisodeProgress, updateVideoState]);
 
     // ——— Custom Subtitle Cue Engine ———————————————————————————————————————————————
     // We parse the VTT file directly and drive currentCueText via a polling ref.

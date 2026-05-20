@@ -243,7 +243,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     if (!movie) return null;
     const activeMovie = detailedMovie || activeMovieProp;
-    const isAdded = myList.find(m => m.id === activeMovieProp.id);
+    const isAdded = myList.some(m => String(m.id) === String(activeMovieProp.id));
     const year = (activeMovie.release_date || activeMovie.first_air_date)?.substring(0, 4) || "";
     const totalSeasons = activeMovie.number_of_seasons || 0;
     const duration = activeMovie.runtime

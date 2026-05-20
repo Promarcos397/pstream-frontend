@@ -202,7 +202,7 @@ const TopTenCard: React.FC<{
   const cardRef = useRef<HTMLDivElement>(null);
 
   const isBook = ['series', 'comic', 'manga', 'local'].includes(movie.media_type || '');
-  const isAdded = myList.find(m => m.id === movie.id);
+  const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const isTen = index === 9;
 
   // Intersection Observer for lazy logo fetch

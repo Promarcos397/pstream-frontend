@@ -129,7 +129,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             const interval = setInterval(() => {
                 if (playerRef.current && !playerRef.current.paused) {
                     const time = playerRef.current.currentTime;
-                    updateVideoState(movie.id, time, videoId);
+                    updateVideoState(movie, time, videoId);
                     onProgress?.(time);
                 }
             }, 500);
@@ -234,7 +234,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                             return;
                         }
 
-                        updateVideoState(movie.id, time, videoId || undefined);
+                        updateVideoState(movie, time, videoId || undefined);
                         onProgress?.(time);
                     }
                 } catch {}
@@ -245,7 +245,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
             if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
             try {
                 const time = e.target.getCurrentTime();
-                if (time > 0) updateVideoState(movie.id, time, videoId || undefined);
+                if (time > 0) updateVideoState(movie, time, videoId || undefined);
             } catch {}
         }
     }, []);
