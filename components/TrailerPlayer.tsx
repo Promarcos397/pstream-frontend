@@ -12,7 +12,6 @@ interface TrailerPlayerProps {
     onErrored?: () => void;
     onReady?: () => void;
     onPlay?: () => void;
-    onProgress?: (time: number) => void;
 }
 
 export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
@@ -22,12 +21,10 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     onEnded,
     onErrored,
     onReady,
-    onPlay,
-    onProgress
+    onPlay
 }) => {
     const { globalMute } = useGlobalContext();
     const { videoId, isTeaser } = useTrailer(movie);
-    const { getVideoState, updateVideoState } = useGlobalContext();
 
     const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<any>(null);
@@ -87,20 +84,12 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         if (isMyVideo) {
             try { 
                 if (playerRef.current && isLoaded) {
-                    const savedTime = getVideoState(movie.id)?.time || 0;
                     if (isDirect) {
                         playerRef.current.muted = globalMute;
-                        if (Math.abs(playerRef.current.currentTime - savedTime) > 1) {
-                            playerRef.current.currentTime = savedTime;
-                        }
                         playerRef.current.play().catch(() => {});
                     } else {
                         // YouTube: Ensure player is ready for commands
                         if (typeof playerRef.current.getPlayerState === 'function') {
-                            const currentTime = playerRef.current.getCurrentTime() || 0;
-                            if (savedTime > 0 && Math.abs(savedTime - currentTime) > 0.5) {
-                                playerRef.current.seekTo(savedTime, true);
-                            }
                             playerRef.current.playVideo(); 
                         }
                     }
@@ -121,28 +110,9 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         }
     }, [activeVideoId, movie, variant, videoId, globalMute, isLoaded]);
 
-    // Time Sync for Direct Video (mirroring YouTube's handleStateChange logic)
-    useEffect(() => {
-        if (!videoId?.startsWith('http') || !movie) return;
-        
-        if (activeVideoId === `${variant}-${movie.id}`) {
-            const interval = setInterval(() => {
-                if (playerRef.current && !playerRef.current.paused) {
-                    const time = playerRef.current.currentTime;
-                    updateVideoState(movie, time, videoId);
-                    onProgress?.(time);
-                }
-            }, 500);
-            return () => clearInterval(interval);
-        }
-    }, [activeVideoId, movie, videoId, variant, updateVideoState, onProgress]);
-
     const startTime = React.useMemo(() => {
-        if (!movie) return 0;
-        const savedTime = getVideoState(movie.id)?.time || 0;
-        if (savedTime > 0) return Math.floor(savedTime);
         return isTeaser ? 4 : 8; // Faster intro skips for casual browsing
-    }, [movie?.id, isTeaser, getVideoState]);
+    }, [isTeaser]);
 
     const playerOpts = React.useMemo(() => ({
         width: '100%',
@@ -166,11 +136,11 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         }
     }), [startTime]);
 
-    const handlersRef = useRef({ onReady, onPlay, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId, activeVideoId, variant, isTeaser });
-    handlersRef.current = { onReady, onPlay, onEnded, onErrored, onProgress, globalMute, movie, getVideoState, updateVideoState, videoId, activeVideoId, variant, isTeaser };
+    const handlersRef = useRef({ onReady, onPlay, onEnded, onErrored, globalMute, movie, videoId, activeVideoId, variant, isTeaser });
+    handlersRef.current = { onReady, onPlay, onEnded, onErrored, globalMute, movie, videoId, activeVideoId, variant, isTeaser };
 
     const handleReady = React.useCallback((e: any) => {
-        const { globalMute, movie, getVideoState, onReady, activeVideoId, variant, isTeaser } = handlersRef.current;
+        const { globalMute, movie, onReady, isTeaser } = handlersRef.current;
         playerRef.current = e.target;
         
         try {
@@ -184,27 +154,20 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         const autoDetectedTeaser = duration > 0 && duration < 90;
         const isActuallyTeaser = isTeaser || autoDetectedTeaser;
         const defaultSkip = isActuallyTeaser ? 8 : 16;
-        const savedTime = movie ? (getVideoState(movie.id)?.time || 0) : 0;
-        const targetTime = savedTime > 0 ? savedTime : defaultSkip;
         
         const currentTime = e.target.getCurrentTime();
         // Only seek if the 'start' param failed or we are way off (e.g. background tab resumed)
-        if (Math.abs(currentTime - targetTime) > 3) {
-            e.target.seekTo(targetTime, true);
+        if (Math.abs(currentTime - defaultSkip) > 3) {
+            e.target.seekTo(defaultSkip, true);
         }
-        
-        const myVideoId = `${variant}-${movie?.id}`;
-        // Note: The global activeVideoId effect (line 81) will handle play/pause
-        // once this ready state is set, so we don't force it here to avoid jitter.
         
         setIsLoaded(true);
         onReady?.();
     }, []);
 
     const handleStateChange = React.useCallback((e: any) => {
-        const { movie, updateVideoState, videoId, onProgress, onPlay, activeVideoId, variant } = handlersRef.current;
+        const { movie, onPlay, activeVideoId, variant } = handlersRef.current;
         const YT_PLAYING = 1;
-        const YT_PAUSED = 2;
 
         // If player gets stuck in CUED or UNSTARTED while it's the active video, kick it.
         if (e.data === 5 || e.data === -1) {
@@ -224,29 +187,22 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                     const time = e.target.getCurrentTime();
                     const duration = e.target.getDuration();
                     
-                    if (time > 0) {
+                    if (time > 0 && duration > 45) {
                         const remaining = duration - time;
                         // Auto-outro skip: now PAUSES the player so backdrop + audio stay in sync
-                        if (duration > 45 && remaining < 8) {
+                        if (remaining < 8) {
                             if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
                             try { e.target.pauseVideo(); } catch {}
                             handlersRef.current.onEnded?.();
-                            return;
                         }
-
-                        updateVideoState(movie, time, videoId || undefined);
-                        onProgress?.(time);
                     }
                 } catch {}
-            }, 100);
-        }
-
-        if (e.data === YT_PAUSED) {
-            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-            try {
-                const time = e.target.getCurrentTime();
-                if (time > 0) updateVideoState(movie, time, videoId || undefined);
-            } catch {}
+            }, 500);
+        } else {
+            if (syncIntervalRef.current) {
+                clearInterval(syncIntervalRef.current);
+                syncIntervalRef.current = null;
+            }
         }
     }, []);
 

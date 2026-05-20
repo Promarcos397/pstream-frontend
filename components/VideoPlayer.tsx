@@ -277,6 +277,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // Single canonical declaration — used by Media Session, auto-next trigger, and controls.
     const nextEpisodeInfo = useMemo<{ episode: Episode; season: number } | null>(() => {
         if (mediaType !== 'tv') return null;
+        // Guard against mismatched season details during transition
+        if (currentSeasonEpisodes.length === 0 || currentSeasonEpisodes[0].season_number !== playingSeasonNumber) {
+            return null;
+        }
         // Find current episode index within the loaded season episode list
         const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
         // Case 1: There is a next episode in this same season
@@ -297,6 +301,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     const previousEpisodeInfo = useMemo<{ episode: Episode; season: number } | null>(() => {
         if (mediaType !== 'tv') return null;
+        // Guard against mismatched season details during transition
+        if (currentSeasonEpisodes.length === 0 || currentSeasonEpisodes[0].season_number !== playingSeasonNumber) {
+            return null;
+        }
         // Find current episode index within the loaded season episode list
         const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
         // Case 1: There is a previous episode in this same season
@@ -686,7 +694,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
             if (activePanel !== 'none') return;
-            switch (e.key) {
+            if (e.repeat) return;
+
+            // Ignore shortcuts if the user is typing in an input/textarea
+            const target = e.target as HTMLElement;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                return;
+            }
+
+            const key = e.key.toLowerCase();
+            switch (e.key) { // Keep exact matching for special/cased keys
                 case 'Escape':
                     e.preventDefault();
                     if (isFullscreen || isPseudoFullscreen) {
@@ -696,7 +713,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }
                     break;
                 case ' ':
-                case 'k':
                     e.preventDefault();
                     if (videoRef.current) {
                         videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
@@ -705,7 +721,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }
                     break;
                 case 'ArrowRight':
-                case 'l':
                     e.preventDefault();
                     if (videoRef.current) {
                         videoRef.current.currentTime += 10;
@@ -715,7 +730,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }
                     break;
                 case 'ArrowLeft':
-                case 'j':
                     e.preventDefault();
                     if (videoRef.current) {
                         videoRef.current.currentTime -= 10;
@@ -731,38 +745,69 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
                     }
                     break;
-                case 'f':
-                    e.preventDefault();
-                    toggleFullscreen();
-                    break;
-                case 'm':
-                    e.preventDefault();
-                    if (videoRef.current) {
-                        videoRef.current.muted = !videoRef.current.muted;
-                    }
-                    break;
-                case 'n':
-                    if (nextEpisodeInfo) { e.preventDefault(); handleNextEpisode(); }
-                    break;
-                case 'p':
-                    if (previousEpisodeInfo) { e.preventDefault(); handlePreviousEpisode(); }
-                    break;
-                case 's':
-                    // Toggle subtitles on/off (cycle through available or disable)
-                    e.preventDefault();
-                    if (currentCaption) {
-                        setCurrentCaption(null);
-                    } else if (captions.length > 0) {
-                        // Re-select the preferred language
-                        const preferred = captions.find(c => c.lang === 'en' || c.label.toLowerCase().includes('english')) || captions[0];
-                        setCurrentCaption(preferred.url);
+                default:
+                    // Normalize all letter keys to lowercase to support Caps Lock / Shift modifiers
+                    switch (key) {
+                        case 'k':
+                            e.preventDefault();
+                            if (videoRef.current) {
+                                videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+                                setPpRippleTrigger(t => t + 1);
+                                showControls();
+                            }
+                            break;
+                        case 'l':
+                            e.preventDefault();
+                            if (videoRef.current) {
+                                videoRef.current.currentTime += 10;
+                                setSeekFlash({ side: 'right', ts: Date.now() });
+                                setTimeout(() => setSeekFlash(null), 450);
+                                showControls();
+                            }
+                            break;
+                        case 'j':
+                            e.preventDefault();
+                            if (videoRef.current) {
+                                videoRef.current.currentTime -= 10;
+                                setSeekFlash({ side: 'left', ts: Date.now() });
+                                setTimeout(() => setSeekFlash(null), 450);
+                                showControls();
+                            }
+                            break;
+                        case 'f':
+                            e.preventDefault();
+                            toggleFullscreen();
+                            break;
+                        case 'm':
+                            e.preventDefault();
+                            if (videoRef.current) {
+                                videoRef.current.muted = !videoRef.current.muted;
+                            }
+                            break;
+                        case 'n':
+                            if (nextEpisodeInfo) { e.preventDefault(); handleNextEpisode(); }
+                            break;
+                        case 'p':
+                            if (previousEpisodeInfo) { e.preventDefault(); handlePreviousEpisode(); }
+                            break;
+                        case 's':
+                            // Toggle subtitles on/off (cycle through available or disable)
+                            e.preventDefault();
+                            if (currentCaption) {
+                                setCurrentCaption(null);
+                            } else if (captions.length > 0) {
+                                // Re-select the preferred language
+                                const preferred = captions.find(c => c.lang === 'en' || c.label.toLowerCase().includes('english')) || captions[0];
+                                setCurrentCaption(preferred.url);
+                            }
+                            break;
                     }
                     break;
             }
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen]);
+    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption]);
 
     // ——— AllDebrid / Torrent: Primary Source ——————————————————————————————————————
     // Fires immediately on mount. Extractors only activate if this fails.

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { searchTrailerWithMeta } from '../services/YouTubeService';
-import { useGlobalContext } from '../context/GlobalContext';
 import { Movie } from '../types';
+
+// Global in-memory cache to store trailer search results (zero latency on repeat hovers)
+const trailerCache: Record<string, { videoId: string; isTeaser: boolean; isDirect: boolean }> = {};
 
 /** Fetches and caches the best trailer for a movie, with teaser detection. */
 export const useTrailer = (movie: Movie | null) => {
-    const { getVideoState, updateVideoState } = useGlobalContext();
     const [videoId, setVideoId] = useState<string | null>(null);
     const [isTeaser, setIsTeaser] = useState(false);
     const [isDirect, setIsDirect] = useState(false);
@@ -19,11 +20,14 @@ export const useTrailer = (movie: Movie | null) => {
             return;
         }
 
+        const cacheKey = String(movie.id);
+
         // 1. Check Global Cache First (Zero Latency)
-        const cachedState = getVideoState(movie.id);
-        if (cachedState?.videoId) {
-            setVideoId(cachedState.videoId);
-            setIsDirect(cachedState.videoId.startsWith('http'));
+        if (trailerCache[cacheKey]) {
+            const cached = trailerCache[cacheKey];
+            setVideoId(cached.videoId);
+            setIsTeaser(cached.isTeaser);
+            setIsDirect(cached.isDirect);
             return;
         }
 
@@ -47,11 +51,15 @@ export const useTrailer = (movie: Movie | null) => {
         searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime, tmdbId: movie.id.toString() })
             .then(result => {
                 if (mounted && result) {
-                    setVideoId(result.videoId);
-                    setIsTeaser(result.isTeaser);
-                    setIsDirect(result.isDirect || false);
-                    // Proactively cache it so other components are aware instantly
-                    updateVideoState(movie.id, 0, result.videoId);
+                    const data = {
+                        videoId: result.videoId,
+                        isTeaser: result.isTeaser,
+                        isDirect: result.isDirect || false
+                    };
+                    trailerCache[cacheKey] = data;
+                    setVideoId(data.videoId);
+                    setIsTeaser(data.isTeaser);
+                    setIsDirect(data.isDirect);
                 }
             })
             .finally(() => {
@@ -59,7 +67,8 @@ export const useTrailer = (movie: Movie | null) => {
             });
 
         return () => { mounted = false; };
-    }, [movie, getVideoState, updateVideoState]);
+    }, [movie]);
 
     return { videoId, isTeaser, isDirect, isLoading };
 };
+
