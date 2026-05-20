@@ -14,6 +14,7 @@ import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages, fetchData } from '../services/api';
 import { Movie } from '../types';
+import { preloadTrailer } from '../hooks/useTrailer';
 import { TrailerPlayer } from './TrailerPlayer';
 import {
   MaturityBadge, BadgeOverlay, HoverProgressBar,
@@ -169,7 +170,9 @@ const TopTenCard: React.FC<{
   movie: Movie;
   index: number;
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
-}> = ({ movie, index, onSelect }) => {
+  preload?: boolean;
+  neighbors?: Movie[];
+}> = ({ movie, index, onSelect, preload = false, neighbors }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const prefersHover = usePrefersHover();
@@ -199,6 +202,9 @@ const TopTenCard: React.FC<{
 
   const isCinemaOnly = useIsInTheaters(movie);
   const timerRef = useRef<any>(null);
+  const leaveTimerRef = useRef<any>(null);
+  const neighborsTimerRef = useRef<any>(null);
+  const preloadTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const isBook = ['series', 'comic', 'manga', 'local'].includes(movie.media_type || '');
@@ -237,6 +243,15 @@ const TopTenCard: React.FC<{
     return () => { isMounted = false; };
   }, [isVisible, movie.id, movie.media_type, movie.title]);
 
+  useEffect(() => {
+    if (preload && settings.autoplayPreviews) {
+      const t = setTimeout(() => {
+        preloadTrailer(movie);
+      }, 1000 + (Number(movie.id) % 5) * 200);
+      return () => clearTimeout(t);
+    }
+  }, [preload, movie, settings.autoplayPreviews]);
+
   // Logo fade-out once trailer plays
   useEffect(() => {
     if (isActuallyPlaying && !hasVideoEnded) {
@@ -271,6 +286,8 @@ const TopTenCard: React.FC<{
     if (!isHovered) return;
     const collapse = () => {
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
+      if (neighborsTimerRef.current) { clearTimeout(neighborsTimerRef.current); neighborsTimerRef.current = null; }
       setIsHovered(false);
       setHoveredRect(null);
       setIsHoverVideoReady(false);
@@ -327,6 +344,8 @@ const TopTenCard: React.FC<{
   const handleOpenModal = (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
+    if (neighborsTimerRef.current) { clearTimeout(neighborsTimerRef.current); neighborsTimerRef.current = null; }
     setIsHovered(false);
     setHoveredRect(null);
     const myId = `card-${movie.id}`;
@@ -357,12 +376,31 @@ const TopTenCard: React.FC<{
     };
   };
 
-  const PRIME_DELAY = 300;
-  const SHOW_DELAY = 700;
+  const SHOW_DELAY = 350;
 
   const handlePointerEnter = (e: React.PointerEvent) => {
     if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
+
+    // Hover intent delay: Wait 80ms before we actually trigger preload
+    if (settings.autoplayPreviews) {
+      if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
+      preloadTimerRef.current = setTimeout(() => {
+        preloadTrailer(movie);
+
+        // Debounce neighbor preloading (150ms after hover intent is confirmed)
+        if (neighbors && neighbors.length > 0) {
+          if (neighborsTimerRef.current) clearTimeout(neighborsTimerRef.current);
+          neighborsTimerRef.current = setTimeout(() => {
+            neighbors.forEach(neighbor => {
+              if (neighbor) {
+                preloadTrailer(neighbor);
+              }
+            });
+          }, 150);
+        }
+      }, 80);
+    }
 
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
@@ -374,35 +412,14 @@ const TopTenCard: React.FC<{
     }
 
     if (timerRef.current) {
-      timerRef.current.clear();
+      clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
     const anotherCardIsActive = activeVideoId && activeVideoId.startsWith('card-') && activeVideoId !== `card-${movie.id}`;
 
-    // STAGE 1: PRIME
-    const primeDelay = anotherCardIsActive ? 80 : PRIME_DELAY;
-    const primeTimer = setTimeout(() => {
-        if (!settings.autoplayPreviews) return;
-        const title = movie.original_title || movie.original_name || movie.title || movie.name || '';
-        const year = (movie.release_date || movie.first_air_date || '').slice(0, 4);
-        const type = movie.media_type || (movie.title ? 'movie' : 'tv');
-        const isAnimation = movie.genre_ids?.includes(16);
-        const isAnime = isAnimation && movie.original_language === 'ja';
-        
-        if (title) {
-            import('../services/YouTubeService').then(({ searchTrailerWithMeta }) => {
-                searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime, tmdbId: movie.id.toString() })
-                    .then(result => {
-                        if (result) updateVideoState(movie.id, 0, result.videoId);
-                    })
-                    .catch(() => {});
-            });
-        }
-    }, primeDelay);
-
-    // STAGE 2: SHOW
-    const showDelay = anotherCardIsActive ? 180 : SHOW_DELAY;
+    // ── STAGE: SHOW ──────────────────────────────────────────────────────
+    const showDelay = anotherCardIsActive ? 80 : SHOW_DELAY;
     const showTimer = setTimeout(() => {
       if (!settings.autoplayPreviews) return;
       const rect = cardRef.current?.getBoundingClientRect();
@@ -418,14 +435,7 @@ const TopTenCard: React.FC<{
       setActiveVideoId(myId);
     }, showDelay);
 
-    timerRef.current = {
-        primeTimer,
-        showTimer,
-        clear: () => {
-            clearTimeout(primeTimer);
-            clearTimeout(showTimer);
-        }
-    };
+    timerRef.current = showTimer;
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -435,7 +445,7 @@ const TopTenCard: React.FC<{
 
   useEffect(() => {
     if (isScrolling && timerRef.current) {
-        timerRef.current.clear();
+        clearTimeout(timerRef.current);
         timerRef.current = null;
     }
   }, [isScrolling]);
@@ -452,18 +462,29 @@ const TopTenCard: React.FC<{
 
   const handlePointerLeave = () => {
     if (timerRef.current) {
-      timerRef.current.clear();
+      clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-
-    const myId = `card-${movie.id}`;
-    if (activePopupId === myId) setActivePopupId(null);
-    if (activeVideoId === myId) setActiveVideoId(null);
+    if (preloadTimerRef.current) {
+      clearTimeout(preloadTimerRef.current);
+      preloadTimerRef.current = null;
+    }
+    if (neighborsTimerRef.current) {
+      clearTimeout(neighborsTimerRef.current);
+      neighborsTimerRef.current = null;
+    }
 
     setIsHovered(false);
     setHoveredRect(null);
     setIsHoverVideoReady(false);
     setIsActuallyPlaying(false);
+
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = setTimeout(() => {
+      const myId = `card-${movie.id}`;
+      if (activePopupId === myId) setActivePopupId(null);
+      if (activeVideoId === myId) setActiveVideoId(null);
+    }, 200);
   };
 
   const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
@@ -967,9 +988,26 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
                 </div>
               </div>
             ))
-            : [...movies, ...movies, ...movies].map((movie, index) => (
-              <TopTenCard key={`${movie.id}-${index}`} movie={movie} index={index % movies.length} onSelect={onSelect} />
-            ))}
+            : (() => {
+                const tripleList = [...movies, ...movies, ...movies];
+                return tripleList.map((movie, index) => {
+                  const totalCount = tripleList.length;
+                  const leftIdx = (index - 1 + totalCount) % totalCount;
+                  const rightIdx = (index + 1) % totalCount;
+                  const neighbors = [tripleList[leftIdx], tripleList[rightIdx]];
+
+                  return (
+                    <TopTenCard
+                      key={`${movie.id}-${index}`}
+                      movie={movie}
+                      index={index % movies.length}
+                      onSelect={onSelect}
+                      preload={index % movies.length < 5}
+                      neighbors={neighbors}
+                    />
+                  );
+                });
+              })()}
         </div>
 
         {/* Right Button */}

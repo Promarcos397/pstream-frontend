@@ -142,7 +142,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const timerRef = useRef<any>(null);
-  const leaveTimerRef = useRef<any>(null);
+  const closeTimerRef = useRef<any>(null);
   const neighborsTimerRef = useRef<any>(null);
   const preloadTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -260,7 +260,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     if (!isHovered) return;
     const collapse = () => {
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-      if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
+      if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
       setIsHovered(false);
       setHoveredRect(null);
       setIsHoverVideoReady(false);
@@ -306,6 +306,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const handlePointerEnter = (e: React.PointerEvent) => {
     if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
+
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
 
     // Hover intent delay: Wait 80ms before we actually trigger preload
     if (settings.autoplayPreviews) {
@@ -379,16 +384,14 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       neighborsTimerRef.current = null;
     }
 
-    // Hide popup immediately for visual cleanliness
-    setIsHovered(false);
-    setHoveredRect(null);
-    setIsHoverVideoReady(false);
-    setIsActuallyPlaying(false);
+    // Delay closing of hover (200ms) to allow grace period
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setIsHovered(false);
+      setHoveredRect(null);
+      setIsHoverVideoReady(false);
+      setIsActuallyPlaying(false);
 
-    // Grace period before killing audio — allows seamless handoff to another
-    // card if the user is moving directly from one card to another.
-    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-    leaveTimerRef.current = setTimeout(() => {
       const myId = `card-${movie.id}`;
       if (activePopupId === myId) setActivePopupId(null);
       if (activeVideoId === myId) setActiveVideoId(null);
@@ -429,7 +432,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     }
 
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-    if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
     setIsHovered(false);
     setHoveredRect(null);
     const myId = `card-${movie.id}`;
