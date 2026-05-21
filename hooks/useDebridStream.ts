@@ -223,6 +223,23 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
 
     // 1. If it's a TV show, try to find the specific episode file by name
     if (season != null && episode != null) {
+        let lookbehind = '(?<![0-9]\\.|h[.-]?|x[.-]?';
+        let lookahead = '(?!\\.[0-9]|bit|k\\b|p\\b|fps|hz';
+        
+        if (episode === 1) {
+            lookbehind += '|\\b[57]\\b[ . -]*';
+        } else if (episode === 2) {
+            lookbehind += '|\\b[57]\\b[ . -]*1\\b[ . -]*';
+            lookahead += '|[ . -]*0\\b';
+        } else if (episode === 5) {
+            lookahead += '|[ . -]*1\\b';
+        } else if (episode === 7) {
+            lookahead += '|[ . -]*1\\b';
+        }
+        
+        lookbehind += ')';
+        lookahead += ')';
+
         const patterns = [
             // S02E02, S2E2, S02 E02, S2 E2, S02 - E02, s02.e02, etc.
             new RegExp(`[sS]0*${season}[. -]*[eE]0*${episode}\\b`, 'i'),
@@ -232,8 +249,8 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
             new RegExp(`\\b(?:ep|episode)[. -]*0*${episode}\\b`, 'i'),
             // E02, E2, e02
             new RegExp(`\\b[eE]0*${episode}\\b`, 'i'),
-            // Standalone number (e.g. 02, 2)
-            new RegExp(`\\b0*${episode}\\b`, 'i')
+            // Standalone number (e.g. 02, 2), protected from version markers (2.0, 5.1) and resolutions/specs
+            new RegExp(`${lookbehind}\\b0*${episode}${lookahead}\\b`, 'i')
         ];
 
         for (const regex of patterns) {

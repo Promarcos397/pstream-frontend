@@ -12,6 +12,8 @@ import { SubtitleService } from '../services/SubtitleService';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 import { useDebridStream } from '../hooks/useDebridStream';
+import { useWasmAudio } from '../hooks/useWasmAudio';
+import { getCodecProfile } from '../utils/browserCodecSupport';
 
 
 // Giga Engine Backend URL
@@ -130,6 +132,114 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [isStreamM3U8, setIsStreamM3U8] = useState<boolean>(true);
     const [isEmbed, setIsEmbed] = useState<boolean>(false);
+
+    // WASM Audio Integration
+    const currentSource = allSources[currentSourceIndex];
+    const profile = getCodecProfile();
+    const isDolbyCapable = profile?.isDolbyCapable ?? false;
+    const needsWasm = !isDolbyCapable && (
+        (streamUrl?.toLowerCase().includes('.mkv') || 
+         currentSource?._audio === 'ac3' || 
+         currentSource?._audio === 'eac3' || 
+         currentSource?._audio?.includes('dolby') ||
+         currentSource?._audio?.includes('ac-3') ||
+         currentSource?._audio?.includes('e-ac-3'))
+    ) && !!streamUrl;
+
+    const wasmAudio = useWasmAudio(videoRef, {
+        onError: (msg) => console.error('[VideoPlayer] WASM Audio Error:', msg)
+    });
+
+    // Synchronize WASM audio playback state with video element playing/paused state
+    useEffect(() => {
+        if (!needsWasm) {
+            if (wasmAudio.isActive) {
+                console.log('[VideoPlayer] Stopping WASM audio playback (WASM not needed)');
+                wasmAudio.stop();
+            }
+            return;
+        }
+
+        const video = videoRef.current;
+        if (!video || !streamUrl) return;
+
+        if (isPlaying) {
+            if (!wasmAudio.isActive) {
+                console.log('[VideoPlayer] Starting WASM audio decoding at', video.currentTime);
+                wasmAudio.start(streamUrl, video.currentTime);
+            } else {
+                console.log('[VideoPlayer] Resuming WASM audio at', video.currentTime);
+                wasmAudio.resume(video.currentTime);
+            }
+            video.muted = true;
+        } else {
+            if (wasmAudio.isActive) {
+                console.log('[VideoPlayer] Pausing WASM audio');
+                wasmAudio.pause();
+            }
+        }
+    }, [isPlaying, needsWasm, streamUrl]);
+
+    // Synchronize WASM volume and mute states
+    useEffect(() => {
+        if (needsWasm) {
+            const targetVolume = isMuted ? 0 : volume;
+            wasmAudio.setVolume(targetVolume);
+        }
+    }, [volume, isMuted, needsWasm]);
+
+    // Synchronize buffering state when WASM is loading/buffering
+    useEffect(() => {
+        if (needsWasm) {
+            if (wasmAudio.status === 'loading' || wasmAudio.status === 'buffering') {
+                setIsBuffering(true);
+            } else if (wasmAudio.status === 'ready') {
+                setIsBuffering(false);
+            }
+        }
+    }, [wasmAudio.status, needsWasm]);
+
+    // Real-time drift correction loop (500ms soft adjustment)
+    useEffect(() => {
+        if (!needsWasm || !wasmAudio.isActive || !videoRef.current || !streamUrl) {
+            if (videoRef.current) videoRef.current.playbackRate = 1.0;
+            return;
+        }
+
+        const interval = setInterval(() => {
+            const video = videoRef.current;
+            if (!video) return;
+
+            const videoTime = video.currentTime;
+            const audioTime = wasmAudio.getCurrentTime();
+            const drift = videoTime - audioTime;
+
+            if (isNaN(videoTime) || isNaN(audioTime) || audioTime <= 0) return;
+
+            if (Math.abs(drift) > 0.1) {
+                console.log(`[VideoPlayer] 🔀 WASM Drift corrected (hard seek): drift=${drift.toFixed(3)}s`);
+                wasmAudio.seek(videoTime, streamUrl);
+            } else if (Math.abs(drift) > 0.04) {
+                const rate = drift > 0 ? 0.99 : 1.01;
+                if (video.playbackRate !== rate) {
+                    video.playbackRate = rate;
+                    console.log(`[VideoPlayer] ⏱️ WASM Drift nudged: drift=${drift.toFixed(3)}s, rate=${rate}`);
+                }
+            } else {
+                if (video.playbackRate !== 1.0) {
+                    video.playbackRate = 1.0;
+                    console.log('[VideoPlayer] ⏱️ WASM Drift cleared: rate=1.0');
+                }
+            }
+        }, 500);
+
+        return () => {
+            clearInterval(interval);
+            if (videoRef.current) {
+                videoRef.current.playbackRate = 1.0;
+            }
+        };
+    }, [needsWasm, wasmAudio.isActive, streamUrl]);
     // ——— Retry guard: max backend refetches per episode load ———————————————————————
     // Prevents the infinite 403 storm when a CDN IP-blocks the proxy.
     // After MAX_STREAM_RETRIES total backend re-fetches, show "no sources" error.
@@ -847,27 +957,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const restoreAudio = () => {
             if (volumeRef.current > 0) video.volume = volumeRef.current;
             // CRITICAL: Only stay muted if the user EXPLICITLY chose to mute.
-            // If the browser auto-muted (userMutedRef is false), force-unmute now.
+            // If the browser auto-muted (userMutedRef is false), force-unmute now (except for WASM).
             if (!userMutedRef.current) {
-                video.muted = false;
-                console.log('[VideoPlayer] 🔊 Attempting to override browser auto-mute');
-                
-                // If the browser blocked our programmatic unmute (due to transient activation timeout)
-                if (video.muted) {
-                    console.warn('[VideoPlayer] ⚠️ Browser blocked programmatic unmute (transient activation expired). Showing Tap-to-Unmute overlay.');
-                    setShowUnmuteOverlay(true);
+                if (needsWasm) {
+                    video.muted = true;
                 } else {
-                    setShowUnmuteOverlay(false);
+                    video.muted = false;
+                    console.log('[VideoPlayer] 🔊 Attempting to override browser auto-mute');
+                    
+                    // If the browser blocked our programmatic unmute (due to transient activation timeout)
+                    if (video.muted) {
+                        console.warn('[VideoPlayer] ⚠️ Browser blocked programmatic unmute (transient activation expired). Showing Tap-to-Unmute overlay.');
+                        setShowUnmuteOverlay(true);
+                    } else {
+                        setShowUnmuteOverlay(false);
+                    }
                 }
             }
-            // Sync state back from the real element
+            // Sync state back from the real element/states
             setVolume(video.volume);
-            setIsMuted(video.muted);
+            setIsMuted(needsWasm ? isMuted : video.muted);
         };
 
         video.addEventListener('playing', restoreAudio, { once: true });
         return () => video.removeEventListener('playing', restoreAudio);
-    }, [streamUrl]);
+    }, [streamUrl, needsWasm, isMuted]);
 
     // Fire torrent resolver on mount
     useEffect(() => {
@@ -1668,16 +1782,38 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onVolumeChange={() => {
                     if (videoRef.current) {
                         const vol = videoRef.current.volume;
-                        const muted = videoRef.current.muted;
-                        setVolume(vol);
-                        setIsMuted(muted);
-                        // Keep refs in sync for the audio-restore effect
-                        volumeRef.current = vol;
-                        mutedRef.current = muted;
-                        // Persist volume level (not muted — always start unmuted on next visit)
+                        const elementMuted = videoRef.current.muted;
+
+                        if (needsWasm) {
+                            // For WASM: the native element MUST stay muted.
+                            // The user's action to toggle mute will momentarily set videoRef.current.muted.
+                            // We capture this, update our tracking state, and force-mute the element.
+                            if (!elementMuted) {
+                                userMutedRef.current = false;
+                                setIsMuted(false);
+                                videoRef.current.muted = true;
+                            } else {
+                                userMutedRef.current = true;
+                                setIsMuted(true);
+                            }
+                            setVolume(vol);
+                            volumeRef.current = vol;
+                        } else {
+                            setVolume(vol);
+                            setIsMuted(elementMuted);
+                            volumeRef.current = vol;
+                            mutedRef.current = elementMuted;
+                        }
+
                         if (vol > 0) {
                             try { localStorage.setItem('pstream_vol', String(vol)); } catch {}
                         }
+                    }
+                }}
+                onSeeked={() => {
+                    if (needsWasm && wasmAudio.isActive && videoRef.current && streamUrl) {
+                        console.log('[VideoPlayer] WASM seeked to:', videoRef.current.currentTime);
+                        wasmAudio.seek(videoRef.current.currentTime, streamUrl);
                     }
                 }}
                 // For direct MP4 streams (AllDebrid CDN), track buffering via native events.

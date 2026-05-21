@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
-// Required headers for SharedArrayBuffer (used by ffmpeg.wasm)
+// Required headers for SharedArrayBuffer
 // WARNING: Enabling COEP (even 'credentialless') will block third-party iframes 
 // like YouTube unless they are explicitly marked with the `credentialless` attribute.
 // Since the YouTube IFrame API creates the iframe dynamically, it gets blocked.
@@ -47,8 +47,5 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-  },
-  optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
   },
 });

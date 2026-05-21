@@ -4,6 +4,8 @@ import { useTrailer } from '../hooks/useTrailer';
 import { useGlobalContext } from '../context/GlobalContext';
 import { Movie } from '../types';
 
+const YouTubePlayer = YouTube as any;
+
 interface TrailerPlayerProps {
     movie: Movie | null;
     variant?: 'card' | 'hero' | 'modal';
@@ -244,7 +246,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                             onLoadedData={() => setIsLoaded(true)}
                         />
                     ) : (
-                        <YouTube
+                        <YouTubePlayer
                             videoId={videoId}
                             host="https://www.youtube-nocookie.com"
                             className="w-full h-full flex items-center justify-center"
