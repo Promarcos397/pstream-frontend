@@ -474,7 +474,7 @@ export const searchTrailers = async (
 
 // Manual Premium Overrides: Map TMDB IDs to direct high-quality video URLs
 // Format: "tmdb-ID": "URL"
-const PREMIUM_OVERRIDES: Record<string, string> = {
+export const PREMIUM_OVERRIDES: Record<string, string> = {
     "tmdb-4586": "https://res.cloudinary.com/dadwuvdhr/video/upload/v1778862129/1923066622425686017_1_hoiud9.mp4", // Gilmore Girls
 };
 

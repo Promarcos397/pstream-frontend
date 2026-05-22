@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { searchTrailerWithMeta } from '../services/YouTubeService';
+import { searchTrailerWithMeta, PREMIUM_OVERRIDES } from '../services/YouTubeService';
 import { getMovieVideos } from '../services/api';
 import { Movie } from '../types';
 
@@ -14,6 +14,19 @@ export const preloadTrailer = async (movie: Movie | null): Promise<{ videoId: st
     // 1. Check Global Cache First
     if (trailerCache[cacheKey]) {
         return trailerCache[cacheKey];
+    }
+
+    // 1.5. Check Premium Overrides First (e.g. Cloudinary direct link)
+    const overrideKey = movie.id ? `tmdb-${movie.id}` : null;
+    if (overrideKey && PREMIUM_OVERRIDES[overrideKey]) {
+        console.log(`[useTrailer] 💎 Direct Premium Override found for TMDB ID: ${movie.id}`);
+        const data = {
+            videoId: PREMIUM_OVERRIDES[overrideKey],
+            isTeaser: false,
+            isDirect: true
+        };
+        trailerCache[cacheKey] = data;
+        return data;
     }
 
     const type = movie.media_type || (movie.title ? 'movie' : 'tv');

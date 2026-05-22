@@ -199,30 +199,78 @@ function isWrongEpisode(name: string, targetSeason: number, targetEpisode: numbe
     return false;
 }
 
-// ── File extraction ───────────────────────────────────────────────────────────
-// AllDebrid file structure: folders use "e" for entries, files have "l" (link) + "s" (size)
-function findBestFileUrl(files: any[], targetIdx: number | null = null, season?: number, episode?: number): string | null {
-    const flat: { name: string; size: number; url: string }[] = [];
+function isWrongSeasonOrEpisode(fullPath: string, targetSeason: number, targetEpisode: number): boolean {
+    const segments = fullPath.split('/');
+    const folders = segments.slice(0, -1);
+    const fileName = segments[segments.length - 1] || '';
 
-    function flatten(items: any[]) {
-        for (const item of items || []) {
-            if (item.l) {
-                const name = item.n || '';
-                // Only consider actual playable video files (skip .nfo, .txt, .srt, image files, etc.)
-                if (/\.(mp4|mkv|m4v|avi|webm|flv|mov|ts|m2ts|ogv)$/i.test(name)) {
-                    flat.push({ name, size: item.s || 0, url: item.l });
+    // 1. Check folders first
+    for (const folder of folders) {
+        let isRange = false;
+        // Range check: e.g. S01-S07, Season 1-7
+        const rangeMatch = folder.match(/\b(?:season|seasons|series|s)?[. -]*(\d+)[. -]*(?:to|-|~)[. -]*(?:season|seasons|series|s)?[. -]*(\d+)\b/i);
+        if (rangeMatch) {
+            isRange = true;
+            const start = parseInt(rangeMatch[1], 10);
+            const end = parseInt(rangeMatch[2], 10);
+            if (targetSeason < start || targetSeason > end) {
+                return true; // Target season is not in this range folder
+            }
+        }
+        if (!isRange) {
+            // Single season check: e.g. Season 7, S07, S7, or folder is exactly a number (e.g. "07", "7")
+            const seasonMatch = folder.match(/\b(?:season|series|sezon|[sS])[. -]*0*(\d+)\b/i) || folder.match(/^0*(\d{1,2})$/);
+            if (seasonMatch) {
+                const s = parseInt(seasonMatch[1], 10);
+                if (s !== targetSeason) {
+                    return true; // Wrong season folder
                 }
             }
-            if (item.e) flatten(item.e);
-            if (item.files) flatten(item.files);
+        }
+    }
+
+    // 2. Check filename
+    if (isWrongEpisode(fileName, targetSeason, targetEpisode)) {
+        return true;
+    }
+
+    return false;
+}
+
+// ── File extraction ───────────────────────────────────────────────────────────
+// AllDebrid file structure: folders use "e" for entries, files have "l" (link) + "s" (size)"
+function findBestFileUrl(files: any[], targetIdx: number | null = null, season?: number, episode?: number): string | null {
+    const flat: { name: string; fullPath: string; size: number; url: string }[] = [];
+
+    function flatten(items: any[], currentPath: string = '') {
+        for (const item of items || []) {
+            const name = item.n || '';
+            const fullPath = currentPath ? `${currentPath}/${name}` : name;
+            if (item.l) {
+                // Only consider actual playable video files (skip .nfo, .txt, .srt, image files, etc.)
+                if (/\.(mp4|mkv|m4v|avi|webm|flv|mov|ts|m2ts|ogv)$/i.test(name)) {
+                    flat.push({ name, fullPath, size: item.s || 0, url: item.l });
+                }
+            }
+            if (item.e) flatten(item.e, fullPath);
+            if (item.files) flatten(item.files, fullPath);
         }
     }
 
     flatten(files);
     if (!flat.length) return null;
 
+
     // 1. If it's a TV show, try to find the specific episode file by name
     if (season != null && episode != null) {
+        let candidates = flat;
+        const filteredFlat = flat.filter(f => !isWrongSeasonOrEpisode(f.fullPath, season, episode));
+        if (filteredFlat.length > 0) {
+            candidates = filteredFlat;
+        } else {
+            console.log('[DebridStream] ⚠️ Season/episode filtering returned 0 candidates, falling back to all files.');
+        }
+
         let lookbehind = '(?<![0-9]\\.|h[.-]?|x[.-]?';
         let lookahead = '(?!\\.[0-9]|bit|k\\b|p\\b|fps|hz';
         
@@ -254,7 +302,7 @@ function findBestFileUrl(files: any[], targetIdx: number | null = null, season?:
         ];
 
         for (const regex of patterns) {
-            const matches = flat.filter(f => regex.test(f.name));
+            const matches = candidates.filter(f => regex.test(f.name));
             if (matches.length === 1) return matches[0].url; // Perfect single match
             if (matches.length > 1) {
                 // If multiple matches (e.g. sample files), pick the largest

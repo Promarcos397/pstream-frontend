@@ -19,6 +19,7 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
   const nextWhenRef = useRef(0);
   const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const currentVolumeRef = useRef(1.0);
+  const lastScheduledRef = useRef({ timestamp: 0, actualWhen: 0, duration: 0 });
 
   const initCtx = useCallback(() => {
     if (ctxRef.current) return ctxRef.current;
@@ -30,6 +31,17 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
     gainRef.current = gain;
     return ctx;
   }, []);
+
+  const ensureActivated = useCallback(() => {
+    try {
+      const ctx = initCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(err => console.warn('[WasmAudio] Failed to resume AudioContext in ensureActivated:', err));
+      }
+    } catch (err) {
+      console.warn('[WasmAudio] Failed to initialize AudioContext in ensureActivated:', err);
+    }
+  }, [initCtx]);
 
   const stop = useCallback(() => {
     runningRef.current = false;
@@ -44,6 +56,7 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
       } catch (err) {}
     });
     sourcesRef.current = [];
+    lastScheduledRef.current = { timestamp: 0, actualWhen: 0, duration: 0 };
     setStatus('idle');
     setBufferedSec(0);
   }, []);
@@ -61,6 +74,7 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
 
     baseRef.current = { video: time, audio: ctx.currentTime + 0.15 };
     nextWhenRef.current = baseRef.current.audio;
+    lastScheduledRef.current = { timestamp: time, actualWhen: 0, duration: 0 };
 
     if (workerRef.current) {
       workerRef.current.postMessage({ type: 'seek', url, time });
@@ -76,6 +90,9 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
 
     try {
       const ctx = initCtx();
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch(err => console.warn('[WasmAudio] Failed to resume AudioContext in start:', err));
+      }
 
       // Start worker using Vite worker constructor
       const worker = new Worker(
@@ -86,6 +103,7 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
 
       baseRef.current = { video: startTime, audio: ctx.currentTime + 0.3 };
       nextWhenRef.current = baseRef.current.audio;
+      lastScheduledRef.current = { timestamp: startTime, actualWhen: 0, duration: 0 };
 
       worker.onmessage = (e) => {
         if (!runningRef.current) return;
@@ -146,15 +164,8 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
     source.start(actualWhen);
     sourcesRef.current.push(source);
 
+    lastScheduledRef.current = { timestamp, actualWhen, duration };
     nextWhenRef.current = actualWhen + duration;
-
-    // Periodically post playhead back to worker so it can throttle properly
-    if (workerRef.current && Math.random() < 0.1) {
-      workerRef.current.postMessage({
-        type: 'updatePlayhead',
-        playhead: timestamp,
-      });
-    }
 
     source.onended = () => {
       const idx = sourcesRef.current.indexOf(source);
@@ -174,7 +185,13 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
   const getCurrentTime = useCallback(() => {
     const ctx = ctxRef.current;
     if (!ctx || !runningRef.current) return 0;
-    return baseRef.current.video + (ctx.currentTime - baseRef.current.audio);
+    const last = lastScheduledRef.current;
+    if (last.actualWhen === 0) {
+      return baseRef.current.video;
+    }
+    const elapsed = ctx.currentTime - last.actualWhen;
+    const clampedElapsed = Math.max(0, Math.min(elapsed, last.duration));
+    return last.timestamp + clampedElapsed;
   }, []);
 
   const pause = useCallback(() => {
@@ -189,17 +206,42 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
     sourcesRef.current = [];
   }, []);
 
-  const resume = useCallback((time: number) => {
+  const resume = useCallback(async (time: number) => {
     const ctx = ctxRef.current;
     if (!ctx) return;
 
+    if (ctx.state === 'suspended') {
+      await ctx.resume().catch(err => console.warn('[WasmAudio] Failed to resume AudioContext in resume:', err));
+    }
+
     baseRef.current = { video: time, audio: ctx.currentTime + 0.1 };
     nextWhenRef.current = baseRef.current.audio;
+    lastScheduledRef.current = { timestamp: time, actualWhen: 0, duration: 0 };
 
     if (workerRef.current) {
       workerRef.current.postMessage({ type: 'resume' });
     }
   }, []);
+
+  // Sync real-time video playhead to the worker to prevent throttling deadlocks
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleTimeUpdate = () => {
+      if (runningRef.current && workerRef.current) {
+        workerRef.current.postMessage({
+          type: 'updatePlayhead',
+          playhead: video.currentTime,
+        });
+      }
+    };
+
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    return () => {
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+    };
+  }, [videoRef]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -220,6 +262,7 @@ export function useWasmAudio(videoRef: React.RefObject<HTMLVideoElement | null>,
     resume,
     setVolume,
     getCurrentTime,
+    ensureActivated,
     status,
     bufferedSec,
     isActive: runningRef.current,

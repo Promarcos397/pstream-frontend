@@ -41,6 +41,7 @@ function shouldForceProxy(source: any): boolean {
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
 import VideoPlayerSettingsTouch from './VideoPlayerSettingsTouch';
+import { useAudioSilenceDetector } from '../hooks/useAudioSilenceDetector';
 
 interface VideoPlayerProps {
     movie: Movie;
@@ -105,7 +106,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useEffect(() => {
         let timer: NodeJS.Timeout;
         if (!isPlaying && !showUI) {
-            timer = setTimeout(() => setShowPausedOverlay(true), 3500);
+            timer = setTimeout(() => setShowPausedOverlay(true), 2500);
         } else {
             setShowPausedOverlay(false);
         }
@@ -147,11 +148,38 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     ) && !!streamUrl;
 
     const wasmAudio = useWasmAudio(videoRef, {
-        onError: (msg) => console.error('[VideoPlayer] WASM Audio Error:', msg)
+        onError: (msg) => {
+            console.error('[VideoPlayer] WASM Audio Error:', msg);
+            // Mark this stream as failed — stops the infinite retry loop.
+            // The video element is unmuted so native audio plays (may be silent for AC3 in Chrome).
+            wasmFailedRef.current = true;
+            if (videoRef.current) videoRef.current.muted = false;
+        }
     });
+
+    const lastStreamUrlRef = useRef<string | null>(null);
+    // Tracks if WASM failed for the current stream — prevents infinite retry loop.
+    // Reset whenever the stream URL changes so we retry on a new source.
+    const wasmFailedRef = useRef(false);
+
+    // WASM audio workers can't fetch AllDebrid CDN URLs directly:
+    //  - fetch() in Web Workers enforces CORS, and AllDebrid CDN has no Allow-Origin headers
+    //  - IP-locked streams also block server-side proxying
+    // The SW proxy was attempted but SW fetch() is also CORS-restricted for cross-origin reads.
+    // wasmProxiedUrl is kept for future improvement but currently 502s on AllDebrid streams.
+    const wasmProxiedUrl = streamUrl ? `/sw-proxy?url=${encodeURIComponent(streamUrl)}` : null;
 
     // Synchronize WASM audio playback state with video element playing/paused state
     useEffect(() => {
+        if (streamUrl !== lastStreamUrlRef.current) {
+            console.log('[VideoPlayer] streamUrl changed from', lastStreamUrlRef.current, 'to', streamUrl);
+            if (wasmAudio.isActive) {
+                wasmAudio.stop();
+            }
+            lastStreamUrlRef.current = streamUrl || null;
+            wasmFailedRef.current = false; // Reset failure flag for new stream
+        }
+
         if (!needsWasm) {
             if (wasmAudio.isActive) {
                 console.log('[VideoPlayer] Stopping WASM audio playback (WASM not needed)');
@@ -160,13 +188,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             return;
         }
 
+        // Don't retry if WASM has already failed for this stream
+        if (wasmFailedRef.current) return;
+
         const video = videoRef.current;
         if (!video || !streamUrl) return;
 
         if (isPlaying) {
             if (!wasmAudio.isActive) {
                 console.log('[VideoPlayer] Starting WASM audio decoding at', video.currentTime);
-                wasmAudio.start(streamUrl, video.currentTime);
+                wasmAudio.start(wasmProxiedUrl!, video.currentTime);
             } else {
                 console.log('[VideoPlayer] Resuming WASM audio at', video.currentTime);
                 wasmAudio.resume(video.currentTime);
@@ -178,15 +209,41 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 wasmAudio.pause();
             }
         }
-    }, [isPlaying, needsWasm, streamUrl]);
+    }, [isPlaying, needsWasm, streamUrl, wasmAudio.isActive]);
 
     // Synchronize WASM volume and mute states
     useEffect(() => {
         if (needsWasm) {
-            const targetVolume = isMuted ? 0 : volume;
-            wasmAudio.setVolume(targetVolume);
+            wasmAudio.setVolume(videoRef.current?.muted ? 0 : volume);
         }
-    }, [volume, isMuted, needsWasm]);
+    }, [volume, needsWasm, wasmAudio.isActive, wasmAudio]);
+
+    // ── Auto-Switch on Silence (WASM failed + Native Audio Silent) ───────────────
+    // If WASM fails (e.g., CORS) and the native browser `<video>` player is silent (unsupported AC3),
+    // automatically find the next source in the list and switch to it.
+    const isDebrid = streamUrl?.includes('.debrid.it') || streamUrl?.includes('.alldebrid.com');
+    const { silenceDetected, dismiss: dismissSilence } = useAudioSilenceDetector(videoRef, wasmFailedRef.current && !!isDebrid, {
+        silenceThresholdSeconds: 3, // fast detection
+        startDelayMs: 2000
+    });
+
+    useEffect(() => {
+        if (silenceDetected) {
+            console.log('[VideoPlayer] Silence detected on failed WASM stream. Auto-switching to next source...');
+            dismissSilence();
+            
+            const nextIndex = currentSourceIndex + 1;
+            if (nextIndex < allSources.length) {
+                setLoadingMessage('Audio format unsupported. Trying alternative source...');
+                setCurrentSourceIndex(nextIndex);
+                setStreamUrl(allSources[nextIndex].url);
+                setIsStreamM3U8(allSources[nextIndex].isM3U8);
+                setIsBuffering(true);
+            } else {
+                console.log('[VideoPlayer] No more sources to auto-switch to.');
+            }
+        }
+    }, [silenceDetected, currentSourceIndex, allSources, dismissSilence]);
 
     // Synchronize buffering state when WASM is loading/buffering
     useEffect(() => {
@@ -216,9 +273,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
             if (isNaN(videoTime) || isNaN(audioTime) || audioTime <= 0) return;
 
-            if (Math.abs(drift) > 0.1) {
+            if (Math.abs(drift) > 0.25) {
                 console.log(`[VideoPlayer] 🔀 WASM Drift corrected (hard seek): drift=${drift.toFixed(3)}s`);
-                wasmAudio.seek(videoTime, streamUrl);
+                wasmAudio.seek(videoTime, wasmProxiedUrl!);
             } else if (Math.abs(drift) > 0.04) {
                 const rate = drift > 0 ? 0.99 : 1.01;
                 if (video.playbackRate !== rate) {
@@ -533,38 +590,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const currentEpisodeName = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode)?.name || '';
 
     // ——— Touch gestures ————————————————————————————————————————————————————————————
-    // Double-tap left/right = ±10s seek; double-tap center = play/pause
+    // Single tap = toggle UI (reveal/hide). No swipe-to-seek, no double-tap-to-seek.
     useTouchGestures(containerRef, {
-        onDoubleTapLeft: () => { 
-            lastTouchTimeRef.current = Date.now();
-            if (videoRef.current) videoRef.current.currentTime -= 10; 
-        },
-        onDoubleTapRight: () => { 
-            lastTouchTimeRef.current = Date.now();
-            if (videoRef.current) videoRef.current.currentTime += 10; 
-        },
-        onSwipeLeft: (distance) => {
-            lastTouchTimeRef.current = Date.now();
-            if (videoRef.current) videoRef.current.currentTime -= Math.min(60, Math.round(distance / 10));
-            showControls();
-        },
-        onSwipeRight: (distance) => {
-            lastTouchTimeRef.current = Date.now();
-            if (videoRef.current) videoRef.current.currentTime += Math.min(60, Math.round(distance / 10));
-            showControls();
-        },
-        onSingleTap: () => { 
+        onSingleTap: () => {
             lastTouchTimeRef.current = Date.now();
             if (activePanel !== 'none') {
                 setActivePanel('none');
                 return;
             }
-            if (showUIRef.current) {
-                setShowUI(false);
-                if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-            } else {
-                showControls();
-            }
+            toggleUI();
         },
     });
 
@@ -813,6 +847,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
 
             const key = e.key.toLowerCase();
+            const playbackKeys = [' ', 'arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'k', 'l', 'j', 'm'];
+            if (playbackKeys.includes(key)) {
+                wasmAudio.ensureActivated();
+            }
+
             switch (e.key) { // Keep exact matching for special/cased keys
                 case 'Escape':
                     e.preventDefault();
@@ -917,7 +956,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption]);
+    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption, wasmAudio]);
 
     // ——— AllDebrid / Torrent: Primary Source ——————————————————————————————————————
     // Fires immediately on mount. Extractors only activate if this fails.
@@ -1667,12 +1706,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
         inactivityTimerRef.current = setTimeout(() => {
             if (!isControlsHovered.current) setShowUI(false);
-        }, 3500);
+        }, 2500);
     }, [activePanel]);
 
     // When panel state changes:
     // If open: keep UI visible and clear hide timer
-    // If closed: trigger showControls to start the 3.5s hide timer
+    // If closed: trigger showControls to start the 2.5s hide timer
     useEffect(() => {
         if (activePanel !== 'none') {
             if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -1715,21 +1754,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         // TODO: Signal to Service Worker or WASM decoder to switch stream
     };
 
-    // â”€â”€â”€ Touch Gestures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    useTouchGestures(containerRef, {
-        onSingleTap: () => {
-            lastTouchTimeRef.current = Date.now();
-            toggleUI();
-        },
-        onDoubleTapLeft: () => {
-            lastTouchTimeRef.current = Date.now();
-            if (videoRef.current) videoRef.current.currentTime -= 10;
-        },
-        onDoubleTapRight: () => {
-            lastTouchTimeRef.current = Date.now();
-            if (videoRef.current) videoRef.current.currentTime += 10;
-        }
-    });
 
     // Show UI on any keyboard key press
     useEffect(() => {
@@ -1747,6 +1771,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             style={isPseudoFullscreen ? { position: 'fixed', zIndex: 20001 } : {}}
             onMouseMove={showControls}
             onClick={(e) => {
+                wasmAudio.ensureActivated();
                 const target = e.target as HTMLElement;
                 // Only act on clicks directly on the background/video
                 if (target === containerRef.current || target === videoRef.current) {
@@ -1811,9 +1836,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }
                 }}
                 onSeeked={() => {
-                    if (needsWasm && wasmAudio.isActive && videoRef.current && streamUrl) {
+                    if (needsWasm && wasmAudio.isActive && videoRef.current && wasmProxiedUrl) {
                         console.log('[VideoPlayer] WASM seeked to:', videoRef.current.currentTime);
-                        wasmAudio.seek(videoRef.current.currentTime, streamUrl);
+                        wasmAudio.seek(videoRef.current.currentTime, wasmProxiedUrl);
                     }
                 }}
                 // For direct MP4 streams (AllDebrid CDN), track buffering via native events.
@@ -2036,11 +2061,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 title={title}
                 episodeNumber={mediaType === 'tv' ? currentEpisode : undefined}
                 episodeName={mediaType === 'tv' ? currentEpisodeName : undefined}
-                onPlayPause={() => videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause()}
-                onSeek={(amt) => videoRef.current && (videoRef.current.currentTime += amt)}
+                onPlayPause={() => {
+                    wasmAudio.ensureActivated();
+                    videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
+                }}
+                onSeek={(amt) => {
+                    wasmAudio.ensureActivated();
+                    videoRef.current && (videoRef.current.currentTime += amt);
+                }}
                 volume={volume}
-                onVolumeChange={(v) => { if (videoRef.current) { videoRef.current.volume = v; if (v > 0) videoRef.current.muted = false; } }}
+                onVolumeChange={(v) => {
+                    wasmAudio.ensureActivated();
+                    if (videoRef.current) {
+                        videoRef.current.volume = v;
+                        if (v > 0) videoRef.current.muted = false;
+                    }
+                }}
                 onToggleMute={() => {
+                    wasmAudio.ensureActivated();
                     if (videoRef.current) {
                         const nextMuted = !videoRef.current.muted;
                         videoRef.current.muted = nextMuted;
@@ -2048,16 +2086,25 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         setIsMuted(nextMuted);
                     }
                 }}
-                onTimelineSeek={(p) => videoRef.current && (videoRef.current.currentTime = (p / 100) * videoRef.current.duration)}
+                onTimelineSeek={(p) => {
+                    wasmAudio.ensureActivated();
+                    videoRef.current && (videoRef.current.currentTime = (p / 100) * videoRef.current.duration);
+                }}
                 onToggleFullscreen={toggleFullscreen}
                 onClose={onClose || (() => window.history.back())}
                 activePanel={activePanel}
                 setActivePanel={setActivePanel}
                 mediaType={mediaType}
                 hasNextEpisode={!!nextEpisodeInfo}
-                onNextEpisode={handleNextEpisode}
+                onNextEpisode={() => {
+                    wasmAudio.ensureActivated();
+                    handleNextEpisode();
+                }}
                 hasPreviousEpisode={!!previousEpisodeInfo}
-                onPrevEpisode={handlePreviousEpisode}
+                onPrevEpisode={() => {
+                    wasmAudio.ensureActivated();
+                    handlePreviousEpisode();
+                }}
                 showNextEp={!!nextEpisodeInfo}
                 onInteraction={showControls}
                 onControlsHoverChange={(h) => isControlsHovered.current = h}

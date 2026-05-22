@@ -10,6 +10,11 @@ try {
 
 let activeLoopId = 0;
 let currentInput: Input | null = null;
+let currentUrl = '';
+let currentAudioTrack: any = null;
+let currentSampleRate = 0;
+let currentNumChannels = 0;
+let currentDuration = 0;
 let playhead = 0;
 let isPaused = false;
 
@@ -53,6 +58,11 @@ self.onmessage = async (e: MessageEvent) => {
         }
         currentInput = null;
       }
+      currentUrl = '';
+      currentAudioTrack = null;
+      currentSampleRate = 0;
+      currentNumChannels = 0;
+      currentDuration = 0;
       break;
   }
 };
@@ -60,39 +70,53 @@ self.onmessage = async (e: MessageEvent) => {
 async function startDecoding(url: string, startTimestamp: number) {
   const loopId = ++activeLoopId;
 
-  if (currentInput) {
-    try {
-      currentInput.dispose();
-    } catch (err) {
-      console.error('[WasmWorker] Dispose error on recreation:', err);
-    }
-    currentInput = null;
-  }
-
   try {
-    const source = new UrlSource(url);
-    const input = new Input({
-      source,
-      formats: ALL_FORMATS,
-    });
-    currentInput = input;
+    let audioTrack = currentAudioTrack;
+    let sampleRate = currentSampleRate;
+    let numChannels = currentNumChannels;
+    let duration = currentDuration;
 
-    const audioTrack = await input.getPrimaryAudioTrack();
-    if (!audioTrack) {
-      postMessage({ type: 'error', message: 'No audio track found in stream' });
-      return;
+    if (url !== currentUrl || !currentInput || !currentAudioTrack) {
+      if (currentInput) {
+        try {
+          currentInput.dispose();
+        } catch (err) {
+          console.error('[WasmWorker] Dispose error on recreation:', err);
+        }
+        currentInput = null;
+        currentAudioTrack = null;
+      }
+
+      currentUrl = url;
+      const source = new UrlSource(url);
+      const input = new Input({
+        source,
+        formats: ALL_FORMATS,
+      });
+      currentInput = input;
+
+      audioTrack = await input.getPrimaryAudioTrack();
+      if (!audioTrack) {
+        postMessage({ type: 'error', message: 'No audio track found in stream' });
+        return;
+      }
+      currentAudioTrack = audioTrack;
+
+      sampleRate = await audioTrack.getSampleRate();
+      numChannels = await audioTrack.getNumberOfChannels();
+      duration = await input.computeDuration();
+
+      currentSampleRate = sampleRate;
+      currentNumChannels = numChannels;
+      currentDuration = duration;
+
+      postMessage({
+        type: 'metadata',
+        sampleRate,
+        numChannels,
+        duration,
+      });
     }
-
-    const sampleRate = await audioTrack.getSampleRate();
-    const numChannels = await audioTrack.getNumberOfChannels();
-    const duration = await input.computeDuration();
-
-    postMessage({
-      type: 'metadata',
-      sampleRate,
-      numChannels,
-      duration,
-    });
 
     const sink = new AudioSampleSink(audioTrack);
 
