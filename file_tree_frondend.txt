@@ -1,9 +1,38 @@
 pstream-frontend
+├── .env
+├── .env.local
+├── .gitignore
+├── App.tsx
 ├── _dev
 │   ├── _project_notes
+│   │   ├── 01_PROJECT_OVERVIEW.md
+│   │   ├── 02_CURRENT_ISSUES.md
+│   │   ├── 03_DESIGN_SYSTEM.md
+│   │   ├── 04_FIX_PRIORITY.md
+│   │   └── 05_FULL_REQUIREMENTS.md
 │   ├── cleanup_locales.py
 │   ├── localize_all.py
 │   └── update_locales.cjs
+├── assets
+│   ├── fonts
+│   │   ├── Harmonia Sans Mono W01 Bold.otf
+│   │   ├── Harmonia Sans Mono W01 Bold.ttf
+│   │   ├── Harmonia Sans W01 Bold.otf
+│   │   ├── Harmonia Sans W01 Bold.ttf
+│   │   ├── Harmonia Sans W01 Regular.otf
+│   │   ├── Harmonia Sans W01 Regular.ttf
+│   │   ├── Harmonia Sans W06 Black Italic.otf
+│   │   ├── Harmonia Sans W06 Black Italic.ttf
+│   │   ├── Harmonia Sans W06 Condensed.otf
+│   │   ├── Harmonia Sans W06 Condensed.ttf
+│   │   ├── LeanerBold.otf
+│   │   ├── Niva-Bold _.ttf
+│   │   └── netflix-sans.woff2
+│   ├── landing-bg.png
+│   └── logos
+│       ├── p-pstream-logo-with-background.svg
+│       ├── p-pstream-logo.svg
+│       └── pstream-logo.svg
 ├── components
 │   ├── BookHero.tsx
 │   ├── CategorySubNav.tsx
@@ -19,6 +48,7 @@ pstream-frontend
 │   ├── InfoModalEpisodes.tsx
 │   ├── InfoModalRecommendations.tsx
 │   ├── Layout.tsx
+│   ├── LoginWall.tsx
 │   ├── ManifestSkeleton.tsx
 │   ├── MovieCard.tsx
 │   ├── MovieCardBadges.tsx
@@ -32,6 +62,7 @@ pstream-frontend
 │   ├── VideoPlayerControls.tsx
 │   ├── VideoPlayerSettings.tsx
 │   └── VideoPlayerSettingsTouch.tsx
+├── constants.ts
 ├── context
 │   ├── GlobalContext.tsx
 │   └── TitleContext.tsx
@@ -42,9 +73,7 @@ pstream-frontend
 │   ├── pageGenres.ts
 │   └── subtitles.ts
 ├── hooks
-│   ├── useAudioSidecar.ts
 │   ├── useAudioSilenceDetector.ts
-│   ├── useAudioTranscoder.ts
 │   ├── useDebridStream.ts
 │   ├── useDynamicManifest.ts
 │   ├── useHls.ts
@@ -59,7 +88,12 @@ pstream-frontend
 │   ├── useTasteEngine.ts
 │   ├── useTouchGestures.ts
 │   ├── useTrailer.ts
+│   ├── useWasmAudio.ts
 │   └── useYouTubeCaptions.ts
+├── i18n.ts
+├── index.css
+├── index.html
+├── index.tsx
 ├── locales
 │   ├── ar.json
 │   ├── de.json
@@ -77,6 +111,8 @@ pstream-frontend
 │   ├── sv.json
 │   ├── tr.json
 │   └── zh.json
+├── package-lock.json
+├── package.json
 ├── pages
 │   ├── BrowseGridPage.tsx
 │   ├── CinemaPage.tsx
@@ -91,18 +127,18 @@ pstream-frontend
 │   ├── SearchResultsPage.tsx
 │   ├── SettingsPage.tsx
 │   └── ShowsPage.tsx
+├── postcss.config.js
 ├── services
-│   ├── api.ts
-│   ├── AuthService.ts
-│   ├── ghostAuth.ts
 │   ├── HeroEngine.ts
 │   ├── NetworkPriority.ts
 │   ├── ProviderHealthService.ts
-│   ├── stream.ts
 │   ├── SubtitleService.ts
-│   ├── tmdb.ts
 │   ├── YouTubeCaptionService.ts
-│   └── YouTubeService.ts
+│   ├── YouTubeService.ts
+│   ├── api.ts
+│   ├── ghostAuth.ts
+│   ├── supabaseClient.ts
+│   └── tmdb.ts
 ├── settings
 │   ├── AccountSection.tsx
 │   ├── AppearanceSection.tsx
@@ -119,29 +155,27 @@ pstream-frontend
 │   ├── SubtitleSection.tsx
 │   ├── SubtitleSettings.tsx
 │   └── ViewingActivitySection.tsx
+├── store
+│   ├── useAuthStore.ts
+│   ├── useLibraryStore.ts
+│   ├── useSettingsStore.ts
+│   └── useWatchStore.ts
+├── tailwind.config.js
+├── tsconfig.json
 ├── types
 │   └── assets.d.ts
+├── types.ts
 ├── ui
 │   └── SettingsUI.tsx
 ├── utils
 │   ├── browserCodecSupport.ts
 │   ├── captions.ts
+│   ├── ebml.ts
 │   ├── mediaProbe.ts
+│   ├── mkvAudioExtractor.ts
 │   ├── search.ts
 │   └── streamCache.ts
-├── .env
-├── .env.local
-├── .gitignore
-├── App.tsx
-├── constants.ts
-├── i18n.ts
-├── index.css
-├── index.html
-├── index.tsx
-├── package.json
-├── postcss.config.js
-├── tailwind.config.js
-├── tsconfig.json
-├── types.ts
 ├── vite-env.d.ts
-└── vite.config.ts
+├── vite.config.ts
+└── workers
+    └── wasmAudioWorker.ts
