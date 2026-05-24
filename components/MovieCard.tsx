@@ -13,6 +13,7 @@ import { TrailerPlayer } from './TrailerPlayer';
 import { MaturityBadge, BadgeOverlay, HoverProgressBar, getWatchData } from './MovieCardBadges';
 import { searchTrailerWithMeta } from '../services/YouTubeService';
 import { preloadTrailer } from '../hooks/useTrailer';
+import MovieCardTouch from './MovieCardTouch';
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 type _PHListener = (v: boolean) => void;
@@ -74,20 +75,20 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
         {expanded ? (
           <>
             {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
-              const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
-              const isActive = rating === r;
-              const color = r === 'love' ? 'text-red-500' : r === 'like' ? 'text-blue-400' : 'text-gray-400';
-              return (
-                <button
-                  key={r}
-                  onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-125 flex-shrink-0
-                    ${isActive ? color : 'text-white/60 hover:text-white'}`}
-                  title={r.charAt(0).toUpperCase() + r.slice(1)}
-                >
-                  <Icon size={26} weight={isActive ? 'fill' : 'bold'} />
-                </button>
-              );
+               const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
+               const isActive = rating === r;
+               const color = r === 'love' ? 'text-red-500' : r === 'like' ? 'text-blue-400' : 'text-gray-400';
+               return (
+                 <button
+                   key={r}
+                   onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
+                   className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-125 flex-shrink-0
+                     ${isActive ? color : 'text-white/60 hover:text-white'}`}
+                   title={r.charAt(0).toUpperCase() + r.slice(1)}
+                 >
+                   <Icon size={26} weight={isActive ? 'fill' : 'bold'} />
+                 </button>
+               );
             })}
           </>
         ) : (
@@ -106,6 +107,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const { t } = useTranslation();
   const navigate = useNavigate();
   const prefersHover = usePrefersHover();
+
   const {
     myList, toggleList, rateMovie, getMovieRating, getVideoState,
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
@@ -310,6 +312,24 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     };
   }, []);
 
+  const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
+    ? (movie.backdrop_path || movie.poster_path)
+    : `https://image.tmdb.org/t/p/w500${movie.backdrop_path || movie.poster_path}`;
+
+  const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
+    ? movie.poster_path
+    : `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+
+  // Handle cached images for smooth reveal
+  useEffect(() => {
+    if (posterRef.current?.complete) {
+      setImageLoaded(true);
+    }
+  }, [imageSrc]);
+
+  if (!prefersHover) {
+    return <MovieCardTouch movie={movie} onSelect={onSelect} onPlay={onPlay} isGrid={isGrid} />;
+  }
 
   const SHOW_DELAY = 200; 
   const handlePointerEnter = (e: React.PointerEvent) => {
@@ -466,20 +486,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   const isBook = ['series', 'comic', 'manga', 'local'].includes(movie.media_type || '');
 
-  const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
-    ? (movie.backdrop_path || movie.poster_path)
-    : `https://image.tmdb.org/t/p/w500${movie.backdrop_path || movie.poster_path}`;
-
-  const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
-    ? movie.poster_path
-    : `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
-
-  // Handle cached images for smooth reveal
-  useEffect(() => {
-    if (posterRef.current?.complete) {
-      setImageLoaded(true);
-    }
-  }, [imageSrc]);
 
   return (
     <div
@@ -582,7 +588,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
             className="absolute pointer-events-none z-20"
             style={{ top: 'calc(100% + 5px)', left: '25%', right: '25%' }}
           >
-            <div className="h-[4px] group-hover:h-[6px] w-full transition-all duration-300" style={{ background: '#808080', borderRadius: 0 }}>
+            <div className="h-[2px] group-hover:h-[3px] w-full transition-all duration-300" style={{ background: '#808080', borderRadius: 0 }}>
               <div
                 className="h-full transition-all duration-300"
                 style={{ width: `${pct}%`, background: '#e50914', borderRadius: 0 }}

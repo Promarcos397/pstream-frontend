@@ -313,7 +313,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         >
             <div
                 ref={modalRef}
-                className="relative w-full max-w-[920px] bg-[#181818] rounded-xl shadow-2xl mt-6 md:mt-8 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
+                className="relative w-full max-w-[850px] bg-[#181818] rounded-xl shadow-2xl mt-6 md:mt-8 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
                 style={{
                     transform: springTransform,
                     transition: springTransition,

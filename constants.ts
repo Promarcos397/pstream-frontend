@@ -51,7 +51,7 @@ export const REQUESTS = {
     return this._build(`${BASE_URL}/discover/${type}`, {
       with_genres: genreId,
       sort_by: sortBy,
-      'vote_count.gte': 100
+      'vote_count.gte': type === 'tv' ? 20 : 100
     }, extra);
   },
 

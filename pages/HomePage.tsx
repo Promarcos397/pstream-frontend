@@ -10,6 +10,8 @@ import { useDynamicManifest } from '../hooks/useDynamicManifest';
 import ManifestSkeleton from '../components/ManifestSkeleton';
 import HeroSkeleton from '../components/HeroSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
+import CategorySubNav, { Genre } from '../components/CategorySubNav';
+import { UNIVERSAL_GENRES } from '../data/pageGenres';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -53,25 +55,33 @@ interface SmartRow {
 const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onViewAll }) => {
   const { myList, continueWatching, getLikedMovies, isAppReady } = useGlobalContext();
   const { t } = useTranslation();
+  const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
 
-  const { rows, isLoading } = useDynamicManifest('home');
+  const { rows, isLoading } = useDynamicManifest('home', selectedGenre?.id, selectedGenre?.name);
 
   // --- SMART PRELOADING ENGINE ---
   // Removed: We now use the global usePrefetchQueue hook instead of aggressive localized prefetching.
 
   return (
     <div className="relative">
+      <CategorySubNav
+        title={t('nav.home', { defaultValue: 'Home' })}
+        genres={UNIVERSAL_GENRES}
+        selectedGenre={selectedGenre}
+        onGenreSelect={setSelectedGenre}
+      />
       {/* 
         HeroCarousel must be rendered even when !isAppReady because it's the component 
         responsible for setting isAppReady = true once its assets are loaded. 
       */}
       <HeroCarousel
-        key="home"
+        key={`home-${selectedGenre?.id || 'all'}`}
         onSelect={onSelectMovie}
         onPlay={onPlay}
-        fetchUrl={REQUESTS.fetchPopular}
+        fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('movie', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchPopular}
         seekTime={seekTime}
         pageType="home"
+        genreId={selectedGenre?.id}
       />
 
       <AnimatePresence>

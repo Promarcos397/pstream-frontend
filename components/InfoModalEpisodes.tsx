@@ -117,7 +117,7 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
                             <div
                                 key={ep.id}
                                 onClick={() => onPlay(movie, selectedSeason, ep.episode_number)}
-                                className="flex items-start group cursor-pointer p-4 rounded-sm hover:bg-[#2a2a2a] transition border-b border-white/5 last:border-0"
+                                className="flex items-center group cursor-pointer px-4 py-8 rounded-sm hover:bg-[#2a2a2a] transition border-b border-white/5 last:border-0"
                             >
                                 <div className="text-white/50 text-lg font-semibold w-8 text-center flex-shrink-0 mr-4 mt-1">
                                     {ep.episode_number}

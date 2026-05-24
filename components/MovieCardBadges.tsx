@@ -14,7 +14,7 @@ interface MaturityBadgeProps {
   voteAverage?: number;
   /** Override the auto-computed label */
   label?: string;
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
 }
 
 export const MaturityBadge: React.FC<MaturityBadgeProps> = ({ adult, voteAverage, label, size = 'sm' }) => {
@@ -25,7 +25,7 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({ adult, voteAverage
     : '#F97316'; // orange for 13+
 
   // Tweak 'dim' sizes here to make the circle bigger/smaller
-  const dim = size === 'md' ? 'w-10 h-10 text-[18px]' : 'w-9 h-9 text-[14px]';
+  const dim = size === 'md' ? 'w-10 h-10 text-[18px]' : size === 'xs' ? 'w-6 h-6 text-[10px]' : 'w-9 h-9 text-[14px]';
 
   return (
     <span
@@ -148,7 +148,7 @@ export const HoverProgressBar: React.FC<ProgressProps> = React.memo(({ movie, ge
   if (pct <= 0) return null;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-[3px] bg-[#808080]" style={{ borderRadius: 0 }}>
+      <div className="flex-1 h-[2px] bg-[#808080]" style={{ borderRadius: 0 }}>
         <div
           className="h-full bg-[#e50914] transition-all duration-300"
           style={{ width: `${pct}%`, borderRadius: 0 }}

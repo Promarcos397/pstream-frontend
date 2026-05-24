@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { ListIcon, XIcon } from '@phosphor-icons/react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import SearchBar from './SearchBar';
 import pstreamWordmark from '../assets/logos/pstream-logo.svg';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DEFAULT_AVATAR } from '../constants';
+import { useIsMobile } from '../hooks/useIsMobile';
+import NavbarMobile from './NavbarMobile';
 
 interface NavbarProps {
   isScrolled: boolean;
@@ -16,13 +17,12 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery, activeTab, setActiveTab }) => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileSearchActive, setMobileSearchActive] = useState(false);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { settings, user, logout } = useGlobalContext();
   const isSettings = location.pathname.startsWith('/settings');
+  const isMobile = useIsMobile();
   const avatarUrl = settings.avatarUrl || DEFAULT_AVATAR;
   const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
 
@@ -36,7 +36,6 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
 
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);
-    setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setSearchQuery('');
     
@@ -51,29 +50,43 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
 
   if (location.pathname === '/login') return null;
 
+  // --- MOBILE LAYOUT RENDERING ---
+  if (isMobile) {
+    return (
+      <NavbarMobile
+        isScrolled={isScrolled}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
+    );
+  }
+
+  // --- DESKTOP LAYOUT RENDERING (Standard Layout) ---
   return (
     <nav
       className={`fixed top-0 w-full z-[80] transition-all duration-500 
         px-6 md:px-14 lg:px-16
-        ${isSettings ? 'bg-white border-b border-gray-100' : (isScrolled || mobileMenuOpen ? 'bg-[#141414]/100' : 'bg-transparent')}
+        ${isSettings ? 'bg-white border-b border-gray-100' : (isScrolled ? 'bg-[#141414]/100' : 'bg-transparent')}
         ${isSettings ? 'pt-4 pb-4' : 'pt-[calc(1rem+env(safe-area-inset-top))] pb-3 md:py-4'}`}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4 md:space-x-8">
+      <div className="flex items-center justify-between relative w-full">
+        <div className="contents md:flex md:items-center md:space-x-4 md:space-x-8">
           <img
             src={pstreamWordmark}
             alt="Pstream"
-            className={`h-4 sm:h-5 md:h-6 lg:h-7 cursor-pointer transition-transform hover:scale-105 relative z-10`}
+            className={`h-8 sm:h-9 md:h-6 lg:h-7 cursor-pointer transition-transform hover:scale-105 relative z-10 md:static md:translate-x-0 absolute left-1/2 -translate-x-1/2`}
             onClick={() => handleTabClick('home')}
           />
 
           {!isSettings && (
-            <ul className="hidden md:flex items-center space-x-5 lg:space-x-6 text-[13px] lg:text-[15px] font-normal text-[#e5e5e5]">
+            <ul className="hidden md:flex items-center space-x-4 lg:space-x-5 text-[13px] lg:text-[14px] tracking-[-0.2px] font-normal text-[#e5e5e5]">
               {navItems.map((item) => (
                 <li
                   key={item.id}
                   onClick={() => handleTabClick(item.id)}
-                  className={`cursor-pointer transition-colors whitespace-nowrap text-shadow-minimal ${activeTab === item.id ? 'text-white font-semibold' : 'hover:text-[#b3b3b3]'}`}
+                  className={`cursor-pointer transition-colors whitespace-nowrap ${activeTab === item.id ? 'text-white font-bold' : 'hover:text-[#b3b3b3]'}`}
                 >
                   {item.label}
                 </li>
@@ -83,18 +96,16 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
         </div>
 
         <div className="flex items-center space-x-3 md:space-x-5">
-          {/* Search Bar — expands to fill; on mobile hides burger+avatar when active */}
-          {!isSettings && activeTab !== 'settings' && (
+          {/* Search Bar — hidden on desktop settings */}
+          {!isSettings && (
             <SearchBar
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
-              onActiveChange={(active) => setMobileSearchActive(active)}
             />
           )}
 
-          {/* Profile / Login — hidden on mobile when search is active */}
-          <div className={`flex items-center space-x-5 transition-all duration-300 ${mobileSearchActive ? 'md:flex hidden' : 'flex'}`}>
-              {/* Profile Dropdown & Sign In */}
+          {/* Profile / Login — hidden on desktop settings */}
+          <div className={`hidden md:flex items-center space-x-5 transition-all duration-300 ${isSettings ? 'md:hidden' : ''}`}>
               {!user ? (
                 <button
                   onClick={() => navigate('/login')}
@@ -129,54 +140,9 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
                 </div>
               )}
           </div>
-
-          {/* Burger menu — hidden on mobile when search is active */}
-          {!isSettings && (
-            <div
-              className={`md:hidden flex items-center ml-2 transition-all duration-300 ${mobileSearchActive ? 'opacity-0 pointer-events-none w-0 overflow-hidden' : 'opacity-100'}`}
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <XIcon size={24} className="text-white cursor-pointer" /> : <ListIcon size={24} className="text-white cursor-pointer" />}
-            </div>
-          )}
         </div>
       </div>
-
-      {!isSettings && mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-0 left-0 w-full h-screen bg-[#141414]/95 backdrop-blur-md flex flex-col items-center justify-center py-20 space-y-8 animate-fadeIn z-[100] transition-all overflow-y-auto">
-          <div className="absolute top-6 right-6" onClick={() => setMobileMenuOpen(false)}>
-            <XIcon size={32} className="text-white cursor-pointer hover:text-red-500 transition-colors" />
-          </div>
-          {navItems.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => handleTabClick(item.id)}
-              className={`text-2xl font-bold tracking-tight text-shadow-hard transition-all duration-300 hover:scale-110 ${activeTab === item.id ? 'text-white' : 'text-gray-500 hover:text-white'}`}
-            >
-              {item.label}
-            </div>
-          ))}
-          {user && (
-            <div
-              onClick={() => handleTabClick('settings')}
-              className={`text-2xl font-bold tracking-tight text-shadow-hard transition-all duration-300 hover:scale-110 ${activeTab === 'settings' ? 'text-white' : 'text-gray-500 hover:text-white'}`}
-            >
-              {t('nav.accountSettings')}
-            </div>
-          )}
-          {!user && (
-            <button 
-              onClick={() => { setMobileMenuOpen(false); navigate('/login'); }}
-              className="px-8 py-3 bg-[#e50914] text-white font-bold rounded uppercase tracking-widest text-sm"
-            >
-              {t('nav.signIn')}
-            </button>
-          )}
-          <div className="pt-10">
-             <img src={pstreamWordmark} alt="Pstream" className="h-7 opacity-40" />
-          </div>
-        </div>
-      )}
+      <div id="category-subnav-portal" className="w-full"></div>
     </nav>
   );
 };

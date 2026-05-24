@@ -14,6 +14,10 @@ interface TrailerPlayerProps {
     onErrored?: () => void;
     onReady?: () => void;
     onPlay?: () => void;
+    /** Fires ~every 500ms while playing: real currentTime and duration from the YT player */
+    onTimeUpdate?: (currentTime: number, duration: number) => void;
+    /** Fires once when YT player is ready — use the returned handle for seekTo / pauseVideo / playVideo */
+    onPlayerReady?: (player: any) => void;
 }
 
 export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
@@ -23,7 +27,9 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     onEnded,
     onErrored,
     onReady,
-    onPlay
+    onPlay,
+    onTimeUpdate,
+    onPlayerReady,
 }) => {
     const { globalMute } = useGlobalContext();
     const { videoId, isTeaser } = useTrailer(movie);
@@ -138,12 +144,15 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         }
     }), [startTime]);
 
-    const handlersRef = useRef({ onReady, onPlay, onEnded, onErrored, globalMute, movie, videoId, activeVideoId, variant, isTeaser });
-    handlersRef.current = { onReady, onPlay, onEnded, onErrored, globalMute, movie, videoId, activeVideoId, variant, isTeaser };
+    const handlersRef = useRef({ onReady, onPlay, onEnded, onErrored, onTimeUpdate, onPlayerReady, globalMute, movie, videoId, activeVideoId, variant, isTeaser });
+    handlersRef.current = { onReady, onPlay, onEnded, onErrored, onTimeUpdate, onPlayerReady, globalMute, movie, videoId, activeVideoId, variant, isTeaser };
 
     const handleReady = React.useCallback((e: any) => {
-        const { globalMute, movie, onReady, isTeaser } = handlersRef.current;
+        const { globalMute, movie, onReady, onPlayerReady, isTeaser } = handlersRef.current;
         playerRef.current = e.target;
+        
+        // Expose player handle to parent for external seek/pause/play
+        onPlayerReady?.(e.target);
         
         try {
             if (globalMute) e.target.mute();
@@ -188,10 +197,15 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                 try {
                     const time = e.target.getCurrentTime();
                     const duration = e.target.getDuration();
+
+                    // Always fire time update so the progress bar is real
+                    if (time > 0 && duration > 0) {
+                        handlersRef.current.onTimeUpdate?.(time, duration);
+                    }
                     
                     if (time > 0 && duration > 45) {
                         const remaining = duration - time;
-                        // Auto-outro skip: now PAUSES the player so backdrop + audio stay in sync
+                        // Auto-outro skip: pause near the end so backdrop + audio stay in sync
                         if (remaining < 8) {
                             if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
                             try { e.target.pauseVideo(); } catch {}

@@ -7,6 +7,8 @@ import TopTenRow from '../components/TopTenRow';
 import { useDynamicManifest } from '../hooks/useDynamicManifest';
 import ManifestSkeleton from '../components/ManifestSkeleton';
 import { useTasteEngine } from '../hooks/useTasteEngine';
+import { useIsMobile } from '../hooks/useIsMobile';
+import NewPopularMobilePage from './NewPopularMobilePage';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -15,11 +17,18 @@ interface PageProps {
 }
 
 const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) => {
+  const isMobile = useIsMobile();
   const { t } = useTranslation();
   const { rows, isLoading } = useDynamicManifest('new_popular');
   const { getRecommendedGenres } = useTasteEngine();
   const topGenres = getRecommendedGenres();
 
+  // On mobile: hand off completely to the dedicated mobile page
+  if (isMobile) {
+    return <NewPopularMobilePage onSelectMovie={onSelectMovie} onPlay={onPlay} />;
+  }
+
+  // Desktop layout — unchanged
   return (
     <div className="relative min-h-screen bg-[#141414]">
       {/* Spacer for fixed Navbar */}
@@ -72,3 +81,4 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll 
 };
 
 export default NewPopularPage;
+

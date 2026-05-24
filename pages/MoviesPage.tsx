@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { REQUESTS } from '../constants';
 import { Movie } from '../types';
@@ -23,19 +24,19 @@ interface PageProps {
 const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onViewAll }) => {
   const { t } = useTranslation();
   const { isAppReady } = useGlobalContext();
-  const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
-  const { rows, isLoading } = useDynamicManifest('movie', selectedGenre?.id);
+  const location = useLocation();
+  const stateGenre = location.state?.genre as Genre | null;
+  const [selectedGenre, setSelectedGenre] = useState<Genre | null>(stateGenre || null);
+  const { rows, isLoading } = useDynamicManifest('movie', selectedGenre?.id, selectedGenre?.name);
 
   return (
     <div className="relative">
-      <div className="absolute top-16 md:top-20 left-0 right-0 w-full z-40 pointer-events-auto">
         <CategorySubNav
           title={t('nav.movies', { defaultValue: 'Movies' })}
           genres={MOVIE_GENRES}
           selectedGenre={selectedGenre}
           onGenreSelect={setSelectedGenre}
         />
-      </div>
 
       <AnimatePresence>
         {!isAppReady || isLoading ? (

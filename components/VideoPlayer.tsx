@@ -41,7 +41,6 @@ function shouldForceProxy(source: any): boolean {
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
 import VideoPlayerSettingsTouch from './VideoPlayerSettingsTouch';
-import { useAudioSilenceDetector } from '../hooks/useAudioSilenceDetector';
 
 interface VideoPlayerProps {
     movie: Movie;
@@ -217,33 +216,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             wasmAudio.setVolume(videoRef.current?.muted ? 0 : volume);
         }
     }, [volume, needsWasm, wasmAudio.isActive, wasmAudio]);
-
-    // ── Auto-Switch on Silence (WASM failed + Native Audio Silent) ───────────────
-    // If WASM fails (e.g., CORS) and the native browser `<video>` player is silent (unsupported AC3),
-    // automatically find the next source in the list and switch to it.
-    const isDebrid = streamUrl?.includes('.debrid.it') || streamUrl?.includes('.alldebrid.com');
-    const { silenceDetected, dismiss: dismissSilence } = useAudioSilenceDetector(videoRef, wasmFailedRef.current && !!isDebrid, {
-        silenceThresholdSeconds: 3, // fast detection
-        startDelayMs: 2000
-    });
-
-    useEffect(() => {
-        if (silenceDetected) {
-            console.log('[VideoPlayer] Silence detected on failed WASM stream. Auto-switching to next source...');
-            dismissSilence();
-            
-            const nextIndex = currentSourceIndex + 1;
-            if (nextIndex < allSources.length) {
-                setLoadingMessage('Audio format unsupported. Trying alternative source...');
-                setCurrentSourceIndex(nextIndex);
-                setStreamUrl(allSources[nextIndex].url);
-                setIsStreamM3U8(allSources[nextIndex].isM3U8);
-                setIsBuffering(true);
-            } else {
-                console.log('[VideoPlayer] No more sources to auto-switch to.');
-            }
-        }
-    }, [silenceDetected, currentSourceIndex, allSources, dismissSilence]);
 
     // Synchronize buffering state when WASM is loading/buffering
     useEffect(() => {

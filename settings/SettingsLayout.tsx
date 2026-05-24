@@ -160,24 +160,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
     };
 
     return (
-        <div className="relative min-h-screen bg-white flex flex-col font-inter">
-
-            {/* ── Header ────────────────────────────────── */}
-            <header className="h-16 border-b border-gray-100 flex items-center justify-between px-6 md:px-10 lg:px-16 bg-white sticky top-0 z-[100] pt-safe">
-                <div onClick={() => navigate('/')} className="cursor-pointer h-8 flex items-center">
-                    <img 
-                        src={pstreamLogo}
-                        alt="Pstream" 
-                        className="h-6 md:h-8 w-auto"
-                        onError={(e) => { (e.target as any).style.display = 'none'; }}
-                    />
-                </div>
-                {user && (
-                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/settings')}>
-                        <Avatar src={settings.avatarUrl} size={30} />
-                    </div>
-                )}
-            </header>
+        <div className="relative min-h-screen bg-white flex flex-col font-inter pt-16 md:pt-20">
 
             {/* ── Main Content Area (Centered) ────────────────── */}
             <main className={`w-full max-w-[1100px] mx-auto px-6 lg:px-12 py-8 md:py-12 flex flex-col lg:flex-row gap-8 lg:gap-16`}>

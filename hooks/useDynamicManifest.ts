@@ -59,77 +59,7 @@ const makeUrlSig = (url: string): string => {
   } catch { return url; }
 };
 
-// ─── Genre-Specific Keyword Rows ──────────────────────────────────────────────
-// These produce rows that are genuinely different because they use TMDB keyword
-// filters (with_keywords) which narrow to very specific sub-genres.
 
-const GENRE_KEYWORD_ROWS: Record<number, { name: string; keywords: string; extra?: string }[]> = {
-  // Crime (80)
-  80: [
-    { name: 'Heist Films Worth Planning For',   keywords: '9715',   extra: '&sort_by=vote_average.desc&vote_count.gte=300' },
-    { name: 'Serial Killer Thrillers',           keywords: '10084',  extra: '&sort_by=popularity.desc' },
-    { name: 'Courtroom Drama',                   keywords: '10596',  extra: '&sort_by=vote_average.desc&vote_count.gte=200' },
-    { name: 'Organised Crime Sagas',             keywords: '6074',   extra: '&sort_by=vote_count.desc' },
-  ],
-  // Thriller (53)
-  53: [
-    { name: 'Psychological Thrillers',           keywords: '9799',   extra: '&sort_by=vote_average.desc&vote_count.gte=500' },
-    { name: 'Espionage & Spy Thrillers',         keywords: '9882',   extra: '&sort_by=popularity.desc' },
-  ],
-  // Horror (27)
-  27: [
-    { name: 'Supernatural Horror',               keywords: '10090',  extra: '&sort_by=popularity.desc' },
-    { name: 'Creature Feature Classics',         keywords: '9882',   extra: '&sort_by=vote_count.desc' },
-    { name: 'Slasher Films',                     keywords: '186325', extra: '&sort_by=vote_average.desc&vote_count.gte=200' },
-  ],
-  // Action (28)
-  28: [
-    { name: 'Martial Arts Spectacles',           keywords: '1983',   extra: '&sort_by=popularity.desc' },
-    { name: 'Military Action Films',             keywords: '1706',   extra: '&sort_by=vote_average.desc&vote_count.gte=300' },
-  ],
-  // Sci-Fi (878)
-  878: [
-    { name: 'Time Travel Stories',               keywords: '4379',   extra: '&sort_by=vote_average.desc&vote_count.gte=300' },
-    { name: 'Dystopian Futures',                 keywords: '1562',   extra: '&sort_by=popularity.desc' },
-    { name: 'Space Exploration',                 keywords: '9882',   extra: '&sort_by=vote_count.desc' },
-  ],
-  // Drama (18)
-  18: [
-    { name: 'Based on a True Story',             keywords: '10683',  extra: '&sort_by=vote_average.desc&vote_count.gte=500' },
-    { name: 'Family Drama Worth Your Time',       keywords: '4430',   extra: '&sort_by=popularity.desc' },
-  ],
-  // Romance (10749)
-  10749: [
-    { name: 'Forbidden Romance',                 keywords: '14564',  extra: '&sort_by=vote_average.desc&vote_count.gte=200' },
-    { name: 'Romantic Comedies That Stick',      keywords: '9799',   extra: '&sort_by=popularity.desc' },
-  ],
-  // Animation (16)
-  16: [
-    { name: 'Anime That Crosses Over',           keywords: '210024', extra: '&sort_by=popularity.desc' },
-    { name: 'Animation for Grown-Ups',           keywords: '10683',  extra: '&sort_by=vote_average.desc&vote_count.gte=300' },
-  ],
-  // Documentary (99)
-  99: [
-    { name: 'True Crime Docs',                   keywords: '10084',  extra: '&sort_by=popularity.desc' },
-    { name: 'Nature & Wildlife Docs',            keywords: '11170',  extra: '&sort_by=vote_average.desc&vote_count.gte=100' },
-    { name: 'Music Documentary',                 keywords: '1954',   extra: '&sort_by=vote_count.desc' },
-  ],
-  // TV Action & Adventure (10759)
-  10759: [
-    { name: 'Superhero Series',                  keywords: '9715',   extra: '&sort_by=popularity.desc' },
-    { name: 'Survival Series',                   keywords: '10683',  extra: '&sort_by=vote_average.desc&vote_count.gte=200' },
-  ],
-  // TV Sci-Fi & Fantasy (10765)
-  10765: [
-    { name: 'Alternate Universe Series',         keywords: '4379',   extra: '&sort_by=popularity.desc' },
-    { name: 'Epic Fantasy Series',               keywords: '1562',   extra: '&sort_by=vote_average.desc&vote_count.gte=200' },
-  ],
-  // Mystery (9648)
-  9648: [
-    { name: 'Whodunit Mysteries',                keywords: '10596',  extra: '&sort_by=vote_average.desc&vote_count.gte=200' },
-    { name: 'Detective Series Worth Obsessing Over', keywords: '10084', extra: '&sort_by=popularity.desc' },
-  ],
-};
 
 // ─── Genre name lookup ────────────────────────────────────────────────────────
 
@@ -160,6 +90,7 @@ const insertTop10 = (
 export const useDynamicManifest = (
   pageType: 'home' | 'movie' | 'tv' | 'new_popular',
   selectedGenreId?: number,
+  selectedGenreName?: string,
 ) => {
   const { t } = useTranslation();
   const {
@@ -181,6 +112,13 @@ export const useDynamicManifest = (
   const rows = useMemo<SmartRow[]>(() => {
     const manifest: SmartRow[] = [];
     const usedUrls = new Set<string>(); // URL-signature dedup registry
+
+    const mergeGenres = (baseGenres: string, genreId?: number) => {
+        if (!genreId) return baseGenres;
+        const parts = baseGenres.split(',');
+        if (parts.includes(genreId.toString())) return baseGenres;
+        return `${baseGenres},${genreId}`;
+    };
 
     const addRow = (row: SmartRow): boolean => {
       if (row.fetchUrl) {
@@ -250,8 +188,62 @@ export const useDynamicManifest = (
 
     // ── 3. GENRE-FILTERED VIEWS ───────────────────────────────────────────────
     if (selectedGenreId) {
-      const mainGenreName = GENRE_NAMES[selectedGenreId] ?? GENRES[selectedGenreId] ?? 'Content';
+      if (pageType === 'home') {
+        const baseGenreName = selectedGenreName ?? GENRE_NAMES[selectedGenreId] ?? GENRES[selectedGenreId] ?? 'Content';
+        if (continueWatchingRow) addRow(continueWatchingRow);
+        if (myListRow) addRow(myListRow);
+
+        addRow({
+          key: `home-genre-trending-${selectedGenreId}`,
+          title: `Trending ${baseGenreName} Titles`,
+          fetchUrl: REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc'),
+          type: 'top10'
+        });
+
+        addRow({
+          key: `home-genre-tv-${selectedGenreId}`,
+          title: `${baseGenreName} Series`,
+          fetchUrl: REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc')
+        });
+
+        addRow({
+          key: `home-genre-movies-${selectedGenreId}`,
+          title: `${baseGenreName} Movies`,
+          fetchUrl: REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc')
+        });
+
+        addRow({
+          key: `home-genre-acclaimed-movies-${selectedGenreId}`,
+          title: `Critically Acclaimed ${baseGenreName} Movies`,
+          fetchUrl: REQUESTS.fetchByGenre('movie', selectedGenreId, 'vote_average.desc') + '&vote_count.gte=1000'
+        });
+
+        addRow({
+          key: `home-genre-acclaimed-tv-${selectedGenreId}`,
+          title: `Critically Acclaimed ${baseGenreName} Series`,
+          fetchUrl: REQUESTS.fetchByGenre('tv', selectedGenreId, 'vote_average.desc') + '&vote_count.gte=300'
+        });
+
+        return manifest;
+      }
+
+      const baseGenreName = selectedGenreName ?? GENRE_NAMES[selectedGenreId] ?? GENRES[selectedGenreId] ?? 'Content';
       const mediaType     = pageType as 'movie' | 'tv';
+      const suffix = mediaType === 'tv' ? 'Series' : 'Films';
+      
+      let mainGenreName = baseGenreName;
+      if (!mainGenreName.includes('Series') && !mainGenreName.includes('Films') && !mainGenreName.includes('Movie') && !mainGenreName.includes('TV')) {
+          mainGenreName = `${baseGenreName} ${suffix}`;
+      }
+
+      // Helper: build correct TMDB date query parameter dynamically based on mediaType
+      const getReleaseDateParam = (gte?: string, lte?: string) => {
+        const prefix = mediaType === 'tv' ? 'first_air_date' : 'primary_release_date';
+        let res = '';
+        if (gte) res += `&${prefix}.gte=${gte}`;
+        if (lte) res += `&${prefix}.lte=${lte}`;
+        return res;
+      };
 
       // Helper: build a row with URL-sig dedup built in
       const gRow = (key: string, title: string, sort: string, extra = ''): SmartRow | null => {
@@ -272,47 +264,235 @@ export const useDynamicManifest = (
       usedUrls.add(makeUrlSig(top10GRow.fetchUrl!));
       manifest.push(top10GRow);
 
-      // ── Tier 2: Dimension-based rows (guaranteed unique URLs via page + sort) ─
+      // Determine profile key: use special keys for specific display names
+      let profileKey = String(selectedGenreId);
+      if (selectedGenreId === 99) {
+        if (selectedGenreName && (selectedGenreName.toLowerCase().includes('science') || selectedGenreName.toLowerCase().includes('nature'))) {
+          profileKey = '99-science-nature';
+        } else {
+          profileKey = '99-documentaries';
+        }
+      } else if ((selectedGenreId === 35 || selectedGenreId === 10767) && selectedGenreName && selectedGenreName.toLowerCase().includes('stand-up')) {
+        profileKey = '35-standup';
+      } else if (selectedGenreId === 16 && selectedGenreName && selectedGenreName.toLowerCase().includes('anime')) {
+        profileKey = '16-anime';
+      }
+
+      const getProfileRows = (): { key: string; title: string; sort: string; extra: string }[] => {
+        switch (profileKey) {
+          // Action & Adventure (Movie: 28 / 12, TV: 10759)
+          case '28':
+          case '12':
+          case '10759':
+            return [
+              { key: 'superhero', title: 'Superhero Blockbusters', sort: 'popularity.desc', extra: '&with_keywords=9715' },
+              { key: 'martial-arts', title: 'Martial Arts Spectacles', sort: 'popularity.desc', extra: '&with_keywords=3671' },
+              { key: 'spy-espionage', title: 'Spy & Espionage Thrillers', sort: 'popularity.desc', extra: '&with_keywords=470' },
+              { key: 'treasure-hunt', title: 'Treasure Hunts & Quests', sort: 'popularity.desc', extra: '&with_keywords=9714' },
+              { key: 'survival-disaster', title: 'Adrenaline & Survival', sort: 'popularity.desc', extra: '&with_keywords=549' },
+            ];
+          // Animation (Movie: 16, TV: 16)
+          case '16':
+            return [
+              { key: 'family-animation', title: 'Family Animations', sort: 'popularity.desc', extra: '&with_genres=10751' },
+              { key: 'cgi-pixar', title: 'CGI & 3D Masterpieces', sort: 'popularity.desc', extra: '&with_keywords=12542' },
+              { key: 'fantasy-animation', title: 'Magical & Fantasy Worlds', sort: 'popularity.desc', extra: '&with_genres=14' },
+              { key: 'anime-cross', title: 'Anime Crossovers', sort: 'popularity.desc', extra: '&with_keywords=210024' },
+            ];
+          case '16-anime':
+            return [
+              { key: 'shonen', title: 'Action-Packed Shonen', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=28' },
+              { key: 'fantasy-anime', title: 'Isekai & Fantasy Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=14' },
+              { key: 'drama-anime', title: 'Emotional Anime Dramas', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=18' },
+              { key: 'classic-anime', title: 'Retro & Classic Anime', sort: 'vote_count.desc', extra: '&with_keywords=210024&first_air_date.lte=2015-01-01' },
+            ];
+          // Comedy (Movie: 35, TV: 35)
+          case '35':
+            return [
+              { key: 'rom-com', title: 'Romantic Comedies', sort: 'popularity.desc', extra: '&with_genres=10749' },
+              { key: 'dark-comedy', title: 'Dark Comedy & Satire', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+              { key: 'sitcoms', title: 'Workplace & Sitcom Favorites', sort: 'popularity.desc', extra: '&with_keywords=1701' },
+              { key: 'family-comedy', title: 'Dinner Table Laughs', sort: 'popularity.desc', extra: '&with_genres=10751' },
+            ];
+          case '35-standup':
+            return [
+              { key: 'standup-hits', title: 'Trending Stand-Up Specials', sort: 'popularity.desc', extra: '&with_keywords=stand-up' },
+              { key: 'talk-shows', title: 'Stand-up & Chat Shows', sort: 'popularity.desc', extra: '&with_genres=10767' },
+              { key: 'satire-specials', title: 'Political Satire & Shows', sort: 'popularity.desc', extra: '&with_keywords=satire' },
+            ];
+          // Crime (Movie: 80, TV: 80)
+          case '80':
+            return [
+              { key: 'heist', title: 'Heist Sagas', sort: 'popularity.desc', extra: '&with_keywords=10214' },
+              { key: 'mafia-mob', title: 'Mob & Organized Crime', sort: 'popularity.desc', extra: '&with_keywords=4737' },
+              { key: 'detective-police', title: 'Police & Detective Procedurals', sort: 'popularity.desc', extra: '&with_keywords=1701' },
+              { key: 'courtroom-legal', title: 'Courtroom & Legal Battles', sort: 'popularity.desc', extra: '&with_keywords=5691' },
+              { key: 'serial-killer', title: 'Serial Killer Investigation', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+            ];
+          // Documentary (99-documentaries vs 99-science-nature)
+          case '99-documentaries':
+            return [
+              { key: 'true-crime-docs', title: 'True Crime Investigatives', sort: 'popularity.desc', extra: '&with_keywords=80' },
+              { key: 'history-docs', title: 'History & War Documentaries', sort: 'popularity.desc', extra: '&with_genres=36' },
+              { key: 'biography-docs', title: 'Biographies & Profiles', sort: 'popularity.desc', extra: '&with_keywords=237054' },
+              { key: 'music-docs', title: 'Music & Culture Documentaries', sort: 'popularity.desc', extra: '&with_genres=10402' },
+            ];
+          case '99-science-nature':
+            return [
+              { key: 'wildlife-nature', title: 'Wildlife & Nature Sagas', sort: 'popularity.desc', extra: '&with_keywords=196884' },
+              { key: 'space-cosmology', title: 'Space & Cosmology Exploration', sort: 'popularity.desc', extra: '&with_keywords=3801' },
+              { key: 'science-tech', title: 'Science & Cutting-Edge Tech', sort: 'popularity.desc', extra: '&with_keywords=285559' },
+              { key: 'earth-environment', title: 'Climate & Earth Mysteries', sort: 'popularity.desc', extra: '&with_keywords=3336' },
+            ];
+          // Drama (Movie: 18, TV: 18)
+          case '18':
+            return [
+              { key: 'true-story-dramas', title: 'Based on a True Story', sort: 'popularity.desc', extra: '&with_keywords=818' },
+              { key: 'coming-of-age-dramas', title: 'Coming-of-Age Journeys', sort: 'popularity.desc', extra: '&with_keywords=4565' },
+              { key: 'period-costume', title: 'Period & Costume Dramas', sort: 'popularity.desc', extra: '&with_keywords=5691' },
+              { key: 'romance-dramas', title: 'Romance & Heartbreak', sort: 'popularity.desc', extra: '&with_genres=10749' },
+            ];
+          // Kids & Family (Movie: 10751, TV: 10762)
+          case '10751':
+          case '10762':
+            return [
+              { key: 'animated-kids', title: 'Animated Classics', sort: 'popularity.desc', extra: '&with_genres=16' },
+              { key: 'live-action-kids', title: 'Live-Action Family Fun', sort: 'popularity.desc', extra: '&with_genres=12' },
+              { key: 'animal-stories', title: 'Animal & Nature Tales', sort: 'popularity.desc', extra: '&with_keywords=3336' },
+              { key: 'fantasy-magic', title: 'Magical & Fantasy Worlds', sort: 'popularity.desc', extra: '&with_genres=14' },
+            ];
+          // Horror (Movie: 27)
+          case '27':
+            return [
+              { key: 'slasher-horror', title: 'Slasher Favorites', sort: 'popularity.desc', extra: '&with_keywords=12339' },
+              { key: 'supernatural-horror', title: 'Supernatural & Ghost Stories', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+              { key: 'creature-features', title: 'Creature Features & Monsters', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+              { key: 'psychological-horror', title: 'Psychological Dread', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
+            ];
+          // Sci-Fi (Movie: 878, TV: 10765)
+          case '878':
+          case '10765':
+            return [
+              { key: 'space-scifi', title: 'Space Travel & Exploration', sort: 'popularity.desc', extra: '&with_keywords=3801' },
+              { key: 'time-travel-scifi', title: 'Time Travel & Alternate Realities', sort: 'popularity.desc', extra: '&with_keywords=4379' },
+              { key: 'dystopian-scifi', title: 'Dystopian & Post-Apocalyptic', sort: 'popularity.desc', extra: '&with_keywords=4565' },
+              { key: 'cyberpunk-ai', title: 'Cyberpunk & Artificial Intelligence', sort: 'popularity.desc', extra: '&with_keywords=180370' },
+            ];
+          // Romance (Movie: 10749)
+          case '10749':
+            return [
+              { key: 'rom-comedy', title: 'Romantic Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
+              { key: 'rom-drama', title: 'Romantic Dramas', sort: 'popularity.desc', extra: '&with_genres=18' },
+              { key: 'period-romance', title: 'Period Romance & Costumes', sort: 'popularity.desc', extra: '&with_keywords=5691' },
+              { key: 'forbidden-rom', title: 'Forbidden Love & Passion', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+            ];
+          // Mystery (Movie: 9648, TV: 9648)
+          case '9648':
+            return [
+              { key: 'detective-mystery', title: 'Detective Procedurals', sort: 'popularity.desc', extra: '&with_keywords=1701' },
+              { key: 'whodunit', title: 'Whodunits & Puzzles', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
+              { key: 'supernatural-mystery', title: 'Supernatural & Sci-Fi Mysteries', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+            ];
+          // Thriller (Movie: 53)
+          case '53':
+            return [
+              { key: 'psych-thriller', title: 'Psychological Thrillers', sort: 'vote_average.desc', extra: '&vote_count.gte=1000' },
+              { key: 'spy-thriller', title: 'Espionage & Spy Operations', sort: 'popularity.desc', extra: '&with_keywords=470' },
+              { key: 'crime-suspense', title: 'Crime, Law & Suspense', sort: 'popularity.desc', extra: '&with_genres=80' },
+            ];
+          // Western (Movie: 37)
+          case '37':
+            return [
+              { key: 'outlaws-revenge', title: 'Outlaws & Revenge Sagas', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+              { key: 'bounty-hunters', title: 'Bounty Hunters & Gunslingers', sort: 'vote_count.desc', extra: '' },
+            ];
+          // War (Movie: 10752, TV: 10768 with war name)
+          case '10752':
+            return [
+              { key: 'military-combat-war', title: 'Military Battles & Combat', sort: 'popularity.desc', extra: '&with_keywords=1706' },
+              { key: 'historical-war', title: 'Historical Warfare', sort: 'popularity.desc', extra: '&with_genres=36' },
+              { key: 'war-survival', title: 'Survival & Heroism', sort: 'popularity.desc', extra: '&with_keywords=549' },
+            ];
+          // History (Movie: 36)
+          case '36':
+            return [
+              { key: 'historical-bios', title: 'Biographies & Profiles', sort: 'popularity.desc', extra: '&with_keywords=237054' },
+              { key: 'war-history', title: 'War & Military History', sort: 'popularity.desc', extra: '&with_genres=10752' },
+              { key: 'ancient-civil', title: 'Ancient Civilizations', sort: 'popularity.desc', extra: '&with_keywords=5691' },
+            ];
+          // Music (Movie: 10402)
+          case '10402':
+            return [
+              { key: 'musicals', title: 'Musicals', sort: 'vote_count.desc', extra: '' },
+              { key: 'rock-pop-sagas', title: 'Rock & Pop Sagas', sort: 'popularity.desc', extra: '&with_keywords=237054' },
+            ];
+          // Reality (TV: 10764)
+          case '10764':
+            return [
+              { key: 'reality-comps', title: 'Talent & Competition Shows', sort: 'vote_count.desc', extra: '' },
+              { key: 'dating-reality', title: 'Dating & Relationships', sort: 'popularity.desc', extra: '' },
+              { key: 'survival-reality', title: 'Survival Challenges', sort: 'popularity.desc', extra: '&with_keywords=549' },
+            ];
+          // War & Politics (TV: 10768)
+          case '10768':
+            return [
+              { key: 'political-drama-wp', title: 'Political Dramas & Intrigues', sort: 'vote_count.desc', extra: '&with_keywords=5691' },
+              { key: 'military-ops-wp', title: 'Military Operations', sort: 'popularity.desc', extra: '&with_keywords=1706' },
+            ];
+          // Soap Operas (TV: 10766)
+          case '10766':
+            return [
+              { key: 'soap-drama', title: 'Daily Dramas & Telenovelas', sort: 'popularity.desc', extra: '' },
+              { key: 'family-soaps', title: 'Family Soap Operas', sort: 'popularity.desc', extra: '&with_genres=10751' },
+            ];
+          // News (TV: 10763)
+          case '10763':
+            return [
+              { key: 'current-affairs', title: 'Current Affairs & Specials', sort: 'popularity.desc', extra: '' },
+              { key: 'doc-news', title: 'Investigative Journalism', sort: 'popularity.desc', extra: '&with_genres=99' },
+            ];
+          default:
+            return [];
+        }
+      };
+
+      // ── Tier 2: Custom Profile Sub-Genre Rows
+      const profileRows = getProfileRows();
+      profileRows.forEach(pr => {
+        const row = gRow(`genre-profile-${profileKey}-${pr.key}`, pr.title, pr.sort, pr.extra);
+        if (row) manifest.push(row);
+      });
+
+      // ── Tier 3: Core Dimension Rows
+      const isTV = mediaType === 'tv';
       const dimensionRows: (SmartRow | null)[] = [
-        gRow(`genre-p2-${selectedGenreId}`,       `More ${mainGenreName} to Discover`,              'popularity.desc', '&page=2'),
-        gRow(`genre-acclaimed-${selectedGenreId}`, `The Best ${mainGenreName} Ever Made`,            'vote_average.desc', '&vote_count.gte=2000'),
-        gRow(`genre-cult-${selectedGenreId}`,      `${mainGenreName} With a Cult Following`,         'vote_count.desc', ''),
-        gRow(`genre-hidden-${selectedGenreId}`,    `Hidden ${mainGenreName} Gems`,                   'vote_average.desc', '&vote_count.gte=150&vote_count.lte=1500'),
-        gRow(`genre-2020s-${selectedGenreId}`,     `Best ${mainGenreName} of the 2020s`,             'vote_average.desc', '&release_date.gte=2020-01-01&vote_count.gte=100'),
-        gRow(`genre-2010s-${selectedGenreId}`,     `${mainGenreName} That Defined the 2010s`,        'vote_average.desc', '&release_date.gte=2010-01-01&release_date.lte=2019-12-31&vote_count.gte=500'),
-        gRow(`genre-classics-${selectedGenreId}`,  `${mainGenreName} Classics`,                      'vote_average.desc', '&release_date.lte=2009-12-31&vote_count.gte=1000'),
-        gRow(`genre-intl-${selectedGenreId}`,      `International ${mainGenreName}`,                 'popularity.desc', '&without_original_language=en'),
-        gRow(`genre-british-${selectedGenreId}`,   `British ${mainGenreName}`,                       'popularity.desc', '&with_origin_country=GB'),
-        gRow(`genre-korean-${selectedGenreId}`,    `Korean ${mainGenreName}`,                        'popularity.desc', '&with_origin_country=KR'),
-        gRow(`genre-recent-${selectedGenreId}`,    `Brand New ${mainGenreName}`,                     pageType === 'tv' ? 'first_air_date.desc' : 'release_date.desc', '&vote_count.gte=20'),
-        gRow(`genre-deep3-${selectedGenreId}`,     `${mainGenreName}: Deeper Cuts`,                  'popularity.desc', '&page=3'),
-        gRow(`genre-deep4-${selectedGenreId}`,     `More ${mainGenreName} You\'ll Love`,             'popularity.desc', '&page=4'),
-        gRow(`genre-legends-${selectedGenreId}`,   `${mainGenreName}: The All-Time Greats`,          'vote_count.desc', '&vote_average.gte=7.5'),
-        gRow(`genre-sleeper-${selectedGenreId}`,   `Sleeper Hits: ${mainGenreName} Nobody Talks About`, 'vote_average.desc', '&vote_count.gte=80&vote_count.lte=500'),
-        gRow(`genre-modern-${selectedGenreId}`,    `Modern ${mainGenreName} Worth Your Time`,        'vote_average.desc', '&release_date.gte=2018-01-01&vote_count.gte=300'),
-        gRow(`genre-year-${selectedGenreId}`,      `Best ${mainGenreName} of ${year}`,               'vote_average.desc', `&release_date.gte=${year}-01-01&vote_count.gte=30`),
+        gRow(`genre-p2-${selectedGenreId}`,       `More to Explore`,                 'popularity.desc', '&page=2'),
+        gRow(`genre-acclaimed-${selectedGenreId}`, `Critically Acclaimed`,            'vote_average.desc', isTV ? '&vote_count.gte=150' : '&vote_count.gte=1500'),
+        gRow(`genre-cult-${selectedGenreId}`,      `Cult Favorites`,                  'vote_count.desc', '&vote_average.gte=6.0&vote_average.lte=8.0'),
+        gRow(`genre-hidden-${selectedGenreId}`,    `Hidden Gems`,                     'vote_average.desc', isTV ? '&vote_count.gte=30&vote_count.lte=300' : '&vote_count.gte=200&vote_count.lte=1200'),
+        gRow(`genre-2020s-${selectedGenreId}`,     `Best of the 2020s`,               'vote_average.desc', `${getReleaseDateParam('2020-01-01')}&vote_count.gte=${isTV ? 20 : 100}`),
+        gRow(`genre-2010s-${selectedGenreId}`,     `Defining the 2010s`,              'vote_average.desc', `${getReleaseDateParam('2010-01-01', '2019-12-31')}&vote_count.gte=${isTV ? 50 : 500}`),
+        gRow(`genre-classics-${selectedGenreId}`,  `Classic ${baseGenreName}`,        'vote_average.desc', `${getReleaseDateParam(undefined, '2009-12-31')}&vote_count.gte=${isTV ? 30 : 1000}`),
+        gRow(`genre-intl-${selectedGenreId}`,      `Global Hits`,                     'popularity.desc', '&without_original_language=en'),
+        gRow(`genre-british-${selectedGenreId}`,   `Best of British`,                 'popularity.desc', '&with_origin_country=GB'),
+        gRow(`genre-korean-${selectedGenreId}`,    isTV ? 'K-Drama Fever' : 'Korean Cinema', 'popularity.desc', '&with_origin_country=KR'),
+        gRow(`genre-recent-${selectedGenreId}`,    `Newly Added`,                     isTV ? 'first_air_date.desc' : 'release_date.desc', '&vote_count.gte=20'),
+        gRow(`genre-deep3-${selectedGenreId}`,     `Deeper Cuts`,                     'popularity.desc', '&page=3'),
+        gRow(`genre-deep4-${selectedGenreId}`,     `More to Watch`,                   'popularity.desc', '&page=4'),
+        gRow(`genre-legends-${selectedGenreId}`,   `All-Time Greats`,                 'vote_count.desc', '&vote_average.gte=8.0'),
+        gRow(`genre-sleeper-${selectedGenreId}`,   `Quiet Masterpieces`,              'vote_average.desc', isTV ? '&vote_count.gte=10&vote_count.lte=80' : '&vote_count.gte=40&vote_count.lte=199'),
+        gRow(`genre-modern-${selectedGenreId}`,    `Modern Favorites`,                'vote_average.desc', `${getReleaseDateParam('2018-01-01')}&vote_count.gte=${isTV ? 50 : 300}`),
+        gRow(`genre-year-${selectedGenreId}`,      `Best of ${year}`,                 'vote_average.desc', `${getReleaseDateParam(`${year}-01-01`)}&vote_count.gte=${isTV ? 10 : 30}`),
       ];
 
       dimensionRows.forEach(r => r && manifest.push(r));
-
-      // ── Tier 3: Genre-specific keyword rows (truly different content) ────────
-      const keywordRows = GENRE_KEYWORD_ROWS[selectedGenreId] || [];
-      keywordRows.forEach((kr, i) => {
-        const url = REQUESTS.fetchByGenre(mediaType, selectedGenreId, 'popularity.desc')
-          + `&with_keywords=${kr.keywords}` + (kr.extra || '');
-        const sig = makeUrlSig(url);
-        if (!usedUrls.has(sig)) {
-          usedUrls.add(sig);
-          manifest.push({ key: `kw-${selectedGenreId}-${i}`, title: kr.name, fetchUrl: url });
-        }
-      });
 
       // ── Tier 4: Adjacent micro-genre rows ────────────────────────────────────
       // Genres adjacent to the selected one can appear (at low density) so
       // e.g. Drama filter still sees some Mystery and Crime micro-rows — but never Action.
       const adjacentIds  = ADJACENT_GENRES[selectedGenreId] || [];
       const relevantMicro = MICRO_GENRES.filter(m => {
-        if (pageType !== 'home' && m.type !== pageType) return false;
+        if (m.type !== (pageType as string)) return false;
         const mIds = m.genres.split(',').map(Number).filter(Boolean);
         return mIds.includes(selectedGenreId) || adjacentIds.some(a => mIds.includes(a));
       });
@@ -329,31 +509,46 @@ export const useDynamicManifest = (
       const microPrimary  = seededPick(primaryMicro, 6, hash + selectedGenreId);
       const microAdjacent = seededPick(adjacentMicro, 3, hash + selectedGenreId + 1);
 
-      [...microPrimary, ...microAdjacent].forEach((m, i) => {
-        const url = REQUESTS.fetchMicroGenre(m.type, m.genres, m.extra);
+      [...microPrimary, ...microAdjacent].forEach((m) => {
+        const finalGenres = mergeGenres(m.genres, selectedGenreId);
+        const url = REQUESTS.fetchMicroGenre(m.type, finalGenres, m.extra);
         const sig = makeUrlSig(url);
         if (!usedUrls.has(sig)) {
           usedUrls.add(sig);
-          manifest.push({ key: `micro-genre-${selectedGenreId}-${i}`, title: m.name, fetchUrl: url });
+          const slug = m.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+          manifest.push({ key: `micro-genre-${selectedGenreId}-${slug}`, title: m.name, fetchUrl: url });
         }
       });
 
-      // ── Safety fill: ensure at least 18 rows ──────────────────────────────
-      for (let i = 0; manifest.length < 18; i++) {
+      // ── Safety fill: ensure at least 20 rows ──────────────────────────────
+      const fillTitles = [
+        'Explore More',
+        'Popular Picks',
+        'Trending Collections',
+        'More to Discover',
+        'Suggested Titles',
+        'Viewer Favorites',
+        'Handpicked Selection',
+      ];
+      for (let i = 0; manifest.length < 20 && i < 60; i++) {
         const url = REQUESTS.fetchByGenre(mediaType, selectedGenreId, 'popularity.desc') + `&page=${8 + i}`;
         const sig = makeUrlSig(url);
         if (!usedUrls.has(sig)) {
           usedUrls.add(sig);
-          manifest.push({ key: `fill-${selectedGenreId}-${i}`, title: `Discover More ${mainGenreName}`, fetchUrl: url });
-        } else { break; } // avoid infinite loop
+          const title = fillTitles[i % fillTitles.length];
+          const slug = title.toLowerCase().replace(/[^a-z0-9]/g, '-');
+          manifest.push({ key: `fill-${selectedGenreId}-${slug}`, title, fetchUrl: url });
+        } else {
+          continue; // skip duplicate URL signature and continue scanning
+        }
       }
 
       // Inject a Top-10 row mid-way through for visual rhythm
       insertTop10(
         manifest,
         `top10-mid-${selectedGenreId}`,
-        `Top 10 ${mainGenreName} Series Right Now`,
-        REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc') + '&page=2',
+        `Trending ${mainGenreName}`,
+        REQUESTS.fetchByGenre(mediaType, selectedGenreId, 'popularity.desc') + '&page=2',
         Math.min(manifest.length, 8),
       );
 
@@ -370,9 +565,11 @@ export const useDynamicManifest = (
         Math.min(2, holidayRows.length),
         hash,
       );
-      picked.forEach((m, i) => {
-        const url = REQUESTS.fetchMicroGenre(m.type, m.genres, m.extra);
-        addRow({ key: `holiday-${holiday}-${i}`, title: m.name, fetchUrl: url });
+      picked.forEach((m) => {
+        const finalGenres = mergeGenres(m.genres, selectedGenreId);
+        const url = REQUESTS.fetchMicroGenre(m.type, finalGenres, m.extra);
+        const slug = m.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        addRow({ key: `holiday-${holiday}-${slug}`, title: m.name, fetchUrl: url });
       });
     }
 
@@ -381,7 +578,9 @@ export const useDynamicManifest = (
       const todRows = TIME_STREAMS[tod].filter(m => pageType === 'home' || m.type === pageType);
       if (todRows.length > 0) {
         const picked = todRows[hash % todRows.length];
-        addRow({ key: `tod-${tod}`, title: picked.name, fetchUrl: REQUESTS.fetchMicroGenre(picked.type, picked.genres, picked.extra) });
+        const finalGenres = mergeGenres(picked.genres, selectedGenreId);
+        const slug = picked.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        addRow({ key: `tod-${tod}-${slug}`, title: picked.name, fetchUrl: REQUESTS.fetchMicroGenre(picked.type, finalGenres, picked.extra) });
       }
     }
 
@@ -397,14 +596,18 @@ export const useDynamicManifest = (
         finalName           = names[idx]         || names[0];
         finalGenres         = genreSegments[idx] || genreSegments[0] || themed.genres;
       }
-      addRow({ key: `day-theme-${day}`, title: finalName, fetchUrl: REQUESTS.fetchMicroGenre(themed.type, finalGenres, themed.extra) });
+      finalGenres = mergeGenres(finalGenres, selectedGenreId);
+      const slug = finalName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      addRow({ key: `day-theme-${day}-${slug}`, title: finalName, fetchUrl: REQUESTS.fetchMicroGenre(themed.type, finalGenres, themed.extra) });
     }
 
     // 4d. Seasonal rows (1–2)
     if (SEASON_STREAMS[season]) {
       const seasonRows = SEASON_STREAMS[season].filter(m => pageType === 'home' || m.type === pageType);
-      seededPick(seasonRows, Math.min(2, seasonRows.length), hash + 7).forEach((m, i) => {
-        addRow({ key: `season-${season}-${i}`, title: m.name, fetchUrl: REQUESTS.fetchMicroGenre(m.type, m.genres, m.extra) });
+      seededPick(seasonRows, Math.min(2, seasonRows.length), hash + 7).forEach((m) => {
+        const finalGenres = mergeGenres(m.genres, selectedGenreId);
+        const slug = m.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        addRow({ key: `season-${season}-${slug}`, title: m.name, fetchUrl: REQUESTS.fetchMicroGenre(m.type, finalGenres, m.extra) });
       });
     }
 
@@ -496,7 +699,9 @@ export const useDynamicManifest = (
     chocolates.forEach((m, i) => {
       let extra = m.extra || '';
       if (!extra.includes('page=') && i > 8) extra += `&page=${Math.floor(i / 5) + 2}`;
-      addRow({ key: `pouch-${i}`, title: m.name, fetchUrl: REQUESTS.fetchMicroGenre(m.type, m.genres, extra) });
+      const finalGenres = mergeGenres(m.genres, selectedGenreId);
+      const slug = m.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      addRow({ key: `pouch-${slug}`, title: m.name, fetchUrl: REQUESTS.fetchMicroGenre(m.type, finalGenres, extra) });
     });
 
     // ── 5. TOP-10 ROW INJECTION ───────────────────────────────────────────────
@@ -521,7 +726,7 @@ export const useDynamicManifest = (
     }
 
     return manifest;
-  }, [pageType, selectedGenreId, continueWatching, myList, user, getLikedMovies, t]);
+  }, [pageType, selectedGenreId, selectedGenreName, continueWatching, myList, user, getLikedMovies, t]);
 
   return { rows, isLoading };
 };

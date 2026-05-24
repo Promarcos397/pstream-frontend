@@ -19,13 +19,13 @@ export default {
                 }
             },
             fontFamily: {
-                sans: ['"Harmonia Sans"', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
+                sans: ['"PStream Sans"', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
                 bebas: ['"Bebas Neue"', 'sans-serif'],
                 alfa: ['"Alfa Slab One"', 'cursive'],
-                leaner: ['"Leaner Bold"', 'sans-serif'],
-                'harmonia-mono': ['"Harmonia Sans Mono"', 'monospace'],
-                'harmonia-condensed': ['"Harmonia Sans Condensed"', 'sans-serif'],
-                'harmonia-black': ['"Harmonia Sans Black Italic"', 'sans-serif'],
+                leaner: ['"PStream Sans"', 'sans-serif'],
+                'harmonia-mono': ['"PStream Sans"', 'monospace'],
+                'harmonia-condensed': ['"PStream Sans"', 'sans-serif'],
+                'harmonia-black': ['"PStream Sans"', 'sans-serif'],
             },
             keyframes: {
                 fadeIn: { '0%': { opacity: 0 }, '100%': { opacity: 1 } },

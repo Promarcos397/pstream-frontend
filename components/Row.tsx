@@ -8,6 +8,7 @@ import { fetchData } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { getWatchData } from './MovieCardBadges';
+import RowMobile from './RowMobile';
 
 import { motion } from 'framer-motion';
 
@@ -18,7 +19,14 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
   // Minimum vote count to show in any feed — filters out obscure/fan-made content.
   // Slightly lenient vs search (100) since row context is curated by TMDB sort.
-  const MIN_FEED_VOTE_COUNT = 50;
+  const isTV = useMemo(() => {
+    if (!fetchUrl) return false;
+    return fetchUrl.includes('/tv') || fetchUrl.includes('/trending/tv');
+  }, [fetchUrl]);
+
+  const MIN_FEED_VOTE_COUNT = useMemo(() => {
+    return isTV ? 10 : 30;
+  }, [isTV]);
 
   const handleViewAll = () => {
     if (onViewAll && rowKey && fetchUrl) {
@@ -44,7 +52,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
   const viewRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isInView, setIsInView] = useState(false);
+  const [isInView, setIsInView] = useState(!!data || index < 4);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
   // Sync window width for threshold calculation
@@ -64,17 +72,17 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
   // Viewport Observer for Lazy Loading
   useEffect(() => {
-    if (data) {
+    if (data || index < 4) {
       setIsInView(true);
       return;
     }
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setIsInView(true); },
-      { rootMargin: '400px' } // Load slightly before it comes into view
+      { rootMargin: '1200px' } // Load far in advance to prevent scroll lag
     );
     if (viewRef.current) observer.observe(viewRef.current);
     return () => observer.disconnect();
-  }, [data]);
+  }, [data, index]);
 
   // Initial Data Load
   useEffect(() => {
@@ -95,7 +103,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
       setIsHidden(false);
 
       if (scrollRef.current) {
-        scrollRef.current.scrollLeft = 0;
+        // We do not reset scrollLeft to 0 here because it breaks the infinite loop offset.
       }
 
       const loadRowData = async () => {
@@ -114,7 +122,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
             return hasImage && notSeen && hasMinVotes;
           });
 
-          if (uniqueNew.length < 5) {
+          if (uniqueNew.length < 3) {
             setIsHidden(true); // Don't show sparse, awkward rows
           } else {
             setMovies(uniqueNew);
@@ -131,6 +139,27 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
       return () => { isMounted = false; };
     }
   }, [fetchUrl, data, isInView]);
+
+  const hasEngagedInfinite = useRef(false);
+
+  // Reset infinite engagement on fetch URL change
+  useEffect(() => {
+    hasEngagedInfinite.current = false;
+  }, [fetchUrl]);
+
+  if (isMobile) {
+    return (
+      <RowMobile
+        title={title}
+        fetchUrl={fetchUrl}
+        data={data}
+        onSelect={onSelect}
+        onPlay={onPlay}
+        rowKey={rowKey}
+        index={index}
+      />
+    );
+  }
 
   // Load More Function
   const loadMore = async () => {
@@ -231,9 +260,17 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
     const step = firstCard.offsetWidth + marginRight;
     const oneSetWidth = movies.length * step;
 
-    if (container.scrollLeft > oneSetWidth * 2) {
+    if (!hasEngagedInfinite.current) {
+       // Enable infinite backward scroll only after the user has scrolled forward far enough
+       // OR if they jumped via the left arrow (which forces scrollLeft to oneSetWidth).
+       if (container.scrollLeft >= oneSetWidth * 0.8) {
+           hasEngagedInfinite.current = true;
+       }
+    }
+
+    if (container.scrollLeft > oneSetWidth * 1.5) {
       container.scrollLeft -= oneSetWidth;
-    } else if (container.scrollLeft < 0) {
+    } else if (hasEngagedInfinite.current && container.scrollLeft < oneSetWidth / 2) {
       container.scrollLeft += oneSetWidth;
     }
   };
@@ -361,4 +398,4 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
   );
 };
 
-export default Row;
+export default React.memo(Row);

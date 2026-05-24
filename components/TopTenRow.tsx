@@ -20,6 +20,8 @@ import {
   MaturityBadge, BadgeOverlay, HoverProgressBar,
   getWatchData, ProgressIndicator
 } from './MovieCardBadges';
+import { useIsMobile } from '../hooks/useIsMobile';
+import TopTenRowMobile from './TopTenRowMobile';
 
 // ─── Shared pointer-type hook (same logic as MovieCard) ─────────────────────
 type _PHListener = (v: boolean) => void;
@@ -100,8 +102,8 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 const SIZES = {
-  card: "h-[100px] w-[160px] sm:h-[125px] sm:w-[185px] md:h-[150px] md:w-[210px] lg:h-[160px] lg:w-[220px]",
-  button: "h-[100px] sm:h-[125px] md:h-[150px] lg:h-[160px]",
+  card: "h-[130px] w-[195px] sm:h-[140px] sm:w-[210px] md:h-[150px] md:w-[210px] lg:h-[160px] lg:w-[220px]",
+  button: "h-[130px] sm:h-[140px] md:h-[150px] lg:h-[160px]",
 };
 
 // ─── Rank Number ────────────────────────────────────────────────────────────
@@ -112,7 +114,7 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
   const isTen = index === 9;
   return (
     <div
-      className={`absolute ${isTen ? 'left-[24px]' : 'left-[22px]'} bottom-[-6px] h-[122%] z-0 pointer-events-none overflow-visible`}
+      className={`absolute ${isTen ? 'left-[24px]' : 'left-[22px]'} bottom-[-6px] h-[122px] sm:h-[152px] md:h-[122%] z-0 pointer-events-none overflow-visible`}
       style={{ width: isTen ? '112%' : '88%' }}
     >
       <svg
@@ -125,34 +127,34 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
           transform={isTen ? "scale(1.25, 1.08)" : "scale(1.5, 1.12)"}
           style={{ transformOrigin: isTen ? "130px 205px" : "70px 205px" }}
         >
-          {/* Outer Outline Stroke */}
+          {/* Outer Outline Stroke — very white, thinner */}
           <text
             x="8"
             y="195"
             textAnchor="start"
             dominantBaseline="auto"
             fill="none"
-            stroke="#595959"
-            strokeWidth="10"
+            stroke="rgba(255,255,255,0.90)"
+            strokeWidth="6"
             strokeLinejoin="round"
-            fontSize={isTen ? "175" : "185"}
+            fontSize={isTen ? "155" : "165"}
             fontWeight="900"
             fontFamily="'Inter', sans-serif"
             letterSpacing={isTen ? "-25" : "-8"}
           >
             {index + 1}
           </text>
-          {/* Main Body with Inner Thickening Stroke */}
+          {/* Main Body — solid black fill */}
           <text
             x="8"
             y="195"
             textAnchor="start"
             dominantBaseline="auto"
-            fill="#000000"
-            stroke="#000000"
-            strokeWidth="6"
+            fill="#0a0a0a"
+            stroke="#0a0a0a"
+            strokeWidth="4"
             strokeLinejoin="round"
-            fontSize={isTen ? "175" : "185"}
+            fontSize={isTen ? "155" : "165"}
             fontWeight="900"
             fontFamily="'Inter', sans-serif"
             letterSpacing={isTen ? "-25" : "-8"}
@@ -788,26 +790,27 @@ interface TopTenRowProps {
 
 const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, index = 0 }) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
   const viewRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({ left: false, right: false });
-  const [isInView, setIsInView] = useState(false);
+  const [isInView, setIsInView] = useState(!!data || index < 4);
 
   // Viewport Observer for Lazy Loading
   useEffect(() => {
-    if (data) {
+    if (data || index < 4) {
       setIsInView(true);
       return;
     }
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setIsInView(true); },
-      { rootMargin: '400px' }
+      { rootMargin: '1200px' } // Load far in advance to prevent scroll lag
     );
     if (viewRef.current) observer.observe(viewRef.current);
     return () => observer.disconnect();
-  }, [data]);
+  }, [data, index]);
 
   useEffect(() => {
     if (data) {
@@ -921,6 +924,8 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
     });
   };
 
+  const hasEngagedInfinite = useRef(false);
+
   const handleManualScroll = () => {
     if (!scrollRef.current || movies.length === 0) return;
     const container = scrollRef.current;
@@ -933,14 +938,37 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
     const step = width + margin;
     const oneSetWidth = movies.length * step;
 
-    if (container.scrollLeft > oneSetWidth * 2) {
+    if (!hasEngagedInfinite.current) {
+        if (container.scrollLeft >= oneSetWidth * 0.8) {
+            hasEngagedInfinite.current = true;
+        }
+    }
+
+    if (container.scrollLeft > oneSetWidth * 1.5) {
       container.scrollLeft -= oneSetWidth;
-    } else if (container.scrollLeft < 0) {
+    } else if (hasEngagedInfinite.current && container.scrollLeft < oneSetWidth / 2) {
       container.scrollLeft += oneSetWidth;
     }
 
     updateScrollState(); // Update button visibility states if needed
   };
+
+  // Reset infinite engagement on fetch URL change
+  useEffect(() => {
+    hasEngagedInfinite.current = false;
+  }, [fetchUrl]);
+
+  if (isMobile) {
+    return (
+      <TopTenRowMobile
+        title={title}
+        fetchUrl={fetchUrl}
+        data={data}
+        onSelect={onSelect}
+        index={index}
+      />
+    );
+  }
 
   if (!loading && movies.length === 0) return null;
 
@@ -961,7 +989,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       }}
       className="group relative my-4 md:my-6 space-y-2 z-10 hover:z-50 transition-all duration-300"
     >
-      <h2 className="pl-4 md:pl-10 lg:pl-16 pr-6 md:pr-14 lg:pr-20 text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
+      <h2 className="pl-4 md:pl-10 lg:pl-16 pr-6 md:pr-14 lg:pr-20 text-[20px] sm:text-[22px] md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
         {title}
         <span className="text-xs text-cyan-500 ml-2 opacity-0 group-hover/title:opacity-100 transition-opacity duration-300 flex items-center font-semibold">
           {t('rows.exploreAll')} <CaretRightIcon size={14} className="ml-1" />
@@ -1030,4 +1058,4 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
   );
 };
 
-export default TopTenRow;
+export default React.memo(TopTenRow);

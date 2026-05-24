@@ -286,30 +286,26 @@ const App: React.FC = () => {
 
   return (
     <div>
-      {isSettings ? (
-        mainContent
-      ) : (
-        <Layout
-          searchQuery={query}
-          setSearchQuery={handleSearchChange}
-          activeTab={activeTab}
-          setActiveTab={handleTabChange}
-        >
-          {query.trim().length > 0 ? (
-            <SearchResultsPage
-              query={query}
-              results={results}
-              onSelectMovie={handleSelectMovie}
-              onPlay={handlePlay}
-              isLoading={isLoading}
-              mode={mode}
-              setMode={setMode}
-            />
-          ) : (
-            mainContent
-          )}
-        </Layout>
-      )}
+      <Layout
+        searchQuery={query}
+        setSearchQuery={handleSearchChange}
+        activeTab={activeTab}
+        setActiveTab={handleTabChange}
+      >
+        {query.trim().length > 0 ? (
+          <SearchResultsPage
+            query={query}
+            results={results}
+            onSelectMovie={handleSelectMovie}
+            onPlay={handlePlay}
+            isLoading={isLoading}
+            mode={mode}
+            setMode={setMode}
+          />
+        ) : (
+          mainContent
+        )}
+      </Layout>
 
       <InfoModal
         movie={selectedMovie}

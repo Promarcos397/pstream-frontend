@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeakerSlashIcon, SpeakerHighIcon, ArrowCounterClockwise } from '@phosphor-icons/react';
+import MobileHero from './MobileHero';
 
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
@@ -22,7 +23,7 @@ interface HeroCarouselProps {
 }
 
 const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie, genreId, pageType: explicitPageType }) => {
-  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState, setIsAppReady, settings } = useGlobalContext();
+  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState, setIsAppReady, settings, myList, toggleList } = useGlobalContext();
   const networkQuality = useNetworkQuality();
   const isMobile = useIsMobile();
   const [movie, setMovie] = useState<Movie | null>(null);
@@ -178,6 +179,12 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       setIsAppReady(true);
     };
 
+    // On mobile, reveal instantly since MobileHero handles its own smooth asset loading
+    if (isMobile) {
+      reveal();
+      return;
+    }
+
     // Case 1: All assets ready
     if (isBackdropLoaded && (logoUrl ? isLogoLoaded : true)) {
       reveal();
@@ -187,7 +194,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     const safety = setTimeout(reveal, 3000);
 
     return () => clearTimeout(safety);
-  }, [movie, isBackdropLoaded, isLogoLoaded, logoUrl, setIsAppReady]);
+  }, [movie, isBackdropLoaded, isLogoLoaded, logoUrl, setIsAppReady, isMobile]);
 
 
   const hasInterruptedRef = useRef(false);
@@ -279,6 +286,10 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   if (!movie) {
     if (!loading) return null; // Don't block the rest of the page if Hero fails
     return <HeroSkeleton />;
+  }
+
+  if (isMobile) {
+    return <MobileHero movie={movie} logoUrl={logoUrl} onSelect={onSelect} onPlay={onPlay} />;
   }
 
   return (

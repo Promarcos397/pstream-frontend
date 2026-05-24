@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { Movie } from '../types';
@@ -19,7 +20,9 @@ interface PageProps {
 const MyListPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) => {
   const { myList, isKidsMode } = useGlobalContext();
   const { t } = useTranslation();
-  const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
+  const location = useLocation();
+  const stateGenre = location.state?.genre as Genre | null;
+  const [selectedGenre, setSelectedGenre] = useState<Genre | null>(stateGenre || null);
 
   const { getRecommendedGenres, getDislikedMovies } = useTasteEngine();
   const topGenres = getRecommendedGenres();
@@ -47,14 +50,12 @@ const MyListPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =
   return (
     <div className="relative min-h-screen">
       {/* Genre Sub-Nav — same pattern as MoviesPage & ShowsPage */}
-      <div className="absolute top-16 md:top-20 left-0 right-0 w-full z-40 pointer-events-auto">
         <CategorySubNav
           title={isKidsMode ? 'Kids List' : 'My List'}
           genres={UNIVERSAL_GENRES}
           selectedGenre={selectedGenre}
           onGenreSelect={setSelectedGenre}
         />
-      </div>
 
       <div className="pt-36 md:pt-44 px-6 md:px-14 lg:px-20 pb-12">
         {myList.length > 0 ? (
