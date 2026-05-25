@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const isMobileSearchActive = searchParams.get('search') === 'true';
   const { setPageTitle } = useTitle();
   const { t } = useTranslation();
   const { isInitialized, user, initializeAuth } = useAuthStore();
@@ -71,44 +72,49 @@ const App: React.FC = () => {
   useEffect(() => {
     const handler = (e: Event) => {
       const { query: q } = (e as CustomEvent<{ query: string }>).detail;
-      if (q) setQuery(q);
+      if (q) {
+        setQuery(q);
+        const newParams = new URLSearchParams(window.location.search);
+        newParams.set('q', q);
+        setSearchParams(newParams);
+      }
     };
     window.addEventListener('pstream:search', handler);
     return () => window.removeEventListener('pstream:search', handler);
-  }, [setQuery]);
+  }, [setQuery, setSearchParams]);
 
 
-  // Deep-link: restore modal from URL on mount
+  // Detect if modal is active in pathname
+  const modalMatch = location.pathname.match(/^\/title\/(movie|tv)\/(\d+)/);
+  const isModalActive = !!modalMatch;
+  const modalType = modalMatch ? modalMatch[1] : null;
+  const modalId = modalMatch ? Number(modalMatch[2]) : null;
+
+  // Determine background location for routing
+  const backgroundLocation = location.state?.backgroundLocation || (isModalActive ? { pathname: '/' } : location);
+
+  // Sync modal state from URL pathname
   useEffect(() => {
-    const modalId = searchParams.get('modal');
-    const modalType = searchParams.get('type') || 'movie';
-    if (modalId && !selectedMovie) {
-      // Minimal movie stub — InfoModal + useMovieData will fetch the rest
-      setSelectedMovie({ id: Number(modalId), media_type: modalType } as any);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Back-button: if ?modal param disappears from URL, close the modal
-  useEffect(() => {
-    const modalId = searchParams.get('modal');
-    if (!modalId && selectedMovie) {
+    if (modalType && modalId) {
+      if (!selectedMovie || selectedMovie.id !== modalId || selectedMovie.media_type !== modalType) {
+        setSelectedMovie({ id: modalId, media_type: modalType } as any);
+      }
+    } else if (selectedMovie) {
       setSelectedMovie(null);
       setInfoVideoId(undefined);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
+  }, [location.pathname, modalType, modalId, selectedMovie]);
 
 
   // React Router Scroll Restoration — single scroll-to-top on route change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-  }, [location.pathname]);
+  }, [backgroundLocation.pathname]);
 
 
   // Update page title based on route
   useEffect(() => {
-    const path = location.pathname;
+    const path = backgroundLocation.pathname;
     if (path.startsWith('/watch')) return;
 
     if (query) {
@@ -128,7 +134,7 @@ const App: React.FC = () => {
     } else {
       setPageTitle('');
     }
-  }, [location.pathname, query, setPageTitle, t]);
+  }, [backgroundLocation.pathname, query, setPageTitle, t]);
 
   const [heroSeekTime, setHeroSeekTime] = useState(0);
   const [infoInitialTime, setInfoInitialTime] = useState(0);
@@ -140,12 +146,11 @@ const App: React.FC = () => {
     setInfoVideoId(videoId);
     setSelectedMovie(movie);
     
-    // Create additive params to preserve 'q' or other filters
     const type = movie.media_type || (movie.title ? 'movie' : 'tv');
-    const next = new URLSearchParams(window.location.search);
-    next.set('modal', String(movie.id));
-    next.set('type', type);
-    setSearchParams(next, { replace: true });
+    const searchStr = location.search;
+    navigate(`/title/${type}/${movie.id}${searchStr}`, {
+      state: { backgroundLocation: location }
+    });
   };
 
   const handleCloseModal = (finalTime?: number) => {
@@ -158,16 +163,17 @@ const App: React.FC = () => {
           tmdbId: String(selectedMovie.id),
           type: selectedMovie.media_type === 'tv' || selectedMovie.name ? 'tv' : 'movie',
           watchedTime: finalTime,
-          duration: 0 // Will be updated when actually watching
+          duration: 0
         });
       }
     }
     
-    // Carefully remove only modal params to preserve search 'q'
-    const next = new URLSearchParams(window.location.search);
-    next.delete('modal');
-    next.delete('type');
-    setSearchParams(next, { replace: true });
+    if (location.state?.backgroundLocation) {
+      navigate(-1);
+    } else {
+      const searchStr = location.search;
+      navigate(`/${searchStr}`, { replace: true });
+    }
   };
 
   const handlePlay = (movie: Movie, season?: number, episode?: number) => {
@@ -212,7 +218,7 @@ const App: React.FC = () => {
   };
 
   const getActiveTab = () => {
-    const path = location.pathname;
+    const path = backgroundLocation.pathname;
     if (path === '/') return 'home';
     if (path === '/tv') return 'tv';
     if (path === '/movies') return 'movies';
@@ -228,10 +234,20 @@ const App: React.FC = () => {
 
   const handleTabChange = (tab: string) => {
     setQuery(''); //fixed "Double History Push" bug
+    const newParams = new URLSearchParams(window.location.search);
+    newParams.delete('q');
+    setSearchParams(newParams, { replace: true });
   };
 
   const handleSearchChange = (newQuery: string) => {
     setQuery(newQuery);
+    const newParams = new URLSearchParams(window.location.search);
+    if (newQuery.trim().length > 0) {
+      newParams.set('q', newQuery);
+    } else {
+      newParams.delete('q');
+    }
+    setSearchParams(newParams, { replace: true });
   };
 
   // View All: row title click → /browse/:rowKey?url=...&title=...
@@ -270,7 +286,7 @@ const App: React.FC = () => {
 
   const mainContent = (
     <div>
-      <Routes>
+      <Routes location={backgroundLocation}>
         <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
         <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
@@ -292,7 +308,7 @@ const App: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={handleTabChange}
       >
-        {query.trim().length > 0 ? (
+        {query.trim().length > 0 || isMobileSearchActive ? (
           <SearchResultsPage
             query={query}
             results={results}

@@ -38,7 +38,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
   const [movies, setMovies] = useState<Movie[]>([]);
   const [initialLoad, setInitialLoad] = useState(!data && !!fetchUrl);
   const [isHidden, setIsHidden] = useState(false);
-
+  const [isScrolled, setIsScrolled] = useState(false); // Add this line
   const [isFetching, setIsFetching] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -108,25 +108,58 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
       const loadRowData = async () => {
         try {
+          if (!isMounted) return;
+
+          let gatheredMovies: Movie[] = [];
+          let currentPage = 1;
+          let keepFetching = true;
+
+          // Loop up to 3 pages to compile at least 5 unique, valid movies
+          while (keepFetching && gatheredMovies.length < 5 && currentPage <= 3) {
+            let targetUrl = fetchUrl;
+            if (currentPage > 1) {
+              if (targetUrl.includes('page=')) {
+                targetUrl = targetUrl.replace(/page=\d+/, `page=${currentPage}`);
+              } else {
+                const separator = targetUrl.includes('?') ? '&' : '?';
+                targetUrl = `${targetUrl}${separator}page=${currentPage}`;
+              }
+            }
+
+            const results = await fetchData(targetUrl);
+            if (!isMounted) break;
+
+            if (!results || results.length === 0) {
+              keepFetching = false;
+              break;
+            }
+
+            const isGenreRow = rowKey?.startsWith('home-genre-');
+
+            const filtered = results.filter((m: Movie) => {
+              const hasImage = m.backdrop_path || m.poster_path;
+              // Bypass global pageSeenIds check ONLY for category/genre rows
+              const notSeen = isGenreRow ? true : !pageSeenIds.includes(Number(m.id));
+              const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
+              return hasImage && notSeen && hasMinVotes;
+            });
+
+            filtered.forEach((item: Movie) => {
+              if (!gatheredMovies.some(g => g.id === item.id)) {
+                gatheredMovies.push(item);
+              }
+            });
+
+            currentPage++;
+          }
 
           if (!isMounted) return;
 
-          const results = await fetchData(fetchUrl);
-          if (!isMounted) return;
-
-          // Deduplicate based on global context and filter out missing images + low-quality content
-          const uniqueNew = results.filter((m: Movie) => {
-            const hasImage = m.backdrop_path || m.poster_path;
-            const notSeen = !pageSeenIds.includes(Number(m.id));
-            const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
-            return hasImage && notSeen && hasMinVotes;
-          });
-
-          if (uniqueNew.length < 3) {
+          if (gatheredMovies.length < 3) {
             setIsHidden(true); // Don't show sparse, awkward rows
           } else {
-            setMovies(uniqueNew);
-            registerSeenIds(uniqueNew.map((m: Movie) => Number(m.id)));
+            setMovies(gatheredMovies);
+            registerSeenIds(gatheredMovies.map((m: Movie) => Number(m.id)));
           }
         } catch (error) {
           console.error("Error loading row data:", error);
@@ -250,8 +283,15 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
   };
 
   const handleManualScroll = () => {
-    if (!scrollRef.current || !shouldLoop || movies.length === 0) return;
+    if (!scrollRef.current) return;
+
     const container = scrollRef.current;
+
+    // Toggle left arrow visibility based on scroll position
+    setIsScrolled(container.scrollLeft > 0);
+
+    if (!shouldLoop || movies.length === 0) return;
+
     const firstCard = container.querySelector('.movie-card-container') as HTMLElement | null;
     if (!firstCard) return;
 
@@ -261,8 +301,6 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
     const oneSetWidth = movies.length * step;
 
     if (!hasEngagedInfinite.current) {
-       // Enable infinite backward scroll only after the user has scrolled forward far enough
-       // OR if they jumped via the left arrow (which forces scrollLeft to oneSetWidth).
        if (container.scrollLeft >= oneSetWidth * 0.8) {
            hasEngagedInfinite.current = true;
        }
@@ -376,8 +414,11 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
             <div
               className={`absolute top-0 bottom-0 left-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/70 flex group/arrow-left
-                transition-opacity duration-300 pointer-events-none rounded-r-sm
-                ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
+                transition-opacity duration-300 rounded-r-sm
+                ${(!isScrolled || initialLoad)
+                  ? 'opacity-0 pointer-events-none'
+                  : 'opacity-0 pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto'
+                }`}
               onClick={() => scroll('left')}
             >
               <CaretLeftIcon size={76} weight="bold" className="text-white drop-shadow-lg" />

@@ -14,6 +14,13 @@ import { MaturityBadge, BadgeOverlay, HoverProgressBar, getWatchData } from './M
 import { searchTrailerWithMeta } from '../services/YouTubeService';
 import { preloadTrailer } from '../hooks/useTrailer';
 import MovieCardTouch from './MovieCardTouch';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { getOptimizedImageUrl } from '../utils/deviceHelper';
+
+// ─── Module-level logo cache ─────────────────────────────────────────────────
+// Persists across component mounts/unmounts within a page session so logos are
+// never re-fetched after the first successful load.
+const _logoCache = new Map<string, string>();
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 type _PHListener = (v: boolean) => void;
@@ -107,6 +114,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const { t } = useTranslation();
   const navigate = useNavigate();
   const prefersHover = usePrefersHover();
+  const isMobile = useIsMobile();
 
   const {
     myList, toggleList, rateMovie, getMovieRating, getVideoState,
@@ -211,23 +219,31 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
   useEffect(() => {
     if (!isVisible) return;
+    const cacheKey = `${movie.id}-${movie.media_type || (movie.title ? 'movie' : 'tv')}`;
+    // Return cached logo instantly — no network request needed
+    if (_logoCache.has(cacheKey)) {
+      setLogoUrl(_logoCache.get(cacheKey)!);
+      return;
+    }
     let isMounted = true;
     const fetchLogo = async () => {
       try {
         const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
         const data = await getMovieImages(String(movie.id), mediaType);
-
         if (!isMounted) return;
-
         if (data && data.logos) {
           const logo = data.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
           if (logo) {
-            setLogoUrl(`https://image.tmdb.org/t/p/${LOGO_SIZE}${logo.file_path}`);
+            const url = `https://image.tmdb.org/t/p/${LOGO_SIZE}${logo.file_path}`;
+            _logoCache.set(cacheKey, url);
+            setLogoUrl(url);
+          } else {
+            // Cache empty string so we don't re-fetch for cards with no logo
+            _logoCache.set(cacheKey, '');
           }
         }
       } catch (e) { }
     };
-
     fetchLogo();
     return () => { isMounted = false; };
   }, [isVisible, movie.id, movie.media_type, movie.title]);
@@ -312,13 +328,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     };
   }, []);
 
-  const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
-    ? (movie.backdrop_path || movie.poster_path)
-    : `https://image.tmdb.org/t/p/w500${movie.backdrop_path || movie.poster_path}`;
-
-  const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
-    ? movie.poster_path
-    : `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+  const imageSrc = getOptimizedImageUrl(movie.backdrop_path || movie.poster_path, 'backdrop', isMobile);
+  const posterSrc = getOptimizedImageUrl(movie.poster_path, 'poster', isMobile);
 
   // Handle cached images for smooth reveal
   useEffect(() => {
@@ -327,7 +338,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     }
   }, [imageSrc]);
 
-  if (!prefersHover) {
+  if (isMobile || !prefersHover) {
     return <MovieCardTouch movie={movie} onSelect={onSelect} onPlay={onPlay} isGrid={isGrid} />;
   }
 

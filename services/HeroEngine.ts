@@ -503,6 +503,16 @@ class HeroEngineService {
     saveSessionCache(this.sessionCache);
   }
 
+  /** Clear genre-scoped hero cache (e.g. home_28 when switching Home genres). */
+  invalidateGenreHero(pageType: string, genreId?: number) {
+    const key = genreId !== undefined ? `${pageType}_${genreId}` : pageType;
+    this.live.delete(key);
+    this.initializing.delete(key);
+    this.ensureCacheLoaded();
+    delete this.sessionCache[key];
+    saveSessionCache(this.sessionCache);
+  }
+
   /** Expose current time context so UI can show e.g. a "Good evening" greeting */
   getContext() {
     return { timeSlot: getTimeSlot(), season: getSeason(), holiday: getCurrentHoliday() };

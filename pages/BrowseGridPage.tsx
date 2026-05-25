@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Movie } from '../types';
 import MovieCard from '../components/MovieCard';
+import MovieCardTouch from '../components/MovieCardTouch';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { fetchData } from '../services/api';
 import { REQUESTS } from '../constants';
 import { CaretLeftIcon, CaretDownIcon } from '@phosphor-icons/react';
@@ -20,6 +22,7 @@ interface BrowseGridPageProps {
  */
 const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }) => {
   const { rowKey } = useParams<{ rowKey: string }>();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -127,21 +130,30 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
           <h1 className="text-white font-bold text-xl md:text-3xl tracking-tight">{title}</h1>
         </div>
 
-        {/* Loading skeleton — 16:9 aspect to match MovieCard isGrid */}
+        {/* Loading skeleton — matches mobile aspect ratio */}
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2 gap-y-6">
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4">
             {Array.from({ length: 24 }).map((_, i) => (
-              <div key={i} className="aspect-video bg-[#1e1e1e] rounded-sm overflow-hidden relative border border-white/[0.04]">
-                <div
-                  className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent"
-                  style={{ animationDelay: `${(i % 6) * 0.1}s` }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
-                <div className="absolute bottom-3 left-3 space-y-1.5">
-                  <div className="h-2 bg-white/[0.08] rounded-full" style={{ width: `${40 + (i % 5) * 18}px` }} />
-                  <div className="h-1.5 bg-white/[0.05] rounded-full" style={{ width: `${28 + (i % 3) * 10}px` }} />
+              isMobile ? (
+                <div key={i} className="aspect-[2/3] bg-zinc-900 rounded-[6px] overflow-hidden relative border border-white/[0.04]">
+                  <div
+                    className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent"
+                    style={{ animationDelay: `${(i % 6) * 0.1}s` }}
+                  />
                 </div>
-              </div>
+              ) : (
+                <div key={i} className="aspect-video bg-[#1e1e1e] rounded-sm overflow-hidden relative border border-white/[0.04]">
+                  <div
+                    className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent"
+                    style={{ animationDelay: `${(i % 6) * 0.1}s` }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
+                  <div className="absolute bottom-3 left-3 space-y-1.5">
+                    <div className="h-2 bg-white/[0.08] rounded-full" style={{ width: `${40 + (i % 5) * 18}px` }} />
+                    <div className="h-1.5 bg-white/[0.05] rounded-full" style={{ width: `${28 + (i % 3) * 10}px` }} />
+                  </div>
+                </div>
+              )
             ))}
           </div>
         ) : (
@@ -152,15 +164,25 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
               </div>
             ) : (
               /* gap-y-10 gives space beneath each card for the hover popup overflow */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2 gap-y-10">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4">
                 {items.map(movie => (
-                  <MovieCard
-                    key={movie.id}
-                    movie={movie}
-                    onSelect={onSelectMovie}
-                    onPlay={onPlay}
-                    isGrid={true}
-                  />
+                  isMobile ? (
+                    <MovieCardTouch
+                      key={movie.id}
+                      movie={movie}
+                      onSelect={onSelectMovie}
+                      onPlay={onPlay}
+                      isGrid={true}
+                    />
+                  ) : (
+                    <MovieCard
+                      key={movie.id}
+                      movie={movie}
+                      onSelect={onSelectMovie}
+                      onPlay={onPlay}
+                      isGrid={true}
+                    />
+                  )
                 ))}
               </div>
             )}

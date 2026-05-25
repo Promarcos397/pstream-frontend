@@ -15,6 +15,8 @@ import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
 import { useTasteEngine } from '../hooks/useTasteEngine';
+import { useIsMobile } from '../hooks/useIsMobile';
+import InfoModalTouch from './InfoModalTouch';
 
 
 interface InfoModalProps {
@@ -71,6 +73,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     } = useGlobalContext();
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const location = useLocation();
     const [, setSearchParams] = useSearchParams();
     const [overrideMovie, setOverrideMovie] = useState<Movie | null>(null);
     const activeMovieProp = overrideMovie || movie;
@@ -92,16 +95,17 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const [episodes, setEpisodes] = useState<Episode[]>([]);
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+    
+    const isMobile = useIsMobile();
+    const mediaType = activeMovieProp
+        ? (activeMovieProp.media_type || (activeMovieProp.title ? 'movie' : 'tv')) as 'movie' | 'tv'
+        : 'movie';
 
     const modalRef = useRef<HTMLDivElement>(null);
     const heroRef = useRef<HTMLDivElement>(null);
 
     const [springTransform, setSpringTransform] = useState<string>('none');
     const [springTransition, setSpringTransition] = useState('none');
-
-    const mediaType = activeMovieProp
-        ? (activeMovieProp.media_type || (activeMovieProp.title ? 'movie' : 'tv')) as 'movie' | 'tv'
-        : 'movie';
 
 
     useEffect(() => {
@@ -272,12 +276,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         });
 
         const type = rec.media_type || (rec.title ? 'movie' : 'tv');
-        setSearchParams(prev => {
-            const next = new URLSearchParams(prev);
-            next.set('modal', String(rec.id));
-            next.set('type', type);
-            return next;
-        }, { replace: true });
+        navigate(`/title/${type}/${rec.id}${location.search}`, {
+            state: location.state,
+            replace: true
+        });
         setActiveVideoId(`modal-${rec.id}`);
         if (modalRef.current) {
             modalRef.current.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -305,6 +307,18 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     const hasResumeMovie = mediaType === 'movie' && watchPct >= 5;
     const hasResumeTV = mediaType === 'tv' && watchPct >= 5;
+
+    if (isMobile) {
+        return (
+            <InfoModalTouch
+                movie={movie}
+                initialTime={initialTime}
+                onClose={onClose}
+                onPlay={onPlay}
+                trailerId={trailerId}
+            />
+        );
+    }
 
     return (
         <div

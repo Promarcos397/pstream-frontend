@@ -1,37 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useLayoutEffect, useEffect } from 'react';
+
+// Module-level: evaluate ONCE before any component mounts, using matchMedia.
+// This is synchronous and available immediately in browser environments.
+const _getIsMobile = (breakpoint: number): boolean => {
+    if (typeof window === 'undefined') return false;
+    if (window.matchMedia(`(max-width: ${breakpoint - 1}px)`).matches) return true;
+    const w = window.innerWidth, h = window.innerHeight;
+    if (h > 0 && h < 500 && w > 0 && w <= 950) return true;
+    if (breakpoint === 768) {
+        const isTabletWidth = window.matchMedia('(max-width: 1023px)').matches;
+        const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+        if (isTabletWidth && isTouchDevice) return true;
+    }
+    return false;
+};
 
 export const useIsMobile = (breakpoint: number = 768) => {
-    const getIsMobile = () => {
-        if (typeof window === 'undefined') return false;
-        
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        
-        // 1. Strict Width Check (standard portrait phone)
-        if (width < breakpoint) return true;
-        
-        // 2. Landscape Phone Check
-        // Large phones in landscape (like iPhone Pro Max) exceed 768px width,
-        // but have very short heights (< 500px).
-        if (height < 500 && width <= 950) return true;
-        
-        // 3. True Touch Device Check
-        // For standard UI responsive toggles (768px), we want iPads and tablets 
-        // to also use the mobile touch-friendly UI.
-        if (breakpoint === 768 && window.matchMedia('(pointer: coarse)').matches) {
-            return true;
-        }
+    // Initialize from module-level function — always correct on first call
+    const [isMobile, setIsMobile] = useState(() => _getIsMobile(breakpoint));
 
-        return false;
-    };
+    // useLayoutEffect: runs synchronously BEFORE the browser paints.
+    // This guarantees that even if useState() returned a stale value,
+    // it is corrected before the user ever sees a single frame of wrong layout.
+    useLayoutEffect(() => {
+        setIsMobile(_getIsMobile(breakpoint));
+    }, [breakpoint]);
 
-    const [isMobile, setIsMobile] = useState(getIsMobile());
-
+    // useEffect: keep in sync on resize / orientation change
     useEffect(() => {
-        const handleResize = () => {
-            setIsMobile(getIsMobile());
-        };
-
+        const handleResize = () => setIsMobile(_getIsMobile(breakpoint));
         window.addEventListener('resize', handleResize);
         window.addEventListener('orientationchange', handleResize);
         return () => {

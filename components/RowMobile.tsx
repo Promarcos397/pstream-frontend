@@ -76,22 +76,57 @@ const RowMobile: React.FC<RowMobileProps> = ({
       const loadRowData = async () => {
         try {
           if (!isMounted) return;
-          const results = await fetchData(fetchUrl);
+
+          let gatheredMovies: Movie[] = [];
+          let currentPage = 1;
+          let keepFetching = true;
+
+          // Loop up to 3 pages to compile at least 5 unique, valid movies on mobile
+          while (keepFetching && gatheredMovies.length < 5 && currentPage <= 3) {
+            let targetUrl = fetchUrl;
+            if (currentPage > 1) {
+              if (targetUrl.includes('page=')) {
+                targetUrl = targetUrl.replace(/page=\d+/, `page=${currentPage}`);
+              } else {
+                const separator = targetUrl.includes('?') ? '&' : '?';
+                targetUrl = `${targetUrl}${separator}page=${currentPage}`;
+              }
+            }
+
+            const results = await fetchData(targetUrl);
+            if (!isMounted) break;
+
+            if (!results || results.length === 0) {
+              keepFetching = false;
+              break;
+            }
+
+            const isGenreRow = rowKey?.startsWith('home-genre-');
+
+            const filtered = results.filter((m: Movie) => {
+              const hasImage = m.poster_path || m.backdrop_path;
+              // Bypass global pageSeenIds check ONLY for category/genre rows
+              const notSeen = isGenreRow ? true : !pageSeenIds.includes(Number(m.id));
+              const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
+              return hasImage && notSeen && hasMinVotes;
+            });
+
+            filtered.forEach((item: Movie) => {
+              if (!gatheredMovies.some(g => g.id === item.id)) {
+                gatheredMovies.push(item);
+              }
+            });
+
+            currentPage++;
+          }
+
           if (!isMounted) return;
 
-          // Deduplicate based on global context and filter out missing images
-          const uniqueNew = results.filter((m: Movie) => {
-            const hasImage = m.poster_path || m.backdrop_path;
-            const notSeen = !pageSeenIds.includes(Number(m.id));
-            const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
-            return hasImage && notSeen && hasMinVotes;
-          });
-
-          if (uniqueNew.length < 3) {
+          if (gatheredMovies.length < 3) {
             setIsHidden(true);
           } else {
-            setMovies(uniqueNew);
-            registerSeenIds(uniqueNew.map((m: Movie) => Number(m.id)));
+            setMovies(gatheredMovies);
+            registerSeenIds(gatheredMovies.map((m: Movie) => Number(m.id)));
           }
         } catch (error) {
           console.error("Error loading mobile row data:", error);

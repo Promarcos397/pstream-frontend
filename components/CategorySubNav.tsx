@@ -17,6 +17,8 @@ interface CategorySubNavProps {
     onGenreSelect: (genre: Genre | null) => void;
     viewMode?: 'row' | 'grid';
     onViewModeChange?: (mode: 'row' | 'grid') => void;
+    /** Hide title and Genres dropdown on desktop (e.g. Home page) */
+    hideGenresOnDesktop?: boolean;
 }
 
 const CategorySubNav: React.FC<CategorySubNavProps> = ({
@@ -26,6 +28,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     onGenreSelect,
     viewMode = 'row',
     onViewModeChange,
+    hideGenresOnDesktop = false,
 }) => {
     const isMobile = useIsMobile();
     const [genreMenuOpen, setGenreMenuOpen] = useState(false);
@@ -73,11 +76,16 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     if (isMobile) {
         return (
             <CategorySubNavMobile
+                title={title}
                 genres={genres}
                 selectedGenre={selectedGenre}
                 onGenreSelect={onGenreSelect}
             />
         );
+    }
+
+    if (hideGenresOnDesktop) {
+        return null;
     }
 
     const portalElement = document.getElementById('category-subnav-portal');

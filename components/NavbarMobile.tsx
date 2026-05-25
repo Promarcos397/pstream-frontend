@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { House, Sparkle, Bookmark } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useGlobalContext } from '../context/GlobalContext';
 import { DEFAULT_AVATAR } from '../constants';
 import pLogo from '../assets/logos/pstream-logo.svg';
@@ -21,7 +21,10 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   activeTab,
   setActiveTab
 }) => {
-  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isSearchActive, setIsSearchActive] = useState(() => {
+    return searchParams.get('search') === 'true' || !!searchParams.get('q');
+  });
   const [scrollY, setScrollY] = useState(0);
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -41,16 +44,15 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Calculate opacity over a longer distance of 220px for a smooth gradient transition
-  const maxScroll = 220;
+  // Calculate opacity over a short 50px distance for instant welding/solid look upon scroll
+  const maxScroll = 50;
   const opacity = Math.min(1, scrollY / maxScroll);
 
-  // Sync isSearchActive with query changes (e.g. search suggestions)
+  // Sync isSearchActive with query changes and URL parameters
   useEffect(() => {
-    if (searchQuery) {
-      setIsSearchActive(true);
-    }
-  }, [searchQuery]);
+    const isActive = searchParams.get('search') === 'true' || !!searchParams.get('q');
+    setIsSearchActive(isActive);
+  }, [searchParams]);
 
   const handleMobileTabClick = (tabId: string) => {
     setActiveTab(tabId);
@@ -74,43 +76,45 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
         style={{
           backgroundColor: `rgba(20, 20, 20, ${opacity})`
         }}
-        className={`fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-75 ease-out border-none shadow-none ${
-          opacity < 1 ? 'bg-gradient-to-b from-black/50 via-black/15 to-black/0' : ''
-        }`}
+        className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0"
       >
         {isSearchActive ? (
           // Search Input Row
-          <div className="flex items-center w-full space-x-3">
-            <div className="flex-1 flex items-center bg-[#2b2b2b]/95 border border-white/10 rounded-full px-4 py-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white/50 mr-2 shrink-0">
+          <div className="flex items-center w-full px-1 animate-in fade-in duration-200">
+            <div className="flex-1 flex items-center bg-[#222222] rounded-[4px] px-3.5 py-2.5 border border-white/[0.04]">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2.0" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className="w-[18px] h-[18px] text-[#8c8c8c] mr-3 shrink-0"
+              >
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <input
                 type="text"
                 placeholder="Search movies, shows..."
-                className="bg-transparent border-none outline-none text-white text-sm w-full font-netflix focus:ring-0 focus:outline-none"
+                className="bg-transparent border-none outline-none text-white text-[15px] w-full font-netflix placeholder-[#8c8c8c] focus:ring-0 focus:outline-none py-0.5"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
               />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="text-white/70 hover:text-white shrink-0 ml-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4.5 h-4.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
+              <button 
+                onClick={() => {
+                  setSearchQuery('');
+                }} 
+                className="text-[#8c8c8c] hover:text-white shrink-0 ml-2 p-0.5 active:scale-95 transition-transform"
+                title="Clear Search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.0" stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <button
-              onClick={() => {
-                setIsSearchActive(false);
-                setSearchQuery('');
-              }}
-              className="text-white text-sm font-semibold whitespace-nowrap active:scale-95"
-            >
-              Cancel
-            </button>
           </div>
         ) : (
           // Standard Header Row
@@ -119,7 +123,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               src={pLogo}
               alt="Pstream Logo"
               onClick={() => handleMobileTabClick('home')}
-              className="h-[26px] w-auto cursor-pointer select-none transition-transform active:scale-95"
+              className="h-[34px] w-auto cursor-pointer select-none transition-transform active:scale-95"
             />
           </div>
         )}
@@ -133,6 +137,10 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
             onClick={() => {
               setIsSearchActive(false);
               setSearchQuery('');
+              const newParams = new URLSearchParams(window.location.search);
+              newParams.delete('search');
+              newParams.delete('q');
+              setSearchParams(newParams, { replace: true });
               handleMobileTabClick('home');
             }}
             className={`flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 py-1
@@ -147,6 +155,10 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
             onClick={() => {
               setIsSearchActive(false);
               setSearchQuery('');
+              const newParams = new URLSearchParams(window.location.search);
+              newParams.delete('search');
+              newParams.delete('q');
+              setSearchParams(newParams, { replace: true });
               handleMobileTabClick('list');
             }}
             className={`flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 py-1
@@ -160,6 +172,9 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
           <div
             onClick={() => {
               setIsSearchActive(true);
+              const newParams = new URLSearchParams(window.location.search);
+              newParams.set('search', 'true');
+              setSearchParams(newParams, { replace: true });
             }}
             className={`flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 py-1
               ${isSearchActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`}
@@ -176,6 +191,10 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
             onClick={() => {
               setIsSearchActive(false);
               setSearchQuery('');
+              const newParams = new URLSearchParams(window.location.search);
+              newParams.delete('search');
+              newParams.delete('q');
+              setSearchParams(newParams, { replace: true });
               handleMobileTabClick('settings');
             }}
             className={`flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 py-1

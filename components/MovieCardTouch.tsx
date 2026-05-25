@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { Movie } from '../types';
 import { BadgeOverlay, ProgressIndicator } from './MovieCardBadges';
+import { getOptimizedImageUrl } from '../utils/deviceHelper';
 
 interface MovieCardTouchProps {
   movie: Movie;
@@ -25,20 +26,14 @@ const MovieCardTouch: React.FC<MovieCardTouchProps> = ({ movie, onSelect, onPlay
   const isBook = ['series', 'comic', 'manga', 'local'].includes(movie.media_type || '');
 
   const posterSrc = useMemo(() => {
-    if (!movie.poster_path) return null;
-    return (movie.poster_path.startsWith('http') || movie.poster_path.startsWith('comic://'))
-      ? movie.poster_path
-      : `https://image.tmdb.org/t/p/w342${movie.poster_path}`;
+    return getOptimizedImageUrl(movie.poster_path, 'poster', true) || null;
   }, [movie.poster_path]);
 
-  const fallbackSrc = useMemo(() => {
-    if (!movie.backdrop_path) return null;
-    return (movie.backdrop_path.startsWith('http') || movie.backdrop_path.startsWith('comic://'))
-      ? movie.backdrop_path
-      : `https://image.tmdb.org/t/p/w342${movie.backdrop_path}`;
+  const backdropSrc = useMemo(() => {
+    return getOptimizedImageUrl(movie.backdrop_path, 'backdrop', true) || null;
   }, [movie.backdrop_path]);
 
-  const imageSrc = imgFailed ? fallbackSrc : (posterSrc || fallbackSrc);
+  const imageSrc = imgFailed ? backdropSrc || posterSrc : posterSrc || backdropSrc;
 
   const getBadgeInfo = () => {
     const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
@@ -90,8 +85,8 @@ const MovieCardTouch: React.FC<MovieCardTouchProps> = ({ movie, onSelect, onPlay
       ref={cardRef}
       className={`relative select-none bg-zinc-900 border border-white/[0.04] shadow-md transition-transform duration-200 active:scale-95 overflow-hidden rounded-lg
         ${isGrid
-          ? 'w-full aspect-[3/4] cursor-pointer'
-          : 'flex-none w-[calc((100vw-3rem)/3.2)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[3/4] cursor-pointer'
+          ? 'w-full aspect-[2/3] cursor-pointer'
+          : 'flex-none w-[calc((100vw-3rem)/3.2)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[2/3] cursor-pointer'
         }`}
       onTouchStart={(e) => {
         touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };

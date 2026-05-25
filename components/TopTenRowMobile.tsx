@@ -10,7 +10,7 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
   const isTen = index === 9;
   return (
     <div
-      className={`absolute ${isTen ? 'left-[-8px]' : 'left-[8px]'} bottom-[-6px] ${isTen ? 'h-[98px] sm:h-[120px]' : 'h-[110px] sm:h-[135px]'} z-0 pointer-events-none overflow-visible`}
+      className={`absolute ${isTen ? 'left-[-8px]' : 'left-[8px]'} bottom-[-6px] ${isTen ? 'h-[110px] sm:h-[135px]' : 'h-[124px] sm:h-[152px]'} z-0 pointer-events-none overflow-visible`}
       style={{ width: isTen ? '112%' : '88%' }}
     >
       <svg
@@ -139,7 +139,7 @@ const TopTenCardTouch: React.FC<TopTenCardTouchProps> = ({ movie, index, onSelec
   return (
     <div
       ref={cardRef}
-      className={`relative flex-none h-[142px] ${cardWidthClass} sm:h-[180px] mr-0 cursor-pointer flex items-end pointer-events-auto select-none z-10`}
+      className={`relative flex-none h-[160px] ${cardWidthClass} sm:h-[200px] mr-0 cursor-pointer flex items-end pointer-events-auto select-none z-10`}
       onTouchStart={(e) => {
         touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
         touchDidScroll.current = false;
@@ -276,7 +276,7 @@ const TopTenRowMobile: React.FC<TopTenRowMobileProps> = ({
 
           {loading
             ? Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="relative flex-none h-[142px] w-[215px] sm:h-[180px] sm:w-[260px] -mr-14 flex items-end">
+                <div key={i} className="relative flex-none h-[160px] w-[215px] sm:h-[200px] sm:w-[260px] -mr-14 flex items-end">
                   <div className="absolute left-[-5px] bottom-[-4px] h-[110%] w-[90%] flex items-end justify-start pointer-events-none">
                     <div className="h-[85%] w-[65%] bg-[#222] rounded-sm opacity-40 skew-x-[-6deg]" />
                   </div>

@@ -9,6 +9,8 @@
  * smarter DAY_STREAMS with mixture syntax.
  */
 
+import { ALL_THEMED_STREAMS } from './themes';
+
 // ─── TMDB Genre ID → Name map ─────────────────────────────────────────────────
 export const GENRES: { [key: number]: string } = {
   28: "Action",
@@ -77,6 +79,7 @@ export interface MicroGenreEntry {
 }
 
 export const MICRO_GENRES: MicroGenreEntry[] = [
+  ...ALL_THEMED_STREAMS,
 
   // ══════════════════════════════════════════════════════
   // MOVIES — ACTION, THRILLER, CRIME
