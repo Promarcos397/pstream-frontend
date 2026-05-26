@@ -25,7 +25,7 @@ const _logoCache = new Map<string, string>();
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
 type _PHListener = (v: boolean) => void;
 const _phSubs = new Set<_PHListener>();
-let _prefersHover = false;
+let _prefersHover = typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : false;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', (e: PointerEvent) => {

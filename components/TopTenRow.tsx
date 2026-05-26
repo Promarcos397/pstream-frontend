@@ -26,7 +26,7 @@ import TopTenRowMobile from './TopTenRowMobile';
 // ─── Shared pointer-type hook (same logic as MovieCard) ─────────────────────
 type _PHListener = (v: boolean) => void;
 const _phSubs = new Set<_PHListener>();
-let _prefersHover = false;
+let _prefersHover = typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : false;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', (e: PointerEvent) => {
