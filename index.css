@@ -43,13 +43,19 @@ body {
   font-family: 'PStream Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #141414;
+  background-color: #000000;
   color: white;
   overscroll-behavior-y: none; /* Prevent elastic bouncing on mobile */
   user-select: none; /* Prevent accidental text selection while navigating */
   -webkit-user-select: none;
   /* Support for iOS safe areas */
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (min-width: 768px) {
+  body {
+    background-color: #141414;
+  }
 }
 
 /* Allow selection in inputs */

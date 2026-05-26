@@ -24,7 +24,7 @@ const Layout: React.FC<LayoutProps> = ({
   const isScrolled = useScroll(0);
 
   return (
-    <div className="bg-[#141414] min-h-screen font-sans text-white selection:bg-red-600 selection:text-white">
+    <div className="bg-black md:bg-[#141414] min-h-screen font-sans text-white selection:bg-red-600 selection:text-white">
       {/* Navbar is fixed at top-0 */}
       <Navbar
         isScrolled={isScrolled}
@@ -35,7 +35,7 @@ const Layout: React.FC<LayoutProps> = ({
       />
 
       {/* Main Content Area */}
-      <div className="min-h-screen">
+      <div className="min-h-screen pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-0">
         {children}
       </div>
 

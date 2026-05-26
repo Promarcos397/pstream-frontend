@@ -193,7 +193,7 @@ const NewPopularMobilePage: React.FC<NewPopularMobilePageProps> = ({
     );
 
     return (
-        <div className="relative min-h-screen bg-[#141414]">
+        <div className="relative min-h-screen bg-black md:bg-[#141414]">
             {/* Sub-nav */}
             <NewPopularSubNavMobile activeTab={activeTab} onTabChange={setActiveTab} />
 

@@ -15,7 +15,7 @@ const SettingsPage: React.FC = () => {
     // Guests see a prompt instead of the settings UI.
     if (!user) {
         return (
-            <div className="min-h-screen bg-[#141414] flex items-center justify-center px-6">
+            <div className="min-h-screen bg-black md:bg-[#141414] flex items-center justify-center px-6">
                 <div className="max-w-[420px] w-full text-center space-y-6 animate-fadeIn">
                     {/* Lock icon */}
                     <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto">

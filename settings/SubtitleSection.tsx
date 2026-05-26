@@ -17,24 +17,24 @@ const SubtitleSection: React.FC<SubtitleSectionProps> = ({ settings, updateSetti
         : landingBg;
 
     return (
-        <div className="text-gray-900 animate-fadeIn space-y-8 pb-10">
+        <div className="text-white md:text-gray-900 animate-fadeIn space-y-8 pb-10">
 
             {/* Live Preview */}
             <div className="relative">
-                <div className="h-[220px] md:h-[280px] w-full bg-black relative rounded-md overflow-hidden border border-gray-100 shadow-lg">
+                <div className="h-[220px] md:h-[280px] w-full bg-black relative rounded-md overflow-hidden border border-white/10 md:border-gray-100 shadow-lg">
                     <SubtitlePreview settings={settings} backdropUrl={previewBackdrop} />
                 </div>
                 <div className="mt-4 flex items-center justify-center">
-                    <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">
+                    <span className="text-xs md:text-sm font-bold text-white/30 md:text-gray-400 uppercase tracking-widest">
                         Live Appearance Preview
                     </span>
                 </div>
             </div>
 
-            <div className="h-px bg-gray-100" />
+            <div className="h-px bg-white/10 md:bg-gray-100" />
 
             {/* Controls */}
-            <div className="bg-white">
+            <div className="bg-transparent md:bg-white">
                 <SubtitleSettings settings={settings} updateSettings={updateSettings} />
             </div>
         </div>

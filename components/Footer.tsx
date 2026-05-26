@@ -18,7 +18,7 @@ const Footer: React.FC = () => {
 
   return (
     <>
-      <footer className="w-full bg-[#141414] text-[#808080] py-12 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56 text-sm mt-12">
+      <footer className="hidden md:block w-full bg-[#141414] text-[#808080] py-12 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56 text-sm mt-12">
         <div className="max-w-[1000px] mx-auto">
 
           {/* Social Icons */}

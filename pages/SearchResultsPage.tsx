@@ -26,14 +26,14 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
 
   if (query.trim().length === 0) {
     return (
-      <div className="pt-[calc(6rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen bg-[#121212]" />
+      <div className="pt-[calc(6rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen bg-black md:bg-[#121212]" />
     );
   }
 
   // Removed aggressive localized prefetching for search results
 
   return (
-    <div className="pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen">
+    <div className="pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen bg-black md:bg-transparent">
 
       {!isMobile && (
         <div className="mb-8">

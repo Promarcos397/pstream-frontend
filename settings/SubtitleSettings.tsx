@@ -10,27 +10,32 @@ interface SubtitleSettingsProps {
 }
 
 import { SUBTITLE_FONTS, SUBTITLE_COLORS, SUBTITLE_SIZES, SUBTITLE_EDGES } from '../constants';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSettings }) => {
     const { t } = useTranslation();
+    const isMobile = useIsMobile(768);
 
     // Helper to render the custom select group with boxy style
     const BoxySelect = ({ label, selectedId, options, onChange }: { label: string; selectedId: string; options: any[]; onChange: (val: any) => void }) => (
         <div className="space-y-2.5">
-            <label className="block text-[13px] font-bold text-gray-900 uppercase tracking-wider">
+            <label className={`block text-[13px] font-bold uppercase tracking-wider ${isMobile ? 'text-white/50' : 'text-gray-900'}`}>
                 {label}
             </label>
             <div className="relative group">
                 <select
                     value={selectedId}
                     onChange={(e) => onChange(e.target.value)}
-                    className="w-full px-4 py-3 text-sm bg-white text-gray-900 border border-gray-300 rounded-sm appearance-none cursor-pointer focus:ring-2 focus:ring-black focus:border-black transition-all outline-none"
+                    className={`w-full px-4 py-3 text-sm rounded-sm appearance-none cursor-pointer focus:ring-2 transition-all outline-none border
+                        ${isMobile 
+                            ? 'bg-white/5 text-white border-white/15 focus:ring-white focus:border-white/30' 
+                            : 'bg-white text-gray-900 border-gray-300 focus:ring-black focus:border-black'}`}
                 >
                     {options.map((opt) => (
                         <option key={opt.id} value={opt.id}>{t(opt.label, { defaultValue: opt.id })}</option>
                     ))}
                 </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-gray-600 transition-colors">
+                <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${isMobile ? 'text-white/40' : 'text-gray-400 group-hover:text-gray-600'}`}>
                     <CaretDownIcon size={18} weight="bold" />
                 </div>
             </div>
@@ -38,13 +43,13 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
     );
 
     return (
-        <div className="text-gray-900 space-y-10">
+        <div className={`space-y-10 ${isMobile ? 'text-white' : 'text-gray-900'}`}>
             
             {/* Show Subtitles Toggle */}
-            <div className="flex items-center justify-between py-6 border-b border-gray-100">
+            <div className={`flex items-center justify-between py-6 border-b ${isMobile ? 'border-white/10' : 'border-gray-100'}`}>
                 <div className="flex flex-col gap-1 pr-4">
-                    <span className="text-base md:text-lg font-bold text-gray-900">{t('subtitles.show')}</span>
-                    <span className="text-xs md:text-sm text-gray-500 font-medium">
+                    <span className={`text-base md:text-lg font-bold ${isMobile ? 'text-white' : 'text-gray-900'}`}>{t('subtitles.show')}</span>
+                    <span className={`text-xs md:text-sm font-medium ${isMobile ? 'text-white/40' : 'text-gray-500'}`}>
                         {t('settings.subtitleAppearanceSub', { defaultValue: 'Enable or disable subtitles' })}
                     </span>
                 </div>
@@ -52,7 +57,7 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                     label=""
                     checked={settings.showSubtitles}
                     onChange={() => updateSettings({ showSubtitles: !settings.showSubtitles })}
-                    darkTheme={false}
+                    darkTheme={isMobile}
                 />
             </div>
 
@@ -89,14 +94,14 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                     />
                 </div>
 
-                <div className="h-px bg-gray-100" />
+                <div className={`h-px ${isMobile ? 'bg-white/10' : 'bg-gray-100'}`} />
                 
                 {/* Window / Background Section */}
                 <div className="space-y-8 pb-4">
                     <div className="flex items-center justify-between group">
                         <div className="flex flex-col gap-1 pr-4">
-                            <h3 className="text-base md:text-lg font-bold text-gray-900">{t('subtitles.windowBackground')}</h3>
-                            <span className="text-xs md:text-sm text-gray-500 font-medium">
+                            <h3 className={`text-base md:text-lg font-bold ${isMobile ? 'text-white' : 'text-gray-900'}`}>{t('subtitles.windowBackground')}</h3>
+                            <span className={`text-xs md:text-sm font-medium ${isMobile ? 'text-white/40' : 'text-gray-500'}`}>
                                 {t('subtitles.windowBackgroundDesc', { defaultValue: 'Add a shaded box behind subtitles for better contrast' })}
                             </span>
                         </div>
@@ -104,19 +109,19 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                             label=""
                             checked={settings.subtitleBackground === 'box'}
                             onChange={() => updateSettings({ subtitleBackground: settings.subtitleBackground === 'box' ? 'none' : 'box' })}
-                            darkTheme={false}
+                            darkTheme={isMobile}
                         />
                     </div>
 
                     {settings.subtitleBackground === 'box' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 p-6 bg-gray-50 rounded-lg animate-slideIn">
+                        <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 p-6 rounded-lg animate-slideIn ${isMobile ? 'bg-white/5' : 'bg-gray-50'}`}>
                             <div className="px-1">
                                 <SettingsSlider
                                     label={t('subtitles.opacity')}
                                     value={settings.subtitleOpacity}
                                     min={0} max={100} unit="%"
                                     onChange={(val) => updateSettings({ subtitleOpacity: val })}
-                                    darkTheme={false}
+                                    darkTheme={isMobile}
                                 />
                             </div>
                             <div className="px-1">
@@ -125,7 +130,7 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                                     value={settings.subtitleBlur}
                                     min={0} max={20} unit="px"
                                     onChange={(val) => updateSettings({ subtitleBlur: val })}
-                                    darkTheme={false}
+                                    darkTheme={isMobile}
                                 />
                             </div>
                         </div>

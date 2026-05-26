@@ -28,7 +28,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   const [bgImageSrc, setBgImageSrc] = useState<string>(defaultPoster);
   const [hasBakedInText, setHasBakedInText] = useState<boolean>(true);
   const [logoImgFailed, setLogoImgFailed] = useState<boolean>(false);
-  const [accentColor, setAccentColor] = useState<string>('rgba(20, 20, 20, 0)');
+  const [accentRGB, setAccentRGB] = useState<{r:number;g:number;b:number} | null>(null);
 
   // 1. Dynamic Hero Image Selection & Logo Fetching
   useEffect(() => {
@@ -96,14 +96,13 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   // 2. Dynamic Dominant Accent Color Extraction via HTML5 Canvas
   useEffect(() => {
     if (!bgImageSrc) {
-      setAccentColor('rgba(20, 20, 20, 0)');
+      setAccentRGB(null);
       return;
     }
 
     let isMounted = true;
     const img = new Image();
-    img.crossOrigin = 'anonymous'; // Fully CORS-compliant since TMDB supports it
-    // Add cache-busting parameter to prevent CORS failures due to cached non-CORS headers
+    img.crossOrigin = 'anonymous';
     img.src = bgImageSrc.includes('?') ? `${bgImageSrc}&cors=true` : `${bgImageSrc}?cors=true`;
     img.onload = () => {
       if (!isMounted) return;
@@ -111,60 +110,82 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        
-        // Scale down to a very small size (10x10) for automatic hardware-accelerated averaging
-        canvas.width = 10;
-        canvas.height = 10;
-        ctx.drawImage(img, 0, 0, 10, 10);
-        
-        const imgData = ctx.getImageData(0, 0, 10, 10).data;
+
+        // Sample at 16x16 for richer color data
+        canvas.width = 16;
+        canvas.height = 16;
+        ctx.drawImage(img, 0, 0, 16, 16);
+
+        const imgData = ctx.getImageData(0, 0, 16, 16).data;
         let r = 0, g = 0, b = 0, count = 0;
-        
+        let maxSat = 0, vibR = 0, vibG = 0, vibB = 0;
+
         for (let i = 0; i < imgData.length; i += 4) {
           const pixelR = imgData[i];
           const pixelG = imgData[i + 1];
           const pixelB = imgData[i + 2];
           const pixelA = imgData[i + 3];
-          
-          if (pixelA > 200) { // Skip semi-transparent boundary pixels
+
+          if (pixelA > 180) {
             const brightness = (pixelR * 299 + pixelG * 587 + pixelB * 114) / 1000;
-            // Focus on vibrant/colorful tones, skipping pure black and extreme white
-            if (brightness > 35 && brightness < 220) {
+            if (brightness > 25 && brightness < 230) {
               r += pixelR;
               g += pixelG;
               b += pixelB;
               count++;
+
+              // Track most saturated pixel for vibrant overlay
+              const max = Math.max(pixelR, pixelG, pixelB);
+              const min = Math.min(pixelR, pixelG, pixelB);
+              const sat = max === 0 ? 0 : (max - min) / max;
+              if (sat > maxSat) {
+                maxSat = sat;
+                vibR = pixelR;
+                vibG = pixelG;
+                vibB = pixelB;
+              }
             }
           }
         }
-        
+
         if (count > 0) {
-          const avgR = Math.round(r / count);
-          const avgG = Math.round(g / count);
-          const avgB = Math.round(b / count);
-          
-          // Boost opacity to create a beautiful, clearly visible ambient glow
-          setAccentColor(`rgba(${avgR}, ${avgG}, ${avgB}, 0.70)`);
+          let avgR = Math.round(r / count);
+          let avgG = Math.round(g / count);
+          let avgB = Math.round(b / count);
+
+          // Boost saturation aggressively: 45% average + 55% most vibrant pixel
+          avgR = Math.min(255, Math.round(avgR * 0.45 + vibR * 0.55));
+          avgG = Math.min(255, Math.round(avgG * 0.45 + vibG * 0.55));
+          avgB = Math.min(255, Math.round(avgB * 0.45 + vibB * 0.55));
+
+          // Extra saturation punch: push the dominant channel higher
+          const maxCh = Math.max(avgR, avgG, avgB);
+          const boostFactor = maxCh > 60 ? 1.15 : 1.0;
+          avgR = Math.min(255, Math.round(avgR * (avgR === maxCh ? boostFactor : 1)));
+          avgG = Math.min(255, Math.round(avgG * (avgG === maxCh ? boostFactor : 1)));
+          avgB = Math.min(255, Math.round(avgB * (avgB === maxCh ? boostFactor : 1)));
+
+          setAccentRGB({ r: avgR, g: avgG, b: avgB });
         } else {
-          // Fallback to absolute average if all pixels are dark/bright
           let fallbackR = 0, fallbackG = 0, fallbackB = 0;
+          const total = imgData.length / 4;
           for (let i = 0; i < imgData.length; i += 4) {
             fallbackR += imgData[i];
             fallbackG += imgData[i + 1];
             fallbackB += imgData[i + 2];
           }
-          const avgR = Math.round(fallbackR / 100);
-          const avgG = Math.round(fallbackG / 100);
-          const avgB = Math.round(fallbackB / 100);
-          setAccentColor(`rgba(${avgR}, ${avgG}, ${avgB}, 0.55)`);
+          setAccentRGB({
+            r: Math.round(fallbackR / total),
+            g: Math.round(fallbackG / total),
+            b: Math.round(fallbackB / total),
+          });
         }
       } catch (err) {
-        // Graceful fallback for local test/custom files without CORS headers
-        setAccentColor('rgba(100, 100, 100, 0.55)');
+        setAccentRGB({ r: 80, g: 80, b: 120 });
       }
     };
     img.onerror = () => {
-      if (isMounted) setAccentColor('rgba(100, 100, 100, 0.55)');
+      if (isMounted) setAccentRGB({ r: 80, g: 80, b: 120 });
     };
 
     return () => {
@@ -176,22 +197,51 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
     ? movie.genre_ids.map(id => t(`genres.${id}`, { defaultValue: GENRES[id] })).filter(Boolean).slice(0, 3)
     : [];
 
+  // Build gradient helpers from extracted RGB
+  const rgb = accentRGB;
+  const c = (a: number) => rgb ? `rgba(${rgb.r},${rgb.g},${rgb.b},${a})` : `rgba(0,0,0,0)`;
+
   return (
     <div 
-      className="relative z-0 overflow-visible w-full px-6 pt-[calc(136px+env(safe-area-inset-top))] pb-6 flex flex-col items-center justify-center transition-all duration-700 ease-in-out"
+      className="relative z-0 overflow-visible w-full px-4 pt-[calc(130px+env(safe-area-inset-top))] pb-6 flex flex-col items-center justify-center transition-all duration-700 ease-in-out"
     >
-      {/* Dynamic Ambient Bleed Layer (fades behind content rows) */}
+      {/* ── Layer 1: Deep background wash — bleeds 220vh into rows below ── */}
       <div 
         style={{
-          background: `linear-gradient(to bottom, ${accentColor} 0%, ${accentColor} 20%, rgba(20, 20, 20, 0.25) 55%, rgba(20, 20, 20, 0.8) 80%, #141414 100%)`,
-          transition: 'background 0.8s ease-in-out'
+          background: `linear-gradient(to bottom,
+            ${c(0.92)} 0%,
+            ${c(0.85)} 8%,
+            ${c(0.60)} 20%,
+            ${c(0.35)} 35%,
+            ${c(0.18)} 50%,
+            ${c(0.08)} 65%,
+            ${c(0.02)} 80%,
+            rgba(0,0,0,0) 95%
+          )`,
+          transition: 'background 1.2s ease-in-out'
         }}
-        className="absolute inset-x-0 top-0 h-[140vh] pointer-events-none -z-10"
+        className="absolute inset-x-0 top-0 h-[220vh] pointer-events-none -z-10"
+      />
+      {/* ── Layer 2: Wide radial spotlight centred on the card ── */}
+      <div
+        style={{
+          background: `radial-gradient(ellipse 110% 65% at 50% 20%, ${c(0.8)} 0%, ${c(0.2)} 50%, transparent 70%)`,
+          transition: 'background 1.2s ease-in-out',
+        }}
+        className="absolute inset-x-0 top-0 h-[130vh] pointer-events-none -z-10"
+      />
+      {/* ── Layer 3: Tight hot-spot glow at the very top ── */}
+      <div
+        style={{
+          background: `radial-gradient(ellipse 75% 30% at 50% 8%, ${c(0.7)} 0%, transparent 60%)`,
+          transition: 'background 1.2s ease-in-out',
+        }}
+        className="absolute inset-x-0 top-0 h-[55vh] pointer-events-none -z-10"
       />
       {/* Poster/Backdrop Card */}
       <div 
         onClick={() => onSelect(movie)}
-        className="w-full max-w-[360px] aspect-[2/2.8] relative rounded-xl overflow-hidden border border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.9)] cursor-pointer active:scale-[0.98] transition-transform duration-200"
+        className="w-full max-w-[440px] aspect-[2/2.9] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] transition-transform duration-200"
       >
         {/* Background Image (Textless poster, cropped backdrop, or fallback standard poster) */}
         <img 

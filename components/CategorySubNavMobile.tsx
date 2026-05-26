@@ -175,7 +175,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
 
             {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid background */}
             <div
-                style={{ backgroundColor: 'rgba(20, 20, 20, 1)' }}
+                style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
                 className={`fixed top-[calc(56px+env(safe-area-inset-top))] left-0 right-0 z-[79] pt-2 pb-4 flex items-center justify-start space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full transition-all duration-300 ease-out ${
                     showTemp 
                         ? 'opacity-100 translate-y-0 pointer-events-auto' 
@@ -191,7 +191,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                     className="fixed top-[calc(118px+env(safe-area-inset-top))] right-6 z-[115] animate-fadeIn"
                     role="listbox"
                 >
-                    <div className="w-[290px] sm:w-[330px] max-w-[calc(100vw-3rem)] max-h-[78vh] overflow-y-auto bg-[#181818] border border-white/10 rounded-lg py-4 px-6 shadow-2xl scrollbar-hide">
+                    <div className="w-[290px] sm:w-[330px] max-w-[calc(100vw-3rem)] max-h-[78vh] overflow-y-auto bg-black border border-white/10 rounded-lg py-4 px-6 shadow-2xl scrollbar-hide">
                         <div className="flex flex-col gap-y-4">
                             {genres.map((genre) => (
                                 <button

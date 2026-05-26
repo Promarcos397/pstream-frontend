@@ -322,7 +322,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     return (
         <div
-            className="fixed inset-0 z-[10000] bg-black/70 flex justify-center overflow-y-auto backdrop-blur-[1px] scrollbar-hide animate-fadeIn cursor-default"
+            className="fixed inset-0 z-[10000] bg-black/70 flex justify-center overflow-y-auto scrollbar-hide animate-fadeIn cursor-default"
             onClick={handleClose}
         >
             <div

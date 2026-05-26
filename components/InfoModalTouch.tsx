@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
+import { PlayIcon, PauseIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import { Movie, Episode } from '../types';
 import { IMG_PATH, REQUESTS } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -13,6 +13,7 @@ import { useMovieData } from '../hooks/useMovieData';
 import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
 import { useTasteEngine } from '../hooks/useTasteEngine';
+import { MaturityBadge } from './MovieCardBadges';
 
 interface InfoModalTouchProps {
     movie: Movie | null;
@@ -52,11 +53,23 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const backdropForcedRef = useRef(false);
 
+    // Advanced spotlight-style player states/refs
+    const playerInstanceRef = useRef<any>(null);
+    const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [showControls, setShowControls] = useState(false);
+    const [isVideoPaused, setIsVideoPaused] = useState(false);
+    const [trailerPct, setTrailerPct] = useState(0);
+    const [currentTimeSec, setCurrentTimeSec] = useState(0);
+    const [durationSec, setDurationSec] = useState(0);
+
     const [episodes, setEpisodes] = useState<Episode[]>([]);
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
     
     const [activeMobileTab, setActiveMobileTab] = useState<'episodes' | 'more'>('episodes');
+
+    const [isDescExpanded, setIsDescExpanded] = useState(false);
+    const [isEpTitleExpanded, setIsEpTitleExpanded] = useState(false);
 
     const heroRef = useRef<HTMLDivElement>(null);
 
@@ -82,6 +95,17 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
             setSelectedSeason(1);
             setReplayCount(0);
             setOverrideMovie(null);
+
+            // Reset player states
+            setIsVideoPaused(false);
+            setTrailerPct(0);
+            setCurrentTimeSec(0);
+            setDurationSec(0);
+            setShowControls(false);
+
+            // Reset description/episode title expansion states
+            setIsDescExpanded(false);
+            setIsEpTitleExpanded(false);
 
             import('../hooks/useTrailer').then(({ preloadTrailer }) => {
                 preloadTrailer(movie);
@@ -120,11 +144,16 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
             const visible = isVisible();
             if (visible && isIntersectingRef.current) {
                 setActiveVideoId(`modal-${movie.id}`);
+                setIsVideoPaused(false); // Sync state: video resumes when scrolling back up
                 if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
                 backdropForcedRef.current = false;
                 setShowBackdropOverlay(false);
             } else {
                 setActiveVideoId(`paused-modal-${movie.id}`);
+                if (playerInstanceRef.current) {
+                    try { playerInstanceRef.current.pauseVideo(); } catch {}
+                }
+                setIsVideoPaused(true); // Sync state: video pauses when scrolling down
                 if (!visible) {
                     if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
                     visibilityTimerRef.current = setTimeout(() => {
@@ -177,6 +206,9 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
         setSelectedSeason(1);
         setReplayCount(c => c + 1);
 
+        setIsDescExpanded(false);
+        setIsEpTitleExpanded(false);
+
         import('../hooks/useTrailer').then(({ preloadTrailer }) => {
             preloadTrailer(rec);
         });
@@ -192,6 +224,73 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
 
     const handleClose = () => {
         onClose();
+    };
+
+    const handleMediaTap = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isActuallyPlaying) {
+            if (isVideoPaused) {
+                // Resume play immediately on tapping the paused video!
+                const player = playerInstanceRef.current;
+                if (player) {
+                    try { player.playVideo(); } catch {}
+                    setIsVideoPaused(false);
+                }
+                openControls();
+            } else if (hasVideoEnded) {
+                // Replay video immediately on tapping the ended video!
+                clearVideoState(activeMovie.id);
+                setHasVideoEnded(false);
+                setIsPlayingTrailer(true);
+                setReplayCount(c => c + 1);
+            } else {
+                // If playing, tapping shows/hides controls or toggles play/pause
+                if (showControls) {
+                    setShowControls(false);
+                } else {
+                    openControls();
+                }
+            }
+        } else {
+            setIsPlayingTrailer(true);
+            setIsActuallyPlaying(true);
+            setHasVideoEnded(false);
+        }
+    };
+
+    const openControls = () => {
+        setShowControls(true);
+        if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+        controlsTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+    };
+
+    const handlePlayPause = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const player = playerInstanceRef.current;
+        if (!player) return;
+        if (isVideoPaused) {
+            try { player.playVideo(); } catch {}
+            setIsVideoPaused(false);
+        } else {
+            try { player.pauseVideo(); } catch {}
+            setIsVideoPaused(true);
+        }
+        openControls();
+    };
+
+    const handleScrub = (e: React.MouseEvent<HTMLDivElement> | React.PointerEvent<HTMLDivElement>) => {
+        e.stopPropagation();
+        if (!playerInstanceRef.current || !durationSec) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        try { playerInstanceRef.current.seekTo(pct * durationSec, true); } catch {}
+        openControls();
+    };
+
+    const fmtTime = (s: number) => {
+        const m = Math.floor(s / 60);
+        const sec = Math.floor(s % 60);
+        return `${m}:${sec.toString().padStart(2, '0')}`;
     };
 
     const savedMovieState = getVideoState(activeMovieProp.id);
@@ -229,34 +328,35 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     const ageRating = activeMovie.adult ? '18' : (activeMovie.vote_average ?? 0) >= 7.5 ? '16' : '13';
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-[#121212] overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pb-12">
-            {/* Back button */}
-            <button
-                type="button"
-                onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleClose();
-                }}
-                className="fixed top-[calc(16px+env(safe-area-inset-top))] left-4 w-11 h-11 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-white/10 active:scale-95 transition-all duration-200 z-[10010] shadow-lg cursor-pointer"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.8" stroke="currentColor" className="w-5.5 h-5.5 text-white">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
-            </button>
+        <div className="fixed inset-0 z-[10000] bg-black overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pt-[calc(68px+env(safe-area-inset-top))] pb-[calc(96px+env(safe-area-inset-bottom))]">
+            {/* Top Navigation Bar — solid background, Netflix style back arrow */}
+            <div className="fixed top-0 left-0 right-0 h-[calc(68px+env(safe-area-inset-top))] bg-black border-b border-white/[0.04] flex items-center px-3 pt-[env(safe-area-inset-top)] z-[10010] shadow-md">
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleClose();
+                    }}
+                    className="text-white active:scale-95 transition-all duration-200 p-2 cursor-pointer flex items-center justify-center"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-[26px] h-[26px] text-white">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                    </svg>
+                </button>
+            </div>
 
-            {/* Media Container Banner */}
-            <div ref={heroRef} className="relative aspect-video w-full bg-black overflow-hidden shrink-0 mt-0">
+            {/* Media Container Banner — clickable media player */}
+            <div 
+                ref={heroRef} 
+                className="relative aspect-video w-full bg-black overflow-hidden shrink-0 mt-0 cursor-pointer"
+                onClick={handleMediaTap}
+            >
                 <img
                     src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
-                    className={`w-full h-full object-cover transition-opacity duration-400 ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
+                    className={`w-full h-full object-cover transition-opacity duration-400 ${isActuallyPlaying && !showBackdropOverlay ? 'opacity-0' : 'opacity-100'}`}
                     alt="modal hero mobile"
                 />
-                
-                {/* Preview overlay badge */}
-                <div className="absolute top-4 right-4 bg-black/55 border border-white/15 px-2.5 py-0.5 rounded-[3px] text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-[2px]">
-                    Preview
-                </div>
 
                 <div className={`absolute inset-0 transition-opacity duration-300 overflow-hidden ${isActuallyPlaying && !showBackdropOverlay ? 'opacity-100' : 'opacity-0'}`}>
                     <TrailerPlayer 
@@ -264,7 +364,10 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                         movie={activeMovie} 
                         variant="modal"
                         onReady={() => setIsPlayingTrailer(true)}
-                        onPlay={() => setIsActuallyPlaying(true)}
+                        onPlay={() => {
+                            setIsActuallyPlaying(true);
+                            setIsVideoPaused(false); // Double-safety: enforce unpaused when play state begins/resumes
+                        }}
                         onEnded={() => {
                             setIsPlayingTrailer(false);
                             setIsActuallyPlaying(false);
@@ -274,50 +377,129 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                             setIsPlayingTrailer(false);
                             setIsActuallyPlaying(false);
                         }}
+                        onPlayerReady={p => { playerInstanceRef.current = p; }}
+                        onTimeUpdate={(currentTime, duration) => {
+                            setCurrentTimeSec(currentTime);
+                            setDurationSec(duration);
+                            const usable = Math.max(duration - 8, 1);
+                            setTrailerPct(Math.min(100, (currentTime / usable) * 100));
+                        }}
                     />
                 </div>
 
-                {/* Cinematic bottom gradient */}
-                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#121212] to-transparent z-10 pointer-events-none" />
+                {/* Circular play icon overlay when paused/stopped (only shows after first play has been triggered) */}
+                {isActuallyPlaying && (isVideoPaused || hasVideoEnded) && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+                        <div className="w-[64px] h-[64px] rounded-full bg-black/50 border border-white/20 flex items-center justify-center shadow-2xl transition-all duration-300">
+                            <PlayIcon size={32} weight="fill" className="text-white ml-1" />
+                        </div>
+                    </div>
+                )}
 
-                {(isPlayingTrailer || hasVideoEnded) && (
-                    <button onClick={(e) => { 
-                        e.stopPropagation(); 
-                        if (hasVideoEnded) { 
-                            clearVideoState(activeMovie.id);
-                            setHasVideoEnded(false); 
-                            setIsPlayingTrailer(true); 
-                            setReplayCount(c => c + 1); 
-                        } else { 
-                            setGlobalMute(!globalMute); 
-                        } 
-                    }} className="absolute bottom-4 right-4 z-30 w-9 h-9 rounded-full border border-white/30 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 active:scale-95 shadow-xl pointer-events-auto cursor-pointer">
+                {/* Controls overlay in center when playing */}
+                {isActuallyPlaying && !isVideoPaused && showControls && (
+                    <div className="absolute inset-0 bg-black/25 z-20 flex items-center justify-center">
+                        <button
+                            onClick={handlePlayPause}
+                            className="w-[60px] h-[60px] rounded-full bg-black/50 border border-white/20 flex items-center justify-center active:scale-90 transition-transform z-30 pointer-events-auto cursor-pointer"
+                        >
+                            <PauseIcon size={30} weight="fill" className="text-white" />
+                        </button>
+                    </div>
+                )}
+
+                {/* Mute button */}
+                {isActuallyPlaying && !showBackdropOverlay && (
+                    <button 
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (hasVideoEnded) { 
+                                clearVideoState(activeMovie.id);
+                                setHasVideoEnded(false); 
+                                setIsPlayingTrailer(true); 
+                                setReplayCount(c => c + 1); 
+                            } else { 
+                                setGlobalMute(!globalMute); 
+                            } 
+                        }} 
+                        className="absolute bottom-4 right-4 z-30 w-9 h-9 rounded-full border border-white/30 bg-zinc-900/40 flex items-center justify-center transition-all duration-300 hover:bg-white/10 active:scale-95 shadow-xl pointer-events-auto cursor-pointer"
+                    >
                         {hasVideoEnded ? <ArrowCounterClockwiseIcon size={18} className="text-white" /> : globalMute ? <SpeakerSlashIcon size={18} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />}
                     </button>
                 )}
+
+                {/* Passive/Active Scrubbing Progress Bar */}
+                {isActuallyPlaying && !showBackdropOverlay && (
+                    <div
+                        className="absolute left-0 right-0 z-30 transition-all duration-300 ease-out"
+                        style={{
+                            bottom: showControls ? '44px' : '0px',
+                            padding: showControls ? '0 16px' : '0',
+                            height: showControls ? '20px' : '2px',
+                        }}
+                    >
+                        {showControls ? (
+                            <div
+                                className="relative w-full h-full flex items-center cursor-pointer touch-none select-none pointer-events-auto"
+                                onClick={handleScrub}
+                                onPointerMove={e => {
+                                    if (e.buttons !== 1) return;
+                                    handleScrub(e);
+                                }}
+                            >
+                                <div className="relative w-full h-[3px] bg-white/25 rounded-full">
+                                    <div
+                                        className="absolute left-0 top-0 bottom-0 bg-[#e50914] rounded-full"
+                                        style={{ width: `${trailerPct}%` }}
+                                    />
+                                    <div
+                                        className="absolute top-1/2 -translate-y-1/2 w-[12px] h-[12px] bg-[#e50914] rounded-full shadow-lg pointer-events-none"
+                                        style={{ left: `calc(${trailerPct}% - 6px)` }}
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="w-full h-full bg-white/10 relative overflow-hidden">
+                                <div
+                                    className="absolute top-0 left-0 bottom-0 bg-[#e50914] transition-[width] duration-500 ease-linear"
+                                    style={{ width: `${trailerPct}%` }}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Time Display */}
+                {isActuallyPlaying && !showBackdropOverlay && showControls && (
+                    <div className="absolute z-30 pointer-events-none" style={{ bottom: '68px', right: '20px' }}>
+                        <span className="text-white text-[13px] font-semibold tracking-wide drop-shadow-md tabular-nums">
+                            {fmtTime(currentTimeSec)}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {/* Details Content Container */}
-            <div className="px-4.5 pt-3 pb-8 flex flex-col gap-y-4">
+            {/* Details Content Container — margins/padding aligned consistently */}
+            <div className="px-3 pt-[10px] pb-8 flex flex-col gap-y-[16px] bg-black">
                 {/* Text Title */}
-                <h2 className="text-2xl font-black font-netflix text-white tracking-wide leading-tight pt-0.5">
+                <h2 className="text-[25px] font-black font-netflix text-white tracking-wide leading-tight pt-0.5">
                     {activeMovie.title || activeMovie.name}
                 </h2>
 
-                {/* Meta Row (No 88% Match) */}
-                <div className="flex items-center gap-x-3 text-[14px] font-bold text-[#a3a3a3] flex-wrap gap-y-2">
-                    <span className="text-white font-extrabold">{year}</span>
+                {/* Meta Row (bigger, less bold) */}
+                <div className="flex items-center gap-x-3 text-[17px] font-medium text-white/70 flex-wrap gap-y-2">
+                    <span className="text-white/70 font-normal">{year}</span>
                     
-                    {/* Rounded grey maturity rating block matching screenshot */}
-                    <span className="bg-zinc-800 text-gray-300 font-extrabold px-1.5 py-0.5 rounded-[3px] border border-gray-600 text-[11.5px] leading-none select-none shrink-0">
-                        {ageRating}+
-                    </span>
+                    {/* Circular rating badge from MovieCardBadges */}
+                    <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} size="xs" />
 
-                    <span className="text-white font-extrabold">{duration}</span>
-                    <span className="border border-white/30 px-1.5 py-0.5 text-[9px] rounded-[2px] text-gray-300 font-extrabold leading-none">HD</span>
+                    <span className="text-white/70 font-normal">{duration}</span>
+                    
+                    {/* High-contrast HD badge with background */}
+                    <span className="border-[1.5px] border-white/90 bg-white/15 px-1.5 py-0.5 text-[12px] rounded-[2px] text-white font-bold leading-none tracking-wider shrink-0 select-none shadow-[0_1px_3px_rgba(0,0,0,0.4)]">HD</span>
                 </div>
 
-                {/* Primary CTA Play/Resume Button (White full-width) */}
+                {/* Primary CTA Play/Resume Button — bigger, less rounded, matching margins */}
                 <div className="w-full">
                     {(() => {
                         let watchUrl = `/watch/${mediaType}/${activeMovie.id}`;
@@ -329,37 +511,22 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                         return (
                             <Link
                                 to={watchUrl}
-                                className="w-full bg-white text-black h-[45px] rounded-[4px] font-extrabold text-[15px] flex items-center justify-center hover:bg-gray-200 transition active:scale-[0.98] shadow-md leading-none no-underline gap-2"
+                                className="w-full bg-white text-black h-[50px] rounded-[2px] font-extrabold text-[17px] flex items-center justify-center hover:bg-gray-200 transition active:scale-[0.98] shadow-md leading-none no-underline gap-2 cursor-pointer"
                             >
-                                <PlayIcon size={22} weight="fill" />
+                                <PlayIcon size={26} weight="fill" className="text-black" />
                                 <span>{hasResumeTV ? `Resume` : hasResumeMovie ? 'Resume' : 'Play'}</span>
                             </Link>
                         );
                     })()}
                 </div>
 
-                {/* Secondary CTA button ("My List" as full-width dark grey button) */}
-                <button
-                    onClick={() => toggleList(activeMovie)}
-                    className="w-full bg-[#2a2a2a] hover:bg-[#333333] border border-white/5 text-white h-[45px] rounded-[4px] font-extrabold text-[15px] flex items-center justify-center transition active:scale-[0.98] gap-2.5"
-                >
-                    {isAdded ? (
-                        <>
-                            <CheckIcon size={20} weight="bold" />
-                            <span>In My List</span>
-                        </>
-                    ) : (
-                        <>
-                            <PlusIcon size={20} weight="bold" />
-                            <span>My List</span>
-                        </>
-                    )}
-                </button>
-
-                {/* TV Last-Watched progress block (Flat, borderless directly on black) */}
+                {/* TV Last-Watched progress block — borderless, direct on black */}
                 {mediaType === 'tv' && (
                     <div className="flex flex-col gap-y-1.5 mt-2">
-                        <h3 className="text-[15px] font-extrabold text-white leading-none tracking-wide">
+                        <h3 
+                            onClick={() => setIsEpTitleExpanded(!isEpTitleExpanded)}
+                            className={`text-[15px] font-extrabold text-white leading-snug tracking-wide cursor-pointer transition-all duration-300 ${isEpTitleExpanded ? '' : 'line-clamp-2'}`}
+                        >
                             S{lastEpSeason}:E{lastEpNum} {epName}
                         </h3>
                         
@@ -371,21 +538,24 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                                     style={{ width: `${watchPct || 35}%` }} 
                                 />
                             </div>
-                            <span className="text-white/40 text-[11px] font-extrabold shrink-0 leading-none">{remainingText}</span>
+                            <span className="text-white/80 text-[15px] font-medium shrink-0 leading-none">{remainingText}</span>
                         </div>
                     </div>
                 )}
 
-                {/* Description overview */}
-                <p className="text-[#e5e5e5] font-normal text-[14px] leading-[1.65] pt-0.5 select-text">
+                {/* Description overview — more whiter */}
+                <p 
+                    onClick={() => setIsDescExpanded(!isDescExpanded)}
+                    className={`text-white/90 font-normal text-[18px] leading-[1.65] pt-0.5 select-text cursor-pointer transition-all duration-300 ${isDescExpanded ? '' : 'line-clamp-4'}`}
+                >
                     {activeMovie.overview || "No overview description available."}
                 </p>
 
-                {/* Cast List (80% transparent = text-white/50) */}
+                {/* Cast List & Creators */}
                 {cast && cast.length > 0 && (
-                    <div className="text-[13px] leading-[1.7] pt-0.5 select-text flex flex-col">
+                    <div className="text-[16px] leading-[1.7] pt-0.5 select-text flex flex-col text-white/70 font-normal">
                         <div className="flex flex-wrap gap-x-1">
-                            <span className="text-white/50 font-bold mr-1">Cast:</span>
+                            <span className="text-white/70 font-medium mr-1">Cast:</span>
                             {cast.slice(0, 4).map((actor, i, arr) => (
                                 <React.Fragment key={actor}>
                                     <span
@@ -393,25 +563,26 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                                             handleClose();
                                             triggerSearch(navigate, actor);
                                         }}
-                                        className="text-white/50 font-semibold hover:underline hover:text-white cursor-pointer"
+                                        className="text-white/70 font-normal hover:underline hover:text-white cursor-pointer"
                                     >
                                         {actor}
                                     </span>
-                                    {i < arr.length - 1 ? <span className="text-white/50 font-semibold">, </span> : null}
+                                    {i < arr.length - 1 ? <span className="text-white/70 font-normal">, </span> : null}
                                 </React.Fragment>
                             ))}
                         </div>
-                        <div className="text-white/50 font-bold">
-                            Creators: Daniel J. Goor, Michael Schur
+                        <div className="text-white/70">
+                            <span className="font-medium mr-1">Creators:</span>
+                            <span className="font-normal">Daniel J. Goor, Michael Schur</span>
                         </div>
                     </div>
                 )}
 
-                {/* Utility Icons Bar matching screenshot: My List, Rate (Cycle tap), Share (copy clean URL) */}
-                <div className="flex items-center justify-start gap-x-12 mt-4 px-2 py-1 select-none">
+                {/* Utility Icons Bar: My List, Rate (Cycle tap), Share */}
+                <div className="flex items-center justify-start gap-x-12 mt-1 px-2 py-1 select-none">
                     <button
                         onClick={() => toggleList(activeMovie)}
-                        className="flex flex-col items-center gap-y-1 text-[11px] font-bold text-white/60 active:scale-95 transition-all"
+                        className="flex flex-col items-center gap-y-1 text-[11px] font-bold text-white/60 active:scale-95 transition-all cursor-pointer"
                     >
                         {isAdded ? (
                             <CheckIcon size={24} weight="bold" className="text-white" />
@@ -428,7 +599,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                                 const next = current === 'like' ? 'dislike' : current === 'dislike' ? 'love' : current === 'love' ? undefined : 'like';
                                 rateMovie(activeMovie, next as any);
                             }}
-                            className="flex items-center justify-center w-[24px] h-[24px] active:scale-95 transition-all"
+                            className="flex items-center justify-center w-[24px] h-[24px] active:scale-95 transition-all cursor-pointer"
                             title="Rate title"
                         >
                             {(() => {
@@ -447,7 +618,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                             navigator.clipboard.writeText(url);
                             alert("Link copied to clipboard!");
                         }}
-                        className="flex flex-col items-center gap-y-1 text-[11px] font-bold text-white/60 active:scale-95 transition-all"
+                        className="flex flex-col items-center gap-y-1 text-[11px] font-bold text-white/60 active:scale-95 transition-all cursor-pointer"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.3" stroke="currentColor" className="w-[22px] h-[22px] text-white">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
@@ -456,8 +627,8 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                     </button>
                 </div>
 
-                {/* Double Tabs section at the bottom */}
-                <div className="flex border-b border-white/10 gap-x-6 text-[15px] font-bold text-gray-400 mt-6 mb-2">
+                {/* Double Tabs section at the bottom — overlapping red line selection indicator */}
+                <div className="relative flex border-b border-white/25 gap-x-6 text-[15px] font-bold text-gray-400 mt-3 mb-1">
                     {mediaType === 'tv' && (
                         <button
                             onClick={() => setActiveMobileTab('episodes')}
@@ -465,7 +636,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                         >
                             Episodes
                             {activeMobileTab === 'episodes' && (
-                                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#e50914] rounded-t-full" />
+                                <div className="absolute left-0 right-0 h-[4px] bg-[#e50914] rounded-none" style={{ bottom: '-1px' }} />
                             )}
                         </button>
                     )}
@@ -475,13 +646,13 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                     >
                         More Like This
                         {activeMobileTab === 'more' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#e50914] rounded-t-full" />
+                            <div className="absolute left-0 right-0 h-[4px] bg-[#e50914] rounded-none" style={{ bottom: '-1px' }} />
                         )}
                     </button>
                 </div>
 
                 {/* Tab contents */}
-                <div className="mt-2">
+                <div className="mt-1">
                     {activeMobileTab === 'episodes' && mediaType === 'tv' && (
                         <InfoModalEpisodesTouch
                             movie={activeMovie}

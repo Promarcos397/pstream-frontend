@@ -97,7 +97,7 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
 
             {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid background */}
             <div
-                style={{ backgroundColor: 'rgba(20, 20, 20, 1)' }}
+                style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
                 className={`fixed top-[calc(56px+env(safe-area-inset-top))] left-0 right-0 z-[79] pt-2 pb-4 flex items-center justify-start space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full transition-all duration-300 ease-out ${
                     showTemp 
                         ? 'opacity-100 translate-y-0 pointer-events-auto' 

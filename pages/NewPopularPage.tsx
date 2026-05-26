@@ -30,7 +30,7 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll 
 
   // Desktop layout — unchanged
   return (
-    <div className="relative min-h-screen bg-[#141414]">
+    <div className="relative min-h-screen bg-black md:bg-[#141414]">
       {/* Spacer for fixed Navbar */}
       <div className="h-20 sm:h-24 md:h-32" />
 

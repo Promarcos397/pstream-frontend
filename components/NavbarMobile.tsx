@@ -74,7 +74,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       {/* Mobile Top Header (Netflix style) */}
       <header
         style={{
-          backgroundColor: `rgba(20, 20, 20, ${opacity})`
+          backgroundColor: `rgba(0, 0, 0, ${opacity})`
         }}
         className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0"
       >
@@ -130,7 +130,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       </header>
 
       {/* Mobile Bottom Navigation Bar (Solid dark rectangle at the bottom) */}
-      <div className="fixed bottom-0 left-0 right-0 z-[90] w-full bg-[#141414] pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 px-4 shadow-[0_-4px_24px_rgba(0,0,0,0.5)] border-none">
+      <div className="fixed bottom-0 left-0 right-0 z-[10020] w-full bg-[#121212] pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 px-4 shadow-[0_-4px_24px_rgba(0,0,0,0.5)] border-none">
         <div className="grid grid-cols-4 items-center justify-around w-full">
           {/* Home */}
           <div

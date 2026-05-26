@@ -115,7 +115,7 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
   };
 
   return (
-    <div className="bg-[#141414] min-h-screen pb-16 pt-[calc(4rem+env(safe-area-inset-top))] md:pt-28">
+    <div className="bg-black md:bg-[#141414] min-h-screen pb-16 pt-[calc(4rem+env(safe-area-inset-top))] md:pt-28">
       <div className="px-4 md:px-10 lg:px-14 pt-4">
 
         {/* Header */}

@@ -160,7 +160,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
     };
 
     return (
-        <div className="relative min-h-screen bg-white flex flex-col font-inter pt-16 md:pt-20">
+        <div className="relative min-h-screen bg-black md:bg-white flex flex-col font-inter pt-16 md:pt-20">
 
             {/* ── Main Content Area (Centered) ────────────────── */}
             <main className={`w-full max-w-[1100px] mx-auto px-6 lg:px-12 py-8 md:py-12 flex flex-col lg:flex-row gap-8 lg:gap-16`}>
@@ -169,12 +169,12 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
                 <div className="flex-shrink-0 lg:pt-1.5 flex items-center lg:items-start animate-slideInLeft">
                     <button 
                         onClick={handleBack}
-                        className="p-2 lg:p-0 -ml-2 lg:ml-0 bg-transparent border-none text-gray-900 cursor-pointer hover:scale-110 active:scale-95 transition-transform"
+                        className="p-2 lg:p-0 -ml-2 lg:ml-0 bg-transparent border-none text-white md:text-gray-900 cursor-pointer hover:scale-110 active:scale-95 transition-transform"
                     >
                         <ArrowLeftIcon size={28} weight="bold" />
                     </button>
                     {isMobile && currentView !== 'overview' && (
-                        <h2 className="ml-2 text-lg md:text-xl font-bold text-gray-900 truncate max-w-[250px]">
+                        <h2 className="ml-2 text-lg md:text-xl font-bold text-white md:text-gray-900 truncate max-w-[250px]">
                             {title}
                         </h2>
                     )}
@@ -236,12 +236,12 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
     };
 
     return (
-        <div className="text-gray-900 max-w-[640px] w-full animate-fadeIn">
+        <div className="text-white md:text-gray-900 max-w-[640px] w-full animate-fadeIn">
             {/* Avatar + Name row */}
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 sm:gap-7 mb-10 mt-5">
                 {/* Clickable avatar */}
                 <div
-                    className="relative cursor-pointer w-[120px] h-[120px] rounded-md overflow-hidden bg-gray-200 shrink-0 shadow-sm group hover:ring-4 hover:ring-gray-100 transition-all active:scale-95"
+                    className="relative cursor-pointer w-[120px] h-[120px] rounded-md overflow-hidden bg-white/10 md:bg-gray-200 shrink-0 shadow-sm group hover:ring-4 hover:ring-white/20 md:hover:ring-gray-100 transition-all active:scale-95"
                     onClick={() => navigate('/settings/profile/avatar')}
                 >
                     <img
@@ -257,8 +257,8 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
 
                 {/* Name input - Labeled Box Style */}
                 <div className="flex-1 w-full flex flex-col gap-4">
-                    <div className="border border-gray-400 rounded-sm px-3.5 pt-1.5 pb-2 transition-shadow duration-200 bg-white focus-within:ring-2 focus-within:ring-black">
-                        <label className="block text-[11px] text-gray-500 mb-0.5 font-medium">
+                    <div className="border border-white/20 md:border-gray-400 rounded-sm px-3.5 pt-1.5 pb-2 transition-shadow duration-200 bg-white/5 md:bg-white focus-within:ring-2 focus-within:ring-white md:focus-within:ring-black">
+                        <label className="block text-[11px] text-white/50 md:text-gray-500 mb-0.5 font-medium">
                             {t('settings.profileName', { defaultValue: 'Profile name' })}
                         </label>
                         <input
@@ -267,28 +267,28 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
                             onChange={(e) => setDisplayName(e.target.value)}
                             onBlur={handleSaveName}
                             placeholder={t('settings.enterName', { defaultValue: 'Enter your name' })}
-                            className="w-full p-0 border-none text-[15px] md:text-[16px] font-medium text-gray-900 outline-none bg-transparent"
+                            className="w-full p-0 border-none text-[15px] md:text-[16px] font-medium text-white md:text-gray-900 outline-none bg-transparent placeholder:text-white/30 md:placeholder:text-gray-400"
                         />
                     </div>
-                    <p className="text-[13px] text-gray-500 leading-relaxed max-w-md">
+                    <p className="text-[13px] text-white/40 md:text-gray-500 leading-relaxed max-w-md">
                         {t('settings.nameVisibilityDesc', { defaultValue: 'This name will be shown on all your profiles and shared watch lists.' })}
                     </p>
                 </div>
             </div>
 
-            <div className="h-px bg-gray-200 mb-10 w-full" />
+            <div className="h-px bg-white/10 md:bg-gray-200 mb-10 w-full" />
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4">
                 <button
                     onClick={() => { handleSaveName(); navigate('/settings/overview'); }}
-                    className="px-12 py-3 bg-[#111] text-white border-none rounded-sm text-base font-bold cursor-pointer hover:bg-black transition-colors active:scale-95"
+                    className="px-12 py-3 bg-white md:bg-[#111] text-black md:text-white border-none rounded-sm text-base font-bold cursor-pointer hover:bg-white/90 md:hover:bg-black transition-colors active:scale-95"
                 >
                     {t('common.save', { defaultValue: 'Save' })}
                 </button>
                 <button
                     onClick={() => navigate('/settings/overview')}
-                    className="px-12 py-3 bg-transparent text-gray-600 border border-gray-300 rounded-sm text-base font-bold cursor-pointer hover:bg-gray-50 transition-colors active:scale-95"
+                    className="px-12 py-3 bg-transparent text-white/60 md:text-gray-600 border border-white/20 md:border-gray-300 rounded-sm text-base font-bold cursor-pointer hover:bg-white/5 md:hover:bg-gray-50 transition-colors active:scale-95"
                 >
                     {t('common.cancel', { defaultValue: 'Cancel' })}
                 </button>
@@ -310,16 +310,16 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
     };
 
     return (
-        <div className="text-gray-900 max-w-[1100px] w-full animate-fadeIn pb-20">
+        <div className="text-white md:text-gray-900 max-w-[1100px] w-full animate-fadeIn pb-20">
             {/* Current avatar — "History" row */}
             {settings.avatarUrl && (
                 <div className="mb-12">
-                    <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 px-1">
+                    <h3 className="text-xl md:text-2xl font-bold text-white md:text-gray-900 mb-4 px-1">
                         {t('settings.history', { defaultValue: 'History' })}
                     </h3>
                     <div className="px-1">
                         <div 
-                            className="w-[114px] h-[114px] rounded-md overflow-hidden border-[3px] border-gray-900 bg-gray-200 shadow-md"
+                            className="w-[114px] h-[114px] rounded-md overflow-hidden border-[3px] border-white md:border-gray-900 bg-white/10 md:bg-gray-200 shadow-md"
                         >
                             <SafeImage src={settings.avatarUrl} className="w-full h-full object-cover block" />
                         </div>
@@ -330,7 +330,7 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
             {/* Category rows */}
             {AVATAR_CATEGORIES.map((category) => (
                 <div key={category.id} className="mb-12 relative group/row">
-                    <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 px-1">
+                    <h3 className="text-xl md:text-2xl font-bold text-white md:text-gray-900 mb-4 px-1">
                         {category.name}
                     </h3>
                     
@@ -347,8 +347,8 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
                                         key={avatar.url}
                                         onClick={() => handleSelectAvatar(avatar.url)}
                                         title={avatar.name}
-                                        className={`w-[114px] h-[114px] min-w-[114px] rounded-md overflow-hidden cursor-pointer transition-all duration-300 bg-gray-200 shadow-sm
-                                            ${isSelected ? 'ring-4 ring-gray-900 scale-[0.98]' : 'hover:scale-[1.05]'}`}
+                                        className={`w-[114px] h-[114px] min-w-[114px] rounded-md overflow-hidden cursor-pointer transition-all duration-300 bg-white/10 md:bg-gray-200 shadow-sm
+                                            ${isSelected ? 'ring-4 ring-white md:ring-gray-900 scale-[0.98]' : 'hover:scale-[1.05]'}`}
                                     >
                                         <SafeImage
                                             src={avatar.url} alt={avatar.name}
@@ -359,8 +359,8 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
                             })}
                         </div>
                         
-                        {/* Right fade indicator - hidden on scroll if possible but simple CSS fade works best */}
-                        <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-white/90 to-transparent pointer-events-none rounded-r-md hidden sm:block" />
+                        {/* Right fade indicator */}
+                        <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-black/80 md:from-white/90 to-transparent pointer-events-none rounded-r-md hidden sm:block" />
                     </div>
                 </div>
             ))}
