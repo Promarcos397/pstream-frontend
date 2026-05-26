@@ -807,128 +807,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, [season, episode]);
 
     // ——— Keyboard shortcuts ————————————————————————————————————————————————————————
-    useEffect(() => {
-        const handleKey = (e: KeyboardEvent) => {
-            if (activePanel !== 'none') return;
-            if (e.repeat) return;
-
-            // Ignore shortcuts if the user is typing in an input/textarea
-            const target = e.target as HTMLElement;
-            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-                return;
-            }
-
-            const key = e.key.toLowerCase();
-            const playbackKeys = [' ', 'arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'k', 'l', 'j', 'm'];
-            if (playbackKeys.includes(key)) {
-                wasmAudio.ensureActivated();
-            }
-
-            switch (e.key) { // Keep exact matching for special/cased keys
-                case 'Escape':
-                    e.preventDefault();
-                    if (isFullscreen || isPseudoFullscreen) {
-                        toggleFullscreen();
-                    } else if (onClose) {
-                        onClose();
-                    }
-                    break;
-                case ' ':
-                    e.preventDefault();
-                    if (videoRef.current) {
-                        videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
-                        setPpRippleTrigger(t => t + 1);
-                        showControls();
-                    }
-                    break;
-                case 'ArrowRight':
-                    e.preventDefault();
-                    if (videoRef.current) {
-                        videoRef.current.currentTime += 10;
-                        setSeekFlash({ side: 'right', ts: Date.now() });
-                        setTimeout(() => setSeekFlash(null), 450);
-                        showControls();
-                    }
-                    break;
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    if (videoRef.current) {
-                        videoRef.current.currentTime -= 10;
-                        setSeekFlash({ side: 'left', ts: Date.now() });
-                        setTimeout(() => setSeekFlash(null), 450);
-                        showControls();
-                    }
-                    break;
-                case 'ArrowUp':
-                case 'ArrowDown':
-                    e.preventDefault();
-                    if (videoRef.current) {
-                        videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
-                    }
-                    break;
-                default:
-                    // Normalize all letter keys to lowercase to support Caps Lock / Shift modifiers
-                    switch (key) {
-                        case 'k':
-                            e.preventDefault();
-                            if (videoRef.current) {
-                                videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
-                                setPpRippleTrigger(t => t + 1);
-                                showControls();
-                            }
-                            break;
-                        case 'l':
-                            e.preventDefault();
-                            if (videoRef.current) {
-                                videoRef.current.currentTime += 10;
-                                setSeekFlash({ side: 'right', ts: Date.now() });
-                                setTimeout(() => setSeekFlash(null), 450);
-                                showControls();
-                            }
-                            break;
-                        case 'j':
-                            e.preventDefault();
-                            if (videoRef.current) {
-                                videoRef.current.currentTime -= 10;
-                                setSeekFlash({ side: 'left', ts: Date.now() });
-                                setTimeout(() => setSeekFlash(null), 450);
-                                showControls();
-                            }
-                            break;
-                        case 'f':
-                            e.preventDefault();
-                            toggleFullscreen();
-                            break;
-                        case 'm':
-                            e.preventDefault();
-                            if (videoRef.current) {
-                                videoRef.current.muted = !videoRef.current.muted;
-                            }
-                            break;
-                        case 'n':
-                            if (nextEpisodeInfo) { e.preventDefault(); handleNextEpisode(); }
-                            break;
-                        case 'p':
-                            if (previousEpisodeInfo) { e.preventDefault(); handlePreviousEpisode(); }
-                            break;
-                        case 's':
-                            // Toggle subtitles on/off (cycle through available or disable)
-                            e.preventDefault();
-                            if (currentCaption) {
-                                setCurrentCaption(null);
-                            } else if (captions.length > 0) {
-                                // Re-select the preferred language
-                                const preferred = captions.find(c => c.lang === 'en' || c.label.toLowerCase().includes('english')) || captions[0];
-                                setCurrentCaption(preferred.url);
-                            }
-                            break;
-                    }
-                    break;
-            }
-        };
-        window.addEventListener('keydown', handleKey);
-        return () => window.removeEventListener('keydown', handleKey);
-    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption, wasmAudio]);
+    // Moved to the bottom of the component to avoid TDZ compile errors with showControls.
 
     // ——— AllDebrid / Torrent: Primary Source ——————————————————————————————————————
     // Fires immediately on mount. Extractors only activate if this fails.
@@ -1726,15 +1605,128 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         // TODO: Signal to Service Worker or WASM decoder to switch stream
     };
 
-
-    // Show UI on any keyboard key press
+    // ——— Keyboard shortcuts ————————————————————————————————————————————————————————
     useEffect(() => {
-        const handleAnyKey = () => {
+        const handleKey = (e: KeyboardEvent) => {
+            if (activePanel !== 'none') return;
+            if (e.repeat) return;
+
+            // Ignore shortcuts if the user is typing in an input/textarea
+            const target = e.target as HTMLElement;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                return;
+            }
+
+            const key = e.key.toLowerCase();
+            const registeredKeys = [' ', 'k', 'l', 'j', 'arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'f', 'm', 'n', 'p', 's', 'escape'];
+
+            if (!registeredKeys.includes(key)) {
+                // Unregistered key: just show/wake controls and return
+                showControls();
+                return;
+            }
+
+            // Registered key: trigger UI controls show/wake and run immediate action
             showControls();
+            e.preventDefault();
+
+            const playbackKeys = [' ', 'arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'k', 'l', 'j', 'm'];
+            if (playbackKeys.includes(key)) {
+                wasmAudio.ensureActivated();
+            }
+
+            switch (e.key) { // Keep exact matching for special/cased keys
+                case 'Escape':
+                    if (isFullscreen || isPseudoFullscreen) {
+                        toggleFullscreen();
+                    } else if (onClose) {
+                        onClose();
+                    }
+                    break;
+                case ' ':
+                    if (videoRef.current) {
+                        videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+                        setPpRippleTrigger(t => t + 1);
+                    }
+                    break;
+                case 'ArrowRight':
+                    if (videoRef.current) {
+                        videoRef.current.currentTime += 10;
+                        setSeekFlash({ side: 'right', ts: Date.now() });
+                        setTimeout(() => setSeekFlash(null), 450);
+                    }
+                    break;
+                case 'ArrowLeft':
+                    if (videoRef.current) {
+                        videoRef.current.currentTime -= 10;
+                        setSeekFlash({ side: 'left', ts: Date.now() });
+                        setTimeout(() => setSeekFlash(null), 450);
+                    }
+                    break;
+                case 'ArrowUp':
+                    if (videoRef.current) {
+                        videoRef.current.volume = Math.min(1, videoRef.current.volume + 0.1);
+                    }
+                    break;
+                case 'ArrowDown':
+                    if (videoRef.current) {
+                        videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
+                    }
+                    break;
+                default:
+                    // Normalize all letter keys to lowercase to support Caps Lock / Shift modifiers
+                    switch (key) {
+                        case 'k':
+                            if (videoRef.current) {
+                                videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+                                setPpRippleTrigger(t => t + 1);
+                            }
+                            break;
+                        case 'l':
+                            if (videoRef.current) {
+                                videoRef.current.currentTime += 10;
+                                setSeekFlash({ side: 'right', ts: Date.now() });
+                                setTimeout(() => setSeekFlash(null), 450);
+                            }
+                            break;
+                        case 'j':
+                            if (videoRef.current) {
+                                videoRef.current.currentTime -= 10;
+                                setSeekFlash({ side: 'left', ts: Date.now() });
+                                setTimeout(() => setSeekFlash(null), 450);
+                            }
+                            break;
+                        case 'f':
+                            toggleFullscreen();
+                            break;
+                        case 'm':
+                            if (videoRef.current) {
+                                videoRef.current.muted = !videoRef.current.muted;
+                            }
+                            break;
+                        case 'n':
+                            if (nextEpisodeInfo) handleNextEpisode();
+                            break;
+                        case 'p':
+                            if (previousEpisodeInfo) handlePreviousEpisode();
+                            break;
+                        case 's':
+                            // Toggle subtitles on/off (cycle through available or disable)
+                            if (currentCaption) {
+                                setCurrentCaption(null);
+                            } else if (captions.length > 0) {
+                                // Re-select the preferred language
+                                const preferred = captions.find(c => c.lang === 'en' || c.label.toLowerCase().includes('english')) || captions[0];
+                                setCurrentCaption(preferred.url);
+                            }
+                            break;
+                    }
+                    break;
+            }
         };
-        window.addEventListener('keydown', handleAnyKey);
-        return () => window.removeEventListener('keydown', handleAnyKey);
-    }, [showControls]);
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption, wasmAudio, showControls]);
 
     return (
         <div

@@ -443,18 +443,25 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   const tvGenreId = selectedGenreId ? resolveGenreId('tv', selectedGenreId) : undefined;
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 1. PERSONALIZED ALGORITHMIC ROWS (Because you watched / Because you liked)
+  // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
   // ───────────────────────────────────────────────────────────────────────────
-  
-  // A. "Because you watched [Title]"
+  let CW_at_top = false;
+  let ML_at_top = false;
+
+  // Pinned to Row 0 if it has >= 4 items
+  if (continueWatchingRow && continueWatchingRow.data && continueWatchingRow.data.length >= 4) {
+    addRow(continueWatchingRow);
+    CW_at_top = true;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 2. PERSONALIZED RECOMMENDATIONS (Row 1-2)
+  // ───────────────────────────────────────────────────────────────────────────
   let watchRowsCount = 0;
   continueWatching.forEach((m) => {
-    if (watchRowsCount >= 2) return;
-    const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
-    
-    // If a genre filter is active, only pick matching titles
+    if (watchRowsCount >= 1) return; // Only 1 "Because you watched" near the top
     if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
-
+    const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     const url = REQUESTS.fetchSimilar(isTV ? 'tv' : 'movie', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
@@ -468,16 +475,45 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   });
 
-  // B. "Because you liked [Title]"
+  // Prioritize My List to Row 1 or 2 if it has >= 4 items
+  if (myListRow && myListRow.data && myListRow.data.length >= 4) {
+    addRow(myListRow);
+    ML_at_top = true;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 3. DEMOTED COMFORT ROWS (Index 2-3 if < 4 items)
+  // ───────────────────────────────────────────────────────────────────────────
+  if (continueWatchingRow && !CW_at_top) {
+    addRow(continueWatchingRow); // Demoted Continue Watching (1-3 items)
+  }
+
+  // Add a highly engaging, full curated Row high up (Index 3/4)
+  const primaryCuratedUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('movie', movieGenreId!, 'popularity.desc')
+    : REQUESTS.fetchTrending;
+  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
+  if (!usedUrls.has(primaryCuratedSig)) {
+    usedUrls.add(primaryCuratedSig);
+    addRow({
+      key: `home-genre-primary-curated-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Today's Top ${baseGenreName} Picks` : 'Trending Now',
+      fetchUrl: primaryCuratedUrl,
+    });
+  }
+
+  // Demoted My List (1-3 items) at Index 4 or 5
+  if (myListRow && !ML_at_top) {
+    addRow(myListRow);
+  }
+
+  // Second "Because you watched / liked" personalization row
   let likedRowsCount = 0;
   likedEntries.forEach((entry) => {
-    if (likedRowsCount >= 2) return;
+    if (likedRowsCount >= 1) return;
     const m = entry.movie;
-    const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
-
-    // If a genre filter is active, only pick matching titles
     if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
-
+    const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     const url = REQUESTS.fetchRecommendations(isTV ? 'tv' : 'movie', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
@@ -492,39 +528,25 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   });
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 2. OPENING TOP-10 ROWS
+  // 4. TOP 10 PLACEMENTS (Demoted to index 5-8, split apart)
   // ───────────────────────────────────────────────────────────────────────────
-  if (selectedGenreId) {
+  // First Top 10 split row placed at Row 5 or 6
+  const top10MovieUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('movie', movieGenreId!, 'popularity.desc')
+    : REQUESTS.fetchTrendingMovies;
+  const top10MovieSig = makeUrlSig(top10MovieUrl);
+  if (!usedUrls.has(top10MovieSig)) {
+    usedUrls.add(top10MovieSig);
     addRow({
-      key: `home-genre-top10-movie-${selectedGenreId}`,
-      title: `Top 10 ${baseGenreName} Films`,
-      fetchUrl: REQUESTS.fetchByGenre('movie', movieGenreId!, 'popularity.desc'),
-      type: 'top10',
-    });
-    addRow({
-      key: `home-genre-top10-tv-${selectedGenreId}`,
-      title: `Top 10 ${baseGenreName} Series`,
-      fetchUrl: REQUESTS.fetchByGenre('tv', tvGenreId!, 'popularity.desc'),
-      type: 'top10',
-    });
-  } else {
-    // Default top 10 splits
-    addRow({
-      key: 'top10-movies',
-      title: 'Top 10 Films in the UK Today',
-      fetchUrl: REQUESTS.fetchTrendingMovies,
-      type: 'top10',
-    });
-    addRow({
-      key: 'top10-tv',
-      title: 'Top 10 Series in the UK Today',
-      fetchUrl: REQUESTS.fetchTrendingTV,
+      key: `home-genre-top10-movie-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Top 10 ${baseGenreName} Films` : 'Top 10 Films in the UK Today',
+      fetchUrl: top10MovieUrl,
       type: 'top10',
     });
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 3. ADVANCED THEMATIC ROWS POOL (Netflix Experience)
+  // 5. THEMATIC ROWS POOL (Interleaved)
   // ───────────────────────────────────────────────────────────────────────────
   const moviePrefix = `home-genre-movie-${selectedGenreId || 'all'}`;
   const tvPrefix = `home-genre-tv-${selectedGenreId || 'all'}`;
@@ -537,7 +559,6 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     if (row.key.startsWith(tvPrefix)) tvCount++;
   };
 
-  // Helper to build parameterized discovery requests scoped to active category
   const buildScopedQuery = (
     mediaType: 'movie' | 'tv',
     baseParams: Record<string, string | number>,
@@ -580,7 +601,6 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   });
 
   // Theme C: In a Bit of a Hurry? Try These 30-Minute Hits!
-  // Typically Comedies (35), Animation (16) and Family (10751/10762) are the 30-min hit TV shows
   const quickTVGenre = selectedGenreId ? tvGenreId : '35,16,10762';
   const quickUrl = REQUESTS._build(`${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/tv`, {
     sort_by: 'popularity.desc',
@@ -594,7 +614,6 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   });
 
   // Theme D: Popular Series Based on Books (Adaptations)
-  // TMDB Keyword ID: 818 (based on novel), 10214 (based on book)
   const bookUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
     with_keywords: '818,10214',
@@ -607,7 +626,6 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   });
 
   // Theme E: Anime Dubbed in English
-  // Genre ID: 16 (Anime/Animation), Original Language Japanese (makes it actual Anime), popular
   const animeUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
     with_genres: tvGenreId ? `${tvGenreId},16` : 16,
@@ -621,7 +639,6 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   });
 
   // Theme F: Gemini's Spill the Tea (High Drama & Gossip)
-  // Genres: 18 (Drama), 10764 (Reality), 10767 (Talk)
   const teaUrl = REQUESTS._build(`${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/tv`, {
     sort_by: 'popularity.desc',
     with_genres: tvGenreId ? `${tvGenreId},18` : '18,10764,10767',
@@ -666,10 +683,6 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     });
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // 4. MERGE SLICES & GENERAL FLOW
-  // ───────────────────────────────────────────────────────────────────────────
-  
   // Standard discover slice interleave
   if (selectedGenreId) {
     const movieSlice = buildGenreManifestSlice({
@@ -722,18 +735,28 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   const seededPool = seededPick(pool, pool.length, hash);
   seededPool.forEach(row => trackAdd(row));
 
-  // Splicing Continue Watching & My List comfort rows near the top (index 1-3)
-  if (continueWatchingRow) {
-    const targetIdx = (continueWatchingRow.data?.length ?? 0) > 5 ? (hash % 2) + 1 : (hash % 3) + 1;
-    manifest.splice(Math.min(manifest.length, targetIdx), 0, continueWatchingRow);
-  }
-  if (myListRow) {
-    const targetIdx = (myListRow.data?.length ?? 0) > 5 ? ((hash + 1) % 2) + 2 : ((hash + 1) % 3) + 2;
-    manifest.splice(Math.min(manifest.length, targetIdx), 0, myListRow);
+  // ───────────────────────────────────────────────────────────────────────────
+  // 6. SECOND TOP 10 SPLIT (Demoted to index 11+, separated from first)
+  // ───────────────────────────────────────────────────────────────────────────
+  const top10TvUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('tv', tvGenreId!, 'popularity.desc')
+    : REQUESTS.fetchTrendingTV;
+  const top10TvSig = makeUrlSig(top10TvUrl);
+  if (!usedUrls.has(top10TvSig)) {
+    usedUrls.add(top10TvSig);
+    
+    // Ensure second Top 10 has a nice spacing by placing it far down the list
+    const splitIndex = Math.max(11, manifest.length - 2);
+    manifest.splice(Math.min(manifest.length, splitIndex), 0, {
+      key: `home-genre-top10-tv-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Top 10 ${baseGenreName} Series` : 'Top 10 Series in the UK Today',
+      fetchUrl: top10TvUrl,
+      type: 'top10',
+    });
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 5. GLOBAL DYNAMIC FILL
+  // 7. GLOBAL DYNAMIC FILL
   // ───────────────────────────────────────────────────────────────────────────
   const fillTitles = [
     'Explore More', 'Popular Picks', 'Trending Collections',
@@ -767,27 +790,6 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
         tvCountTracked++;
       }
     }
-  }
-
-  // Mid Top-10 injector (Hash picks movie/TV trending to rotate UK today splits)
-  const midMedia: 'movie' | 'tv' = hash % 2 === 0 ? 'tv' : 'movie';
-  const midGenreId = selectedGenreId ? (midMedia === 'movie' ? movieGenreId : tvGenreId) : undefined;
-  const midUrl = midGenreId 
-    ? REQUESTS.fetchByGenre(midMedia, midGenreId, 'popularity.desc') + '&page=2'
-    : (midMedia === 'movie' ? REQUESTS.fetchTrendingMovies + '?page=2' : REQUESTS.fetchTrendingTV + '?page=2');
-    
-  const midSig = makeUrlSig(midUrl);
-  if (!usedUrls.has(midSig)) {
-    usedUrls.add(midSig);
-    insertTop10(
-      manifest,
-      `home-genre-mid-top10-${selectedGenreId || 'all'}`,
-      selectedGenreId 
-        ? `Trending ${baseGenreName} ${midMedia === 'tv' ? 'Series' : 'Films'}`
-        : `Trending ${midMedia === 'tv' ? 'Series' : 'Films'} in the UK`,
-      midUrl,
-      Math.min(manifest.length, 8),
-    );
   }
 };
 
@@ -823,10 +825,23 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     }
   }
 
-  // 1. Personalization (Watched / Liked) Rows - strictly movie only!
+  // ───────────────────────────────────────────────────────────────────────────
+  // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
+  // ───────────────────────────────────────────────────────────────────────────
+  let CW_at_top = false;
+  let ML_at_top = false;
+
+  if (filteredContinueWatchingRow && filteredContinueWatchingRow.data && filteredContinueWatchingRow.data.length >= 4) {
+    addRow(filteredContinueWatchingRow);
+    CW_at_top = true;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 2. PERSONALIZED RECOMMENDATIONS (Row 1-2)
+  // ───────────────────────────────────────────────────────────────────────────
   let watchRowsCount = 0;
   continueWatching.forEach((m) => {
-    if (watchRowsCount >= 2) return;
+    if (watchRowsCount >= 1) return;
     const isMovie = m.media_type === 'movie' || (!m.media_type && !!m.title);
     if (!isMovie) return;
     if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
@@ -844,9 +859,40 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     }
   });
 
+  if (myListRow && myListRow.data && myListRow.data.length >= 4) {
+    addRow(myListRow);
+    ML_at_top = true;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 3. DEMOTED COMFORT ROWS (Index 2-3 if < 4 items)
+  // ───────────────────────────────────────────────────────────────────────────
+  if (filteredContinueWatchingRow && !CW_at_top) {
+    addRow(filteredContinueWatchingRow);
+  }
+
+  // Primary Curated Row
+  const primaryCuratedUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc')
+    : REQUESTS.fetchTrendingMovies;
+  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
+  if (!usedUrls.has(primaryCuratedSig)) {
+    usedUrls.add(primaryCuratedSig);
+    addRow({
+      key: `movie-primary-curated-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Today's Top ${baseGenreName} Picks` : 'Trending Films Right Now',
+      fetchUrl: primaryCuratedUrl,
+    });
+  }
+
+  if (myListRow && !ML_at_top) {
+    addRow(myListRow);
+  }
+
+  // Liked personalization
   let likedRowsCount = 0;
   likedEntries.forEach((entry) => {
-    if (likedRowsCount >= 2) return;
+    if (likedRowsCount >= 1) return;
     const m = entry.movie;
     const isMovie = m.media_type === 'movie' || (!m.media_type && !!m.title);
     if (!isMovie) return;
@@ -865,24 +911,26 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     }
   });
 
-  // 2. Top-10 Rows
-  if (selectedGenreId) {
+  // ───────────────────────────────────────────────────────────────────────────
+  // 4. TOP 10 PLACEMENTS (Demoted to index 5-8)
+  // ───────────────────────────────────────────────────────────────────────────
+  const top10Url = selectedGenreId
+    ? REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc')
+    : REQUESTS.fetchTrendingMovies;
+  const top10Sig = makeUrlSig(top10Url);
+  if (!usedUrls.has(top10Sig)) {
+    usedUrls.add(top10Sig);
     addRow({
-      key: `movie-top10-genre-${selectedGenreId}`,
-      title: `Top 10 ${baseGenreName} Films Right Now`,
-      fetchUrl: REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc'),
-      type: 'top10',
-    });
-  } else {
-    addRow({
-      key: 'top10-movies',
-      title: 'Top 10 Films in the UK Today',
-      fetchUrl: REQUESTS.fetchTrendingMovies,
+      key: `movie-top10-genre-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Top 10 ${baseGenreName} Films` : 'Top 10 Films in the UK Today',
+      fetchUrl: top10Url,
       type: 'top10',
     });
   }
 
-  // 3. Advanced Thematic Rows Pool & Curated Rows
+  // ───────────────────────────────────────────────────────────────────────────
+  // 5. THEMATIC ROWS POOL (Interleaved)
+  // ───────────────────────────────────────────────────────────────────────────
   const moviePrefix = `movie-${selectedGenreId || 'all'}`;
   const pool: SmartRow[] = [];
 
@@ -901,6 +949,63 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     };
     return REQUESTS._build(`${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/${mediaType}`, mergedParams, extra);
   };
+
+  // Special Bespoke Curation for Kids & Family (Genre ID 10751)
+  if (selectedGenreId === 10751) {
+    const ghibliUrl = buildScopedQuery('movie', {
+      sort_by: 'popularity.desc',
+      with_keywords: '12883', // Studio Ghibli
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-ghibli`,
+      title: 'Studio Ghibli Favorites',
+      fetchUrl: ghibliUrl,
+    });
+
+    const animalUrl = buildScopedQuery('movie', {
+      sort_by: 'popularity.desc',
+      with_keywords: '3336', // Animal tales
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-animals`,
+      title: 'Animal Tales',
+      fetchUrl: animalUrl,
+    });
+
+    const laughUrl = buildScopedQuery('movie', {
+      sort_by: 'popularity.desc',
+      with_genres: '35,10751', // Family Comedies
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-family-laughs`,
+      title: 'Need a Good Laugh? Family Comedies',
+      fetchUrl: laughUrl,
+    });
+  }
+
+  // Special Bespoke Curation for Crime Films (Genre ID 80)
+  if (selectedGenreId === 80) {
+    const vintageUrl = buildScopedQuery('movie', {
+      sort_by: 'popularity.desc',
+      'primary_release_date.lte': '2010-01-01',
+      'vote_count.gte': 300,
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-vintage-crime`,
+      title: 'Vintage Crime',
+      fetchUrl: vintageUrl,
+    });
+
+    const trueCrimeUrl = buildScopedQuery('movie', {
+      sort_by: 'popularity.desc',
+      with_keywords: '818,10224', // based on real life / investigation
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-true-crime-sagas`,
+      title: 'True Crime & Real-Life Sagas',
+      fetchUrl: trueCrimeUrl,
+    });
+  }
 
   // Theme A: Retro Flashback 2000-2005 (Nostalgia Pack)
   const retro00sUrl = buildScopedQuery('movie', {
@@ -1018,25 +1123,14 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
   const seededPool = seededPick(pool, pool.length, hash);
   seededPool.forEach(row => trackAdd(row));
 
-  // comfort rows near the top (index 1-3)
-  if (filteredContinueWatchingRow) {
-    const targetIdx = (filteredContinueWatchingRow.data?.length ?? 0) > 5 ? (hash % 2) + 1 : (hash % 3) + 1;
-    manifest.splice(Math.min(manifest.length, targetIdx), 0, filteredContinueWatchingRow);
-  }
-  if (myListRow) {
-    const targetIdx = (myListRow.data?.length ?? 0) > 5 ? ((hash + 1) % 2) + 2 : ((hash + 1) % 3) + 2;
-    manifest.splice(Math.min(manifest.length, targetIdx), 0, myListRow);
-  }
-
   // Global Dynamic Fill
   const fillTitles = [
     'Explore More', 'Popular Picks', 'Trending Collections',
     'More to Discover', 'Suggested Titles', 'Viewer Favorites', 'Handpicked Selection',
   ];
-  const targetMin = 22;
 
   if (selectedGenreId) {
-    for (let page = 5; manifest.length < targetMin && page < 65; page++) {
+    for (let page = 5; manifest.length < 22 && page < 65; page++) {
       const url = REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc') + `&page=${page}`;
       const sig = makeUrlSig(url);
       if (!usedUrls.has(sig)) {
@@ -1055,15 +1149,17 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
   const midSig = makeUrlSig(midUrl);
   if (!usedUrls.has(midSig)) {
     usedUrls.add(midSig);
-    insertTop10(
-      manifest,
-      `movie-mid-top10-${selectedGenreId || 'all'}`,
-      selectedGenreId 
+    
+    // Gap it down to split the Top 10s nicely
+    const splitIndex = Math.max(11, manifest.length - 2);
+    manifest.splice(Math.min(manifest.length, splitIndex), 0, {
+      key: `movie-mid-top10-${selectedGenreId || 'all'}`,
+      title: selectedGenreId 
         ? `Trending ${baseGenreName} Films`
-        : `Trending Films in the UK`,
-      midUrl,
-      Math.min(manifest.length, 8),
-    );
+        : `Trending Films in the UK Today`,
+      fetchUrl: midUrl,
+      type: 'top10',
+    });
   }
 };
 
@@ -1096,10 +1192,23 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   }
 
-  // 1. Personalization (Watched / Liked) Rows - strictly TV only!
+  // ───────────────────────────────────────────────────────────────────────────
+  // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
+  // ───────────────────────────────────────────────────────────────────────────
+  let CW_at_top = false;
+  let ML_at_top = false;
+
+  if (filteredContinueWatchingRow && filteredContinueWatchingRow.data && filteredContinueWatchingRow.data.length >= 4) {
+    addRow(filteredContinueWatchingRow);
+    CW_at_top = true;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 2. PERSONALIZED RECOMMENDATIONS (Row 1-2)
+  // ───────────────────────────────────────────────────────────────────────────
   let watchRowsCount = 0;
   continueWatching.forEach((m) => {
-    if (watchRowsCount >= 2) return;
+    if (watchRowsCount >= 1) return;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     if (!isTV) return;
     if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
@@ -1117,9 +1226,40 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   });
 
+  if (myListRow && myListRow.data && myListRow.data.length >= 4) {
+    addRow(myListRow);
+    ML_at_top = true;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 3. DEMOTED COMFORT ROWS (Index 2-3 if < 4 items)
+  // ───────────────────────────────────────────────────────────────────────────
+  if (filteredContinueWatchingRow && !CW_at_top) {
+    addRow(filteredContinueWatchingRow);
+  }
+
+  // Primary Curated Row
+  const primaryCuratedUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc')
+    : REQUESTS.fetchTrendingTV;
+  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
+  if (!usedUrls.has(primaryCuratedSig)) {
+    usedUrls.add(primaryCuratedSig);
+    addRow({
+      key: `tv-primary-curated-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Today's Top ${baseGenreName} Picks` : 'Trending Series Right Now',
+      fetchUrl: primaryCuratedUrl,
+    });
+  }
+
+  if (myListRow && !ML_at_top) {
+    addRow(myListRow);
+  }
+
+  // Liked personalization
   let likedRowsCount = 0;
   likedEntries.forEach((entry) => {
-    if (likedRowsCount >= 2) return;
+    if (likedRowsCount >= 1) return;
     const m = entry.movie;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     if (!isTV) return;
@@ -1138,24 +1278,26 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   });
 
-  // 2. Top-10 Rows
-  if (selectedGenreId) {
+  // ───────────────────────────────────────────────────────────────────────────
+  // 4. TOP 10 PLACEMENTS (Demoted to index 5-8)
+  // ───────────────────────────────────────────────────────────────────────────
+  const top10Url = selectedGenreId
+    ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc')
+    : REQUESTS.fetchTrendingTV;
+  const top10Sig = makeUrlSig(top10Url);
+  if (!usedUrls.has(top10Sig)) {
+    usedUrls.add(top10Sig);
     addRow({
-      key: `tv-top10-genre-${selectedGenreId}`,
-      title: `Top 10 ${baseGenreName} Series Right Now`,
-      fetchUrl: REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc'),
-      type: 'top10',
-    });
-  } else {
-    addRow({
-      key: 'top10-tv',
-      title: 'Top 10 Series in the UK Today',
-      fetchUrl: REQUESTS.fetchTrendingTV,
+      key: `tv-top10-genre-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Top 10 ${baseGenreName} Series` : 'Top 10 Series in the UK Today',
+      fetchUrl: top10Url,
       type: 'top10',
     });
   }
 
-  // 3. Advanced Thematic Rows Pool & Curated Rows
+  // ───────────────────────────────────────────────────────────────────────────
+  // 5. THEMATIC ROWS POOL (Interleaved)
+  // ───────────────────────────────────────────────────────────────────────────
   const tvPrefix = `tv-${selectedGenreId || 'all'}`;
   const pool: SmartRow[] = [];
 
@@ -1174,6 +1316,74 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     };
     return REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/${mediaType}`, mergedParams, extra);
   };
+
+  // Special Bespoke Curation for Comedy Series (Genre ID 35)
+  if (selectedGenreId === 35) {
+    const quickUrl = REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`, {
+      sort_by: 'popularity.desc',
+      with_genres: '35',
+      'vote_count.gte': 50,
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-quickwatch`,
+      title: 'In a Bit of a Hurry? Try These 30-Minute Hits',
+      fetchUrl: quickUrl,
+    });
+
+    const bustersUrl = REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`, {
+      sort_by: 'popularity.desc',
+      with_genres: '35',
+      with_keywords: '1701', // Sitcoms / workplace
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-comedy-busters`,
+      title: 'Boredom Busters Workplace Sitcoms',
+      fetchUrl: bustersUrl,
+    });
+
+    const crimeComedyUrl = REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`, {
+      sort_by: 'popularity.desc',
+      with_genres: '35,80', // Crime + Comedy
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-crime-comedy`,
+      title: 'Crime Comedy Series',
+      fetchUrl: crimeComedyUrl,
+    });
+  }
+
+  // Special Bespoke Curation for Action & Adventure Series (Genre ID 10759)
+  if (selectedGenreId === 10759) {
+    const watchPartyUrl = buildScopedQuery('tv', {
+      sort_by: 'popularity.desc',
+      'vote_average.gte': 7.0,
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-watch-party`,
+      title: 'Watch-Party Picks to Get the Crew Talking',
+      fetchUrl: watchPartyUrl,
+    });
+
+    const usDramaUrl = buildScopedQuery('tv', {
+      sort_by: 'popularity.desc',
+      with_origin_country: 'US',
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-us-dramas`,
+      title: 'US Drama Series',
+      fetchUrl: usDramaUrl,
+    });
+
+    const survivalUrl = buildScopedQuery('tv', {
+      sort_by: 'popularity.desc',
+      with_keywords: '549,10224', // survival / high stakes
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-survival`,
+      title: 'Adrenaline & Survival Action',
+      fetchUrl: survivalUrl,
+    });
+  }
 
   // Theme A: Retro Flashback 2000-2005 (Nostalgia Pack)
   const retro00sUrl = buildScopedQuery('tv', {
@@ -1201,18 +1411,20 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     fetchUrl: retro90sUrl,
   });
 
-  // Theme C: 30-Minute Hits!
-  const quickTVGenre = selectedGenreId ? selectedGenreId : '35,16,10762';
-  const quickUrl = REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`, {
-    sort_by: 'popularity.desc',
-    with_genres: quickTVGenre || '',
-    'vote_count.gte': selectedGenreId ? 20 : 150,
-  });
-  pool.push({
-    key: `${tvPrefix}-theme-quickwatch`,
-    title: getThemedTitle('Try These 30-Minute Hits', 'tv', selectedGenreName),
-    fetchUrl: quickUrl,
-  });
+  // Theme C: 30-Minute Hits! (Fallback)
+  if (selectedGenreId !== 35) {
+    const quickTVGenreFallback = selectedGenreId ? selectedGenreId : '35,16,10762';
+    const quickUrl = REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`, {
+      sort_by: 'popularity.desc',
+      with_genres: quickTVGenreFallback || '',
+      'vote_count.gte': selectedGenreId ? 20 : 150,
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-quickwatch`,
+      title: getThemedTitle('Try These 30-Minute Hits', 'tv', selectedGenreName),
+      fetchUrl: quickUrl,
+    });
+  }
 
   // Theme D: Popular Series Based on Books (Adaptations)
   const bookUrl = buildScopedQuery('tv', {
@@ -1299,16 +1511,6 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
   // Interleave and shuffle the entire dynamic pool based on daily seed to keep page alive!
   const seededPool = seededPick(pool, pool.length, hash);
   seededPool.forEach(row => trackAdd(row));
-
-  // comfort rows near the top (index 1-3)
-  if (filteredContinueWatchingRow) {
-    const targetIdx = (filteredContinueWatchingRow.data?.length ?? 0) > 5 ? (hash % 2) + 1 : (hash % 3) + 1;
-    manifest.splice(Math.min(manifest.length, targetIdx), 0, filteredContinueWatchingRow);
-  }
-  if (myListRow) {
-    const targetIdx = (myListRow.data?.length ?? 0) > 5 ? ((hash + 1) % 2) + 2 : ((hash + 1) % 3) + 2;
-    manifest.splice(Math.min(manifest.length, targetIdx), 0, myListRow);
-  }
 
   // Global Dynamic Fill
   const fillTitles = [
