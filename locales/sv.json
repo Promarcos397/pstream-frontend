@@ -207,7 +207,13 @@
         "off": "Av",
         "season": "Säsong",
         "rated": "RANKAD",
-        "ratingDesc": "språk, sexuella antydningar"
+        "ratingDesc": "språk, sexuella antydningar",
+        "playbackError": "Uppspelningsfel",
+        "retryConnection": "Försök ansluta igen",
+        "exitPlayer": "Stäng spelaren",
+        "tapToUnmute": "Tryck för att slå på ljudet",
+        "youreWatching": "Du tittar på",
+        "paused": "Pausad"
     },
     "playback": {
         "autoplayTitle": "Inställningar för automatisk uppspelning",
@@ -351,5 +357,18 @@
         "footerCookies": "Cookie-inställnienia",
         "footerReady": "Redo att titta? Ange din fras för att återställa din samling.",
         "invalidKeyLarge": "Ange en giltig fras eller lämna tomt för att skapa en ny"
+    },
+    "infoModal": {
+        "cast": "Skådespelare:",
+        "creators": "Skapare:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "Inte för mig",
+        "iLikeThis": "Jag gillar detta",
+        "loveThis": "Älskar detta!",
+        "myList": "Min lista",
+        "rate": "Betygsätt",
+        "share": "Dela",
+        "episodesTab": "Avsnitt",
+        "moreTab": "Mer som detta"
     }
 }

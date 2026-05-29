@@ -70,6 +70,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
 
     const [isDescExpanded, setIsDescExpanded] = useState(false);
     const [isEpTitleExpanded, setIsEpTitleExpanded] = useState(false);
+    const [showRatePopup, setShowRatePopup] = useState(false);
 
     const heroRef = useRef<HTMLDivElement>(null);
 
@@ -328,9 +329,9 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     const ageRating = activeMovie.adult ? '18' : (activeMovie.vote_average ?? 0) >= 7.5 ? '16' : '13';
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-black overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pt-[calc(68px+env(safe-area-inset-top))] pb-[calc(96px+env(safe-area-inset-bottom))]">
+        <div className="fixed inset-0 z-[10000] bg-black sm:bg-black/80 overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pt-[calc(68px+env(safe-area-inset-top))] pb-[calc(96px+env(safe-area-inset-bottom))] sm:items-center sm:justify-start sm:pt-6 sm:pl-[72px]">
             {/* Top Navigation Bar — solid background, Netflix style back arrow */}
-            <div className="fixed top-0 left-0 right-0 h-[calc(68px+env(safe-area-inset-top))] bg-black border-b border-white/[0.04] flex items-center px-3 pt-[env(safe-area-inset-top)] z-[10010] shadow-md">
+            <div className="fixed top-0 left-0 right-0 sm:left-[72px] h-[calc(68px+env(safe-area-inset-top))] bg-black border-b border-white/[0.04] flex items-center px-3 pt-[env(safe-area-inset-top)] z-[10010] shadow-md">
                 <button
                     type="button"
                     onClick={(e) => {
@@ -480,7 +481,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
             </div>
 
             {/* Details Content Container — margins/padding aligned consistently */}
-            <div className="px-3 pt-[10px] pb-8 flex flex-col gap-y-[16px] bg-black">
+            <div className="px-3 sm:px-8 pt-[10px] pb-8 flex flex-col gap-y-[16px] bg-black w-full sm:max-w-[90vw]">
                 {/* Text Title */}
                 <h2 className="text-[25px] font-black font-netflix text-white tracking-wide leading-tight pt-0.5">
                     {activeMovie.title || activeMovie.name}
@@ -555,7 +556,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                 {cast && cast.length > 0 && (
                     <div className="text-[16px] leading-[1.7] pt-0.5 select-text flex flex-col text-white/70 font-normal">
                         <div className="flex flex-wrap gap-x-1">
-                            <span className="text-white/70 font-medium mr-1">Cast:</span>
+                            <span className="text-white/70 font-medium mr-1">{t('infoModal.cast', { defaultValue: 'Cast:' })}</span>
                             {cast.slice(0, 4).map((actor, i, arr) => (
                                 <React.Fragment key={actor}>
                                     <span
@@ -572,58 +573,124 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                             ))}
                         </div>
                         <div className="text-white/70">
-                            <span className="font-medium mr-1">Creators:</span>
-                            <span className="font-normal">Daniel J. Goor, Michael Schur</span>
+                            <span className="font-medium mr-1">{t('infoModal.creators', { defaultValue: 'Creators:' })}</span>
+                            <span className="font-normal">{t('infoModal.creatorsList', { defaultValue: 'Daniel J. Goor, Michael Schur' })}</span>
                         </div>
                     </div>
                 )}
 
-                {/* Utility Icons Bar: My List, Rate (Cycle tap), Share */}
-                <div className="flex items-center justify-start gap-x-12 mt-1 px-2 py-1 select-none">
+                {/* Utility Icons Bar: My List, Rate (Popup), Share */}
+                <div className="relative flex items-center justify-around mt-2 px-4 py-2 select-none">
+                    {/* Transparent Click Catcher for tapping outside the rating popup */}
+                    {showRatePopup && (
+                        <div 
+                            className="fixed inset-0 z-[10015] bg-transparent"
+                            onClick={() => setShowRatePopup(false)}
+                        />
+                    )}
+
+                    {/* Inline Rating Popup Floating Above */}
+                    {showRatePopup && (
+                        <div 
+                            className="absolute bottom-[78px] left-0 right-0 mx-auto w-max z-[10020] bg-[#2f2f2f] rounded-full px-7 py-2.5 flex items-center justify-center gap-x-8 shadow-[0_12px_32px_rgba(0,0,0,0.85)] animate-popIn whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Option 1: Dislike */}
+                            <button
+                                onClick={() => {
+                                    rateMovie(activeMovie, 'dislike');
+                                    setShowRatePopup(false);
+                                }}
+                                className="flex flex-col items-center gap-y-1.5 transition-all active:scale-90"
+                            >
+                                <ThumbsDownIcon size={20} weight={getMovieRating(movie.id) === 'dislike' ? 'fill' : 'bold'} className="text-white" />
+                                <span className="text-[10px] font-medium text-white">{t('infoModal.notForMe', { defaultValue: 'Not for me' })}</span>
+                            </button>
+
+                            {/* Option 2: Like */}
+                            <button
+                                onClick={() => {
+                                    rateMovie(activeMovie, 'like');
+                                    setShowRatePopup(false);
+                                }}
+                                className="flex flex-col items-center gap-y-1.5 transition-all active:scale-90"
+                            >
+                                <ThumbsUpIcon size={20} weight={getMovieRating(movie.id) === 'like' ? 'fill' : 'bold'} className="text-white" />
+                                <span className="text-[10px] font-medium text-white">{t('infoModal.iLikeThis', { defaultValue: 'I like this' })}</span>
+                            </button>
+
+                            {/* Option 3: Love */}
+                            <button
+                                onClick={() => {
+                                    rateMovie(activeMovie, 'love');
+                                    setShowRatePopup(false);
+                                }}
+                                className="flex flex-col items-center gap-y-1.5 transition-all active:scale-90"
+                            >
+                                <HeartIcon size={20} weight={getMovieRating(movie.id) === 'love' ? 'fill' : 'bold'} className="text-white" />
+                                <span className="text-[10px] font-medium text-white">{t('infoModal.loveThis', { defaultValue: 'Love this!' })}</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* My List Button */}
                     <button
                         onClick={() => toggleList(activeMovie)}
-                        className="flex flex-col items-center gap-y-1 text-[11px] font-bold text-white/60 active:scale-95 transition-all cursor-pointer"
+                        className="h-[54px] flex flex-col items-center justify-center gap-y-1.5 text-[11px] font-bold text-white/60 active:scale-95 transition-all cursor-pointer"
                     >
                         {isAdded ? (
                             <CheckIcon size={24} weight="bold" className="text-white" />
                         ) : (
                             <PlusIcon size={24} weight="bold" className="text-white" />
                         )}
-                        <span className="mt-1">My List</span>
+                        <span className="mt-1">{t('infoModal.myList', { defaultValue: 'My List' })}</span>
                     </button>
 
-                    <div className="flex flex-col items-center gap-y-1 text-[11px] font-bold text-white/60">
-                        <button
-                            onClick={() => {
-                                const current = getMovieRating(movie.id);
-                                const next = current === 'like' ? 'dislike' : current === 'dislike' ? 'love' : current === 'love' ? undefined : 'like';
-                                rateMovie(activeMovie, next as any);
-                            }}
-                            className="flex items-center justify-center w-[24px] h-[24px] active:scale-95 transition-all cursor-pointer"
-                            title="Rate title"
-                        >
-                            {(() => {
-                                const rating = getMovieRating(movie.id);
-                                if (rating === 'love') return <HeartIcon size={24} weight="fill" className="text-red-500" />;
-                                if (rating === 'dislike') return <ThumbsDownIcon size={24} weight="fill" className="text-white" />;
-                                return <ThumbsUpIcon size={24} weight={rating ? 'fill' : 'bold'} className="text-white" />;
-                            })()}
-                        </button>
-                        <span className="mt-1">Rate</span>
-                    </div>
+                    {/* Rate / Close X Button */}
+                    {showRatePopup ? (
+                        <div className="h-[54px] flex flex-col items-center justify-center z-[10020]">
+                            <button
+                                onClick={() => setShowRatePopup(false)}
+                                className="flex items-center justify-center w-9 h-9 rounded-full bg-[#2f2f2f] text-white active:scale-95 transition-all cursor-pointer shadow-md"
+                                title="Close rating"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <span className="mt-1 text-[11px] font-bold opacity-0 h-0 select-none pointer-events-none">{t('infoModal.rate', { defaultValue: 'Rate' })}</span>
+                        </div>
+                    ) : (
+                        <div className="h-[54px] flex flex-col items-center justify-center gap-y-1 text-[11px] font-bold text-white/60">
+                            <button
+                                onClick={() => setShowRatePopup(true)}
+                                className="flex items-center justify-center w-[24px] h-[24px] active:scale-95 transition-all cursor-pointer"
+                                title="Rate title"
+                            >
+                                {(() => {
+                                    const rating = getMovieRating(movie.id);
+                                    if (rating === 'love') return <HeartIcon size={24} weight="fill" className="text-red-500" />;
+                                    if (rating === 'dislike') return <ThumbsDownIcon size={24} weight="fill" className="text-white" />;
+                                    return <ThumbsUpIcon size={24} weight={rating ? 'fill' : 'bold'} className="text-white" />;
+                                })()}
+                            </button>
+                            <span className="mt-1">{t('infoModal.rate', { defaultValue: 'Rate' })}</span>
+                        </div>
+                    )}
 
+                    {/* Share Button */}
                     <button
                         onClick={() => {
                             const url = `${window.location.origin}/title/${mediaType}/${activeMovie.id}`;
                             navigator.clipboard.writeText(url);
                             alert("Link copied to clipboard!");
                         }}
-                        className="flex flex-col items-center gap-y-1 text-[11px] font-bold text-white/60 active:scale-95 transition-all cursor-pointer"
+                        className="h-[54px] flex flex-col items-center justify-center gap-y-1 text-[11px] font-bold text-white/60 active:scale-95 transition-all cursor-pointer"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.3" stroke="currentColor" className="w-[22px] h-[22px] text-white">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
                         </svg>
-                        <span className="mt-1.5">Share</span>
+                        <span className="mt-1.5">{t('infoModal.share', { defaultValue: 'Share' })}</span>
                     </button>
                 </div>
 
@@ -634,7 +701,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                             onClick={() => setActiveMobileTab('episodes')}
                             className={`pb-2 relative transition-colors ${activeMobileTab === 'episodes' ? 'text-white font-extrabold' : 'hover:text-white'}`}
                         >
-                            Episodes
+                            {t('infoModal.episodesTab', { defaultValue: 'Episodes' })}
                             {activeMobileTab === 'episodes' && (
                                 <div className="absolute left-0 right-0 h-[4px] bg-[#e50914] rounded-none" style={{ bottom: '-1px' }} />
                             )}
@@ -644,7 +711,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                         onClick={() => setActiveMobileTab('more')}
                         className={`pb-2 relative transition-colors ${activeMobileTab === 'more' ? 'text-white font-extrabold' : 'hover:text-white'}`}
                     >
-                        More Like This
+                        {t('infoModal.moreTab', { defaultValue: 'More Like This' })}
                         {activeMobileTab === 'more' && (
                             <div className="absolute left-0 right-0 h-[4px] bg-[#e50914] rounded-none" style={{ bottom: '-1px' }} />
                         )}

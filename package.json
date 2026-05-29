@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@consumet/extensions": "^1.8.8",
-    "@mediabunny/ac3": "^1.45.3",
     "@phosphor-icons/react": "^2.1.10",
     "@plasmohq/messaging": "^0.7.2",
     "@scure/bip39": "^2.0.1",
@@ -41,7 +40,6 @@
     "json5": "^2.2.3",
     "jwt-decode": "^4.0.0",
     "lodash.merge": "^4.6.2",
-    "mediabunny": "^1.45.3",
     "nanoid": "^5.1.6",
     "node-fetch": "^3.3.2",
     "ofetch": "^1.5.1",

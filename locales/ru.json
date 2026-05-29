@@ -207,7 +207,13 @@
         "off": "Выкл",
         "season": "Сезон",
         "rated": "РЕЙТИНГ",
-        "ratingDesc": "лексика, намеки сексуального характера"
+        "ratingDesc": "лексика, намеки сексуального характера",
+        "playbackError": "Ошибка воспроизведения",
+        "retryConnection": "Повторить подключение",
+        "exitPlayer": "Выйти из плеера",
+        "tapToUnmute": "Нажмите, чтобы включить звук",
+        "youreWatching": "Вы смотрите",
+        "paused": "Пауза"
     },
     "playback": {
         "autoplayTitle": "Настройки автопроизведения",
@@ -351,5 +357,18 @@
         "footerCookies": "Настройки файлов cookie",
         "footerReady": "Готовы смотреть? Введите вашу фразу для восстановления коллекции.",
         "invalidKeyLarge": "Введите фразу из 12 слов или оставьте пустым для создания новой"
+    },
+    "infoModal": {
+        "cast": "В ролях:",
+        "creators": "Создатели:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "Не мое",
+        "iLikeThis": "Мне нравится",
+        "loveThis": "Потрясающе!",
+        "myList": "Мой список",
+        "rate": "Оценить",
+        "share": "Поделиться",
+        "episodesTab": "Эпизоды",
+        "moreTab": "Похожее"
     }
 }

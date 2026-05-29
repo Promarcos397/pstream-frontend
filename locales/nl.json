@@ -207,7 +207,13 @@
         "off": "Uit",
         "season": "Seizoen",
         "rated": "GECONTROLEERD",
-        "ratingDesc": "taalgebruik, seksuele toespelingen"
+        "ratingDesc": "taalgebruik, seksuele toespelingen",
+        "playbackError": "Afspeelfout",
+        "retryConnection": "Opnieuw verbinding maken",
+        "exitPlayer": "Speler sluiten",
+        "tapToUnmute": "Tik om geluid aan te zetten",
+        "youreWatching": "Je kijkt nu naar",
+        "paused": "Gepauzeerd"
     },
     "playback": {
         "autoplayTitle": "Instellingen automatisch afspelen",
@@ -351,5 +357,18 @@
         "footerCookies": "Cookievoorkeuren",
         "footerReady": "Klaar om te kijken? Voer je code in om je bibliotheek te herstellen.",
         "invalidKeyLarge": "Voer een geldige code van 12 woorden in of laat leeg voor een nieuwe"
+    },
+    "infoModal": {
+        "cast": "Cast:",
+        "creators": "Makers:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "Niet voor mij",
+        "iLikeThis": "Ik vind dit leuk",
+        "loveThis": "Superleuk!",
+        "myList": "Mijn lijst",
+        "rate": "Beoordelen",
+        "share": "Delen",
+        "episodesTab": "Afleveringen",
+        "moreTab": "Vergelijkbare titels"
     }
 }

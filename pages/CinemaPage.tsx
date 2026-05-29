@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import VideoPlayer from '../components/VideoPlayer';
 import ErrorBoundary from '../components/ErrorBoundary';
 import NotFoundPage from './NotFoundPage';
@@ -14,6 +15,7 @@ const CinemaPage: React.FC = () => {
     const navigate = useNavigate();
     const { setPageTitle } = useTitle();
     const { getLastWatchedEpisode, getVideoState } = useGlobalContext();
+    const { t } = useTranslation();
 
     const [movie, setMovie] = useState<Movie | null>(null);
     const [loading, setLoading] = useState(true);
@@ -50,7 +52,7 @@ const CinemaPage: React.FC = () => {
     useEffect(() => {
         const fetchDetails = async () => {
             if (!id || !type) {
-                setError('Invalid media ID');
+                setError(t('common.invalidMediaId', { defaultValue: 'Invalid media ID' }));
                 setLoading(false);
                 return;
             }
@@ -61,15 +63,15 @@ const CinemaPage: React.FC = () => {
                 const details = await getMovieDetails(parseInt(id, 10), mediaType);
 
                 if (!details) {
-                    setError('Content not found');
+                    setError(t('common.contentNotFound', { defaultValue: 'Content not found' }));
                     setLoading(false);
                     return;
                 }
 
                 if (type === 'movie') {
-                    setPageTitle(details.title || 'Movie');
+                    setPageTitle(details.title || t('common.movie', { defaultValue: 'Movie' }));
                 } else {
-                    const showTitle = details.name || details.title || 'TV Show';
+                    const showTitle = details.name || details.title || t('common.series', { defaultValue: 'TV Show' });
                     setPageTitle(`${showTitle} S${season}E${episode}`);
                 }
 
@@ -90,7 +92,7 @@ const CinemaPage: React.FC = () => {
                 setError(null);
             } catch (err) {
                 console.error('Failed to fetch details:', err);
-                setError('Failed to load content');
+                setError(t('common.failedLoadContent', { defaultValue: 'Failed to load content' }));
             } finally {
                 setLoading(false);
             }
@@ -109,7 +111,7 @@ const CinemaPage: React.FC = () => {
             <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-gray-400 text-sm">Loading...</span>
+                    <span className="text-gray-400 text-sm">{t('common.loading', { defaultValue: 'Loading...' })}</span>
                 </div>
             </div>
         );
@@ -118,8 +120,8 @@ const CinemaPage: React.FC = () => {
     if (error || !movie) {
         return (
             <NotFoundPage 
-                title="Content Not Found" 
-                message={error || "The movie or TV show you're looking for doesn't exist or may have been removed."}
+                title={t('common.contentNotFound', { defaultValue: 'Content Not Found' })} 
+                message={error || t('common.contentNotFoundDesc', { defaultValue: "The movie or TV show you're looking for doesn't exist or may have been removed." })}
                 code="TMDB-404"
             />
         );

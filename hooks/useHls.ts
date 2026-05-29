@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { streamCache } from '../utils/streamCache';
+import { getCodecProfile } from '../utils/browserCodecSupport';
+
 
 interface UseHlsOptions {
     streamUrl: string | null;
@@ -46,19 +48,19 @@ export interface HlsSubtitleTrack {
 function pickPreferredAudioTrack(tracks: HlsAudioTrack[], preferredLang: string = 'en'): number {
     if (tracks.length === 0) return -1;
     const lang = (preferredLang || 'en').toLowerCase();
-    
+
     // 1. Try explicit language code match (e.g. "en")
     const byLang = tracks.find(t => t.lang?.toLowerCase().startsWith(lang));
     if (byLang) return byLang.id;
-    
+
     // 2. Try name match (e.g. "English")
     const byName = tracks.find(t => t.name?.toLowerCase().includes(lang === 'en' ? 'english' : lang));
     if (byName) return byName.id;
-    
+
     // 3. Fallback to default track
     const byDefault = tracks.find(t => t.isDefault);
     if (byDefault) return byDefault.id;
-    
+
     return tracks[0].id;
 }
 
@@ -74,8 +76,8 @@ function isMobileDevice(): boolean {
  * Mobile-optimised: capLevelToPlayerSize, adaptive buffers, low start level.
  */
 export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: UseHlsOptions) => {
-    const { 
-        streamUrl, isM3U8, autoPlay = true, streamReferer, 
+    const {
+        streamUrl, isM3U8, autoPlay = true, streamReferer,
         onManifestParsed, onError, onTokenExpired, onFatalError,
         preferredAudioLanguage = 'en'
     } = options;
@@ -105,7 +107,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
 
                 const onCanPlay = () => {
                     setIsBuffering(false);
-                    
+
                     // Native audio track detection for direct streams (MP4/MKV)
                     // Supported in Safari and experimental Chrome/Firefox
                     const nativeTracks = (video as any).audioTracks;
@@ -117,7 +119,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                             isDefault: t.enabled
                         }));
                         setAudioTracks(tracks as any);
-                        
+
                         if (tracks.length > 1) {
                             // ── Secondary AAC track trick ────────────────────────────────
                             // MKV files often have AC3/DTS as track 0 and AAC as track 1.
@@ -125,12 +127,26 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                             // some platforms). Always prefer the AAC/Opus track if one exists,
                             // regardless of which track is marked "default" in the container.
                             // This requires zero WASM, zero server — pure browser-native.
+                            const profile = getCodecProfile();
+                            const isDolbyCapable = profile
+                                ? profile.isDolbyCapable
+                                : (typeof navigator !== 'undefined' && (
+                                    (/Safari/i.test(navigator.userAgent) && !/Chrome|Chromium/i.test(navigator.userAgent)) ||
+                                    (/Edg\//i.test(navigator.userAgent) && /Windows/i.test(navigator.userAgent))
+                                  ));
+
+                            // Only apply the secondary AAC trick if the browser is NOT Dolby capable.
+                            // Dolby-capable browsers (Safari, Edge) can natively play AC3/EAC3.
+                            const shouldApplyAacTrick = !isDolbyCapable;
+
                             const SAFE_CODECS = ['aac', 'mp3', 'opus', 'vorbis', 'mp4a'];
-                            const aacTrackIdx = Array.from(nativeTracks).findIndex((t: any) => {
-                                const kind = (t.kind || '').toLowerCase();
-                                const label = (t.label || '').toLowerCase();
-                                return SAFE_CODECS.some(c => kind.includes(c) || label.includes(c));
-                            });
+                            const aacTrackIdx = shouldApplyAacTrick
+                                ? Array.from(nativeTracks).findIndex((t: any) => {
+                                    const kind = (t.kind || '').toLowerCase();
+                                    const label = (t.label || '').toLowerCase();
+                                    return SAFE_CODECS.some(c => kind.includes(c) || label.includes(c));
+                                })
+                                : -1;
 
                             if (aacTrackIdx !== -1) {
                                 console.info(`[useHls] 🎯 Secondary AAC track found at index ${aacTrackIdx}. Switching from default (likely AC3/DTS) to ensure browser compatibility.`);
@@ -151,26 +167,29 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                             }
                         }
                     }
-                    
-                    if (autoPlay) video.play().catch(() => {});
+
+                    if (autoPlay) video.play().catch(() => { });
                 };
-                const onError = () => {
-                    console.error('[useHls] Direct video load error for:', streamUrl.substring(0, 80));
+                const onVideoError = () => {
+                    const code = (video.error as MediaError | null)?.code;
+                    console.error('[useHls] Direct video load error for:', streamUrl.substring(0, 80), '| MediaError code:', code);
                     setIsBuffering(false);
+                    // Propagate to VideoPlayer so it can cycle to the next source
+                    if (onError) onError(`Direct video load failed (MediaError ${code ?? 'unknown'})`);
                 };
                 const onWaiting = () => setIsBuffering(true);
                 const onPlaying = () => setIsBuffering(false);
 
-                video.addEventListener('canplay',  onCanPlay,  { once: true });
-                video.addEventListener('error',    onError,    { once: true });
-                video.addEventListener('waiting',  onWaiting);
-                video.addEventListener('playing',  onPlaying);
+                video.addEventListener('canplay', onCanPlay, { once: true });
+                video.addEventListener('error', onVideoError, { once: true });
+                video.addEventListener('waiting', onWaiting);
+                video.addEventListener('playing', onPlaying);
 
                 return () => {
-                    video.removeEventListener('canplay',  onCanPlay);
-                    video.removeEventListener('error',    onError);
-                    video.removeEventListener('waiting',  onWaiting);
-                    video.removeEventListener('playing',  onPlaying);
+                    video.removeEventListener('canplay', onCanPlay);
+                    video.removeEventListener('error', onVideoError);
+                    video.removeEventListener('waiting', onWaiting);
+                    video.removeEventListener('playing', onPlaying);
                 };
             }
             return;
@@ -183,9 +202,9 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
 
             const hlsConfig: Partial<Hls['config']> = {
                 // Buffer: larger buffers to prevent constant stuttering
-                maxBufferLength:    mobile ? 30 : 60,
+                maxBufferLength: mobile ? 30 : 60,
                 maxMaxBufferLength: mobile ? 60 : 120,
-                backBufferLength:   mobile ? 30 : 60,
+                backBufferLength: mobile ? 30 : 60,
 
                 enableWorker: true,
                 lowLatencyMode: false,
@@ -205,9 +224,9 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                 // Retry thresholds: reduced drastically to prevent 40s hangs on 500/403 errors
                 // If a level playlist fails, we want it to blacklist and switch variants immediately.
                 manifestLoadingMaxRetry: 1,
-                levelLoadingMaxRetry:    1,
-                fragLoadingMaxRetry:     2,
-                fragLoadingRetryDelay:   500,
+                levelLoadingMaxRetry: 1,
+                fragLoadingMaxRetry: 2,
+                fragLoadingRetryDelay: 500,
             };
 
             // XHR setup: disable credentials, and for VaPlayer's rotating CDN domains,
@@ -243,7 +262,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                     const proxyUrl = `${gigaBase}/proxy/stream?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
                     xhr.open('GET', proxyUrl, true);
                 } else if (referer && isBackendProxyStream) {
-                    try { xhr.setRequestHeader('X-Referer', referer); } catch (_) {}
+                    try { xhr.setRequestHeader('X-Referer', referer); } catch (_) { }
                 }
             };
 
@@ -406,7 +425,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             const onMetadata = () => {
                 setIsBuffering(false);
                 if (onManifestParsed) onManifestParsed();
-                if (autoPlay) video.play().catch(() => {});
+                if (autoPlay) video.play().catch(() => { });
             };
             const onWaiting = () => setIsBuffering(true);
             const onPlaying = () => setIsBuffering(false);

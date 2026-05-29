@@ -19,24 +19,38 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
 
   const [localLogoUrl, setLocalLogoUrl] = useState<string | null>(logoUrl || null);
+  const [isHighResLoaded, setIsHighResLoaded] = useState<boolean>(false);
+  const [isLogoLoaded, setIsLogoLoaded] = useState<boolean>(false);
   
   // Default to standard poster path
   const defaultPoster = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
     ? movie.poster_path
     : movie.poster_path ? `https://image.tmdb.org/t/p/w780${movie.poster_path}` : '';
 
+  // Default to standard backdrop path for landscape views (tablets/desktops)
+  const defaultBackdrop = (movie.backdrop_path?.startsWith('http') || movie.backdrop_path?.startsWith('comic://'))
+    ? movie.backdrop_path
+    : movie.backdrop_path ? `https://image.tmdb.org/t/p/w780${movie.backdrop_path}` : '';
+
   const [bgImageSrc, setBgImageSrc] = useState<string>(defaultPoster);
+  const [fallbackBg, setFallbackBg] = useState<string>(defaultPoster);
   const [hasBakedInText, setHasBakedInText] = useState<boolean>(true);
   const [logoImgFailed, setLogoImgFailed] = useState<boolean>(false);
   const [accentRGB, setAccentRGB] = useState<{r:number;g:number;b:number} | null>(null);
 
-  // 1. Dynamic Hero Image Selection & Logo Fetching
+  // 1. Dynamic Hero Image Selection, Parallel Preloading & Logo Fetching
   useEffect(() => {
     let isMounted = true;
     
-    // Reset state on movie/logoUrl change
+    const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 640;
+    const initialBg = (isTabletOrDesktop && defaultBackdrop) ? defaultBackdrop : defaultPoster;
+
+    // Reset state on movie/logoUrl change to trigger animations cleanly
     setLocalLogoUrl(logoUrl || null);
-    setBgImageSrc(defaultPoster);
+    setBgImageSrc(initialBg);
+    setFallbackBg(initialBg);
+    setIsHighResLoaded(false);
+    setIsLogoLoaded(false);
     setHasBakedInText(true);
     setLogoImgFailed(false);
 
@@ -50,39 +64,100 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
         let resolvedBg = '';
         let bakedInText = true;
 
+        const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 640;
+
         if (data) {
-          // A. Try to find a textless poster (iso_639_1 === null)
-          if (data.posters && data.posters.length > 0) {
-            const textless = data.posters.find((p: any) => p.iso_639_1 === null);
-            if (textless) {
-              resolvedBg = `https://image.tmdb.org/t/p/w780${textless.file_path}`;
+          if (isTabletOrDesktop) {
+            // A. Tablet: Prioritize landscape cinematic backdrop path for the wide landscape card
+            if (movie.backdrop_path) {
+              resolvedBg = movie.backdrop_path.startsWith('http')
+                ? movie.backdrop_path
+                : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
+              bakedInText = false;
+            } else if (data.posters && data.posters.length > 0) {
+              const textless = data.posters.find((p: any) => p.iso_639_1 === null);
+              if (textless) {
+                resolvedBg = `https://image.tmdb.org/t/p/w780${textless.file_path}`;
+                bakedInText = false;
+              }
+            }
+          } else {
+            // B. Mobile: Prioritize textless poster (iso_639_1 === null) for the portrait card
+            if (data.posters && data.posters.length > 0) {
+              const textless = data.posters.find((p: any) => p.iso_639_1 === null);
+              if (textless) {
+                resolvedBg = `https://image.tmdb.org/t/p/w780${textless.file_path}`;
+                bakedInText = false;
+              }
+            }
+
+            // Fallback to backdrop on mobile if no textless poster is found
+            if (!resolvedBg && movie.backdrop_path) {
+              resolvedBg = movie.backdrop_path.startsWith('http')
+                ? movie.backdrop_path
+                : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
               bakedInText = false;
             }
           }
 
-          // B. If no textless poster is found, try backdrop
-          if (!resolvedBg && movie.backdrop_path) {
-            resolvedBg = movie.backdrop_path.startsWith('http')
-              ? movie.backdrop_path
-              : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
-            bakedInText = false;
-          }
-
-          // C. Fallback to standard logo if not passed or null
+          // C. Logo preloading
           if (!logoUrl && data.logos && data.logos.length > 0) {
             const logoObj = data.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
             if (logoObj) {
-              setLocalLogoUrl(`https://image.tmdb.org/t/p/w500${logoObj.file_path}`);
+              const resolvedLogo = `https://image.tmdb.org/t/p/w500${logoObj.file_path}`;
+              const logoLoader = new Image();
+              logoLoader.src = resolvedLogo;
+              logoLoader.onload = () => {
+                if (isMounted) {
+                  setLocalLogoUrl(resolvedLogo);
+                  setIsLogoLoaded(true);
+                }
+              };
+              logoLoader.onerror = () => {
+                if (isMounted) {
+                  setLocalLogoUrl(resolvedLogo);
+                  setIsLogoLoaded(true);
+                }
+              };
             }
           }
         }
 
+        // Fallback backdrop selection if api failed or returned nothing
+        if (!resolvedBg && movie.backdrop_path) {
+          resolvedBg = movie.backdrop_path.startsWith('http')
+            ? movie.backdrop_path
+            : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
+          bakedInText = false;
+        }
+
+        // D. High-res background image parallel preloading (avoid frame flash)
         if (resolvedBg) {
-          setBgImageSrc(resolvedBg);
-          setHasBakedInText(bakedInText);
+          const imgLoader = new Image();
+          imgLoader.crossOrigin = 'anonymous';
+          imgLoader.src = resolvedBg.includes('?') ? `${resolvedBg}&cors=true` : `${resolvedBg}?cors=true`;
+          
+          imgLoader.onload = () => {
+            if (isMounted) {
+              setBgImageSrc(resolvedBg);
+              setIsHighResLoaded(true);
+              setHasBakedInText(bakedInText);
+            }
+          };
+          imgLoader.onerror = () => {
+            if (isMounted) {
+              setBgImageSrc(resolvedBg);
+              setIsHighResLoaded(true);
+              setHasBakedInText(bakedInText);
+            }
+          };
+        } else {
+          // If no high-res background is possible, trigger loaded on defaultPoster
+          setIsHighResLoaded(true);
         }
       } catch (e) {
         console.error('Failed loading mobile hero assets:', e);
+        setIsHighResLoaded(true);
       }
     };
 
@@ -91,7 +166,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
     return () => {
       isMounted = false;
     };
-  }, [movie.id, logoUrl, defaultPoster]);
+  }, [movie.id, logoUrl, defaultPoster, defaultBackdrop]);
 
   // 2. Dynamic Dominant Accent Color Extraction via HTML5 Canvas
   useEffect(() => {
@@ -121,10 +196,10 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
         let maxSat = 0, vibR = 0, vibG = 0, vibB = 0;
 
         for (let i = 0; i < imgData.length; i += 4) {
-          const pixelR = imgData[i];
-          const pixelG = imgData[i + 1];
-          const pixelB = imgData[i + 2];
-          const pixelA = imgData[i + 3];
+          const pixelR = imgData.at(i) ?? 0;
+          const pixelG = imgData.at(i + 1) ?? 0;
+          const pixelB = imgData.at(i + 2) ?? 0;
+          const pixelA = imgData.at(i + 3) ?? 0;
 
           if (pixelA > 180) {
             const brightness = (pixelR * 299 + pixelG * 587 + pixelB * 114) / 1000;
@@ -170,9 +245,9 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           let fallbackR = 0, fallbackG = 0, fallbackB = 0;
           const total = imgData.length / 4;
           for (let i = 0; i < imgData.length; i += 4) {
-            fallbackR += imgData[i];
-            fallbackG += imgData[i + 1];
-            fallbackB += imgData[i + 2];
+            fallbackR += imgData.at(i) ?? 0;
+            fallbackG += imgData.at(i + 1) ?? 0;
+            fallbackB += imgData.at(i + 2) ?? 0;
           }
           setAccentRGB({
             r: Math.round(fallbackR / total),
@@ -194,7 +269,10 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   }, [bgImageSrc]);
 
   const genresList = movie.genre_ids 
-    ? movie.genre_ids.map(id => t(`genres.${id}`, { defaultValue: GENRES[id] })).filter(Boolean).slice(0, 3)
+    ? movie.genre_ids.map(id => {
+        const fallbackName = typeof id === 'number' ? Reflect.get(GENRES, String(id)) : undefined;
+        return t(`genres.${id}`, { defaultValue: fallbackName || '' });
+      }).filter(Boolean).slice(0, 3)
     : [];
 
   // Build gradient helpers from extracted RGB
@@ -203,9 +281,9 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
 
   return (
     <div 
-      className="relative z-0 overflow-visible w-full px-4 pt-[calc(130px+env(safe-area-inset-top))] pb-6 flex flex-col items-center justify-center transition-all duration-700 ease-in-out"
+      className="relative z-0 overflow-visible w-full px-4 pt-[calc(130px+env(safe-area-inset-top))] sm:pt-[calc(96px+env(safe-area-inset-top))] pb-6 sm:pb-14 flex flex-col items-center justify-center transition-all duration-700 ease-in-out"
     >
-      {/* ── Layer 1: Deep background wash — bleeds 220vh into rows below ── */}
+      {/* ── Layer 1: Deep background wash ── */}
       <div 
         style={{
           background: `linear-gradient(to bottom,
@@ -220,9 +298,9 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           )`,
           transition: 'background 1.2s ease-in-out'
         }}
-        className="absolute inset-x-0 top-0 h-[220vh] pointer-events-none -z-10"
+        className="absolute inset-x-0 top-0 h-[190vh] pointer-events-none -z-10"
       />
-      {/* ── Layer 2: Wide radial spotlight centred on the card ── */}
+      {/* ── Layer 2: Wide radial spotlight ── */}
       <div
         style={{
           background: `radial-gradient(ellipse 110% 65% at 50% 20%, ${c(0.8)} 0%, ${c(0.2)} 50%, transparent 70%)`,
@@ -230,7 +308,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
         }}
         className="absolute inset-x-0 top-0 h-[130vh] pointer-events-none -z-10"
       />
-      {/* ── Layer 3: Tight hot-spot glow at the very top ── */}
+      {/* ── Layer 3: Tight hot-spot glow ── */}
       <div
         style={{
           background: `radial-gradient(ellipse 75% 30% at 50% 8%, ${c(0.7)} 0%, transparent 60%)`,
@@ -238,36 +316,46 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
         }}
         className="absolute inset-x-0 top-0 h-[55vh] pointer-events-none -z-10"
       />
-      {/* Poster/Backdrop Card */}
+
+      {/* Poster/Backdrop Card (Floating, centered card layout for both mobile and tablet) */}
       <div 
         onClick={() => onSelect(movie)}
-        className="w-full max-w-[440px] aspect-[2/2.9] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] transition-transform duration-200"
+        className="w-full max-w-[440px] sm:w-[85%] sm:max-w-[680px] aspect-[2/2.9] sm:aspect-[16/10] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] sm:translate-x-8 transition-all duration-200"
       >
-        {/* Background Image (Textless poster, cropped backdrop, or fallback standard poster) */}
+        {/* Layer A (Under): Blurred Instant Fallback Image */}
+        <img 
+          src={fallbackBg} 
+          alt="" 
+          className="absolute inset-0 w-full h-full object-cover filter blur-[8px] scale-[1.05] opacity-60 select-none pointer-events-none"
+          aria-hidden
+        />
+
+        {/* Layer B (Upper): High-Resolution Resolved Image with smooth cross-fade */}
         <img 
           src={bgImageSrc} 
           alt={movie.title || movie.name} 
-          className="w-full h-full object-cover rounded-xl"
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out select-none pointer-events-none ${isHighResLoaded ? 'opacity-100' : 'opacity-0'}`}
           loading="eager"
+          draggable={false}
         />
 
-        {/* Bottom Gradient overlay for text/buttons readability */}
-        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#141414]/95 via-[#141414]/65 to-transparent pointer-events-none" />
+        {/* Bottom Vignette overlay for excellent text/buttons contrast */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none" />
 
-        {/* Card bottom details */}
-        <div className="absolute inset-x-0 bottom-0 px-4 pb-3.5 pt-12 flex flex-col items-center text-center z-10 w-full">
+        {/* Details Container (Centered vertically and horizontally on all screen sizes) */}
+        <div className="absolute inset-x-0 bottom-0 px-4 sm:px-6 pb-4 sm:pb-6 pt-12 sm:pt-16 flex flex-col items-center text-center z-10 w-full">
           
-          {/* Transparent Logo or Text Title Overlay (only rendered if background has no baked-in text) */}
+          {/* Logo or Text Title Overlay */}
           {!hasBakedInText && (
             localLogoUrl && !logoImgFailed ? (
-              <div className="relative inline-flex items-end mb-4 max-w-[75%] max-h-[85px] w-full justify-center">
-                {/* Premium dual-layer drop shadow for maximum readability on detailed backgrounds */}
+              <div className="relative inline-flex items-end mb-4 max-w-[75%] sm:max-w-[80%] max-h-[85px] sm:max-h-[110px] w-full justify-center">
+                {/* Premium dual-layer drop shadow for maximum readability */}
                 <img
                   src={localLogoUrl}
                   aria-hidden
                   className="absolute object-contain object-bottom"
                   style={{
-                    filter: 'blur(20px) brightness(0) opacity(0.6)',
+                    filter: 'blur(20px) brightness(0) opacity(0.7)',
                     transform: 'translate(2px, 6px) scale(1.05)',
                     pointerEvents: 'none',
                     zIndex: 0,
@@ -279,7 +367,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
                   aria-hidden
                   className="absolute object-contain object-bottom"
                   style={{
-                    filter: 'blur(3px) brightness(0) opacity(0.4)',
+                    filter: 'blur(3px) brightness(0) opacity(0.5)',
                     transform: 'translate(1px, 2px) scale(1.01)',
                     pointerEvents: 'none',
                     zIndex: 0,
@@ -289,21 +377,21 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
                 <img
                   src={localLogoUrl}
                   alt={movie.title || movie.name}
-                  className="relative object-contain object-bottom max-h-[80px] w-auto"
+                  className="relative object-contain object-bottom max-h-[80px] sm:max-h-[100px] w-auto transition-opacity duration-300"
                   style={{ zIndex: 1 }}
                   onError={() => setLogoImgFailed(true)}
                 />
               </div>
             ) : (
-              <h2 className="text-xl sm:text-2xl font-black font-leaner drop-shadow-xl leading-none text-white tracking-wide uppercase mb-4 max-w-[90%] line-clamp-2">
+              <h2 className="text-xl sm:text-2xl font-black font-leaner drop-shadow-xl leading-tight text-white tracking-wide uppercase mb-4 max-w-[90%] line-clamp-2">
                 {movie.title || movie.name}
               </h2>
             )
           )}
 
-          {/* Categories (up to 3) */}
+          {/* Categories / Genres */}
           {genresList.length > 0 && (
-            <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-1 mb-4 text-xs font-semibold text-white/80 tracking-wide select-none drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]">
+            <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-1 mb-4 text-xs sm:text-[14px] font-semibold text-white/80 tracking-wide select-none drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]">
               {genresList.map((g, idx) => (
                 <React.Fragment key={g}>
                   <span>{g}</span>
@@ -316,16 +404,16 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           )}
 
           {/* Buttons Row */}
-          <div className="flex items-center w-full gap-3 mt-1">
+          <div className="flex items-center justify-center w-full max-w-[380px] gap-3 mt-1">
             {/* Play Button */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onPlay(movie);
               }}
-              className="flex-1 flex items-center justify-center h-[48px] rounded-[4px] bg-white hover:bg-neutral-200 text-black font-semibold text-[18px] gap-2.5 transition-all active:scale-95 shadow-md font-sans"
+              className="flex-1 flex items-center justify-center h-[44px] sm:h-[48px] rounded-[4px] bg-white hover:bg-neutral-200 text-black font-bold text-[15px] sm:text-[16px] gap-2 transition-all active:scale-95 shadow-md font-sans"
             >
-              <Play size={25} weight="fill" />
+              <Play size={22} weight="fill" />
               <span>{t('hero.play', { defaultValue: 'Play' })}</span>
             </button>
 
@@ -335,9 +423,9 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
                 e.stopPropagation();
                 toggleList(movie);
               }}
-              className="flex-1 flex items-center justify-center h-[48px] rounded-[4px] bg-[#6d6d6e]/40 hover:bg-[#6d6d6e]/25 text-white font-semibold text-[18px] gap-2.5 transition-all active:scale-95 shadow-md font-sans"
+              className="flex-1 flex items-center justify-center h-[44px] sm:h-[48px] rounded-[4px] bg-[#6d6d6e]/40 hover:bg-[#6d6d6e]/25 text-white font-bold text-[15px] sm:text-[16px] gap-2 transition-all active:scale-95 shadow-md font-sans"
             >
-              {isAdded ? <Check size={25} weight="bold" /> : <Plus size={25} weight="bold" />}
+              {isAdded ? <Check size={22} weight="bold" /> : <Plus size={22} weight="bold" />}
               <span>{t('nav.myList', { defaultValue: 'My List' })}</span>
             </button>
           </div>

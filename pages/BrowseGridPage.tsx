@@ -7,6 +7,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { fetchData } from '../services/api';
 import { REQUESTS } from '../constants';
 import { CaretLeftIcon, CaretDownIcon } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
 
 interface BrowseGridPageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -21,6 +22,7 @@ interface BrowseGridPageProps {
  * 16:9 backdrop instead of poster, hover popup, trailer preview, etc.
  */
 const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }) => {
+  const { t } = useTranslation();
   const { rowKey } = useParams<{ rowKey: string }>();
   const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
@@ -123,7 +125,7 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
           <button
             onClick={() => navigate(-1)}
             className="w-9 h-9 rounded-full border border-white/20 flex items-center justify-center text-white/70 hover:border-white hover:text-white transition-colors bg-[#1a1a1a] shrink-0"
-            aria-label="Go back"
+            aria-label={t('common.goBack', { defaultValue: 'Go back' })}
           >
             <CaretLeftIcon size={18} weight="bold" />
           </button>
@@ -160,7 +162,7 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
           <>
             {items.length === 0 ? (
               <div className="flex items-center justify-center mt-24 text-white/40 text-lg">
-                Nothing to show here yet.
+                {t('common.nothingToShow', { defaultValue: 'Nothing to show here yet.' })}
               </div>
             ) : (
               /* gap-y-10 gives space beneath each card for the hover popup overflow */
@@ -191,7 +193,7 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
               <div className="flex justify-center mt-10">
                 <button
                   onClick={handleLoadMore}
-                  title="Load more"
+                  title={t('common.loadMore', { defaultValue: 'Load more' })}
                   className="w-11 h-11 rounded-full border border-white/20 bg-[#2a2a2a] hover:border-white/50 hover:bg-[#3a3a3a] flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 group/btn"
                 >
                   <CaretDownIcon size={20} className="text-white/60 group-hover/btn:text-white transition-colors" />

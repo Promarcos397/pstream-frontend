@@ -207,7 +207,13 @@
         "off": "إيقاف",
         "season": "موسم",
         "rated": "مصنف",
-        "ratingDesc": "لغة، تلميحات جنسية"
+        "ratingDesc": "لغة، تلميحات جنسية",
+        "playbackError": "خطأ في التشغيل",
+        "retryConnection": "إعادة محاولة الاتصال",
+        "exitPlayer": "خروج من المشغل",
+        "tapToUnmute": "انقر لإلغاء كتم الصوت",
+        "youreWatching": "أنت تشاهد",
+        "paused": "مؤقتًا"
     },
     "playback": {
         "autoplayTitle": "عناصر التحكم في التشغيل التلقائي",
@@ -351,5 +357,18 @@
         "footerCookies": "تفضيلات ملفات تعريف الارتباط",
         "footerReady": "جاهز للمشاهدة؟ أدخل عبارتك لاستعادة مجموعتك.",
         "invalidKeyLarge": "يرجى إدخال عبارة صالحة أو تركها فارغة لإنشاء واحدة جديدة"
+    },
+    "infoModal": {
+        "cast": "طاقم العمل:",
+        "creators": "المؤلفون:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "لا يعجبني",
+        "iLikeThis": "يعجبني",
+        "loveThis": "أحبه!",
+        "myList": "قائمتي",
+        "rate": "تقييم",
+        "share": "مشاركة",
+        "episodesTab": "الحلقات",
+        "moreTab": "أعمال مشابهة"
     }
 }

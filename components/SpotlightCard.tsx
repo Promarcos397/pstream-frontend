@@ -240,7 +240,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
     const cardEl = (
         <div
             ref={cardRef}
-            className={`relative ${rank != null ? 'z-20' : 'z-10'} w-full min-h-[480px] flex flex-col bg-[#141414] border border-white/[0.09] rounded-xl overflow-hidden`}
+            className={`relative ${rank != null ? 'z-20' : 'z-10'} w-full sm:max-w-[85vw] sm:mx-auto min-h-[480px] flex flex-col bg-[#141414] border border-white/[0.09] rounded-xl overflow-hidden`}
         >
             {/* Scroll-darkness overlay — pointer-events-none so it doesn't block taps */}
             {scrollDarkness > 0 && (

@@ -207,7 +207,13 @@
         "off": "Kapalı",
         "season": "Sezon",
         "rated": "DERECELENDİRİLDİ",
-        "ratingDesc": "dil, cinsel göndermeler"
+        "ratingDesc": "dil, cinsel göndermeler",
+        "playbackError": "Oynatma Hatası",
+        "retryConnection": "Bağlantıyı Yeniden Dene",
+        "exitPlayer": "Oynatıcıdan Çık",
+        "tapToUnmute": "Sesi Açmak İçin Dokun",
+        "youreWatching": "İzliyorsunuz",
+        "paused": "Duraklatıldı"
     },
     "playback": {
         "autoplayTitle": "Otomatik Oynatma Kontrolleri",
@@ -351,5 +357,18 @@
         "footerCookies": "Çerez Tercihleri",
         "footerReady": "İzlemeye hazır mısınız? Koleksiyonunuzu geri yüklemek için kurtarma parolanızı girin.",
         "invalidKeyLarge": "Lütfen geçerli bir 12 kelimelik parola girin veya yenisini oluşturmak için boş bırakın"
+    },
+    "infoModal": {
+        "cast": "Oyuncu Kadrosu:",
+        "creators": "Yaratıcılar:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "Bana göre değil",
+        "iLikeThis": "Beğendim",
+        "loveThis": "Bayıldım!",
+        "myList": "Listem",
+        "rate": "Puan Ver",
+        "share": "Paylaş",
+        "episodesTab": "Bölümler",
+        "moreTab": "Benzerleri"
     }
 }

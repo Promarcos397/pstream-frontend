@@ -207,7 +207,13 @@
         "off": "关闭",
         "season": "季",
         "rated": "分级",
-        "ratingDesc": "语言、性暗示"
+        "ratingDesc": "语言、性暗示",
+        "playbackError": "播放错误",
+        "retryConnection": "重试连接",
+        "exitPlayer": "退出播放器",
+        "tapToUnmute": "点击取消静音",
+        "youreWatching": "您正在观看",
+        "paused": "已暂停"
     },
     "playback": {
         "autoplayTitle": "自动播放控制",
@@ -351,5 +357,18 @@
         "footerCookies": "Cookie 设置",
         "footerReady": "准备好观看了吗？请输入助记词以还原您的收藏。",
         "invalidKeyLarge": "请输入有效的 12 个单词助记词，或留空直接创建新密钥"
+    },
+    "infoModal": {
+        "cast": "演员:",
+        "creators": "创作者:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "不合口味",
+        "iLikeThis": "我喜欢",
+        "loveThis": "超爱！",
+        "myList": "我的剧单",
+        "rate": "评分",
+        "share": "分享",
+        "episodesTab": "剧集",
+        "moreTab": "类似推荐"
     }
 }

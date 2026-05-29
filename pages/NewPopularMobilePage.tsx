@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
 import SpotlightCard from '../components/SpotlightCard';
 import NewPopularSubNavMobile, { NewTab } from '../components/NewPopularSubNavMobile';
@@ -130,6 +131,7 @@ const Feed: React.FC<FeedProps> = ({
     getRank,
     limit,
 }) => {
+    const { t } = useTranslation();
     const items = limit ? movies.slice(0, limit) : movies;
 
     if (loading) {
@@ -144,7 +146,7 @@ const Feed: React.FC<FeedProps> = ({
         return (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-white/40">
                 <span className="text-3xl">🎬</span>
-                <p className="text-sm font-medium">Nothing here yet</p>
+                <p className="text-sm font-medium">{t('common.nothingToShow', { defaultValue: 'Nothing here yet' })}</p>
             </div>
         );
     }

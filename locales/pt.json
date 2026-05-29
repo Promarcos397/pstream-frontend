@@ -207,7 +207,13 @@
         "off": "Desativado",
         "season": "Temporada",
         "rated": "CLASSIFICADO",
-        "ratingDesc": "linguagem, referências sexuais"
+        "ratingDesc": "linguagem, referências sexuais",
+        "playbackError": "Erro de reprodução",
+        "retryConnection": "Tentar novamente a ligação",
+        "exitPlayer": "Sair do leitor",
+        "tapToUnmute": "Toque para ativar o som",
+        "youreWatching": "Está a ver",
+        "paused": "Pausado"
     },
     "playback": {
         "autoplayTitle": "Controlos de reprodução automática",
@@ -351,5 +357,18 @@
         "footerCookies": "Preferências de cookies",
         "footerReady": "Pronto para ver? Introduza a sua frase de recuperação para restaurar a sua coleção.",
         "invalidKeyLarge": "Introduza uma frase de 12 palavras válida ou deixe em branco para criar uma nova"
+    },
+    "infoModal": {
+        "cast": "Elenco:",
+        "creators": "Criadores:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "Não é para mim",
+        "iLikeThis": "Gosto disto",
+        "loveThis": "Adoro!",
+        "myList": "A minha lista",
+        "rate": "Classificar",
+        "share": "Partilhar",
+        "episodesTab": "Episódios",
+        "moreTab": "Mais parecidos"
     }
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import landingBg from '../assets/landing-bg.png';
 import logo from '../assets/logos/pstream-logo.svg';
 import { CaretLeftIcon } from '@phosphor-icons/react';
@@ -11,11 +12,15 @@ interface NotFoundPageProps {
 }
 
 const NotFoundPage: React.FC<NotFoundPageProps> = ({ 
-    title = "Lost your way?", 
-    message = "Sorry, we can't find that page. You'll find lots to explore on the home page.",
+    title, 
+    message,
     code = "NSES-404"
 }) => {
     const navigate = useNavigate();
+    const { t } = useTranslation();
+
+    const displayTitle = title || t('notFound.title', { defaultValue: 'Lost your way?' });
+    const displayMessage = message || t('notFound.message', { defaultValue: "Sorry, we can't find that page. You'll find lots to explore on the home page." });
 
     return (
         <div className="relative min-h-screen bg-black flex flex-col font-['Consolas'] overflow-hidden selection:bg-red-600/30">
@@ -42,21 +47,21 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({
             <main className="relative z-10 flex-grow flex items-center justify-center px-6 py-12 text-center">
                 <div className="max-w-2xl w-full animate-fadeIn">
                     <h1 className="text-7xl md:text-9xl font-black text-white mb-6 drop-shadow-2xl opacity-90">404</h1>
-                    <h2 className="text-2xl md:text-4xl font-bold text-white mb-6 drop-shadow-lg tracking-tight">{title}</h2>
+                    <h2 className="text-2xl md:text-4xl font-bold text-white mb-6 drop-shadow-lg tracking-tight">{displayTitle}</h2>
                     <p className="text-lg md:text-xl text-white/70 mb-10 max-w-lg mx-auto font-sans">
-                        {message}
+                        {displayMessage}
                     </p>
                     <button
                         onClick={() => navigate('/')}
                         className="px-8 py-4 bg-white text-black text-lg font-bold rounded flex items-center justify-center gap-2 mx-auto hover:bg-white/90 transition-all shadow-xl hover:scale-[1.02] active:scale-95"
                     >
                         <CaretLeftIcon size={24} weight="bold" />
-                        P-Stream Home
+                        {t('notFound.homeButton', { defaultValue: 'P-Stream Home' })}
                     </button>
                     
                     <div className="mt-16 text-white/30 text-sm font-sans flex items-center justify-center gap-2">
                         <span className="h-px w-8 bg-white/20"></span>
-                        <span>Error Code: {code}</span>
+                        <span>{t('notFound.errorCode', { code, defaultValue: 'Error Code: {{code}}' })}</span>
                         <span className="h-px w-8 bg-white/20"></span>
                     </div>
                 </div>

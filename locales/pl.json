@@ -207,7 +207,13 @@
         "off": "Wyłączone",
         "season": "Sezon",
         "rated": "OCENA",
-        "ratingDesc": "język, podteksty seksualne"
+        "ratingDesc": "język, podteksty seksualne",
+        "playbackError": "Błąd odtwarzania",
+        "retryConnection": "Ponów próbę połączenia",
+        "exitPlayer": "Zamknij odtwarzacz",
+        "tapToUnmute": "Dotknij, aby włączyć dźwięk",
+        "youreWatching": "Teraz oglądasz",
+        "paused": "Wstrzymano"
     },
     "playback": {
         "autoplayTitle": "Sterowanie autoodtwarzaniem",
@@ -351,5 +357,18 @@
         "footerCookies": "Preferencje dotyczące plików cookie",
         "footerReady": "Chcesz oglądać? Wpisz frazę, aby przywrócić swoją kolekcję.",
         "invalidKeyLarge": "Wpisz poprawną frazę lub zostaw puste, aby stworzyć nową"
+    },
+    "infoModal": {
+        "cast": "Obsada:",
+        "creators": "Twórcy:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "To nie dla mnie",
+        "iLikeThis": "Podoba mi się",
+        "loveThis": "Uwielbiam!",
+        "myList": "Moja lista",
+        "rate": "Oceń",
+        "share": "Udostępnij",
+        "episodesTab": "Odcinki",
+        "moreTab": "Więcej podobnych"
     }
 }

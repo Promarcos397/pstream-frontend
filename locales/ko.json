@@ -207,7 +207,13 @@
         "off": "끄기",
         "season": "시즌",
         "rated": "RATED",
-        "ratingDesc": "언어, 성적 묘사"
+        "ratingDesc": "언어, 성적 묘사",
+        "playbackError": "재생 오류",
+        "retryConnection": "연결 재시도",
+        "exitPlayer": "플레이어 종료",
+        "tapToUnmute": "탭하여 음소거 해제",
+        "youreWatching": "시청 중인 콘텐츠",
+        "paused": "일시 정지"
     },
     "playback": {
         "autoplayTitle": "자동 재생 설정",
@@ -351,5 +357,18 @@
         "footerCookies": "쿠키 설정",
         "footerReady": "볼 준비가 되셨나요? 키를 입력하여 라이브러리를 복구하세요.",
         "invalidKeyLarge": "유효한 12개 단어를 입력하거나 비워두어 새 키를 생성하세요"
+    },
+    "infoModal": {
+        "cast": "출연:",
+        "creators": "크리에이터:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "마음에 안 들어요",
+        "iLikeThis": "마음에 들어요",
+        "loveThis": "최고예요!",
+        "myList": "내가 찜한 콘텐츠",
+        "rate": "평가",
+        "share": "공유",
+        "episodesTab": "에피소드",
+        "moreTab": "비슷한 콘텐츠"
     }
 }

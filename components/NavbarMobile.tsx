@@ -5,6 +5,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useGlobalContext } from '../context/GlobalContext';
 import { DEFAULT_AVATAR } from '../constants';
 import pLogo from '../assets/logos/pstream-logo.svg';
+import pLogoSymbol from '../assets/logos/p-pstream-logo.svg';
 
 interface NavbarMobileProps {
   isScrolled: boolean;
@@ -72,14 +73,28 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   return (
     <>
       {/* Mobile Top Header (Netflix style) */}
-      <header
-        style={{
-          backgroundColor: `rgba(0, 0, 0, ${opacity})`
-        }}
-        className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0"
-      >
-        {isSearchActive ? (
-          // Search Input Row
+      {!isSearchActive ? (
+        // Standard header is hidden on tablet (branding is in sidebar), visible on mobile
+        <header
+          style={{
+            backgroundColor: `rgba(0, 0, 0, ${opacity})`
+          }}
+          className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0 sm:hidden"
+        >
+          <div className="flex items-center justify-center py-1">
+            <img
+              src={pLogo}
+              alt="Pstream Logo"
+              onClick={() => handleMobileTabClick('home')}
+              className="h-[34px] w-auto cursor-pointer select-none transition-transform active:scale-95"
+            />
+          </div>
+        </header>
+      ) : (
+        // Search Header: Shown on both mobile and tablet with proper content offset (sm:left-[72px])
+        <header
+          className="fixed top-0 left-0 right-0 sm:left-[72px] z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none bg-black/95 backdrop-blur-md"
+        >
           <div className="flex items-center w-full px-1 animate-in fade-in duration-200">
             <div className="flex-1 flex items-center bg-[#222222] rounded-[4px] px-3.5 py-2.5 border border-white/[0.04]">
               <svg 
@@ -116,22 +131,26 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               </button>
             </div>
           </div>
-        ) : (
-          // Standard Header Row
-          <div className="flex items-center justify-center py-1">
-            <img
-              src={pLogo}
-              alt="Pstream Logo"
-              onClick={() => handleMobileTabClick('home')}
-              className="h-[34px] w-auto cursor-pointer select-none transition-transform active:scale-95"
-            />
-          </div>
-        )}
-      </header>
+        </header>
+      )}
 
-      {/* Mobile Bottom Navigation Bar (Solid dark rectangle at the bottom) */}
-      <div className="fixed bottom-0 left-0 right-0 z-[10020] w-full bg-[#121212] pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 px-4 shadow-[0_-4px_24px_rgba(0,0,0,0.5)] border-none">
-        <div className="grid grid-cols-4 items-center justify-around w-full">
+      {/* Mobile Bottom Navigation Bar → Left Sidebar on sm: (foldable/tablet) */}
+      <div className="
+        fixed bottom-0 left-0 right-0 z-[10020] w-full bg-[#121212] pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 px-4 border-none
+        sm:bottom-0 sm:top-0 sm:right-auto sm:w-[72px] sm:h-full sm:pb-0 sm:pt-0 sm:px-0 sm:flex-col sm:border-r sm:border-white/[0.08]
+        sm:bg-[#121212] sm:shadow-2xl sm:flex sm:items-center sm:justify-start
+      ">
+        {/* Brand Logo/Icon at the very top of the Sidebar (Tablet only) */}
+        <div className="hidden sm:flex items-center justify-center w-full pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6 shrink-0">
+          <img
+            src={pLogoSymbol}
+            alt="Pstream Emblem Logo"
+            onClick={() => handleMobileTabClick('home')}
+            className="h-[46px] w-auto cursor-pointer select-none transition-all active:scale-95 hover:scale-105 duration-200"
+          />
+        </div>
+
+        <div className="grid grid-cols-4 items-center justify-around w-full sm:flex sm:flex-col sm:items-center sm:justify-start sm:h-full sm:gap-2 sm:pt-0 sm:w-full">
           {/* Home */}
           <div
             onClick={() => {
@@ -143,11 +162,16 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               setSearchParams(newParams, { replace: true });
               handleMobileTabClick('home');
             }}
-            className={`flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 py-1
-              ${activeTab === 'home' && !isSearchActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`}
+            className={`relative flex flex-col items-center justify-center cursor-pointer select-none transition-all duration-300 py-1 sm:py-5 sm:w-full
+              active:scale-95 sm:hover:bg-white/[0.03] group
+              ${activeTab === 'home' && !isSearchActive ? 'text-white font-bold' : 'text-white/45 hover:text-white/80'}`}
           >
-            <House size={22} weight={activeTab === 'home' && !isSearchActive ? 'fill' : 'regular'} />
-            <span className="text-[10px] mt-1 font-semibold tracking-wide">Home</span>
+            {/* Crimson Glowing Active Indicator (Left side vertical bar on tablet) */}
+            {activeTab === 'home' && !isSearchActive && (
+              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
+            )}
+            <House size={22} weight={activeTab === 'home' && !isSearchActive ? 'fill' : 'regular'} className="transition-transform group-hover:scale-105 duration-200" />
+            <span className="text-[10px] mt-1 font-semibold tracking-wide transition-opacity duration-200">{t('nav.home', { defaultValue: 'Home' })}</span>
           </div>
 
           {/* My List */}
@@ -161,11 +185,16 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               setSearchParams(newParams, { replace: true });
               handleMobileTabClick('list');
             }}
-            className={`flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 py-1
-              ${activeTab === 'list' && !isSearchActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`}
+            className={`relative flex flex-col items-center justify-center cursor-pointer select-none transition-all duration-300 py-1 sm:py-5 sm:w-full
+              active:scale-95 sm:hover:bg-white/[0.03] group
+              ${activeTab === 'list' && !isSearchActive ? 'text-white font-bold' : 'text-white/45 hover:text-white/80'}`}
           >
-            <Bookmark size={22} weight={activeTab === 'list' && !isSearchActive ? 'fill' : 'regular'} />
-            <span className="text-[10px] mt-1 font-semibold tracking-wide">My List</span>
+            {/* Crimson Glowing Active Indicator (Left side vertical bar on tablet) */}
+            {activeTab === 'list' && !isSearchActive && (
+              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
+            )}
+            <Bookmark size={22} weight={activeTab === 'list' && !isSearchActive ? 'fill' : 'regular'} className="transition-transform group-hover:scale-105 duration-200" />
+            <span className="text-[10px] mt-1 font-semibold tracking-wide transition-opacity duration-200">{t('nav.myList', { defaultValue: 'My List' })}</span>
           </div>
 
           {/* Search */}
@@ -176,14 +205,19 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               newParams.set('search', 'true');
               setSearchParams(newParams, { replace: true });
             }}
-            className={`flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 py-1
-              ${isSearchActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`}
+            className={`relative flex flex-col items-center justify-center cursor-pointer select-none transition-all duration-300 py-1 sm:py-5 sm:w-full
+              active:scale-95 sm:hover:bg-white/[0.03] group
+              ${isSearchActive ? 'text-white font-bold' : 'text-white/45 hover:text-white/80'}`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px] shrink-0">
+            {/* Crimson Glowing Active Indicator (Left side vertical bar on tablet) */}
+            {isSearchActive && (
+              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
+            )}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px] shrink-0 transition-transform group-hover:scale-105 duration-200">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <span className="text-[10px] mt-1 font-semibold tracking-wide">Search</span>
+            <span className="text-[10px] mt-1 font-semibold tracking-wide transition-opacity duration-200">{t('nav.search', { defaultValue: 'Search' })}</span>
           </div>
 
           {/* Profile (Settings) */}
@@ -197,12 +231,17 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               setSearchParams(newParams, { replace: true });
               handleMobileTabClick('settings');
             }}
-            className={`flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 py-1
-              ${activeTab === 'settings' && !isSearchActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`}
+            className={`relative flex flex-col items-center justify-center cursor-pointer select-none transition-all duration-300 py-1 sm:py-5 sm:w-full
+              active:scale-95 sm:hover:bg-white/[0.03] group
+              ${activeTab === 'settings' && !isSearchActive ? 'text-white font-bold' : 'text-white/45 hover:text-white/80'}`}
           >
+            {/* Crimson Glowing Active Indicator (Left side vertical bar on tablet) */}
+            {activeTab === 'settings' && !isSearchActive && (
+              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
+            )}
             <div
-              className={`w-[22px] h-[22px] rounded overflow-hidden flex items-center justify-center bg-[#E50914] text-white font-bold text-[10px] ring-1 transition-all duration-200 shrink-0
-                ${activeTab === 'settings' ? 'ring-white scale-105' : 'ring-transparent'}`}
+              className={`w-[22px] h-[22px] rounded overflow-hidden flex items-center justify-center bg-[#E50914] text-white font-bold text-[10px] ring-1 transition-all duration-300 shrink-0 group-hover:scale-105
+                ${activeTab === 'settings' && !isSearchActive ? 'ring-white ring-2' : 'ring-transparent'}`}
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
@@ -210,7 +249,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                 <span>{avatarInitial}</span>
               )}
             </div>
-            <span className="text-[10px] mt-1 font-semibold tracking-wide">Profile</span>
+            <span className="text-[10px] mt-1 font-semibold tracking-wide transition-opacity duration-200">{t('nav.profile', { defaultValue: 'Profile' })}</span>
           </div>
         </div>
       </div>

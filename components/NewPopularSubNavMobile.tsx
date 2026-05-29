@@ -61,16 +61,16 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
                 const isLast = i === TABS.length - 1;
 
                 const cornerClass = isFirst
-                    ? 'rounded-l-[27px] rounded-r-[14px]'
+                    ? 'rounded-l-[23px] rounded-r-[12px]'
                     : isLast
-                        ? 'rounded-l-[14px] rounded-r-[27px]'
-                        : 'rounded-[14px]';
+                        ? 'rounded-l-[12px] rounded-r-[23px]'
+                        : 'rounded-[12px]';
 
                 return (
                     <button
                         key={tab.id}
                         onClick={() => onTabChange(tab.id)}
-                        className={`flex items-center justify-center h-[54px] px-4 ${cornerClass} text-[14px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0 ${
+                        className={`flex items-center justify-center h-[46px] px-3.5 ${cornerClass} text-[14px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0 ${
                             isActive
                                 ? 'bg-white/[0.18] backdrop-blur-md text-white border border-white/25'
                                 : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border border-white/10'
@@ -91,14 +91,14 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
     return (
         <>
             {/* 1. Original sub-nav: absolute at the top, scrolls naturally with the page content */}
-            <div className="absolute top-[calc(56px+env(safe-area-inset-top))] left-0 right-0 z-[78] pt-2 pb-4 flex items-center justify-start space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full bg-transparent">
+            <div className="absolute top-[calc(68px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-1 pb-3 flex items-center justify-start sm:justify-center space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full bg-transparent">
                 {pills}
             </div>
 
             {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid background */}
             <div
                 style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
-                className={`fixed top-[calc(56px+env(safe-area-inset-top))] left-0 right-0 z-[79] pt-2 pb-4 flex items-center justify-start space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full transition-all duration-300 ease-out ${
+                className={`fixed top-[calc(56px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[72px] z-[79] pt-4 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start sm:justify-center space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full transition-all duration-300 ease-out ${
                     showTemp 
                         ? 'opacity-100 translate-y-0 pointer-events-auto' 
                         : '-translate-y-full opacity-0 pointer-events-none'

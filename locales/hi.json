@@ -207,7 +207,13 @@
         "off": "बंद",
         "season": "सीजन",
         "rated": "रेटेड",
-        "ratingDesc": "भाषा, यौन संदर्भ"
+        "ratingDesc": "भाषा, यौन संदर्भ",
+        "playbackError": "प्लेबैक त्रुटि",
+        "retryConnection": "कनेक्शन पुन: प्रयास करें",
+        "exitPlayer": "प्लेयर से बाहर निकलें",
+        "tapToUnmute": "ध्वनि चालू करने के लिए टैप करें",
+        "youreWatching": "आप देख रहे हैं",
+        "paused": "ठहरा हुआ"
     },
     "playback": {
         "autoplayTitle": "ऑटोप्ले कंट्रोल",
@@ -351,5 +357,18 @@
         "footerCookies": "कुकी पसंद",
         "footerReady": "देखने के लिए तैयार हैं? अपनी लाइब्रेरी वापस पाने के लिए रिकवरी की डालें।",
         "invalidKeyLarge": "कृपया 12 सही शब्द डालें या नया बनाने के लिए खाली छोड़ दें"
+    },
+    "infoModal": {
+        "cast": "कलाकार:",
+        "creators": "निर्माता:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "मेरे लिए नहीं",
+        "iLikeThis": "पसंद है",
+        "loveThis": "बेहद पसंद है!",
+        "myList": "मेरी सूची",
+        "rate": "रेट करें",
+        "share": "शेयर करें",
+        "episodesTab": "एपिसोड",
+        "moreTab": "इस तरह के और"
     }
 }

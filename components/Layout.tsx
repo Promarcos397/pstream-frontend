@@ -35,7 +35,7 @@ const Layout: React.FC<LayoutProps> = ({
       />
 
       {/* Main Content Area */}
-      <div className="min-h-screen pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="min-h-screen pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-0 sm:pl-[72px] md:pl-0">
         {children}
       </div>
 

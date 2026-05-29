@@ -1,19 +1,20 @@
 /**
- * Browser Audio Codec Support Detection
+ * Browser Codec Support Detection (Video + Audio)
  *
  * Builds an accurate per-browser profile using MediaCapabilities API + canPlayType().
  *
- * Patent context (why this matters):
+ * Audio patent context:
  *   AC3  (Dolby Digital)      — patents expired 2017
  *   EAC3 (Dolby Digital Plus) — patents expired January 30, 2026
  *   DTS                       — still patent-protected
  *
- * Who can play what natively in a browser:
- *   Safari (Apple paid Dolby at OS level)       → AC3 ✅  EAC3 ✅
- *   Edge on Windows (inherits OS Dolby license) → AC3 ✅  EAC3 ✅
- *   Chrome everywhere (Google chose not to pay) → AC3 ❌  EAC3 ❌
- *   Firefox (non-profit, can't afford it)        → AC3 ❌  EAC3 ❌
- *   Samsung Internet on Android                  → AC3 ❌  EAC3 ❌
+ * Video hardware decode context:
+ *   H.264/AVC  — hardware-accelerated on every modern device/browser
+ *   H.265/HEVC — hardware-accelerated only on:
+ *                  Safari/macOS+iOS (Apple Silicon + A/M chips)
+ *                  Edge/Windows (via OS HEVC codec / HEVC Video Extensions)
+ *                  NOT hardware-accelerated in Chrome on most desktops
+ *                  → software-decoding HEVC = CPU spike, lag, dropped frames
  */
 
 export interface AudioCapabilities {
@@ -32,6 +33,13 @@ export interface AudioCapabilities {
     preferredTranscodeTarget: 'opus' | 'aac';
     /** EBML A_* codec IDs this browser can play without transcoding */
     safeEbmlCodecs: Set<string>;
+    /**
+     * True when MediaCapabilities reports smooth (hardware-accelerated) HEVC decode.
+     * When false, HEVC/x265 sources are deprioritised to avoid software-decode lag.
+     */
+    canHWDecodeHEVC: boolean;
+    /** True when MediaCapabilities reports smooth (hardware-accelerated) H.264 decode. */
+    canHWDecodeH264: boolean;
 }
 
 let _profile: AudioCapabilities | null = null;
@@ -45,7 +53,7 @@ function tryCanPlayType(mime: string): boolean {
     } catch { return false; }
 }
 
-async function tryMediaCapabilities(contentType: string): Promise<boolean> {
+async function tryAudioMediaCapabilities(contentType: string): Promise<boolean> {
     if (typeof navigator === 'undefined' || !('mediaCapabilities' in navigator)) return false;
     try {
         const r = await (navigator as any).mediaCapabilities.decodingInfo({
@@ -53,6 +61,28 @@ async function tryMediaCapabilities(contentType: string): Promise<boolean> {
             audio: { contentType, samplerate: 48000, channels: 6 },
         });
         return !!r?.supported;
+    } catch { return false; }
+}
+
+/**
+ * Check if the browser can hardware-decode a given video codec at 1080p 10Mbps 24fps.
+ * Returns true only when the API reports supported=true AND smooth=true.
+ * smooth=true is the browser's signal that hardware acceleration is available.
+ */
+async function tryVideoHWDecode(contentType: string): Promise<boolean> {
+    if (typeof navigator === 'undefined' || !('mediaCapabilities' in navigator)) return false;
+    try {
+        const r = await (navigator as any).mediaCapabilities.decodingInfo({
+            type: 'file',
+            video: {
+                contentType,
+                width: 1920,
+                height: 1080,
+                bitrate: 10_000_000,
+                framerate: 24,
+            },
+        });
+        return !!r?.supported && !!r?.smooth;
     } catch { return false; }
 }
 
@@ -65,21 +95,29 @@ async function buildProfile(): Promise<AudioCapabilities> {
     const canPlayMP3  = tryCanPlayType('audio/mpeg');
     const canPlayOpus = tryCanPlayType('audio/ogg; codecs="opus"') || tryCanPlayType('audio/webm; codecs="opus"');
 
-    // AC3/EAC3: check both APIs — MediaCapabilities is more reliable for Dolby
-    const [ac3Type, eac3Type, ac3Cap, eac3Cap, dtsType] = await Promise.all([
+    const [
+        ac3Type, eac3Type, ac3Cap, eac3Cap, dtsType,
+        hevcHvc1, hevcHev1, h264Smooth,
+    ] = await Promise.all([
+        // Audio
         Promise.resolve(tryCanPlayType('audio/ac3') || tryCanPlayType('audio/x-ac3')),
         Promise.resolve(tryCanPlayType('audio/eac3') || tryCanPlayType('audio/x-eac3')),
-        tryMediaCapabilities('audio/mp4; codecs="ac-3"'),
-        tryMediaCapabilities('audio/mp4; codecs="ec-3"'),
+        tryAudioMediaCapabilities('audio/mp4; codecs="ac-3"'),
+        tryAudioMediaCapabilities('audio/mp4; codecs="ec-3"'),
         Promise.resolve(tryCanPlayType('audio/x-dts')),
+        // Video HEVC — two codec string variants used by different browsers/containers
+        tryVideoHWDecode('video/mp4; codecs="hvc1.1.6.L93.B0"'),
+        tryVideoHWDecode('video/mp4; codecs="hev1.1.6.L93.B0"'),
+        // Video H.264 baseline reference
+        tryVideoHWDecode('video/mp4; codecs="avc1.640028"'),
     ]);
 
-    const canPlayAC3  = ac3Type || ac3Cap;
-    const canPlayEAC3 = eac3Type || eac3Cap;
-    const canPlayDTS  = dtsType;
+    const canPlayAC3     = ac3Type || ac3Cap;
+    const canPlayEAC3    = eac3Type || eac3Cap;
+    const canPlayDTS     = dtsType;
+    const canHWDecodeHEVC = hevcHvc1 || hevcHev1;
+    const canHWDecodeH264 = h264Smooth;
 
-    // isDolbyCapable: either detected via API OR we know it from UA heuristics.
-    // UA heuristic is the fallback because some browsers lie in canPlayType for Dolby.
     const isDolbyCapable = canPlayAC3 || canPlayEAC3 || isSafari || isEdgeWin;
 
     const safeEbmlCodecs = new Set<string>([
@@ -99,13 +137,17 @@ async function buildProfile(): Promise<AudioCapabilities> {
         isDolbyCapable,
         preferredTranscodeTarget: isDolbyCapable ? 'aac' : 'opus',
         safeEbmlCodecs,
+        canHWDecodeHEVC,
+        canHWDecodeH264,
     };
 
-    console.log('[CodecSupport] 🎵 Browser audio profile:', {
+    console.log('[CodecSupport] 🎵 Browser codec profile:', {
         AC3: canPlayAC3, EAC3: canPlayEAC3, DTS: canPlayDTS,
         AAC: canPlayAAC, Opus: canPlayOpus,
         Safari: isSafari, EdgeWin: isEdgeWin,
         transcodeTarget: profile.preferredTranscodeTarget,
+        'HW HEVC': canHWDecodeHEVC,
+        'HW H264': canHWDecodeH264,
     });
 
     return profile;

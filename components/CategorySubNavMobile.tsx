@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Genre } from './CategorySubNav';
 
 interface CategorySubNavMobileProps {
@@ -16,6 +17,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
     selectedGenre,
     onGenreSelect,
 }) => {
+    const { t } = useTranslation();
     const location = useLocation();
     const navigate = useNavigate();
     const [genreMenuOpen, setGenreMenuOpen] = useState(false);
@@ -88,42 +90,42 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
         setGenreMenuOpen(prev => !prev);
     };
 
-    const activeGenreLabel = selectedGenre ? selectedGenre.name : 'Categories';
+    const activeGenreLabel = selectedGenre ? selectedGenre.name : t('nav.categories', { defaultValue: 'Categories' });
 
     const pills = (
         <>
             <div className="w-[16px] shrink-0" />
             <button
                 onClick={() => handlePillClick('/tv', isTvActive)}
-                className={`flex items-center justify-center h-[54px] px-4 rounded-l-[27px] rounded-r-[14px] text-[14px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
+                className={`flex items-center justify-center h-[46px] sm:h-[52px] px-3.5 sm:px-5 rounded-l-[23px] rounded-r-[12px] text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                     ${isTvActive 
                         ? 'bg-white/[0.18] backdrop-blur-md text-white border border-white/25' 
                         : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border border-white/10'}`}
             >
-                Series
+                {t('nav.shows', { defaultValue: 'Series' })}
             </button>
             <button
                 onClick={() => handlePillClick('/movies', isMovieActive)}
-                className={`flex items-center justify-center h-[54px] px-4 rounded-[14px] text-[14px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
+                className={`flex items-center justify-center h-[46px] sm:h-[52px] px-3.5 sm:px-5 rounded-[12px] text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                     ${isMovieActive 
                         ? 'bg-white/[0.18] backdrop-blur-md text-white border border-white/25' 
                         : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border border-white/10'}`}
             >
-                Movies
+                {t('nav.movies', { defaultValue: 'Movies' })}
             </button>
             <button
                 onClick={() => handlePillClick('/new', isNewActive)}
-                className={`flex items-center justify-center h-[54px] px-4 rounded-[14px] text-[14px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
+                className={`flex items-center justify-center h-[46px] sm:h-[52px] px-3.5 sm:px-5 rounded-[12px] text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                     ${isNewActive 
                         ? 'bg-white/[0.18] backdrop-blur-md text-white border border-white/25' 
                         : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border border-white/10'}`}
             >
-                New & Hot
+                {t('nav.newPopular', { defaultValue: 'New & Hot' })}
             </button>
             <div className="relative shrink-0">
                 <button
                     onClick={selectedGenre ? () => handleGenreClick(null) : toggleMenu}
-                    className={`flex items-center justify-center space-x-1 h-[54px] px-4 rounded-l-[14px] rounded-r-[27px] text-[14px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none
+                    className={`flex items-center justify-center space-x-1 h-[46px] sm:h-[52px] px-3.5 sm:px-5 rounded-l-[12px] rounded-r-[23px] text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none
                         ${selectedGenre 
                             ? 'bg-white/[0.18] backdrop-blur-md text-white border border-white/25' 
                             : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border border-white/10'}`}
@@ -134,7 +136,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 opacity-70 ml-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 opacity-70 ml-1">
                             <path d="M12 15.375L6 9.375L7.4 7.975L12 12.575L16.6 7.975L18 9.375L12 15.375Z" />
                         </svg>
                     )}
@@ -169,14 +171,14 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
             )}
 
             {/* 1. Original sub-nav: absolute at the top, scrolls naturally with the page content */}
-            <div className="absolute top-[calc(56px+env(safe-area-inset-top))] left-0 right-0 z-[78] pt-2 pb-4 flex items-center justify-start space-x-2 select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
+            <div className="absolute top-[calc(68px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-1 pb-3 flex items-center justify-start sm:justify-center space-x-2 select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
                 {pills}
             </div>
 
             {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid background */}
             <div
                 style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
-                className={`fixed top-[calc(56px+env(safe-area-inset-top))] left-0 right-0 z-[79] pt-2 pb-4 flex items-center justify-start space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full transition-all duration-300 ease-out ${
+                className={`fixed top-[calc(56px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[72px] z-[79] pt-4 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start sm:justify-center space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full transition-all duration-300 ease-out ${
                     showTemp 
                         ? 'opacity-100 translate-y-0 pointer-events-auto' 
                         : '-translate-y-full opacity-0 pointer-events-none'

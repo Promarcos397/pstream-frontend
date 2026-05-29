@@ -215,7 +215,13 @@
         "off": "Off",
         "season": "Season",
         "rated": "RATED",
-        "ratingDesc": "language, sex references"
+        "ratingDesc": "language, sex references",
+        "playbackError": "Playback Error",
+        "retryConnection": "Retry Connection",
+        "exitPlayer": "Exit Player",
+        "tapToUnmute": "Tap to Unmute",
+        "youreWatching": "You're watching",
+        "paused": "Paused"
     },
     "playback": {
         "autoplayTitle": "Autoplay Controls",
@@ -366,5 +372,18 @@
     "privacy": {
         "dataWiped": "Data Wiped",
         "confirmDeleteAction": "YES, DELETE DATA"
+    },
+    "infoModal": {
+        "cast": "Cast:",
+        "creators": "Creators:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "Not for me",
+        "iLikeThis": "I like this",
+        "loveThis": "Love this!",
+        "myList": "My List",
+        "rate": "Rate",
+        "share": "Share",
+        "episodesTab": "Episodes",
+        "moreTab": "More Like This"
     }
 }

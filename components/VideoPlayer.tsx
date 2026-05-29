@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Movie, Episode, InternalTrack } from '../types';
 import { getSeasonDetails, getMovieDetails, getExternalIds } from '../services/api';
 import ISO6391 from 'iso-639-1';
+import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useTitle } from '../context/TitleContext';
@@ -12,8 +13,6 @@ import { SubtitleService } from '../services/SubtitleService';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 import { useDebridStream } from '../hooks/useDebridStream';
-import { useWasmAudio } from '../hooks/useWasmAudio';
-import { getCodecProfile } from '../utils/browserCodecSupport';
 
 
 // Giga Engine Backend URL
@@ -35,6 +34,66 @@ function shouldForceProxy(source: any): boolean {
     } catch (_) {
         return false;
     }
+}
+
+/** Parses standard subtitle formatting tags into safe, structured React elements. */
+function parseSubtitleTags(text: string): React.ReactNode[] {
+    const tagRegex = /(<\/?[ibuf](?: [^>]*)?>|<\/?[uU]>|<br\s*\/?>|\n)/g;
+    const parts = text.split(tagRegex);
+    const elements: React.ReactNode[] = [];
+    
+    let isItalic = false;
+    let isBold = false;
+    let isUnderline = false;
+    let activeColor: string | undefined = undefined;
+    
+    parts.forEach((part, index) => {
+        if (!part) return;
+        
+        const lower = part.toLowerCase();
+        if (lower === '<i>') {
+            isItalic = true;
+        } else if (lower === '</i>') {
+            isItalic = false;
+        } else if (lower === '<b>') {
+            isBold = true;
+        } else if (lower === '</b>') {
+            isBold = false;
+        } else if (lower === '<u>') {
+            isUnderline = true;
+        } else if (lower === '</u>') {
+            isUnderline = false;
+        } else if (lower.startsWith('<font')) {
+            const colorMatch = part.match(/color=["']?([^"'\s>]+)["']?/i);
+            if (colorMatch) {
+                activeColor = colorMatch[1];
+            }
+        } else if (lower === '</font>') {
+            activeColor = undefined;
+        } else if (lower === '<br>' || lower === '<br/>' || lower === '<br />' || part === '\n') {
+            elements.push(<br key={index} />);
+        } else {
+            if (isItalic || isBold || isUnderline || activeColor) {
+                elements.push(
+                    <span
+                        key={index}
+                        style={{
+                            fontStyle: isItalic ? 'italic' : undefined,
+                            fontWeight: isBold ? 'bold' : undefined,
+                            textDecoration: isUnderline ? 'underline' : undefined,
+                            color: activeColor || undefined,
+                        }}
+                    >
+                        {part}
+                    </span>
+                );
+            } else {
+                elements.push(part);
+            }
+        }
+    });
+    
+    return elements;
 }
 
 // Child Components
@@ -72,6 +131,7 @@ function requestMobileLandscapeFullscreen(el: HTMLElement) {
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, resumeTime = 0, onClose }) => {
+    const { t } = useTranslation();
     const { user, settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState, setActiveVideoId } = useGlobalContext();
     const { setPageTitle } = useTitle();
     const isMobile = useIsMobile();
@@ -132,143 +192,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [isStreamM3U8, setIsStreamM3U8] = useState<boolean>(true);
     const [isEmbed, setIsEmbed] = useState<boolean>(false);
-
-    // WASM Audio Integration
-    const currentSource = allSources[currentSourceIndex];
-    const profile = getCodecProfile();
-    const isDolbyCapable = profile?.isDolbyCapable ?? false;
-    const needsWasm = !isDolbyCapable && (
-        (streamUrl?.toLowerCase().includes('.mkv') || 
-         currentSource?._audio === 'ac3' || 
-         currentSource?._audio === 'eac3' || 
-         currentSource?._audio?.includes('dolby') ||
-         currentSource?._audio?.includes('ac-3') ||
-         currentSource?._audio?.includes('e-ac-3'))
-    ) && !!streamUrl;
-
-    const wasmAudio = useWasmAudio(videoRef, {
-        onError: (msg) => {
-            console.error('[VideoPlayer] WASM Audio Error:', msg);
-            // Mark this stream as failed — stops the infinite retry loop.
-            // The video element is unmuted so native audio plays (may be silent for AC3 in Chrome).
-            wasmFailedRef.current = true;
-            if (videoRef.current) videoRef.current.muted = false;
-        }
-    });
-
-    const lastStreamUrlRef = useRef<string | null>(null);
-    // Tracks if WASM failed for the current stream — prevents infinite retry loop.
-    // Reset whenever the stream URL changes so we retry on a new source.
-    const wasmFailedRef = useRef(false);
-
-    // WASM audio workers can't fetch AllDebrid CDN URLs directly:
-    //  - fetch() in Web Workers enforces CORS, and AllDebrid CDN has no Allow-Origin headers
-    //  - IP-locked streams also block server-side proxying
-    // The SW proxy was attempted but SW fetch() is also CORS-restricted for cross-origin reads.
-    // wasmProxiedUrl is kept for future improvement but currently 502s on AllDebrid streams.
-    const wasmProxiedUrl = streamUrl ? `/sw-proxy?url=${encodeURIComponent(streamUrl)}` : null;
-
-    // Synchronize WASM audio playback state with video element playing/paused state
-    useEffect(() => {
-        if (streamUrl !== lastStreamUrlRef.current) {
-            console.log('[VideoPlayer] streamUrl changed from', lastStreamUrlRef.current, 'to', streamUrl);
-            if (wasmAudio.isActive) {
-                wasmAudio.stop();
-            }
-            lastStreamUrlRef.current = streamUrl || null;
-            wasmFailedRef.current = false; // Reset failure flag for new stream
-        }
-
-        if (!needsWasm) {
-            if (wasmAudio.isActive) {
-                console.log('[VideoPlayer] Stopping WASM audio playback (WASM not needed)');
-                wasmAudio.stop();
-            }
-            return;
-        }
-
-        // Don't retry if WASM has already failed for this stream
-        if (wasmFailedRef.current) return;
-
-        const video = videoRef.current;
-        if (!video || !streamUrl) return;
-
-        if (isPlaying) {
-            if (!wasmAudio.isActive) {
-                console.log('[VideoPlayer] Starting WASM audio decoding at', video.currentTime);
-                wasmAudio.start(wasmProxiedUrl!, video.currentTime);
-            } else {
-                console.log('[VideoPlayer] Resuming WASM audio at', video.currentTime);
-                wasmAudio.resume(video.currentTime);
-            }
-            video.muted = true;
-        } else {
-            if (wasmAudio.isActive) {
-                console.log('[VideoPlayer] Pausing WASM audio');
-                wasmAudio.pause();
-            }
-        }
-    }, [isPlaying, needsWasm, streamUrl, wasmAudio.isActive]);
-
-    // Synchronize WASM volume and mute states
-    useEffect(() => {
-        if (needsWasm) {
-            wasmAudio.setVolume(videoRef.current?.muted ? 0 : volume);
-        }
-    }, [volume, needsWasm, wasmAudio.isActive, wasmAudio]);
-
-    // Synchronize buffering state when WASM is loading/buffering
-    useEffect(() => {
-        if (needsWasm) {
-            if (wasmAudio.status === 'loading' || wasmAudio.status === 'buffering') {
-                setIsBuffering(true);
-            } else if (wasmAudio.status === 'ready') {
-                setIsBuffering(false);
-            }
-        }
-    }, [wasmAudio.status, needsWasm]);
-
-    // Real-time drift correction loop (500ms soft adjustment)
-    useEffect(() => {
-        if (!needsWasm || !wasmAudio.isActive || !videoRef.current || !streamUrl) {
-            if (videoRef.current) videoRef.current.playbackRate = 1.0;
-            return;
-        }
-
-        const interval = setInterval(() => {
-            const video = videoRef.current;
-            if (!video) return;
-
-            const videoTime = video.currentTime;
-            const audioTime = wasmAudio.getCurrentTime();
-            const drift = videoTime - audioTime;
-
-            if (isNaN(videoTime) || isNaN(audioTime) || audioTime <= 0) return;
-
-            if (Math.abs(drift) > 0.25) {
-                console.log(`[VideoPlayer] 🔀 WASM Drift corrected (hard seek): drift=${drift.toFixed(3)}s`);
-                wasmAudio.seek(videoTime, wasmProxiedUrl!);
-            } else if (Math.abs(drift) > 0.04) {
-                const rate = drift > 0 ? 0.99 : 1.01;
-                if (video.playbackRate !== rate) {
-                    video.playbackRate = rate;
-                    console.log(`[VideoPlayer] ⏱️ WASM Drift nudged: drift=${drift.toFixed(3)}s, rate=${rate}`);
-                }
-            } else {
-                if (video.playbackRate !== 1.0) {
-                    video.playbackRate = 1.0;
-                    console.log('[VideoPlayer] ⏱️ WASM Drift cleared: rate=1.0');
-                }
-            }
-        }, 500);
-
-        return () => {
-            clearInterval(interval);
-            if (videoRef.current) {
-                videoRef.current.playbackRate = 1.0;
-            }
-        };
-    }, [needsWasm, wasmAudio.isActive, streamUrl]);
     // ——— Retry guard: max backend refetches per episode load ———————————————————————
     // Prevents the infinite 403 storm when a CDN IP-blocks the proxy.
     // After MAX_STREAM_RETRIES total backend re-fetches, show "no sources" error.
@@ -424,7 +347,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
         // Case 1: There is a next episode in this same season
         if (currentIdx !== -1 && currentIdx < currentSeasonEpisodes.length - 1) {
-            return { episode: currentSeasonEpisodes[currentIdx + 1], season: playingSeasonNumber };
+            return { episode: currentSeasonEpisodes.at(currentIdx + 1)!, season: playingSeasonNumber };
         }
         // Case 2: Last episode of the season — find the next season
         const nextSeason = seasonList.find(s => s > playingSeasonNumber);
@@ -448,7 +371,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
         // Case 1: There is a previous episode in this same season
         if (currentIdx > 0) {
-            return { episode: currentSeasonEpisodes[currentIdx - 1], season: playingSeasonNumber };
+            return { episode: currentSeasonEpisodes.at(currentIdx - 1)!, season: playingSeasonNumber };
         }
         // Case 2: First episode of the season — find the previous season
         const prevSeason = [...seasonList].reverse().find(s => s < playingSeasonNumber);
@@ -471,9 +394,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const epName = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode)?.name || '';
 
         // Match the title format used in the video player HUD exactly
-        const notificationTitle = mediaType === 'tv'
-            ? showTitle
-            : showTitle;
+        const notificationTitle = showTitle;
         const notificationArtist = mediaType === 'tv' && epName
             ? `S${playingSeasonNumber} E${currentEpisode} — ${epName}`
             : (movie.release_date || movie.first_air_date || '').slice(0, 4) || 'Pstream';
@@ -605,7 +526,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         // "Torrent Preferred Always" — If we are already playing a premium source,
         // don't let regular scrapers auto-switch and interrupt the experience.
-        const currentSource = allSources[currentSourceIndex];
+        const currentSource = allSources.at(currentSourceIndex);
         if (currentSource?.providerId === 'premium' && !isBuffering) {
             console.log('[VideoPlayer] 💎 Premium stream active. Ignoring regular scraper result.');
             return;
@@ -615,7 +536,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         // Without this, a cache-bust re-fetch that returns the same dead URL gets tried again immediately.
         let startIndex = 0;
         for (let i = 0; i < sources.length; i++) {
-            const candidate = sources[i];
+            const candidate = sources.at(i);
             const sourceKey = `${candidate.providerId || candidate.provider || 'unknown'}::${candidate.url || ''}`;
             const blockedUntil = sourceFailureCooldownRef.current.get(sourceKey) || 0;
             if (blockedUntil <= Date.now()) {
@@ -706,13 +627,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     // ——— Manual source change ——————————————————————————————————————————————————————
     const handleSourceChange = useCallback((index: number) => {
-        if (!allSources[index]) return;
-        const candidate = allSources[index];
+        if (!allSources.at(index)) return;
+        const candidate = allSources.at(index);
         const sourceKey = `${candidate.providerId || candidate.provider || 'unknown'}::${candidate.url || ''}`;
         const blockedUntil = sourceFailureCooldownRef.current.get(sourceKey) || 0;
         if (blockedUntil > Date.now()) {
             const nextIndex = index + 1;
-            if (allSources[nextIndex]) {
+            if (allSources.at(nextIndex)) {
                 handleSourceChange(nextIndex);
             }
             return;
@@ -791,7 +712,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 if (data?.episodes && data.episodes.length > 0) {
                     setCurrentSeasonEpisodes(data.episodes);
                     // Select the last episode of the previous season
-                    const lastEp = data.episodes[data.episodes.length - 1];
+                    const lastEp = data.episodes.at(-1)!;
                     setCurrentEpisode(lastEp.episode_number);
                 }
             }).catch(() => {});
@@ -847,31 +768,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const restoreAudio = () => {
             if (volumeRef.current > 0) video.volume = volumeRef.current;
             // CRITICAL: Only stay muted if the user EXPLICITLY chose to mute.
-            // If the browser auto-muted (userMutedRef is false), force-unmute now (except for WASM).
+            // If the browser auto-muted (userMutedRef is false), force-unmute now.
             if (!userMutedRef.current) {
-                if (needsWasm) {
-                    video.muted = true;
+                video.muted = false;
+                console.log('[VideoPlayer] 🔊 Attempting to override browser auto-mute');
+                
+                // If the browser blocked our programmatic unmute (due to transient activation timeout)
+                if (video.muted) {
+                    console.warn('[VideoPlayer] ⚠️ Browser blocked programmatic unmute (transient activation expired). Showing Tap-to-Unmute overlay.');
+                    setShowUnmuteOverlay(true);
                 } else {
-                    video.muted = false;
-                    console.log('[VideoPlayer] 🔊 Attempting to override browser auto-mute');
-                    
-                    // If the browser blocked our programmatic unmute (due to transient activation timeout)
-                    if (video.muted) {
-                        console.warn('[VideoPlayer] ⚠️ Browser blocked programmatic unmute (transient activation expired). Showing Tap-to-Unmute overlay.');
-                        setShowUnmuteOverlay(true);
-                    } else {
-                        setShowUnmuteOverlay(false);
-                    }
+                    setShowUnmuteOverlay(false);
                 }
             }
             // Sync state back from the real element/states
             setVolume(video.volume);
-            setIsMuted(needsWasm ? isMuted : video.muted);
+            setIsMuted(video.muted);
         };
 
         video.addEventListener('playing', restoreAudio, { once: true });
         return () => video.removeEventListener('playing', restoreAudio);
-    }, [streamUrl, needsWasm, isMuted]);
+    }, [streamUrl, isMuted]);
 
     // Fire torrent resolver on mount
     useEffect(() => {
@@ -966,7 +883,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             console.groupCollapsed(`📦 SOURCE MANIFEST — ${label} (${debridSources.length} sources)`);
             console.table(
                 debridSources.map((s: any, i: number) => {
-                    const rawName = (debridStream as any).alternatives?.[i]?.name || s.name || '';
+                    const rawName = (debridStream as any).alternatives?.at(i)?.name || s.name || '';
                     const filename = rawName.split('/').pop() || rawName;
                     return {
                         '#':        i + 1,
@@ -1008,7 +925,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useEffect(() => {
         if (!streamUrl || isStreamM3U8 || isEmbed) return;
         
-        const currentSource = allSources[currentSourceIndex];
+        const currentSource = allSources.at(currentSourceIndex);
         const isDebrid = streamUrl.includes('.debrid.it') || streamUrl.includes('.alldebrid.com');
         if (!isDebrid) return;
         
@@ -1145,7 +1062,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         changeAudioTrack
     } = useHls(videoRef, {
         streamUrl: activeStreamUrl,
-        isM3U8: isStreamM3U8 && !activeStreamUrl?.startsWith('/sw-proxy'),
+        isM3U8: isStreamM3U8,
         autoPlay: settings.autoplayVideo,
         streamReferer: streamReferer,
         preferredAudioLanguage: settings.audioLanguage,
@@ -1166,7 +1083,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         },
         onTokenExpired: () => {
-            const activeSource = allSources[currentSourceIndex];
+            const activeSource = allSources.at(currentSourceIndex);
             const activeProvider = activeSource?.provider || 'unknown';
             const activeProviderId = activeSource?.providerId;
             const activeUrl = activeSource?.url || '';
@@ -1192,7 +1109,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             // 403/401: First try cycling to next source in the current source list.
             // Only fall back to a full backend re-fetch if we've exhausted all sources.
             const nextIdx = currentSourceIndex + 1;
-            if (allSources[nextIdx]) {
+            if (allSources.at(nextIdx)) {
                 console.log(`[VideoPlayer] 🔄 403 on source ${currentSourceIndex} → trying source ${nextIdx}`);
                 handleSourceChange(nextIdx);
             } else if (retryCountRef.current < MAX_STREAM_RETRIES) {
@@ -1231,7 +1148,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         },
         onError: (errMsg) => {
-            const activeSource = allSources[currentSourceIndex];
+            const activeSource = allSources.at(currentSourceIndex);
             const activeProvider = activeSource?.provider || 'unknown';
             const activeProviderId = activeSource?.providerId;
             const activeUrl = activeSource?.url || '';
@@ -1294,8 +1211,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     // Report provider success after 10s of uninterrupted playback on a source.
     useEffect(() => {
-        const activeProvider = allSources[currentSourceIndex]?.provider;
-        const activeProviderId = allSources[currentSourceIndex]?.providerId;
+        const activeProvider = allSources.at(currentSourceIndex)?.provider;
+        const activeProviderId = allSources.at(currentSourceIndex)?.providerId;
         if (!activeProvider) return;
         if (!isPlaying || isBuffering || currentTime < 10) return;
         if (reportedSuccessRef.current === activeProvider) return;
@@ -1498,9 +1415,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const video = videoRef.current;
         if (!video) return;
         const hideNative = () => {
-            for (let i = 0; i < video.textTracks.length; i++) {
-                video.textTracks[i].mode = 'hidden';
-            }
+            Array.from(video.textTracks).forEach(track => {
+                track.mode = 'hidden';
+            });
         };
         video.addEventListener('loadedmetadata', hideNative);
         const interval = setInterval(hideNative, 1000);
@@ -1630,11 +1547,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             showControls();
             e.preventDefault();
 
-            const playbackKeys = [' ', 'arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'k', 'l', 'j', 'm'];
-            if (playbackKeys.includes(key)) {
-                wasmAudio.ensureActivated();
-            }
-
             switch (e.key) { // Keep exact matching for special/cased keys
                 case 'Escape':
                     if (isFullscreen || isPseudoFullscreen) {
@@ -1726,7 +1638,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption, wasmAudio, showControls]);
+    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption, showControls]);
 
     return (
         <div
@@ -1735,7 +1647,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             style={isPseudoFullscreen ? { position: 'fixed', zIndex: 20001 } : {}}
             onMouseMove={showControls}
             onClick={(e) => {
-                wasmAudio.ensureActivated();
                 const target = e.target as HTMLElement;
                 // Only act on clicks directly on the background/video
                 if (target === containerRef.current || target === videoRef.current) {
@@ -1773,36 +1684,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         const vol = videoRef.current.volume;
                         const elementMuted = videoRef.current.muted;
 
-                        if (needsWasm) {
-                            // For WASM: the native element MUST stay muted.
-                            // The user's action to toggle mute will momentarily set videoRef.current.muted.
-                            // We capture this, update our tracking state, and force-mute the element.
-                            if (!elementMuted) {
-                                userMutedRef.current = false;
-                                setIsMuted(false);
-                                videoRef.current.muted = true;
-                            } else {
-                                userMutedRef.current = true;
-                                setIsMuted(true);
-                            }
-                            setVolume(vol);
-                            volumeRef.current = vol;
-                        } else {
-                            setVolume(vol);
-                            setIsMuted(elementMuted);
-                            volumeRef.current = vol;
-                            mutedRef.current = elementMuted;
-                        }
+                        setVolume(vol);
+                        setIsMuted(elementMuted);
+                        volumeRef.current = vol;
+                        mutedRef.current = elementMuted;
 
                         if (vol > 0) {
                             try { localStorage.setItem('pstream_vol', String(vol)); } catch {}
                         }
-                    }
-                }}
-                onSeeked={() => {
-                    if (needsWasm && wasmAudio.isActive && videoRef.current && wasmProxiedUrl) {
-                        console.log('[VideoPlayer] WASM seeked to:', videoRef.current.currentTime);
-                        wasmAudio.seek(videoRef.current.currentTime, wasmProxiedUrl);
                     }
                 }}
                 // For direct MP4 streams (AllDebrid CDN), track buffering via native events.
@@ -1874,8 +1763,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                         transform: `translateX(${i === 1 ? (side === 'left' ? '8%' : '-8%') : '0'})`,
                                         transition: 'all 0.2s ease',
                                     }}
-                                    dangerouslySetInnerHTML={{ __html: line }}
-                                />
+                                >
+                                    {parseSubtitleTags(line)}
+                                </span>
                             ))}
                         </div>
                     );
@@ -1910,8 +1800,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 display: 'inline-block',
                                 whiteSpace: 'pre-wrap',
                             }}
-                            dangerouslySetInnerHTML={{ __html: currentCueText.replace(/\n/g, '<br/>') }}
-                        />
+                        >
+                            {parseSubtitleTags(currentCueText)}
+                        </span>
                     </div>
                 );
             })()}
@@ -1946,20 +1837,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     <div className="w-16 h-16 rounded-full border-2 border-[#e50914]/40 flex items-center justify-center mb-6">
                         <span className="text-[#e50914] text-3xl font-bold">!</span>
                     </div>
-                    <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Playback Error</h2>
+                    <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">
+                        {t('player.playbackError', { defaultValue: 'Playback Error' })}
+                    </h2>
                     <p className="text-white/50 mb-8 max-w-sm text-sm leading-relaxed">{error}</p>
                     <div className="flex flex-col items-center gap-3">
                         <button
                             onClick={() => setRetryCount(c => c + 1)}
                             className="px-8 py-3 bg-white text-black font-bold text-sm rounded-full hover:bg-white/90 hover:scale-105 transition-all active:scale-95"
                         >
-                            Retry Connection
+                            {t('player.retryConnection', { defaultValue: 'Retry Connection' })}
                         </button>
                         <button
                             onClick={onClose}
                             className="text-white/30 hover:text-white/70 text-sm transition-colors mt-1"
                         >
-                            Exit Player
+                            {t('player.exitPlayer', { defaultValue: 'Exit Player' })}
                         </button>
                     </div>
                 </div>
@@ -1984,7 +1877,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
                         </svg>
-                        <span className="font-bold text-[15px] tracking-wide">Tap to Unmute</span>
+                        <span className="font-bold text-[15px] tracking-wide">
+                            {t('player.tapToUnmute', { defaultValue: 'Tap to Unmute' })}
+                        </span>
                     </div>
                 </div>
             )}
@@ -1993,12 +1888,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             {!isMobile && showPausedOverlay && !isBuffering && isVideoReady && !error && (
                 <div className="absolute inset-0 pointer-events-none flex flex-col justify-center p-12 z-[50] bg-black/60">
                     <div className="flex flex-col gap-1 max-w-2xl ml-24">
-                        <p className="text-white/80 text-[1.1rem] font-normal tracking-wide drop-shadow-md">You're watching</p>
+                        <p className="text-white/80 text-[1.1rem] font-normal tracking-wide drop-shadow-md">
+                            {t('player.youreWatching', { defaultValue: "You're watching" })}
+                        </p>
                         <h1 className="text-white text-6xl font-bold tracking-tight mb-2 drop-shadow-lg">{title}</h1>
                         
                         {mediaType === 'tv' && (
                             <>
-                                <h2 className="text-white font-bold text-2xl mt-1 drop-shadow-md">Season {playingSeasonNumber}</h2>
+                                <h2 className="text-white font-bold text-2xl mt-1 drop-shadow-md">
+                                    {t('player.season', { defaultValue: 'Season' })} {playingSeasonNumber}
+                                </h2>
                                 <h3 className="text-white font-bold text-xl mt-3 drop-shadow-md">{currentEpisodeName}: Ep. {currentEpisode}</h3>
                             </>
                         )}
@@ -2008,7 +1907,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         </p>
                     </div>
                     <div className="absolute bottom-12 right-16">
-                        <span className="text-white/80 text-[1.2rem] font-medium tracking-wide drop-shadow-md">Paused</span>
+                        <span className="text-white/80 text-[1.2rem] font-medium tracking-wide drop-shadow-md">
+                            {t('player.paused', { defaultValue: 'Paused' })}
+                        </span>
                     </div>
                 </div>
             )}
@@ -2026,23 +1927,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 episodeNumber={mediaType === 'tv' ? currentEpisode : undefined}
                 episodeName={mediaType === 'tv' ? currentEpisodeName : undefined}
                 onPlayPause={() => {
-                    wasmAudio.ensureActivated();
                     videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
                 }}
                 onSeek={(amt) => {
-                    wasmAudio.ensureActivated();
                     videoRef.current && (videoRef.current.currentTime += amt);
                 }}
                 volume={volume}
                 onVolumeChange={(v) => {
-                    wasmAudio.ensureActivated();
                     if (videoRef.current) {
                         videoRef.current.volume = v;
                         if (v > 0) videoRef.current.muted = false;
                     }
                 }}
                 onToggleMute={() => {
-                    wasmAudio.ensureActivated();
                     if (videoRef.current) {
                         const nextMuted = !videoRef.current.muted;
                         videoRef.current.muted = nextMuted;
@@ -2051,7 +1948,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }
                 }}
                 onTimelineSeek={(p) => {
-                    wasmAudio.ensureActivated();
                     videoRef.current && (videoRef.current.currentTime = (p / 100) * videoRef.current.duration);
                 }}
                 onToggleFullscreen={toggleFullscreen}
@@ -2061,12 +1957,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 mediaType={mediaType}
                 hasNextEpisode={!!nextEpisodeInfo}
                 onNextEpisode={() => {
-                    wasmAudio.ensureActivated();
                     handleNextEpisode();
                 }}
                 hasPreviousEpisode={!!previousEpisodeInfo}
                 onPrevEpisode={() => {
-                    wasmAudio.ensureActivated();
                     handlePreviousEpisode();
                 }}
                 showNextEp={!!nextEpisodeInfo}

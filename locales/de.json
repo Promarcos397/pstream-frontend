@@ -207,7 +207,13 @@
         "off": "Aus",
         "season": "Staffel",
         "rated": "BEWERTET",
-        "ratingDesc": "Sprache, sexuelle Anspielungen"
+        "ratingDesc": "Sprache, sexuelle Anspielungen",
+        "playbackError": "Wiedergabefehler",
+        "retryConnection": "Verbindung erneut versuchen",
+        "exitPlayer": "Player verlassen",
+        "tapToUnmute": "Tippen zum Stummschalten aufheben",
+        "youreWatching": "Sie schauen gerade",
+        "paused": "Pause"
     },
     "playback": {
         "autoplayTitle": "Autoplay-Steuerung",
@@ -351,5 +357,18 @@
         "footerCookies": "Cookie-Einstellungen",
         "footerReady": "Bereit zum Schauen? Geben Sie Ihren Mnemonic ein, um Ihre Sammlung wiederherzustellen.",
         "invalidKeyLarge": "Bitte geben Sie eine gültige 12-Wörter-Phrase ein oder lassen Sie das Feld leer, um eine neue zu erstellen"
+    },
+    "infoModal": {
+        "cast": "Besetzung:",
+        "creators": "Schöpfer:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "Nichts für mich",
+        "iLikeThis": "Gefällt mir",
+        "loveThis": "Liebe ich!",
+        "myList": "Meine Liste",
+        "rate": "Bewerten",
+        "share": "Teilen",
+        "episodesTab": "Folgen",
+        "moreTab": "Ähnliche Titel"
     }
 }

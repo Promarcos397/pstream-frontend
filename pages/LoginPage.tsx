@@ -513,17 +513,22 @@ const FEATURES: Feature[] = [
   },
 ];
 
-const FeatureCard: React.FC<Feature> = ({ id, title, desc }) => (
-  <div className="bg-gradient-to-br from-[#1A2144] from-40% to-[#30181b] rounded-2xl p-5 md:p-7 flex flex-col justify-between min-h-[175px] md:min-h-[210px] relative overflow-hidden group transition-all duration-300">
-    <div>
-      <h3 className="text-white text-xl md:text-2xl font-black mb-2.5 leading-tight">{title}</h3>
-      <p className="text-zinc-400 text-sm md:text-base font-normal leading-relaxed">{desc}</p>
+const FeatureCard: React.FC<Feature> = ({ id, title, desc }) => {
+  const { t } = useTranslation();
+  const displayTitle = t(`auth.features.${id}.title`, { defaultValue: title });
+  const displayDesc = t(`auth.features.${id}.desc`, { defaultValue: desc });
+  return (
+    <div className="bg-gradient-to-br from-[#1A2144] from-40% to-[#30181b] rounded-2xl p-5 md:p-7 flex flex-col justify-between min-h-[175px] md:min-h-[210px] relative overflow-hidden group transition-all duration-300">
+      <div>
+        <h3 className="text-white text-xl md:text-2xl font-black mb-2.5 leading-tight">{displayTitle}</h3>
+        <p className="text-zinc-400 text-sm md:text-base font-normal leading-relaxed">{displayDesc}</p>
+      </div>
+      <div className="mt-4 self-end opacity-90 transition-transform duration-300 group-hover:scale-110">
+        <FeatureIcon id={id} />
+      </div>
     </div>
-    <div className="mt-4 self-end opacity-90 transition-transform duration-300 group-hover:scale-110">
-      <FeatureIcon id={id} />
-    </div>
-  </div>
-);
+  );
+};
 
 
 

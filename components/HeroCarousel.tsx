@@ -36,7 +36,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
   const [hasVideoEnded, setHasVideoEnded] = useState(false);
-  const [replayCount, setReplayCount] = useState(0); 
+  const [replayCount, setReplayCount] = useState(0);
 
   const [showBackdropOverlay, setShowBackdropOverlay] = useState(false);
   const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,7 +49,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     const handleVisibilityChange = () => {
       const visible = document.visibilityState === 'visible';
       setIsTabVisible(visible);
-      
+
       if (!visible) {
         if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
         visibilityTimerRef.current = setTimeout(() => {
@@ -141,15 +141,15 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       const pageType = getHeroPageType(fetchUrl || '');
       const cacheKey = getCacheKey(fetchUrl || '', genreId);
       const cached = HeroEngine.getCachedHero(cacheKey);
-      
+
       if (cached) {
         applyHeroPackage(cached);
       } else {
         const pkg = await HeroEngine.getHero(pageType, fetchUrl, genreId);
         if (pkg) applyHeroPackage(pkg);
         else {
-            setLoading(false);
-            setIsAppReady(true);
+          setLoading(false);
+          setIsAppReady(true);
         }
       }
     };
@@ -163,7 +163,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     });
 
     return () => {
-        unsubscribe();
+      unsubscribe();
     };
   }, [explicitPageType, fetchUrl, heroMovie, genreId, setIsAppReady]);
 
@@ -203,58 +203,58 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
 
   useEffect(() => {
     if (loading || !movie) return;
-    
+
     // Reset interruption state if the movie actually changes
     if (prevMovieIdRef.current !== movie.id) {
-        hasInterruptedRef.current = false;
-        prevMovieIdRef.current = movie.id;
+      hasInterruptedRef.current = false;
+      prevMovieIdRef.current = movie.id;
     }
 
     const myVideoId = `hero-${movie.id}`;
 
     if (isOutOfView || isMobile || !settings.autoplayPreviews) {
-        if (showVideo) hasInterruptedRef.current = true;
-        setShowVideo(false);
-        setIsActuallyPlaying(false);
-        if (activeVideoId === myVideoId) setActiveVideoId(null);
-        prevActiveIdRef.current = activeVideoId;
-        return;
+      if (showVideo) hasInterruptedRef.current = true;
+      setShowVideo(false);
+      setIsActuallyPlaying(false);
+      if (activeVideoId === myVideoId) setActiveVideoId(null);
+      prevActiveIdRef.current = activeVideoId;
+      return;
     }
 
     if (!isTabVisible) {
-        if (activeVideoId === myVideoId) setActiveVideoId(null);
-        prevActiveIdRef.current = activeVideoId;
-        return;
+      if (activeVideoId === myVideoId) setActiveVideoId(null);
+      prevActiveIdRef.current = activeVideoId;
+      return;
     }
 
     // If another player is active, mark as interrupted and stop
     if (activeVideoId && activeVideoId !== myVideoId && !activeVideoId.startsWith('hero-')) {
-        hasInterruptedRef.current = true;
-        setShowVideo(false);
-        setIsActuallyPlaying(false);
-        prevActiveIdRef.current = activeVideoId;
-        return;
+      hasInterruptedRef.current = true;
+      setShowVideo(false);
+      setIsActuallyPlaying(false);
+      prevActiveIdRef.current = activeVideoId;
+      return;
     }
 
     // If the modal was open for this movie, we treat it as an interruption.
     // The user has transitioned to a deeper detail view, so we don't need to auto-resume the hero trailer.
     if (prevActiveIdRef.current === `modal-${movie.id}`) {
-        hasInterruptedRef.current = true;
+      hasInterruptedRef.current = true;
     }
 
     // AUTO-RESUME LOGIC: Only resume if we haven't been interrupted
     if (!hasInterruptedRef.current && activeVideoId !== myVideoId && (!activeVideoId || activeVideoId.startsWith('hero-'))) {
-        const wasJustActiveElsewhere = prevActiveIdRef.current && 
-            prevActiveIdRef.current !== myVideoId && 
-            !prevActiveIdRef.current.startsWith('hero-');
-        const delay = wasJustActiveElsewhere ? 0 : 80;
-        
-        const timer = setTimeout(() => {
-            setShowVideo(true);
-            setActiveVideoId(myVideoId);
-        }, delay);
-        prevActiveIdRef.current = activeVideoId;
-        return () => clearTimeout(timer);
+      const wasJustActiveElsewhere = prevActiveIdRef.current &&
+        prevActiveIdRef.current !== myVideoId &&
+        !prevActiveIdRef.current.startsWith('hero-');
+      const delay = wasJustActiveElsewhere ? 0 : 80;
+
+      const timer = setTimeout(() => {
+        setShowVideo(true);
+        setActiveVideoId(myVideoId);
+      }, delay);
+      prevActiveIdRef.current = activeVideoId;
+      return () => clearTimeout(timer);
     }
 
     prevActiveIdRef.current = activeVideoId;
@@ -265,21 +265,21 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   useEffect(() => {
     if (!movie) return;
     const myVideoId = `hero-${movie.id}`;
-    
+
     if (activeVideoId && activeVideoId !== myVideoId) {
-        if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
-        backdropTimerRef.current = setTimeout(() => {
-            setShowBackdropOverlay(true);
-        }, 1800);
+      if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
+      backdropTimerRef.current = setTimeout(() => {
+        setShowBackdropOverlay(true);
+      }, 1800);
     } else {
-        if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
-        if (!backdropForcedRef.current) {
-            setShowBackdropOverlay(false);
-        }
+      if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
+      if (!backdropForcedRef.current) {
+        setShowBackdropOverlay(false);
+      }
     }
-    
+
     return () => {
-        if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
+      if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
     };
   }, [activeVideoId, movie]);
 
@@ -293,9 +293,9 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   }
 
   return (
-    <div 
-      id="hero-container" 
-      ref={containerRef} 
+    <div
+      id="hero-container"
+      ref={containerRef}
       className="relative h-[50vh] sm:h-[66vh] md:h-[77vh] lg:h-[80vh] w-full overflow-hidden group bg-black"
     >
       {/* Global Skeleton Overlay (Unified Blink) */}
@@ -305,19 +305,19 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         </div>
       )}
       <HeroCarouselBackground
-        movie={movie} 
-        showVideo={showVideo} 
+        movie={movie}
+        showVideo={showVideo}
         isActuallyPlaying={isActuallyPlaying}
         replayCount={replayCount}
         showBackdropOverlay={showBackdropOverlay}
         onReady={() => setIsVideoReady(true)}
         onPlay={() => setIsActuallyPlaying(true)}
         onImageLoad={() => setIsBackdropLoaded(true)}
-        onEnded={() => { 
-            setHasVideoEnded(true); 
-            setShowVideo(false); 
-            setIsVideoReady(false); 
-            setIsActuallyPlaying(false);
+        onEnded={() => {
+          setHasVideoEnded(true);
+          setShowVideo(false);
+          setIsVideoReady(false);
+          setIsActuallyPlaying(false);
         }}
         onErrored={() => { setShowVideo(false); setIsVideoReady(false); setIsActuallyPlaying(false); }}
       />
@@ -329,35 +329,35 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         }}
         hasVideoEnded={hasVideoEnded}
       />
-        <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
+      <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
           bottom-[25%] sm:bottom-[21%] md:bottom-[17%]"
-        >
-          {( (showVideo && isVideoReady) || hasVideoEnded ) && (
-            <button 
-              onClick={() => {
-                if (hasVideoEnded) {
-                  clearVideoState(movie.id);
-                  setHasVideoEnded(false);
-                  setReplayCount(prev => prev + 1);
-                  setShowVideo(true);
-                } else {
-                  setGlobalMute(!globalMute);
-                }
-              }} 
-              className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-lg group mr-4 active:scale-90"
-              aria-label={globalMute ? 'Unmute' : 'Mute'}
-            >
-              {hasVideoEnded ? (
-                <ArrowCounterClockwise size={20} className="text-white" />
-              ) : (
-                globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />
-              )}
-            </button>
-          )}
-          <div className="mr-4">
-            <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} size="md" />
-          </div>
+      >
+        {((showVideo && isVideoReady) || hasVideoEnded) && (
+          <button
+            onClick={() => {
+              if (hasVideoEnded) {
+                clearVideoState(movie.id);
+                setHasVideoEnded(false);
+                setReplayCount(prev => prev + 1);
+                setShowVideo(true);
+              } else {
+                setGlobalMute(!globalMute);
+              }
+            }}
+            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-lg group mr-4 active:scale-90"
+            aria-label={globalMute ? 'Unmute' : 'Mute'}
+          >
+            {hasVideoEnded ? (
+              <ArrowCounterClockwise size={20} className="text-white" />
+            ) : (
+              globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />
+            )}
+          </button>
+        )}
+        <div className="mr-4">
+          <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} size="md" />
         </div>
+      </div>
     </div>
   );
 };

@@ -129,10 +129,15 @@ function flattenFiles(items: any[], currentPath = ''): FlatFile[] {
  *
  * Dolby-capable browsers (Safari, Edge-Win) skip audio penalties so high-quality
  * remuxes aren't buried for users who can actually play them.
+ *
+ * HEVC-aware: when the browser cannot hardware-decode H.265, HEVC/x265 sources
+ * are penalised heavily (-25) to avoid software-decode lag and stuttering.
  */
 function qualityScore(q: string = '', name: string = ''): number {
     const lc = `${q} ${name}`.toLowerCase();
-    const isDolbyCapable = getCodecProfile()?.isDolbyCapable ?? false;
+    const profile          = getCodecProfile();
+    const isDolbyCapable   = profile?.isDolbyCapable   ?? false;
+    const canHWDecodeHEVC  = profile?.canHWDecodeHEVC  ?? false;
     let score = 0;
 
     // Resolution × source type (WEB-DL bumped over generic 1080p)
@@ -157,9 +162,14 @@ function qualityScore(q: string = '', name: string = ''): number {
         score += 15.0;
     }
 
-    // Mild codec / quality bonuses
-    if (lc.includes('x265') || lc.includes('hevc') || lc.includes('h265') || lc.includes('h.265')) score += 0.5;
-    if (lc.includes('hdr10') || lc.includes('dovi') || lc.includes('dolby vision'))                  score += 0.5;
+    // ── Video codec: HEVC/H.265 ──────────────────────────────────────────────
+    // HW decode available  → small bonus (better compression = fewer network stalls).
+    // HW decode NOT available → heavy penalty: CPU software decode causes lag / dropped frames.
+    const isHEVC = lc.includes('x265') || lc.includes('hevc') || lc.includes('h265') || lc.includes('h.265');
+    if (isHEVC) {
+        score += canHWDecodeHEVC ? 2.0 : -25.0;
+    }
+    if (lc.includes('hdr10') || lc.includes('dovi') || lc.includes('dolby vision')) score += 0.5;
 
     // Audio penalties (skip on Dolby-capable browsers)
     if (!isDolbyCapable) {

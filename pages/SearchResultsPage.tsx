@@ -33,7 +33,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
   // Removed aggressive localized prefetching for search results
 
   return (
-    <div className="pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen bg-black md:bg-transparent">
+    <div className="pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 sm:pl-[calc(72px+1.5rem)] pb-12 min-h-screen bg-black md:bg-transparent">
 
       {!isMobile && (
         <div className="mb-8">

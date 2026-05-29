@@ -207,7 +207,13 @@
         "off": "オフ",
         "season": "シーズン",
         "rated": "RATED",
-        "ratingDesc": "言語、過激な表現"
+        "ratingDesc": "言語、過激な表現",
+        "playbackError": "再生エラー",
+        "retryConnection": "接続を再試行",
+        "exitPlayer": "プレイヤーを終了",
+        "tapToUnmute": "タップして消音解除",
+        "youreWatching": "視聴中",
+        "paused": "一時停止"
     },
     "playback": {
         "autoplayTitle": "自動再生の設定",
@@ -351,5 +357,18 @@
         "footerCookies": "クッキーの設定",
         "footerReady": "準備はいいですか？ キーを入力してライブラリを復元しましょう。",
         "invalidKeyLarge": "有効な12単語を入力するか、空白のままにして新しいキーを作成してください"
+    },
+    "infoModal": {
+        "cast": "キャスト:",
+        "creators": "クリエイター:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "好みではない",
+        "iLikeThis": "お気に入り",
+        "loveThis": "大好き！",
+        "myList": "マイリスト",
+        "rate": "評価",
+        "share": "共有",
+        "episodesTab": "エピソード",
+        "moreTab": "似ている作品"
     }
 }

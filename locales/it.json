@@ -207,7 +207,13 @@
         "off": "Disattiva",
         "season": "Stagione",
         "rated": "CLASSIFICATO",
-        "ratingDesc": "linguaggio, riferimenti sessuali"
+        "ratingDesc": "linguaggio, riferimenti sessuali",
+        "playbackError": "Errore di riproduzione",
+        "retryConnection": "Riprova connessione",
+        "exitPlayer": "Esci dal lettore",
+        "tapToUnmute": "Tocca per riattivare l'audio",
+        "youreWatching": "Stai guardando",
+        "paused": "In pausa"
     },
     "playback": {
         "autoplayTitle": "Controlli di riproduzione automatica",
@@ -351,5 +357,18 @@
         "footerCookies": "Preferenze per i cookie",
         "footerReady": "Vuoi guardare P-Stream? Inserisci la tua frase per ripristinare la tua collezione.",
         "invalidKeyLarge": "Inserisci una frase valida da 12 parole o lascia vuoto per crearne una nuova"
+    },
+    "infoModal": {
+        "cast": "Cast:",
+        "creators": "Creatori:",
+        "creatorsList": "Daniel J. Goor, Michael Schur",
+        "notForMe": "Non fa per me",
+        "iLikeThis": "Mi piace",
+        "loveThis": "Adoro!",
+        "myList": "La mia lista",
+        "rate": "Valuta",
+        "share": "Condividi",
+        "episodesTab": "Episodi",
+        "moreTab": "Altri simili"
     }
 }
