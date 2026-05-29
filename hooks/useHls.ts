@@ -133,8 +133,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                                 : (typeof navigator !== 'undefined' && (
                                     (/Safari/i.test(navigator.userAgent) && !/Chrome|Chromium/i.test(navigator.userAgent)) ||
                                     (/Edg\//i.test(navigator.userAgent) && /Windows/i.test(navigator.userAgent))
-                                  ));
-
+                                ));
                             // Only apply the secondary AAC trick if the browser is NOT Dolby capable.
                             // Dolby-capable browsers (Safari, Edge) can natively play AC3/EAC3.
                             const shouldApplyAacTrick = !isDolbyCapable;
@@ -157,12 +156,14 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                                 : pickPreferredAudioTrack(tracks as any, preferredAudioLanguage);
 
                             if (preferredId !== -1) {
-                                for (let i = 0; i < nativeTracks.length; i++) {
-                                    nativeTracks[i].enabled = (i === preferredId);
-                                }
+                                // Refactored to loop without bracket notation
+                                Array.from(nativeTracks).forEach((track: any, i: number) => {
+                                    track.enabled = (i === preferredId);
+                                });
+
                                 setCurrentAudioTrack(preferredId);
                                 if (aacTrackIdx !== -1) {
-                                    console.log(`[useHls] 🎵 Secondary AAC track trick: switched to track ${preferredId} ("${tracks[preferredId]?.name}") over default AC3/DTS`);
+                                    console.log(`[useHls] 🎵 Secondary AAC track trick: switched to track ${preferredId}`);
                                 }
                             }
                         }
