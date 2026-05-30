@@ -41,15 +41,15 @@ function parseSubtitleTags(text: string): React.ReactNode[] {
     const tagRegex = /(<\/?[ibuf](?: [^>]*)?>|<\/?[uU]>|<br\s*\/?>|\n)/g;
     const parts = text.split(tagRegex);
     const elements: React.ReactNode[] = [];
-    
+
     let isItalic = false;
     let isBold = false;
     let isUnderline = false;
     let activeColor: string | undefined = undefined;
-    
+
     parts.forEach((part, index) => {
         if (!part) return;
-        
+
         const lower = part.toLowerCase();
         if (lower === '<i>') {
             isItalic = true;
@@ -92,7 +92,7 @@ function parseSubtitleTags(text: string): React.ReactNode[] {
             }
         }
     });
-    
+
     return elements;
 }
 
@@ -118,16 +118,16 @@ function requestMobileLandscapeFullscreen(el: HTMLElement) {
         if (elem.requestFullscreen) {
             elem.requestFullscreen().then(() => {
                 if ((screen.orientation as any)?.lock) {
-                    (screen.orientation as any).lock('landscape').catch(() => {});
+                    (screen.orientation as any).lock('landscape').catch(() => { });
                 }
-            }).catch(() => {});
+            }).catch(() => { });
         } else if (elem.webkitRequestFullscreen) {
             elem.webkitRequestFullscreen();
         } else if (elem.webkitEnterFullscreen) {
             // iPhone video element fallback
             elem.webkitEnterFullscreen();
         }
-    } catch (e) {}
+    } catch (e) { }
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, resumeTime = 0, onClose }) => {
@@ -156,7 +156,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         } catch { return 1; }
     });
     const [isMuted, setIsMuted] = useState(false); // Always start unmuted; user mutes manually
-    const [showUnmuteOverlay, setShowUnmuteOverlay] = useState(false); // Used when browser auto-mutes
+    const [showSourceSelector, setShowSourceSelector] = useState(false);
     const [showUI, setShowUI] = useState(true);
     const showUIRef = useRef(true);
     useEffect(() => { showUIRef.current = showUI; }, [showUI]);
@@ -183,7 +183,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             return isFinite(stored) && stored >= 0.05 && stored <= 1 ? stored : 1;
         } catch { return 1; }
     })()); // latest volume — init from localStorage, kept in sync via onVolumeChange
-    const mutedRef  = useRef(false); // tracks real-time element state
+    const mutedRef = useRef(false); // tracks real-time element state
     const userMutedRef = useRef(false); // tracks explicit user intent (manual toggle)
     const [loadingMessage, setLoadingMessage] = useState('Finding stream...');
     const [streamUrl, setStreamUrl] = useState<string | null>(null);
@@ -254,24 +254,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         // On iPhone (where requestFullscreen on DIV often fails), we use Pseudo-Fullscreen
         const isIPhone = /iPhone/i.test(navigator.userAgent);
-        
+
         if (isFullscreen || isPseudoFullscreen) {
             const hasFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement);
-            
+
             if (hasFs) {
-                if (doc.exitFullscreen) doc.exitFullscreen().catch(() => {});
+                if (doc.exitFullscreen) doc.exitFullscreen().catch(() => { });
                 else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
                 else if (doc.msExitFullscreen) doc.msExitFullscreen();
             }
-            
+
             setIsFullscreen(false);
             setIsPseudoFullscreen(false);
-            try { (screen.orientation as any)?.unlock?.(); } catch (e) {}
+            try { (screen.orientation as any)?.unlock?.(); } catch (e) { }
         } else {
             if (el?.requestFullscreen) {
                 el.requestFullscreen().then(() => {
-                    if ((screen.orientation as any)?.lock) (screen.orientation as any).lock('landscape').catch(() => {});
-                }).catch(() => {});
+                    if ((screen.orientation as any)?.lock) (screen.orientation as any).lock('landscape').catch(() => { });
+                }).catch(() => { });
             } else if (el?.webkitRequestFullscreen) {
                 el.webkitRequestFullscreen();
             } else if (isIPhone) {
@@ -408,7 +408,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const artwork: MediaImage[] = backdropUrl
             ? [
                 { src: backdropUrl, sizes: '1280x720', type: 'image/jpeg' },
-              ]
+            ]
             : [];
 
         navigator.mediaSession.metadata = new MediaMetadata({
@@ -462,7 +462,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     playbackRate: video.playbackRate,
                     position: video.currentTime,
                 });
-            } catch (_) {}
+            } catch (_) { }
         };
         video.addEventListener('timeupdate', syncPosition);
         return () => { video.removeEventListener('timeupdate', syncPosition); };
@@ -504,17 +504,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         let finalSources = [...sources];
         if (debridStream.streamUrl) {
             const premiumSource = {
-                url:        debridStream.streamUrl,
-                quality:    debridStream.quality || 'auto',
-                isM3U8:     false,
-                isEmbed:    false,
-                noProxy:    false,
-                provider:   'Premium Server',
+                url: debridStream.streamUrl,
+                quality: debridStream.quality || 'auto',
+                isM3U8: false,
+                isEmbed: false,
+                noProxy: false,
+                provider: 'Premium Server',
                 providerId: 'premium',
-                referer:    '',
-                origin:     '',
-                headers:    {},
-                _type:      'mp4',
+                referer: '',
+                origin: '',
+                headers: {},
+                _type: 'mp4',
             };
             const alreadyHasPremium = finalSources.some(s => s.providerId === 'premium');
             if (!alreadyHasPremium) {
@@ -575,7 +575,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 try {
                     const refUrl = activeReferer.startsWith('//') ? `https:${activeReferer}` : activeReferer;
                     origin = refUrl ? new URL(refUrl).origin : '';
-                } catch (e) {}
+                } catch (e) { }
                 const headersObj = { referer: activeReferer, origin };
                 finalUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(hlsSource.url)}&headers=${encodeURIComponent(JSON.stringify(headersObj))}`;
             }
@@ -596,10 +596,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             setCaptions(mappedCaptions);
 
             const preferredLang = settings.subtitleLanguage?.toLowerCase() || 'en';
-            
+
             // New logic: If user is Guest (!user) or prefers English, target the 3rd English track.
             const isEnglishTarget = (!user && preferredLang === 'en') || preferredLang === 'en' || !user;
-            
+
             let finalSub = null;
             if (isEnglishTarget) {
                 const enSubs = mappedCaptions.filter((s: any) => s.lang === 'en' || s.label.toLowerCase().includes('english'));
@@ -660,7 +660,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 try {
                     const refUrl = activeReferer.startsWith('//') ? `https:${activeReferer}` : activeReferer;
                     origin = refUrl ? new URL(refUrl).origin : '';
-                } catch (e) {}
+                } catch (e) { }
                 const headersObj = { referer: activeReferer, origin };
                 finalUrl = `${GIGA_BACKEND_URL}/proxy/stream?url=${encodeURIComponent(candidate.url)}&headers=${encodeURIComponent(JSON.stringify(headersObj))}`;
             }
@@ -684,7 +684,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             // Load the new season's episode list so nextEpisodeInfo stays accurate
             getSeasonDetails(String(movie.id), targetSeason).then(data => {
                 if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);
-            }).catch(() => {});
+            }).catch(() => { });
         }
         if (episodes) setCurrentSeasonEpisodes(episodes);
         setCurrentEpisode(ep.episode_number);
@@ -698,7 +698,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     const handlePreviousEpisode = useCallback(() => {
         if (!previousEpisodeInfo) return;
-        
+
         // If it was a placeholder episode from the previous season (episode_number 99),
         // we should fetch the previous season details to get the actual last episode of that season!
         if (previousEpisodeInfo.episode.id === -1) {
@@ -715,7 +715,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     const lastEp = data.episodes.at(-1)!;
                     setCurrentEpisode(lastEp.episode_number);
                 }
-            }).catch(() => {});
+            }).catch(() => { });
         } else {
             handleEpisodeSelect(previousEpisodeInfo.episode, previousEpisodeInfo.season);
         }
@@ -758,37 +758,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setBufferedAmount(0);
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
-    // Restore audio after stream URL change.
-    // Browsers may auto-mute videos played via programmatic play() without a direct user gesture.
-    // Listening on 'playing' (not 'canplay') guarantees the browser has committed to playback.
+    // One-time volume initialisation on mount
     useEffect(() => {
         const video = videoRef.current;
         if (!video || !streamUrl) return;
+        if (volumeRef.current > 0 && volumeRef.current <= 1) {
+            video.volume = volumeRef.current;
+        }
+    }, [streamUrl]);
 
-        const restoreAudio = () => {
-            if (volumeRef.current > 0) video.volume = volumeRef.current;
-            // CRITICAL: Only stay muted if the user EXPLICITLY chose to mute.
-            // If the browser auto-muted (userMutedRef is false), force-unmute now.
-            if (!userMutedRef.current) {
-                video.muted = false;
-                console.log('[VideoPlayer] 🔊 Attempting to override browser auto-mute');
-                
-                // If the browser blocked our programmatic unmute (due to transient activation timeout)
-                if (video.muted) {
-                    console.warn('[VideoPlayer] ⚠️ Browser blocked programmatic unmute (transient activation expired). Showing Tap-to-Unmute overlay.');
-                    setShowUnmuteOverlay(true);
-                } else {
-                    setShowUnmuteOverlay(false);
-                }
-            }
-            // Sync state back from the real element/states
-            setVolume(video.volume);
-            setIsMuted(video.muted);
-        };
 
-        video.addEventListener('playing', restoreAudio, { once: true });
-        return () => video.removeEventListener('playing', restoreAudio);
-    }, [streamUrl, isMuted]);
 
     // Fire torrent resolver on mount
     useEffect(() => {
@@ -796,7 +775,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const searchTitle = movie.title || movie.name || '';
         console.log(`[VideoPlayer] 🎯 AllDebrid resolver: ${searchTitle} (${type})`);
 
-        const slowTimer  = setTimeout(() => setLoadingMessage('Establishing connection...'), 6000);
+        const slowTimer = setTimeout(() => setLoadingMessage('Establishing connection...'), 6000);
         const slowerTimer = setTimeout(() => setLoadingMessage('Preparing playback...'), 14000);
 
         const doResolve = (imdbId: string) => {
@@ -839,42 +818,42 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         const debridSources = (debridStream as any).alternatives?.map((alt: any, idx: number) => {
             const name = alt.name || '';
-            const ext = name.toLowerCase().endsWith('.mkv') ? 'mkv' : 
-                        name.toLowerCase().endsWith('.webm') ? 'webm' : 
-                        name.toLowerCase().endsWith('.avi') ? 'avi' : 'mp4';
-            
+            const ext = name.toLowerCase().endsWith('.mkv') ? 'mkv' :
+                name.toLowerCase().endsWith('.webm') ? 'webm' :
+                    name.toLowerCase().endsWith('.avi') ? 'avi' : 'mp4';
+
             // Extract a cleaner display name from the torrent name
             const displayName = name.split('/').pop() || name;
 
             return {
-                url:        alt.url,
-                name:       displayName,
-                quality:    alt.quality || 'auto',
-                isM3U8:     false,
-                isEmbed:    false,
-                noProxy:    true,
-                provider:   idx === 0 ? 'Premium Server (Best)' : `Premium Alt ${idx + 1}`,
+                url: alt.url,
+                name: displayName,
+                quality: alt.quality || 'auto',
+                isM3U8: false,
+                isEmbed: false,
+                noProxy: true,
+                provider: idx === 0 ? 'Premium Server (Best)' : `Premium Alt ${idx + 1}`,
                 providerId: `torrent-${idx}`,
-                referer:    '',
-                origin:     '',
-                headers:    {},
-                _type:      ext,
-                _audio:     alt._audio || 'unknown',
+                referer: '',
+                origin: '',
+                headers: {},
+                _type: ext,
+                _audio: alt._audio || 'unknown',
             };
         }) || [{
-            url:        debridStream.streamUrl,
-            name:       debridStream.name || 'Torrent Stream',
-            quality:    debridStream.quality || 'auto',
-            isM3U8:     false,
-            isEmbed:    false,
-            noProxy:    true,
-            provider:   'Premium Server',
+            url: debridStream.streamUrl,
+            name: debridStream.name || 'Torrent Stream',
+            quality: debridStream.quality || 'auto',
+            isM3U8: false,
+            isEmbed: false,
+            noProxy: true,
+            provider: 'Premium Server',
             providerId: 'torrent-0',
-            referer:    '',
-            origin:     '',
-            headers:    {},
-            _type:      (debridStream.name || '').toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4',
-            _audio:     'unknown',
+            referer: '',
+            origin: '',
+            headers: {},
+            _type: (debridStream.name || '').toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4',
+            _audio: 'unknown',
         }];
 
         // ── Source Manifest Log (for filename pattern study) ──────────────────
@@ -886,17 +865,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     const rawName = (debridStream as any).alternatives?.at(i)?.name || s.name || '';
                     const filename = rawName.split('/').pop() || rawName;
                     return {
-                        '#':        i + 1,
+                        '#': i + 1,
                         'filename': filename,
-                        'ext':      s._type || '?',
-                        'quality':  s.quality || '?',
+                        'ext': s._type || '?',
+                        'quality': s.quality || '?',
                         'provider': s.provider || '?',
-                        'url':      s.url?.substring(0, 80) + (s.url?.length > 80 ? '…' : ''),
+                        'url': s.url?.substring(0, 80) + (s.url?.length > 80 ? '…' : ''),
                     };
                 })
             );
             console.groupEnd();
-        } catch (_) {}
+        } catch (_) { }
 
         // Torrent is preferred always:
         // Prepend to allSources so it appears first in manual source list too.
@@ -919,21 +898,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
 
 
-    // ── MKV Audio Safety Fallback (Debrid only) ──────────────────────────────
-    // Since we can't probe Debrid URLs directly via the browser, we rely on the
-    // proxy probe in useDebridStream. If that failed, we just log a warning.
-    useEffect(() => {
-        if (!streamUrl || isStreamM3U8 || isEmbed) return;
-        
-        const currentSource = allSources.at(currentSourceIndex);
-        const isDebrid = streamUrl.includes('.debrid.it') || streamUrl.includes('.alldebrid.com');
-        if (!isDebrid) return;
-        
-        const isMkv = streamUrl.toLowerCase().includes('.mkv');
-        if (isMkv && (!currentSource?._audio || currentSource._audio === 'unknown')) {
-            console.log('[VideoPlayer] ℹ️ Debrid MKV with unknown audio. If silent, use the source selector to pick a WEB-DL/AAC alternative.');
-        }
-    }, [streamUrl, isStreamM3U8, isEmbed, currentSourceIndex, allSources]);
+    // NOTE: useAudioSilenceDetector was removed — createMediaElementSource() is a destructive
+    // one-way pipe into WebAudio that itself causes silence when AudioContext is suspended.
+    // Source quality scoring in useDebridStream already heavily penalises AC3/DTS files (-20 to -30).
+    // That is the correct layer to fix audio compatibility, not a post-hoc silence probe.
 
     // ── External subtitles for AllDebrid streams ─────────────────────────────────
     // Torrent/MKV files have no embedded subtitle streams in the HTTP response,
@@ -988,7 +956,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 mappedCaptions.sort((a, b) => {
                     const diffA = a.duration ? Math.abs(a.duration - targetDuration) : Infinity;
                     const diffB = b.duration ? Math.abs(b.duration - targetDuration) : Infinity;
-                    
+
                     // Prioritize close matches (within 90s)
                     const aIsClose = diffA <= 90;
                     const bIsClose = diffB <= 90;
@@ -1015,13 +983,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             // But we prioritize the track with the closest duration!
             const matchingLangs = mappedCaptions.filter(s => s.lang === preferredLang);
             const enTracks = mappedCaptions.filter(s => s.lang === 'en');
-            
+
             const findBestTrack = (tracksList: typeof mappedCaptions) => {
                 if (tracksList.length === 0) return null;
                 if (targetDuration > 0) {
                     const closeMatches = tracksList.filter(t => t.duration && Math.abs(t.duration - targetDuration) <= 90);
                     if (closeMatches.length > 0) return closeMatches[0];
-                    
+
                     const sortedByCloseness = [...tracksList].sort((a, b) => {
                         const diffA = a.duration ? Math.abs(a.duration - targetDuration) : Infinity;
                         const diffB = b.duration ? Math.abs(b.duration - targetDuration) : Infinity;
@@ -1037,14 +1005,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const bestPreferred = findBestTrack(matchingLangs);
             const bestEnglish = findBestTrack(enTracks);
 
-            const target = bestPreferred 
+            const target = bestPreferred
                 || matchingLangs[0]
                 || bestEnglish
                 || enTracks[2] || enTracks[0]
                 || mappedCaptions[0];
 
             if (target) setCurrentCaption(target.url);
-        }).catch(() => {});
+        }).catch(() => { });
 
         return () => { cancelled = true; };
     }, [debridStream.streamUrl, (debridStream as any).subtitles, movie.id, mediaType, playingSeasonNumber, currentEpisode,
@@ -1229,7 +1197,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         // Reset video time immediately to prevent previous episode's progress leak
         try {
             video.currentTime = 0;
-        } catch (_) {}
+        } catch (_) { }
 
         // Calculate the best resume time:
         // 1. For TV: getEpisodeProgress for this S+E
@@ -1285,7 +1253,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             try {
                 const bufferedEnd = video.buffered.end(video.buffered.length - 1);
                 setBufferedAmount((bufferedEnd / dur) * 100);
-            } catch (_) {}
+            } catch (_) { }
         }
 
 
@@ -1403,7 +1371,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
         const vid = videoRef.current;
         vid?.addEventListener('timeupdate', update);
-        
+
         // Immediately run an update when this effect fires (e.g. if subtitleOffset changed while paused)
         update();
 
@@ -1441,7 +1409,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         .map((s: any) => s.season_number);
                     setSeasonList(validSeasons);
                 }
-            } catch (e) {}
+            } catch (e) { }
         };
         init();
     }, [movie.id, mediaType]);
@@ -1454,7 +1422,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             try {
                 const seasonData = await getSeasonDetails(String(movie.id), playingSeasonNumber);
                 if (!cancelled && seasonData?.episodes) setCurrentSeasonEpisodes(seasonData.episodes);
-            } catch (e) {}
+            } catch (e) { }
         };
         fetchEps();
         return () => { cancelled = true; };
@@ -1491,7 +1459,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     const toggleUI = useCallback(() => {
         if (activePanel !== 'none') return;
-        
+
         setShowUI(prev => {
             const next = !prev;
             if (next) {
@@ -1652,9 +1620,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 if (target === containerRef.current || target === videoRef.current) {
                     // Ignore synthesized clicks from touch devices
                     if (Date.now() - lastTouchTimeRef.current < 900) return;
-                    
+
                     if (showUIRef.current && videoRef.current) {
-                        videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+                        if (videoRef.current.paused) {
+                            videoRef.current.muted = false;
+                            videoRef.current.play();
+                        } else {
+                            videoRef.current.pause();
+                        }
                         setPpRippleTrigger(t => t + 1);
                     }
                     showControls();
@@ -1690,7 +1663,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         mutedRef.current = elementMuted;
 
                         if (vol > 0) {
-                            try { localStorage.setItem('pstream_vol', String(vol)); } catch {}
+                            try { localStorage.setItem('pstream_vol', String(vol)); } catch { }
                         }
                     }
                 }}
@@ -1857,34 +1830,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     </div>
                 </div>
             )}
-            {/* Browser Auto-Mute Override Overlay */}
-            {showUnmuteOverlay && isVideoReady && !error && (
-                <div 
-                    className="absolute inset-0 z-[60] flex items-start justify-center pt-24 pointer-events-auto bg-black/10 hover:bg-black/20 transition-colors cursor-pointer"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (videoRef.current) {
-                            videoRef.current.muted = false;
-                            userMutedRef.current = false;
-                            setIsMuted(false);
-                            setShowUnmuteOverlay(false);
-                            // Also ensure it's playing in case it paused
-                            videoRef.current.play().catch(console.warn);
-                        }
-                    }}
-                >
-                    <div className="bg-[#e50914] text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl animate-pulse hover:animate-none hover:scale-105 transition-transform">
-                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-                        </svg>
-                        <span className="font-bold text-[15px] tracking-wide">
-                            {t('player.tapToUnmute', { defaultValue: 'Tap to Unmute' })}
-                        </span>
-                    </div>
-                </div>
-            )}
 
-            {/* Desktop Paused Overlay (Netflix style) */}
+
+
             {!isMobile && showPausedOverlay && !isBuffering && isVideoReady && !error && (
                 <div className="absolute inset-0 pointer-events-none flex flex-col justify-center p-12 z-[50] bg-black/60">
                     <div className="flex flex-col gap-1 max-w-2xl ml-24">
@@ -1892,7 +1840,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             {t('player.youreWatching', { defaultValue: "You're watching" })}
                         </p>
                         <h1 className="text-white text-6xl font-bold tracking-tight mb-2 drop-shadow-lg">{title}</h1>
-                        
+
                         {mediaType === 'tv' && (
                             <>
                                 <h2 className="text-white font-bold text-2xl mt-1 drop-shadow-md">
@@ -1901,7 +1849,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 <h3 className="text-white font-bold text-xl mt-3 drop-shadow-md">{currentEpisodeName}: Ep. {currentEpisode}</h3>
                             </>
                         )}
-                        
+
                         <p className="text-white/90 text-[1.1rem] mt-3 leading-relaxed line-clamp-3 drop-shadow-md max-w-xl">
                             {mediaType === 'tv' ? (currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode)?.overview || movie.overview) : movie.overview}
                         </p>
@@ -1927,7 +1875,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 episodeNumber={mediaType === 'tv' ? currentEpisode : undefined}
                 episodeName={mediaType === 'tv' ? currentEpisodeName : undefined}
                 onPlayPause={() => {
-                    videoRef.current?.paused ? videoRef.current.play() : videoRef.current?.pause();
+                    if (videoRef.current?.paused) {
+                        videoRef.current.muted = false;
+                        videoRef.current.play();
+                    } else {
+                        videoRef.current?.pause();
+                    }
                 }}
                 onSeek={(amt) => {
                     videoRef.current && (videoRef.current.currentTime += amt);
@@ -1972,7 +1925,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     ? () => {
                         setBrowsedSeasonNumber(playingSeasonNumber);
                         setActivePanel(p => (p === 'episodes' || p === 'seasons') ? 'none' : 'episodes');
-                      }
+                    }
                     : undefined}
                 videoFit={videoFit}
                 onToggleFit={() => setVideoFit(prev => prev === 'contain' ? 'cover' : 'contain')}
@@ -1996,7 +1949,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         setBrowsedSeasonNumber(s);
                         getSeasonDetails(String(movie.id), s).then(data => {
                             if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);
-                        }).catch(() => {});
+                        }).catch(() => { });
                         setActivePanel('episodes');
                     }}
                     onEpisodeSelect={handleEpisodeSelect}
@@ -2036,7 +1989,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         setBrowsedSeasonNumber(s);
                         getSeasonDetails(String(movie.id), s).then(data => {
                             if (data?.episodes) setCurrentSeasonEpisodes(data.episodes);
-                        }).catch(() => {});
+                        }).catch(() => { });
                         setActivePanel('episodes');
                     }}
                     onEpisodeSelect={handleEpisodeSelect}

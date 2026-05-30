@@ -2,13 +2,16 @@
   "name": "Pstream",
   "short_name": "Pstream",
   "description": "Stream your favourite movies and TV series.",
+  "id": "/",
   "start_url": "/",
-  "display": "minimal-ui",
-  "background_color": "#141414",
-  "orientation": "any",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#000000",
+  "orientation": "natural",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
@@ -26,7 +29,7 @@
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/icons/icon-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

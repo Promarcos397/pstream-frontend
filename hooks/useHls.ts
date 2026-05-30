@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
-import { streamCache } from '../utils/streamCache';
-import { getCodecProfile } from '../utils/browserCodecSupport';
 
 
 interface UseHlsOptions {
@@ -101,81 +99,18 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
         const video = videoRef.current;
         if (!video || !streamUrl || !isM3U8) {
             if (streamUrl && !isM3U8 && video) {
-                // Direct MP4 / AllDebrid CDN URL — set src and wait for canplay
+                // Direct MP4/MKV — set src and let the browser play it natively.
                 video.src = streamUrl;
                 video.load();
 
                 const onCanPlay = () => {
                     setIsBuffering(false);
-
-                    // Native audio track detection for direct streams (MP4/MKV)
-                    // Supported in Safari and experimental Chrome/Firefox
-                    const nativeTracks = (video as any).audioTracks;
-                    if (nativeTracks && nativeTracks.length > 0) {
-                        const tracks = Array.from(nativeTracks).map((t: any, idx: number) => ({
-                            id: idx,
-                            name: t.label || t.language || `Track ${idx + 1}`,
-                            lang: t.language || '',
-                            isDefault: t.enabled
-                        }));
-                        setAudioTracks(tracks as any);
-
-                        if (tracks.length > 1) {
-                            // ── Secondary AAC track trick ────────────────────────────────
-                            // MKV files often have AC3/DTS as track 0 and AAC as track 1.
-                            // Browsers can't play AC3/DTS natively (except Safari/Edge on
-                            // some platforms). Always prefer the AAC/Opus track if one exists,
-                            // regardless of which track is marked "default" in the container.
-                            // This requires zero WASM, zero server — pure browser-native.
-                            const profile = getCodecProfile();
-                            const isDolbyCapable = profile
-                                ? profile.isDolbyCapable
-                                : (typeof navigator !== 'undefined' && (
-                                    (/Safari/i.test(navigator.userAgent) && !/Chrome|Chromium/i.test(navigator.userAgent)) ||
-                                    (/Edg\//i.test(navigator.userAgent) && /Windows/i.test(navigator.userAgent))
-                                ));
-                            // Only apply the secondary AAC trick if the browser is NOT Dolby capable.
-                            // Dolby-capable browsers (Safari, Edge) can natively play AC3/EAC3.
-                            const shouldApplyAacTrick = !isDolbyCapable;
-
-                            const SAFE_CODECS = ['aac', 'mp3', 'opus', 'vorbis', 'mp4a'];
-                            const aacTrackIdx = shouldApplyAacTrick
-                                ? Array.from(nativeTracks).findIndex((t: any) => {
-                                    const kind = (t.kind || '').toLowerCase();
-                                    const label = (t.label || '').toLowerCase();
-                                    return SAFE_CODECS.some(c => kind.includes(c) || label.includes(c));
-                                })
-                                : -1;
-
-                            if (aacTrackIdx !== -1) {
-                                console.info(`[useHls] 🎯 Secondary AAC track found at index ${aacTrackIdx}. Switching from default (likely AC3/DTS) to ensure browser compatibility.`);
-                            }
-
-                            const preferredId = aacTrackIdx !== -1
-                                ? aacTrackIdx
-                                : pickPreferredAudioTrack(tracks as any, preferredAudioLanguage);
-
-                            if (preferredId !== -1) {
-                                // Refactored to loop without bracket notation
-                                Array.from(nativeTracks).forEach((track: any, i: number) => {
-                                    track.enabled = (i === preferredId);
-                                });
-
-                                setCurrentAudioTrack(preferredId);
-                                if (aacTrackIdx !== -1) {
-                                    console.log(`[useHls] 🎵 Secondary AAC track trick: switched to track ${preferredId}`);
-                                }
-                            }
-                        }
-                    }
-
                     if (autoPlay) video.play().catch(() => { });
                 };
                 const onVideoError = () => {
                     const code = (video.error as MediaError | null)?.code;
-                    console.error('[useHls] Direct video load error for:', streamUrl.substring(0, 80), '| MediaError code:', code);
+                    console.error('[useHls] Direct video error, MediaError code:', code);
                     setIsBuffering(false);
-                    // Propagate to VideoPlayer so it can cycle to the next source
                     if (onError) onError(`Direct video load failed (MediaError ${code ?? 'unknown'})`);
                 };
                 const onWaiting = () => setIsBuffering(true);
@@ -194,6 +129,7 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
                 };
             }
             return;
+
         }
 
         destroyHls();
