@@ -1,18 +1,11 @@
 pstream-frontend
+├── .antigravityignore
+├── .cursorignore
 ├── .env
 ├── .env.local
 ├── .gitignore
 ├── App.tsx
-├── _dev
-│   ├── _project_notes
-│   │   ├── 01_PROJECT_OVERVIEW.md
-│   │   ├── 02_CURRENT_ISSUES.md
-│   │   ├── 03_DESIGN_SYSTEM.md
-│   │   ├── 04_FIX_PRIORITY.md
-│   │   └── 05_FULL_REQUIREMENTS.md
-│   ├── cleanup_locales.py
-│   ├── localize_all.py
-│   └── update_locales.cjs
+├── alldebrid_keys.txt
 ├── assets
 │   ├── fonts
 │   │   ├── Harmonia Sans Mono W01 Bold.otf
@@ -26,8 +19,12 @@ pstream-frontend
 │   │   ├── Harmonia Sans W06 Condensed.otf
 │   │   ├── Harmonia Sans W06 Condensed.ttf
 │   │   ├── LeanerBold.otf
+│   │   ├── Morandi-W01-Regular.otf
 │   │   ├── Niva-Bold _.ttf
-│   │   └── netflix-sans.woff2
+│   │   ├── netflix-sans-core-variable-full.woff2
+│   │   ├── netflix-sans.woff2
+│   │   ├── ns-bd.woff2
+│   │   └── ns-md.woff2
 │   ├── landing-bg.png
 │   └── logos
 │       ├── p-pstream-logo-with-background.svg
@@ -36,6 +33,7 @@ pstream-frontend
 ├── components
 │   ├── BookHero.tsx
 │   ├── CategorySubNav.tsx
+│   ├── CategorySubNavMobile.tsx
 │   ├── CharacterRow.tsx
 │   ├── ErrorBoundary.tsx
 │   ├── ExploreSuggestions.tsx
@@ -46,17 +44,26 @@ pstream-frontend
 │   ├── HeroSkeleton.tsx
 │   ├── InfoModal.tsx
 │   ├── InfoModalEpisodes.tsx
+│   ├── InfoModalEpisodesTouch.tsx
 │   ├── InfoModalRecommendations.tsx
+│   ├── InfoModalRecommendationsTouch.tsx
+│   ├── InfoModalTouch.tsx
 │   ├── Layout.tsx
 │   ├── LoginWall.tsx
 │   ├── ManifestSkeleton.tsx
+│   ├── MobileHero.tsx
 │   ├── MovieCard.tsx
 │   ├── MovieCardBadges.tsx
 │   ├── MovieCardTouch.tsx
 │   ├── Navbar.tsx
+│   ├── NavbarMobile.tsx
+│   ├── NewPopularSubNavMobile.tsx
 │   ├── Row.tsx
+│   ├── RowMobile.tsx
 │   ├── SearchBar.tsx
+│   ├── SpotlightCard.tsx
 │   ├── TopTenRow.tsx
+│   ├── TopTenRowMobile.tsx
 │   ├── TrailerPlayer.tsx
 │   ├── VideoPlayer.tsx
 │   ├── VideoPlayerControls.tsx
@@ -71,8 +78,11 @@ pstream-frontend
 │   ├── genres.ts
 │   ├── languages.ts
 │   ├── pageGenres.ts
-│   └── subtitles.ts
+│   ├── subtitles.ts
+│   └── themes.ts
+├── file_tree_frondend.txt
 ├── hooks
+│   ├── genreManifestBuilder.ts
 │   ├── useAudioSilenceDetector.ts
 │   ├── useDebridStream.ts
 │   ├── useDynamicManifest.ts
@@ -88,7 +98,6 @@ pstream-frontend
 │   ├── useTasteEngine.ts
 │   ├── useTouchGestures.ts
 │   ├── useTrailer.ts
-│   ├── useWasmAudio.ts
 │   └── useYouTubeCaptions.ts
 ├── i18n.ts
 ├── index.css
@@ -121,6 +130,7 @@ pstream-frontend
 │   ├── LoginPage.tsx
 │   ├── MoviesPage.tsx
 │   ├── MyListPage.tsx
+│   ├── NewPopularMobilePage.tsx
 │   ├── NewPopularPage.tsx
 │   ├── NotFoundPage.tsx
 │   ├── ReadsPage.tsx
@@ -128,6 +138,19 @@ pstream-frontend
 │   ├── SettingsPage.tsx
 │   └── ShowsPage.tsx
 ├── postcss.config.js
+├── public
+│   ├── StandardGalacticAlphabet-Regular.ttf
+│   ├── _redirects
+│   ├── apple-touch-icon.png
+│   ├── favicon.svg
+│   ├── icons
+│   │   ├── icon-192.png
+│   │   ├── icon-512-maskable.png
+│   │   └── icon-512.png
+│   ├── manifest.json
+│   ├── p-icon.svg
+│   ├── pstream-wordmark.svg
+│   └── sw.js
 ├── services
 │   ├── HeroEngine.ts
 │   ├── NetworkPriority.ts
@@ -170,6 +193,7 @@ pstream-frontend
 ├── utils
 │   ├── browserCodecSupport.ts
 │   ├── captions.ts
+│   ├── deviceHelper.ts
 │   ├── ebml.ts
 │   ├── mediaProbe.ts
 │   ├── mkvAudioExtractor.ts
@@ -178,4 +202,3 @@ pstream-frontend
 ├── vite-env.d.ts
 ├── vite.config.ts
 └── workers
-    └── wasmAudioWorker.ts
