@@ -18,6 +18,7 @@ import {
 } from '@phosphor-icons/react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { Episode } from '../types';
+import { SkipSegment } from '../hooks/useSkipTimestamps';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VideoPlayerControlsProps {
@@ -72,6 +73,9 @@ interface VideoPlayerControlsProps {
     setPpRippleTrigger?: React.Dispatch<React.SetStateAction<number>>;
     seekFlash?: { side: 'left' | 'right'; ts: number } | null;
     setSeekFlash?: React.Dispatch<React.SetStateAction<{ side: 'left' | 'right'; ts: number } | null>>;
+    skipSegments?: SkipSegment[];
+    onSkipSegment?: (segment: SkipSegment) => void;
+    isEmbedFallback?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -518,6 +522,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     videoFit, onToggleFit,
     ppRippleTrigger = 0, setPpRippleTrigger,
     seekFlash = null, setSeekFlash,
+    skipSegments = [], onSkipSegment,
+    isEmbedFallback = false,
 }) => {
     const isMobile = useIsMobile();
     const timelineRef = useRef<HTMLDivElement>(null);
@@ -673,6 +679,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const safeLeft = 'env(safe-area-inset-left, 0px)';
     const safeRight = 'env(safe-area-inset-right, 0px)';
 
+    const activeSkipSegment = skipSegments.find(s => currentTime >= s.start && currentTime <= s.end);
+
     return (
         <>
             {/* ── Ripple on play/pause (Desktop only) ── */}
@@ -681,8 +689,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             {/* ── Seek flash ── */}
             {seekFlash && <SeekFlash side={seekFlash.side} seconds={10} ts={seekFlash.ts} />}
 
-            {/* Background layer for dismissal when panels are open */}
-            {isPanelOpen && (
+            {/* Background layer for dismissal when panels are open.
+                NOT rendered in embed mode — the backdrop sits over the iframe and
+                intercepts the user gesture the browser needs to unlock audio. */}
+            {isPanelOpen && !isEmbedFallback && (
                 <div
                     className="absolute inset-0 z-10 cursor-default"
                     onClick={(e) => {
@@ -746,7 +756,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             )}
 
             {/* ── CENTER: Mobile Playback Controls ── */}
-            {isMobile && (
+            {!isEmbedFallback && isMobile && (
                 <div
                     className={`absolute inset-0 z-30 flex items-center justify-center gap-10 transition-opacity duration-300 pointer-events-none ${showUI ? 'opacity-100' : 'opacity-0'}`}
                 >
@@ -829,6 +839,19 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         paddingBottom: `max(${safeBottom}, ${isMobile ? '16px' : '24px'})`,
                     }}
                 >
+                    {/* ── Skip Button ── */}
+                    {activeSkipSegment && onSkipSegment && (
+                        <div className="absolute right-4 md:right-8 bottom-full mb-4 z-40 pointer-events-auto">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onSkipSegment(activeSkipSegment); }}
+                                className="px-5 py-2 md:py-2.5 bg-white text-black font-bold text-[13px] md:text-sm rounded hover:bg-neutral-200 active:scale-95 transition-all flex items-center gap-2 uppercase tracking-wider shadow-[0_4px_12px_rgba(0,0,0,0.5)] border border-white/20"
+                            >
+                                {activeSkipSegment.type === 'credits' ? 'Skip Credits' : 'Skip Intro'}
+                                <SkipForwardIcon size={18} weight="bold" />
+                            </button>
+                        </div>
+                    )}
+
                     {/* ── Progress bar ── */}
                     <div className={`flex items-center gap-2 transition-all duration-200 px-3 ${isPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                         style={{

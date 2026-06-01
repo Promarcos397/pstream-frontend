@@ -11,6 +11,7 @@ export interface WatchProgress {
   watchedTime: number; // in seconds
   duration: number; // in seconds
   percentage: number; // 0 to 100
+  providerIndex?: number; // which embed provider was active (for resume)
   movieData?: Movie; // Cached metadata
   updatedAt: number; // Unix timestamp for merging
 }
@@ -33,7 +34,11 @@ export const useWatchStore = create<WatchStore>()(
       history: {},
 
       updateProgress: (data) => {
-        const percentage = data.duration > 0 ? (data.watchedTime / data.duration) * 100 : 0;
+        // For embeds with unknown duration (duration=0), use elapsed-based fallback
+        // so continue-watching still shows the item. Mark as 5% after 30s of watching.
+        const percentage = data.duration > 0
+            ? (data.watchedTime / data.duration) * 100
+            : data.watchedTime > 30 ? 5 : 0;
         const updatedAt = Date.now();
         const key = data.type === 'tv' ? `${data.tmdbId}-S${data.season}E${data.episode}` : data.tmdbId;
         
