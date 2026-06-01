@@ -1,12 +1,28 @@
-pstream-frontend
-├── .antigravityignore
-├── .cursorignore
-├── .env
-├── .env.local
-├── .gitignore
-├── App.tsx
-├── alldebrid_keys.txt
+# P-Stream Frontend — File Tree
+# Generated: 2026-06-01 02:34:33
+# Root: D:\coding-projects\streaming-app\pstream-frontend
+
+pstream-frontend/
 ├── assets
+│   ├── 404_assets
+│   │   ├── dim1-backdrop.jpeg
+│   │   ├── dim1-poster.jpeg
+│   │   ├── dim1-title.png
+│   │   ├── dim2-backdrop.jpeg
+│   │   ├── dim2-poster.jpeg
+│   │   ├── dim2-title.png
+│   │   ├── dim3-backdrop.jpeg
+│   │   ├── dim3-poster.jpeg
+│   │   ├── dim3-title.png
+│   │   ├── dim4-backdrop.jpeg
+│   │   ├── dim4-poster.jpeg
+│   │   ├── dim4-title.png
+│   │   ├── dim5-backdrop.jpeg
+│   │   ├── dim5-poster.jpeg
+│   │   ├── dim5-title.png
+│   │   ├── dim6-backdrop.jpeg
+│   │   ├── dim6-poster.jpeg
+│   │   └── dim6-title.png
 │   ├── fonts
 │   │   ├── Harmonia Sans Mono W01 Bold.otf
 │   │   ├── Harmonia Sans Mono W01 Bold.ttf
@@ -20,21 +36,23 @@ pstream-frontend
 │   │   ├── Harmonia Sans W06 Condensed.ttf
 │   │   ├── LeanerBold.otf
 │   │   ├── Morandi-W01-Regular.otf
-│   │   ├── Niva-Bold _.ttf
 │   │   ├── netflix-sans-core-variable-full.woff2
 │   │   ├── netflix-sans.woff2
+│   │   ├── Niva-Bold _.ttf
 │   │   ├── ns-bd.woff2
 │   │   └── ns-md.woff2
-│   ├── landing-bg.png
-│   └── logos
-│       ├── p-pstream-logo-with-background.svg
-│       ├── p-pstream-logo.svg
-│       └── pstream-logo.svg
+│   ├── logos
+│   │   ├── p-pstream-logo-with-background.svg
+│   │   ├── p-pstream-logo.svg
+│   │   └── pstream-logo.svg
+│   └── landing-bg.png
 ├── components
 │   ├── BookHero.tsx
 │   ├── CategorySubNav.tsx
 │   ├── CategorySubNavMobile.tsx
 │   ├── CharacterRow.tsx
+│   ├── CinemaPlayButton.tsx
+│   ├── EmbedPlayer.tsx
 │   ├── ErrorBoundary.tsx
 │   ├── ExploreSuggestions.tsx
 │   ├── Footer.tsx
@@ -69,7 +87,6 @@ pstream-frontend
 │   ├── VideoPlayerControls.tsx
 │   ├── VideoPlayerSettings.tsx
 │   └── VideoPlayerSettingsTouch.tsx
-├── constants.ts
 ├── context
 │   ├── GlobalContext.tsx
 │   └── TitleContext.tsx
@@ -77,10 +94,10 @@ pstream-frontend
 │   ├── avatars.ts
 │   ├── genres.ts
 │   ├── languages.ts
+│   ├── notFoundDimensions.ts
 │   ├── pageGenres.ts
 │   ├── subtitles.ts
 │   └── themes.ts
-├── file_tree_frondend.txt
 ├── hooks
 │   ├── genreManifestBuilder.ts
 │   ├── useAudioSilenceDetector.ts
@@ -94,15 +111,12 @@ pstream-frontend
 │   ├── useNetworkQuality.ts
 │   ├── useScroll.ts
 │   ├── useSearch.ts
+│   ├── useSkipTimestamps.ts
 │   ├── useSubtitleStyle.ts
 │   ├── useTasteEngine.ts
 │   ├── useTouchGestures.ts
 │   ├── useTrailer.ts
 │   └── useYouTubeCaptions.ts
-├── i18n.ts
-├── index.css
-├── index.html
-├── index.tsx
 ├── locales
 │   ├── ar.json
 │   ├── de.json
@@ -120,8 +134,6 @@ pstream-frontend
 │   ├── sv.json
 │   ├── tr.json
 │   └── zh.json
-├── package-lock.json
-├── package.json
 ├── pages
 │   ├── BrowseGridPage.tsx
 │   ├── CinemaPage.tsx
@@ -137,31 +149,31 @@ pstream-frontend
 │   ├── SearchResultsPage.tsx
 │   ├── SettingsPage.tsx
 │   └── ShowsPage.tsx
-├── postcss.config.js
 ├── public
-│   ├── StandardGalacticAlphabet-Regular.ttf
-│   ├── _redirects
-│   ├── apple-touch-icon.png
-│   ├── favicon.svg
 │   ├── icons
 │   │   ├── icon-192.png
 │   │   ├── icon-512-maskable.png
 │   │   └── icon-512.png
+│   ├── _redirects
+│   ├── apple-touch-icon.png
+│   ├── favicon.svg
 │   ├── manifest.json
 │   ├── p-icon.svg
 │   ├── pstream-wordmark.svg
+│   ├── StandardGalacticAlphabet-Regular.ttf
 │   └── sw.js
 ├── services
+│   ├── api.ts
+│   ├── EmbedProviders.ts
+│   ├── ghostAuth.ts
 │   ├── HeroEngine.ts
 │   ├── NetworkPriority.ts
 │   ├── ProviderHealthService.ts
 │   ├── SubtitleService.ts
-│   ├── YouTubeCaptionService.ts
-│   ├── YouTubeService.ts
-│   ├── api.ts
-│   ├── ghostAuth.ts
 │   ├── supabaseClient.ts
-│   └── tmdb.ts
+│   ├── tmdb.ts
+│   ├── YouTubeCaptionService.ts
+│   └── YouTubeService.ts
 ├── settings
 │   ├── AccountSection.tsx
 │   ├── AppearanceSection.tsx
@@ -183,11 +195,8 @@ pstream-frontend
 │   ├── useLibraryStore.ts
 │   ├── useSettingsStore.ts
 │   └── useWatchStore.ts
-├── tailwind.config.js
-├── tsconfig.json
 ├── types
 │   └── assets.d.ts
-├── types.ts
 ├── ui
 │   └── SettingsUI.tsx
 ├── utils
@@ -199,6 +208,29 @@ pstream-frontend
 │   ├── mkvAudioExtractor.ts
 │   ├── search.ts
 │   └── streamCache.ts
+├── workers
+├── .antigravityignore
+├── .cursorignore
+├── .env
+├── .env.local
+├── .gitignore
+├── alldebrid_keys.txt
+├── App.tsx
+├── constants.ts
+├── download (1).zip
+├── download.zip
+├── file_tree_frondend.txt
+├── i18n.ts
+├── index.css
+├── index.html
+├── index.tsx
+├── package.json
+├── postcss.config.js
+├── tailwind.config.js
+├── tsconfig.json
+├── types.ts
+├── update_file_tree.py
 ├── vite-env.d.ts
-├── vite.config.ts
-└── workers
+└── vite.config.ts
+
+# 20 directories, 209 files
