@@ -14,6 +14,8 @@ import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
 import { useTasteEngine } from '../hooks/useTasteEngine';
 import { MaturityBadge } from './MovieCardBadges';
+import { dimensionsAsMovies, get404Episodes } from '../data/notFoundDimensions';
+import { _modalTrailerCache } from './InfoModal';
 
 interface InfoModalTouchProps {
     movie: Movie | null;
@@ -43,7 +45,16 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     const [overrideMovie, setOverrideMovie] = useState<Movie | null>(null);
     const activeMovieProp = overrideMovie || movie;
     
-    const { detailedMovie, cast, recommendations, isLoading } = useMovieData(activeMovieProp);
+    // Intercept and override 404 database details for mobile touch modal
+    const is404 = typeof activeMovieProp?.id === 'string' && activeMovieProp.id.startsWith('dim');
+    const { detailedMovie: rawDetailedMovie, cast: rawCast, recommendations: rawRecommendations, isLoading: rawLoading } = useMovieData(activeMovieProp);
+    
+    const detailedMovie = is404 ? activeMovieProp : rawDetailedMovie;
+    const cast = is404 ? ["The Router", "Vite Compiler", "Tailwind Engine", "A.I. Developer"] : rawCast;
+    const recommendations = is404 
+        ? dimensionsAsMovies.filter((m: any) => m.id !== activeMovieProp.id) 
+        : rawRecommendations;
+    const isLoading = is404 ? false : rawLoading;
     
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
     const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
@@ -55,6 +66,13 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
 
     // Advanced spotlight-style player states/refs
     const playerInstanceRef = useRef<any>(null);
+    const hasAppliedInitialSeek = useRef(false);
+    const modalTrailerTimeRef = useRef<number>(0);
+
+    // Prefer the InfoModal's own saved position, then fall back to incoming initialTime
+    const movieKey = movie ? String(movie.id) : '';
+    const cachedModalTime = movieKey ? (_modalTrailerCache.get(movieKey) ?? 0) : 0;
+    const resolvedSeekTime = cachedModalTime > 0 ? cachedModalTime : (initialTime ?? 0);
     const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [showControls, setShowControls] = useState(false);
     const [isVideoPaused, setIsVideoPaused] = useState(false);
@@ -96,6 +114,8 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
             setSelectedSeason(1);
             setReplayCount(0);
             setOverrideMovie(null);
+            hasAppliedInitialSeek.current = false;
+            modalTrailerTimeRef.current = 0;
 
             // Reset player states
             setIsVideoPaused(false);
@@ -113,13 +133,13 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
             });
 
             if (mediaType === 'tv') {
-                const saved = getLastWatchedEpisode(movie.id);
-                if (saved?.season && saved?.episode) {
-                    setSelectedSeason(saved.season);
+                const getLastWatched = getLastWatchedEpisode(movie.id);
+                if (getLastWatched?.season && getLastWatched?.episode) {
+                    setSelectedSeason(getLastWatched.season);
                 }
             }
         }
-    }, [movie, mediaType, getLastWatchedEpisode]);
+    }, [movie, mediaType]);
 
     const fetchEpisodes = useCallback(async (id: number, season: number) => {
         setLoadingEpisodes(true);
@@ -130,9 +150,13 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
 
     useEffect(() => {
         if (mediaType === 'tv' && activeMovieProp) {
-            fetchEpisodes(Number(activeMovieProp.id), selectedSeason);
+            if (is404) {
+                setEpisodes(get404Episodes());
+            } else {
+                fetchEpisodes(Number(activeMovieProp.id), selectedSeason);
+            }
         }
-    }, [selectedSeason, mediaType, activeMovieProp, fetchEpisodes]);
+    }, [selectedSeason, mediaType, activeMovieProp, fetchEpisodes, is404]);
 
     // Pause/Resume on scroll or visibility change
     useEffect(() => {
@@ -224,6 +248,10 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     };
 
     const handleClose = () => {
+        // Save InfoModalTouch's own trailer position before closing
+        if (movie && modalTrailerTimeRef.current > 4) {
+            _modalTrailerCache.set(String(movie.id), modalTrailerTimeRef.current);
+        }
         onClose();
     };
 
@@ -354,7 +382,11 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                 onClick={handleMediaTap}
             >
                 <img
-                    src={`${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`}
+                    src={
+                        typeof activeMovie.id === 'string' && activeMovie.id.startsWith('dim')
+                            ? (activeMovie.backdrop_path || activeMovie.poster_path)
+                            : `${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`
+                    }
                     className={`w-full h-full object-cover transition-opacity duration-400 ${isActuallyPlaying && !showBackdropOverlay ? 'opacity-0' : 'opacity-100'}`}
                     alt="modal hero mobile"
                 />
@@ -364,10 +396,11 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                         key={`mobile-modal-player-${replayCount}`}
                         movie={activeMovie} 
                         variant="modal"
+                        initialSeekTime={resolvedSeekTime > 0 ? resolvedSeekTime : undefined}
                         onReady={() => setIsPlayingTrailer(true)}
                         onPlay={() => {
                             setIsActuallyPlaying(true);
-                            setIsVideoPaused(false); // Double-safety: enforce unpaused when play state begins/resumes
+                            setIsVideoPaused(false);
                         }}
                         onEnded={() => {
                             setIsPlayingTrailer(false);
@@ -380,6 +413,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                         }}
                         onPlayerReady={p => { playerInstanceRef.current = p; }}
                         onTimeUpdate={(currentTime, duration) => {
+                            modalTrailerTimeRef.current = currentTime;
                             setCurrentTimeSec(currentTime);
                             setDurationSec(duration);
                             const usable = Math.max(duration - 8, 1);

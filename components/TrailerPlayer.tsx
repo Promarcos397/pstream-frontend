@@ -18,6 +18,8 @@ interface TrailerPlayerProps {
     onTimeUpdate?: (currentTime: number, duration: number) => void;
     /** Fires once when YT player is ready — use the returned handle for seekTo / pauseVideo / playVideo */
     onPlayerReady?: (player: any) => void;
+    /** Start the trailer at this specific time in seconds (overrides the default intro-skip) */
+    initialSeekTime?: number;
 }
 
 export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
@@ -30,6 +32,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     onPlay,
     onTimeUpdate,
     onPlayerReady,
+    initialSeekTime,
 }) => {
     const { globalMute } = useGlobalContext();
     const { videoId, isTeaser } = useTrailer(movie);
@@ -119,8 +122,10 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     }, [activeVideoId, movie, variant, videoId, globalMute, isLoaded]);
 
     const startTime = React.useMemo(() => {
+        // If a specific seek time is provided (e.g. from hero timestamp), use it directly
+        if (initialSeekTime && initialSeekTime > 0) return Math.floor(initialSeekTime);
         return isTeaser ? 4 : 8; // Faster intro skips for casual browsing
-    }, [isTeaser]);
+    }, [isTeaser, initialSeekTime]);
 
     const playerOpts = React.useMemo(() => ({
         width: '100%',
@@ -144,36 +149,38 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         }
     }), [startTime]);
 
-    const handlersRef = useRef({ onReady, onPlay, onEnded, onErrored, onTimeUpdate, onPlayerReady, globalMute, movie, videoId, activeVideoId, variant, isTeaser });
-    handlersRef.current = { onReady, onPlay, onEnded, onErrored, onTimeUpdate, onPlayerReady, globalMute, movie, videoId, activeVideoId, variant, isTeaser };
+    const handlersRef = useRef({ onReady, onPlay, onEnded, onErrored, onTimeUpdate, onPlayerReady, globalMute, movie, videoId, activeVideoId, variant, isTeaser, initialSeekTime });
+    handlersRef.current = { onReady, onPlay, onEnded, onErrored, onTimeUpdate, onPlayerReady, globalMute, movie, videoId, activeVideoId, variant, isTeaser, initialSeekTime };
 
     const handleReady = React.useCallback((e: any) => {
-        const { globalMute, movie, onReady, onPlayerReady, isTeaser } = handlersRef.current;
+        const { globalMute, onReady, onPlayerReady, isTeaser, initialSeekTime } = handlersRef.current;
         playerRef.current = e.target;
-        
-        // Expose player handle to parent for external seek/pause/play
-        onPlayerReady?.(e.target);
         
         try {
             if (globalMute) e.target.mute();
             else e.target.unMute();
         } catch {}
 
-        // YouTube's 'start' param handles the initial jump, but we verify 
-        // here to ensure sync if the player buffered slightly late.
-        const duration = e.target.getDuration() || 0;
-        const autoDetectedTeaser = duration > 0 && duration < 90;
-        const isActuallyTeaser = isTeaser || autoDetectedTeaser;
-        const defaultSkip = isActuallyTeaser ? 8 : 16;
-        
-        const currentTime = e.target.getCurrentTime();
-        // Only seek if the 'start' param failed or we are way off (e.g. background tab resumed)
-        if (Math.abs(currentTime - defaultSkip) > 3) {
-            e.target.seekTo(defaultSkip, true);
+        if (initialSeekTime && initialSeekTime > 0) {
+            // Seek to provided timestamp directly — skip the default intro-skip logic
+            try { e.target.seekTo(initialSeekTime, true); } catch {}
+        } else {
+            // Default: skip intro/outro sections
+            const duration = e.target.getDuration() || 0;
+            const autoDetectedTeaser = duration > 0 && duration < 90;
+            const isActuallyTeaser = isTeaser || autoDetectedTeaser;
+            const defaultSkip = isActuallyTeaser ? 8 : 16;
+            const currentTime = e.target.getCurrentTime();
+            if (Math.abs(currentTime - defaultSkip) > 3) {
+                e.target.seekTo(defaultSkip, true);
+            }
         }
         
         setIsLoaded(true);
         onReady?.();
+
+        // Expose player handle to parent AFTER seek — so parent can do additional seeks if needed.
+        onPlayerReady?.(e.target);
     }, []);
 
     const handleStateChange = React.useCallback((e: any) => {

@@ -30,6 +30,11 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
 
     // Fetch title logo
     useEffect(() => {
+        if (typeof rec.id === 'string' && rec.id.startsWith('dim')) {
+            setLogoPath(rec.image_url || '');
+            setLogoLoading(false);
+            return;
+        }
         let cancelled = false;
         setLogoPath(null);
         setLogoFailed(false);
@@ -45,7 +50,7 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
             .catch(() => { if (!cancelled) setLogoPath(''); })
             .finally(() => { if (!cancelled) setLogoLoading(false); });
         return () => { cancelled = true; };
-    }, [rec.id, mediaType]);
+    }, [rec.id, mediaType, rec.image_url]);
 
     const handleLogoLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
         const { naturalWidth, naturalHeight } = e.currentTarget;
@@ -53,11 +58,12 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
         setLogoDim({ ratio, isSquare: ratio < 1.35 });
     };
 
+    const is404 = typeof rec.id === 'string' && rec.id.startsWith('dim');
     // w780 backdrop for higher quality, poster fallback
     const backdrop = rec.backdrop_path
-        ? `${TMDB_IMG}/w780${rec.backdrop_path}`
+        ? (is404 ? rec.backdrop_path : `${TMDB_IMG}/w780${rec.backdrop_path}`)
         : rec.poster_path
-        ? `${TMDB_IMG}/w500${rec.poster_path}`
+        ? (is404 ? rec.poster_path : `${TMDB_IMG}/w500${rec.poster_path}`)
         : null;
 
     const hasLogo = !logoLoading && logoPath && !logoFailed;

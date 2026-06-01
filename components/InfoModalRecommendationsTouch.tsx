@@ -19,7 +19,11 @@ const InfoModalRecommendationsTouch: React.FC<InfoModalRecommendationsTouchProps
                 const imgPath = rec.poster_path || rec.backdrop_path;
                 if (!imgPath) return null;
                 
-                const isFullUrl = imgPath.startsWith('http') || imgPath.startsWith('comic://');
+                const isFullUrl = imgPath.startsWith('http') || 
+                                  imgPath.startsWith('comic:') || 
+                                  imgPath.startsWith('/assets') || 
+                                  imgPath.includes('/404_assets') || 
+                                  imgPath.startsWith('data:');
                 const src = isFullUrl ? imgPath : `https://image.tmdb.org/t/p/w342${imgPath}`;
 
                 return (

@@ -122,7 +122,14 @@ const InfoModalEpisodesTouch: React.FC<InfoModalEpisodesTouchProps> = ({
                                         <div className="relative w-32 aspect-video bg-zinc-900 rounded-[4px] overflow-hidden flex-shrink-0 shadow-md">
                                             {ep.still_path ? (
                                                 <img
-                                                    src={ep.still_path.startsWith('http') ? ep.still_path : `https://image.tmdb.org/t/p/w300${ep.still_path}`}
+                                                    src={
+                                                        ep.still_path.startsWith('http') ||
+                                                        ep.still_path.startsWith('/assets') ||
+                                                        ep.still_path.includes('/404_assets') ||
+                                                        ep.still_path.startsWith('data:')
+                                                            ? ep.still_path
+                                                            : `https://image.tmdb.org/t/p/w300${ep.still_path}`
+                                                    }
                                                     className="w-full h-full object-cover"
                                                     alt={ep.name}
                                                     loading="lazy"
