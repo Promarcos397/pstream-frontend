@@ -46,10 +46,25 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
           >
-             <HeroSkeleton />
-             <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6 px-4 md:px-14 lg:px-16 pt-4 md:pt-10">
-                <ManifestSkeleton count={8} />
-             </main>
+             {!isAppReady && (
+               <div className="absolute inset-0 opacity-0 pointer-events-none overflow-hidden" aria-hidden>
+                 <HeroCarousel
+                   key="movies-bootstrap"
+                   onSelect={onSelectMovie}
+                   onPlay={onPlay}
+                   fetchUrl={selectedGenre 
+                     ? REQUESTS.fetchByGenre('movie', selectedGenre.id, 'popularity.desc') 
+                     : REQUESTS.fetchTopRated}
+                   seekTime={seekTime}
+                   genreId={selectedGenre?.id}
+                   pageType="movie"
+                 />
+               </div>
+             )}
+              <HeroSkeleton />
+              <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6 px-4 md:px-14 lg:px-16 pt-4 md:pt-10">
+                 <ManifestSkeleton count={8} />
+              </main>
           </motion.div>
         ) : (
           <motion.div

@@ -45,6 +45,18 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
           >
+             {!isAppReady && (
+               <div className="absolute inset-0 opacity-0 pointer-events-none overflow-hidden" aria-hidden>
+                 <HeroCarousel
+                   key="shows-bootstrap"
+                   onSelect={onSelectMovie}
+                   onPlay={onPlay}
+                   fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV}
+                   genreId={selectedGenre?.id}
+                   pageType="tv"
+                 />
+               </div>
+             )}
              <HeroSkeleton />
              <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6 px-4 md:px-14 lg:px-16 pt-4 md:pt-10">
                 <ManifestSkeleton count={8} />

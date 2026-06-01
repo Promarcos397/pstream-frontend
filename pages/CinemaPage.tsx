@@ -118,13 +118,7 @@ const CinemaPage: React.FC = () => {
     }
 
     if (error || !movie) {
-        return (
-            <NotFoundPage 
-                title={t('common.contentNotFound', { defaultValue: 'Content Not Found' })} 
-                message={error || t('common.contentNotFoundDesc', { defaultValue: "The movie or TV show you're looking for doesn't exist or may have been removed." })}
-                code="TMDB-404"
-            />
-        );
+        return <NotFoundPage />;
     }
 
     return (

@@ -18,7 +18,13 @@ export const getOptimizedImageUrl = (
   isMobile: boolean
 ): string => {
   if (!path) return '';
-  if (path.startsWith('http') || path.startsWith('comic:')) return path;
+  if (
+    path.startsWith('http') || 
+    path.startsWith('comic:') || 
+    path.startsWith('/assets') || 
+    path.includes('/404_assets') || 
+    path.startsWith('data:')
+  ) return path;
 
   switch (type) {
     case 'backdrop':
