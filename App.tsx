@@ -35,6 +35,7 @@ import LoginPage from './pages/LoginPage';
 import GhostPage from './pages/GhostPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { Navigate } from 'react-router-dom';
+import { dimensionsAsMovies } from './data/notFoundDimensions';
 
 const App: React.FC = () => {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
@@ -85,19 +86,26 @@ const App: React.FC = () => {
 
 
   // Detect if modal is active in pathname
-  const modalMatch = location.pathname.match(/^\/title\/(movie|tv)\/(\d+)/);
+  const modalMatch = location.pathname.match(/^\/title\/(movie|tv)\/([a-zA-Z0-9_-]+)/);
   const isModalActive = !!modalMatch;
   const modalType = modalMatch ? modalMatch[1] : null;
-  const modalId = modalMatch ? Number(modalMatch[2]) : null;
+  const modalIdRaw = modalMatch ? modalMatch[2] : null;
+  const modalId = modalIdRaw ? (isNaN(Number(modalIdRaw)) ? modalIdRaw : Number(modalIdRaw)) : null;
 
   // Determine background location for routing
   const backgroundLocation = location.state?.backgroundLocation || (isModalActive ? { pathname: '/' } : location);
 
   // Sync modal state from URL pathname
   useEffect(() => {
-    if (modalType && modalId) {
+    if (modalType && modalId !== null) {
       if (!selectedMovie || selectedMovie.id !== modalId || selectedMovie.media_type !== modalType) {
-        setSelectedMovie({ id: modalId, media_type: modalType } as any);
+        // Find existing movie from our custom 404 dimensions database if id starts with 'dim'
+        const isDim = typeof modalId === 'string' && modalId.startsWith('dim');
+        let mappedMovie: Movie | null = null;
+        if (isDim) {
+          mappedMovie = dimensionsAsMovies.find((m: any) => m.id === modalId) || null;
+        }
+        setSelectedMovie(mappedMovie || ({ id: modalId, media_type: modalType } as any));
       }
     } else if (selectedMovie) {
       setSelectedMovie(null);
@@ -232,6 +240,13 @@ const App: React.FC = () => {
   const isWatching = location.pathname.startsWith('/watch');
   const isSettings = location.pathname.startsWith('/settings');
 
+  const knownRoutes = ['/', '/tv', '/movies', '/new', '/list', '/login', '/ghost', '/matrix'];
+  const is404Route = !knownRoutes.includes(backgroundLocation.pathname)
+    && !backgroundLocation.pathname.startsWith('/settings')
+    && !backgroundLocation.pathname.startsWith('/browse')
+    && !backgroundLocation.pathname.startsWith('/watch')
+    && !backgroundLocation.pathname.startsWith('/title');
+
   const handleTabChange = (tab: string) => {
     setQuery(''); //fixed "Double History Push" bug
     const newParams = new URLSearchParams(window.location.search);
@@ -260,7 +275,7 @@ const App: React.FC = () => {
     return (
       <Routes>
         <Route path="/watch/:type/:id" element={<WatchPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
       </Routes>
     );
   }
@@ -295,7 +310,7 @@ const App: React.FC = () => {
         <Route path="/settings/*" element={<SettingsPage />} />
         <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
       </Routes>
     </div>
   );
@@ -307,6 +322,7 @@ const App: React.FC = () => {
         setSearchQuery={handleSearchChange}
         activeTab={activeTab}
         setActiveTab={handleTabChange}
+        showFooter={!is404Route}
       >
         {query.trim().length > 0 || isMobileSearchActive ? (
           <SearchResultsPage

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Plus, Check } from '@phosphor-icons/react';
+import { Play, Plus, Check, House } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES } from '../constants';
@@ -17,23 +17,33 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   const { t } = useTranslation();
   const { myList, toggleList } = useGlobalContext();
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
+  const is404 = typeof movie.id === 'string' && movie.id.startsWith('dim');
 
   const [localLogoUrl, setLocalLogoUrl] = useState<string | null>(logoUrl || null);
   const [isHighResLoaded, setIsHighResLoaded] = useState<boolean>(false);
   const [isLogoLoaded, setIsLogoLoaded] = useState<boolean>(false);
   
+  const isLocalAsset = (path?: string | null) => {
+    if (!path) return false;
+    return path.startsWith('http') ||
+      path.startsWith('comic:') ||
+      path.startsWith('/assets') ||
+      path.includes('/404_assets') ||
+      path.startsWith('data:');
+  };
+
   // Default to standard poster path
-  const defaultPoster = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
-    ? movie.poster_path
+  const defaultPoster = isLocalAsset(movie.poster_path)
+    ? movie.poster_path!
     : movie.poster_path ? `https://image.tmdb.org/t/p/w780${movie.poster_path}` : '';
 
   // Default to standard backdrop path for landscape views (tablets/desktops)
-  const defaultBackdrop = (movie.backdrop_path?.startsWith('http') || movie.backdrop_path?.startsWith('comic://'))
-    ? movie.backdrop_path
+  const defaultBackdrop = isLocalAsset(movie.backdrop_path)
+    ? movie.backdrop_path!
     : movie.backdrop_path ? `https://image.tmdb.org/t/p/w780${movie.backdrop_path}` : '';
 
-  const [bgImageSrc, setBgImageSrc] = useState<string>(defaultPoster);
-  const [fallbackBg, setFallbackBg] = useState<string>(defaultPoster);
+  const [bgImageSrc, setBgImageSrc] = useState<string>(is404 ? defaultBackdrop : defaultPoster);
+  const [fallbackBg, setFallbackBg] = useState<string>(is404 ? defaultBackdrop : defaultPoster);
   const [hasBakedInText, setHasBakedInText] = useState<boolean>(true);
   const [logoImgFailed, setLogoImgFailed] = useState<boolean>(false);
   const [accentRGB, setAccentRGB] = useState<{r:number;g:number;b:number} | null>(null);
@@ -42,8 +52,8 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   useEffect(() => {
     let isMounted = true;
     
-    const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 640;
-    const initialBg = (isTabletOrDesktop && defaultBackdrop) ? defaultBackdrop : defaultPoster;
+    const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 500;
+    const initialBg = is404 ? defaultBackdrop : ((isTabletOrDesktop && defaultBackdrop) ? defaultBackdrop : defaultPoster);
 
     // Reset state on movie/logoUrl change to trigger animations cleanly
     setLocalLogoUrl(logoUrl || null);
@@ -56,6 +66,23 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
 
     const loadHeroAssets = async () => {
       try {
+        const is404 = typeof movie.id === 'string' && movie.id.startsWith('dim');
+        if (is404) {
+          if (!isMounted) return;
+          if (logoUrl) {
+            setLocalLogoUrl(logoUrl);
+            setIsLogoLoaded(true);
+          } else if (movie.image_url) {
+            setLocalLogoUrl(movie.image_url);
+            setIsLogoLoaded(true);
+          }
+          const resolvedBg = movie.backdrop_path || movie.poster_path || '';
+          setBgImageSrc(resolvedBg);
+          setIsHighResLoaded(true);
+          setHasBakedInText(false);
+          return;
+        }
+
         const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
         const data = await getMovieImages(String(movie.id), mediaType);
         
@@ -64,7 +91,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
         let resolvedBg = '';
         let bakedInText = true;
 
-        const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 640;
+        const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 500;
 
         if (data) {
           if (isTabletOrDesktop) {
@@ -320,7 +347,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
       {/* Poster/Backdrop Card (Floating, centered card layout for both mobile and tablet) */}
       <div 
         onClick={() => onSelect(movie)}
-        className="w-full max-w-[440px] sm:w-[85%] sm:max-w-[680px] aspect-[2/2.9] sm:aspect-[16/10] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] sm:translate-x-8 transition-all duration-200"
+        className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] aspect-[2/2.75] min-[500px]:aspect-[4/3] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] min-[500px]:translate-x-0 transition-all duration-200"
       >
         {/* Layer A (Under): Blurred Instant Fallback Image */}
         <img 
@@ -405,7 +432,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
 
           {/* Buttons Row */}
           <div className="flex items-center justify-center w-full max-w-[380px] gap-3 mt-1">
-            {/* Play Button */}
+            {/* Play/Home Button */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -413,8 +440,12 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
               }}
               className="flex-1 flex items-center justify-center h-[44px] sm:h-[48px] rounded-[4px] bg-white hover:bg-neutral-200 text-black font-bold text-[15px] sm:text-[16px] gap-2 transition-all active:scale-95 shadow-md font-sans"
             >
-              <Play size={22} weight="fill" />
-              <span>{t('hero.play', { defaultValue: 'Play' })}</span>
+              {is404 ? (
+                <House size={22} weight="fill" />
+              ) : (
+                <Play size={22} weight="fill" />
+              )}
+              <span>{is404 ? t('nav.home', { defaultValue: 'Home' }) : t('hero.play', { defaultValue: 'Play' })}</span>
             </button>
 
             {/* Add to My List Button */}

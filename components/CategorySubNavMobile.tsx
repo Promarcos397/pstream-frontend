@@ -9,6 +9,7 @@ interface CategorySubNavMobileProps {
     genres: Genre[];
     selectedGenre: Genre | null;
     onGenreSelect: (genre: Genre | null) => void;
+    dropdownLabel?: string;
 }
 
 const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
@@ -16,6 +17,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
     genres,
     selectedGenre,
     onGenreSelect,
+    dropdownLabel,
 }) => {
     const { t } = useTranslation();
     const location = useLocation();
@@ -90,11 +92,10 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
         setGenreMenuOpen(prev => !prev);
     };
 
-    const activeGenreLabel = selectedGenre ? selectedGenre.name : t('nav.categories', { defaultValue: 'Categories' });
+    const activeGenreLabel = selectedGenre ? selectedGenre.name : (dropdownLabel || t('nav.categories', { defaultValue: 'Categories' }));
 
     const pills = (
         <>
-            <div className="w-[16px] shrink-0" />
             <button
                 onClick={() => handlePillClick('/tv', isTvActive)}
                 className={`flex items-center justify-center h-[46px] sm:h-[52px] px-3.5 sm:px-5 rounded-l-[23px] rounded-r-[12px] text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
@@ -171,20 +172,24 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
             )}
 
             {/* 1. Original sub-nav: absolute at the top, scrolls naturally with the page content */}
-            <div className="absolute top-[calc(68px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-1 pb-3 flex items-center justify-start sm:justify-center space-x-2 select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
-                {pills}
+            <div className="absolute top-[calc(68px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-1 pb-3 flex items-center justify-start select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
+                <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start space-x-2 shrink-0 overflow-visible">
+                    {pills}
+                </div>
             </div>
 
             {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid background */}
             <div
                 style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
-                className={`fixed top-[calc(56px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[72px] z-[79] pt-4 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start sm:justify-center space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full transition-all duration-300 ease-out ${
+                className={`fixed top-[calc(56px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[72px] z-[79] pt-4 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start select-none max-w-full overflow-x-auto scrollbar-hide transition-all duration-300 ease-out ${
                     showTemp 
                         ? 'opacity-100 translate-y-0 pointer-events-auto' 
                         : '-translate-y-full opacity-0 pointer-events-none'
                 }`}
             >
-                {pills}
+                <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start space-x-2 shrink-0 overflow-visible">
+                    {pills}
+                </div>
             </div>
 
             {/* Genres Dropdown Menu rendered via Portal to prevent clipping inside scroll container */}
@@ -193,7 +198,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                     className="fixed top-[calc(118px+env(safe-area-inset-top))] right-6 z-[115] animate-fadeIn"
                     role="listbox"
                 >
-                    <div className="w-[290px] sm:w-[330px] max-w-[calc(100vw-3rem)] max-h-[78vh] overflow-y-auto bg-black border border-white/10 rounded-lg py-4 px-6 shadow-2xl scrollbar-hide">
+                    <div className="w-[290px] sm:w-[330px] max-w-[calc(100vw-3rem)] max-h-[78vh] overflow-y-auto bg-black border border-white/10 rounded-lg py-4 px-4 shadow-2xl scrollbar-hide">
                         <div className="flex flex-col gap-y-4">
                             {genres.map((genre) => (
                                 <button
@@ -205,7 +210,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                                     }}
                                     role="option"
                                     aria-selected={false}
-                                    className="text-left text-[18px] font-semibold py-2 transition-colors hover:text-white text-[#e5e5e5] active:scale-95 whitespace-nowrap"
+                                    className="text-left text-[18px] font-semibold py-2 transition-colors hover:text-white text-white active:scale-95 whitespace-nowrap"
                                 >
                                     {genre.name}
                                 </button>

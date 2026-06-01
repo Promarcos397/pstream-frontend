@@ -66,27 +66,27 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   // --- DESKTOP LAYOUT RENDERING (Standard Layout) ---
   return (
     <nav
-      className={`fixed top-0 w-full z-[80] transition-all duration-500 
+      className={`fixed top-0 w-full z-[80] transition-colors duration-500 
         px-6 md:px-14 lg:px-16
         ${isSettings ? 'bg-white border-b border-gray-100' : (isScrolled ? 'bg-[#141414]/100' : 'bg-transparent')}
-        ${isSettings ? 'pt-4 pb-4' : 'pt-[calc(1rem+env(safe-area-inset-top))] pb-3 md:py-4'}`}
+        ${isSettings ? 'pt-4 pb-4' : 'pt-[calc(1rem+env(safe-area-inset-top))] pb-2 md:pt-4 md:pb-3'}`}
     >
       <div className="flex items-center justify-between relative w-full">
         <div className="contents md:flex md:items-center md:space-x-4 md:space-x-8">
           <img
             src={pstreamWordmark}
             alt="Pstream"
-            className={`h-8 sm:h-9 md:h-6 lg:h-7 cursor-pointer transition-transform hover:scale-105 relative z-10 md:static md:translate-x-0 absolute left-1/2 -translate-x-1/2`}
+            className={`h-8 sm:h-9 md:h-5 lg:h-[22px] cursor-pointer transition-transform hover:scale-105 relative z-10 md:static md:translate-x-0 absolute left-1/2 -translate-x-1/2`}
             onClick={() => handleTabClick('home')}
           />
 
           {!isSettings && (
-            <ul className="hidden md:flex items-center space-x-4 lg:space-x-5 text-[13px] lg:text-[14px] tracking-[-0.2px] font-normal text-[#e5e5e5]">
+            <ul className="hidden md:flex items-center space-x-5 lg:space-x-6 text-sm lg:text-base tracking-[-0.2px] font-normal text-[#e5e5e5]">
               {navItems.map((item) => (
                 <li
                   key={item.id}
                   onClick={() => handleTabClick(item.id)}
-                  className={`cursor-pointer transition-colors whitespace-nowrap ${activeTab === item.id ? 'text-white font-bold' : 'hover:text-[#b3b3b3]'}`}
+                  className={`cursor-pointer transition-colors whitespace-nowrap ${activeTab === item.id ? 'text-white font-bold' : 'hover:text-[#8c8c8c]'}`}
                 >
                   {item.label}
                 </li>

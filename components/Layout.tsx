@@ -3,6 +3,7 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 
 import useScroll from '../hooks/useScroll';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,6 +23,7 @@ const Layout: React.FC<LayoutProps> = ({
   showFooter = true
 }) => {
   const isScrolled = useScroll(0);
+  const isMobile = useIsMobile();
 
   return (
     <div className="bg-black md:bg-[#141414] min-h-screen font-sans text-white selection:bg-red-600 selection:text-white">
@@ -34,8 +36,14 @@ const Layout: React.FC<LayoutProps> = ({
         setActiveTab={setActiveTab}
       />
 
-      {/* Main Content Area */}
-      <div className="min-h-screen pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-0 sm:pl-[72px] md:pl-0">
+      {/* Main Content Area — dynamically applies padding depending on touch/sidebar state */}
+      <div 
+        className={`min-h-screen transition-all duration-300 ${
+          isMobile 
+            ? 'pb-[calc(96px+env(safe-area-inset-bottom))] sm:pb-0 sm:pl-[72px]' 
+            : 'pb-0 pl-0'
+        }`}
+      >
         {children}
       </div>
 

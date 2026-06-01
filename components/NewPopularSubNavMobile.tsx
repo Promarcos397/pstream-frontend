@@ -52,9 +52,6 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
 
     const pills = (
         <>
-            {/* Left padding spacer */}
-            <div className="w-[16px] shrink-0" />
-
             {TABS.map((tab, i) => {
                 const isActive = activeTab === tab.id;
                 const isFirst = i === 0;
@@ -91,20 +88,24 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
     return (
         <>
             {/* 1. Original sub-nav: absolute at the top, scrolls naturally with the page content */}
-            <div className="absolute top-[calc(68px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-1 pb-3 flex items-center justify-start sm:justify-center space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full bg-transparent">
-                {pills}
+            <div className="absolute top-[calc(68px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-1 pb-3 flex items-center justify-start select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
+                <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start space-x-2 shrink-0 overflow-visible">
+                    {pills}
+                </div>
             </div>
 
             {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid background */}
             <div
                 style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
-                className={`fixed top-[calc(56px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[72px] z-[79] pt-4 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start sm:justify-center space-x-2 select-none overflow-x-auto scrollbar-hide max-w-full transition-all duration-300 ease-out ${
+                className={`fixed top-[calc(56px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[72px] z-[79] pt-4 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start select-none max-w-full overflow-x-auto scrollbar-hide transition-all duration-300 ease-out ${
                     showTemp 
                         ? 'opacity-100 translate-y-0 pointer-events-auto' 
                         : '-translate-y-full opacity-0 pointer-events-none'
                 }`}
             >
-                {pills}
+                <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start space-x-2 shrink-0 overflow-visible">
+                    {pills}
+                </div>
             </div>
         </>
     );

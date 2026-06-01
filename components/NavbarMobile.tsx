@@ -35,6 +35,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   const avatarUrl = settings.avatarUrl || DEFAULT_AVATAR;
   const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
 
+
   // Progressive scroll transition listener
   useEffect(() => {
     const handleScroll = () => {
@@ -45,8 +46,8 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Calculate opacity over a short 50px distance for instant welding/solid look upon scroll
-  const maxScroll = 50;
+  // Calculate opacity over a short 20px distance for instant welding/solid look upon scroll
+  const maxScroll = 20;
   const opacity = Math.min(1, scrollY / maxScroll);
 
   // Sync isSearchActive with query changes and URL parameters
@@ -74,7 +75,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     <>
       {/* Mobile Top Header (Netflix style) */}
       {!isSearchActive ? (
-        // Standard header is hidden on tablet (branding is in sidebar), visible on mobile
+        // Standard logo header — same for all pages including 404
         <header
           style={{
             backgroundColor: `rgba(0, 0, 0, ${opacity})`

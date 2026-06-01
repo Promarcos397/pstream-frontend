@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { InfoIcon, TicketIcon, PlayIcon } from '@phosphor-icons/react';
+import { InfoIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
-import { useIsInTheaters } from '../hooks/useIsInTheaters';
+import CinemaPlayButton from './CinemaPlayButton';
 
 interface HeroCarouselContentProps {
     movie: Movie;
@@ -29,7 +28,6 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
     const { t } = useTranslation();
     const [showDescription, setShowDescription] = useState(true);
     const [imgFailed, setImgFailed] = useState(false);
-    const isCinemaOnly = useIsInTheaters(movie);
     const logoImgRef = useRef<HTMLImageElement>(null);
 
     useEffect(() => {
@@ -123,34 +121,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 
                 {/* Netflix-style CTA Buttons */}
                 <div className={`flex items-center flex-wrap gap-2 md:gap-3 transition-transform duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'translate-y-4 md:translate-y-2' : ''}`}>
-                    {isCinemaOnly ? (
-                        <div className="flex items-center gap-1.5">
-                            <button
-                                onClick={() => onSelect(movie, undefined, trailerVideoId)}
-                                className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-4 sm:px-8 h-[34px] md:h-[40px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/60 transition-colors text-[14px] md:text-[17px] gap-2 md:gap-2.5 active:scale-95 shadow-md"
-                            >
-                                <TicketIcon weight="bold" className="text-lg md:text-2xl" />
-                                <span className="whitespace-nowrap">{t('hero.inTheaters', { defaultValue: 'In Theaters' })}</span>
-                            </button>
-                            <Link
-                                to={`/watch/${movie?.media_type === 'tv' || (!movie?.media_type && !movie?.title) ? 'tv' : 'movie'}/${movie?.id}`}
-                                className="bg-white/10 hover:bg-white hover:text-black text-white w-[34px] md:w-[40px] h-[34px] md:h-[40px] rounded-[4px] flex items-center justify-center transition-all duration-300 active:scale-90 border border-white/20 hover:border-white shadow-lg"
-                                title={t('hero.playAnyway', { defaultValue: 'Play Anyway (Force)' })}
-                            >
-                                <PlayIcon size={20} weight="fill" />
-                            </Link>
-                        </div>
-                    ) : (
-                        <Link
-                            to={`/watch/${movie?.media_type === 'tv' || (!movie?.media_type && !movie?.title) ? 'tv' : 'movie'}/${movie?.id}`}
-                            className="flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[34px] md:h-[40px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[14px] md:text-[17px] gap-2 active:scale-95 shadow-lg"
-                        >
-                            <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] md:w-6 md:h-6 fill-black">
-                                <polygon points="6,3 20,12 6,21" />
-                            </svg>
-                            <span>{t('hero.play')}</span>
-                        </Link>
-                    )}
+                    <CinemaPlayButton movie={movie} variant="rectangular" />
 
                     <button
                         onClick={(e) => {
@@ -158,9 +129,9 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                             if (rawRect) (window as any).__last_card_rect = rawRect;
                             onSelect(movie, undefined, trailerVideoId);
                         }}
-                        className="flex items-center justify-center bg-[#6d6d6e]/80 text-white px-5 sm:px-9 h-[34px] md:h-[42px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/60 transition-all duration-300 text-[14px] md:text-[17px] gap-2 md:gap-2.5 pointer-events-auto  active:scale-95"
+                        className="flex items-center justify-center bg-[#6d6d6e]/50 text-white px-4 sm:px-6 h-[34px] md:h-[45px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/35 transition-all duration-300 text-[15px] md:text-[18px] gap-2 md:gap-2 pointer-events-auto active:scale-95"
                     >
-                        <InfoIcon weight="bold" className="text-lg md:text-2xl" />
+                        <InfoIcon weight="bold" className="text-xl md:text-[26px]" />
                         <span className="whitespace-nowrap">{t('hero.moreInfo')}</span>
                     </button>
                 </div>

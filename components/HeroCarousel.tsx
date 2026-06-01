@@ -43,6 +43,8 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   const backdropForcedRef = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const heroPlayerRef = useRef<any>(null);
+  const trailerTimeRef = useRef<number>(0);
 
   const [isTabVisible, setIsTabVisible] = useState(true);
   useEffect(() => {
@@ -313,6 +315,8 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         onReady={() => setIsVideoReady(true)}
         onPlay={() => setIsActuallyPlaying(true)}
         onImageLoad={() => setIsBackdropLoaded(true)}
+        onTimeUpdate={(currentTime) => { trailerTimeRef.current = currentTime; }}
+        onPlayerReady={(player) => { heroPlayerRef.current = player; }}
         onEnded={() => {
           setHasVideoEnded(true);
           setShowVideo(false);
@@ -324,8 +328,15 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       <HeroCarouselContent
         movie={movie} logoUrl={logoUrl} isVideoReady={isActuallyPlaying} onPlay={onPlay}
         onImageLoad={() => setIsLogoLoaded(true)}
-        onSelect={(m, _, __) => {
-          onSelect(m);
+        onSelect={(m) => {
+          // Capture the live trailer time so InfoModal can continue from there
+          let t = trailerTimeRef.current;
+          try {
+            if (heroPlayerRef.current && typeof heroPlayerRef.current.getCurrentTime === 'function') {
+              t = heroPlayerRef.current.getCurrentTime() || t;
+            }
+          } catch {}
+          onSelect(m, t > 0 ? t : undefined);
         }}
         hasVideoEnded={hasVideoEnded}
       />

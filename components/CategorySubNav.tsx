@@ -19,6 +19,7 @@ interface CategorySubNavProps {
     onViewModeChange?: (mode: 'row' | 'grid') => void;
     /** Hide title and Genres dropdown on desktop (e.g. Home page) */
     hideGenresOnDesktop?: boolean;
+    dropdownLabel?: string;
 }
 
 const CategorySubNav: React.FC<CategorySubNavProps> = ({
@@ -29,6 +30,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     viewMode = 'row',
     onViewModeChange,
     hideGenresOnDesktop = false,
+    dropdownLabel,
 }) => {
     const isMobile = useIsMobile();
     const [genreMenuOpen, setGenreMenuOpen] = useState(false);
@@ -80,6 +82,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                 genres={genres}
                 selectedGenre={selectedGenre}
                 onGenreSelect={onGenreSelect}
+                dropdownLabel={dropdownLabel}
             />
         );
     }
@@ -91,19 +94,19 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     const portalElement = document.getElementById('category-subnav-portal');
 
     const content = (
-        <div className={`relative z-30 flex items-center justify-between pt-4 md:pt-5 pb-0 md:pb-1 select-none w-full`}>
+        <div className={`relative z-30 flex items-center justify-between pt-3 md:pt-3.5 pb-0 md:pb-0.5 select-none w-full`}>
             <div className={`flex items-center ${selectedGenre ? 'gap-3 md:gap-[15px]' : 'gap-3 md:gap-[15px]'}`} ref={containerRef}>
-                <h1 className={`font-bold tracking-[-0.5px] text-white flex items-center transition-all duration-300 mt-2 md:mt-3
+                <h1 className={`font-bold tracking-[-0.5px] text-white flex items-center transition-all duration-300 mt-2 md:mt-2.5
                     ${selectedGenre ? 'text-2xl md:text-[38px]' : 'text-2xl md:text-[38px]'} leading-tight`}>
                     {selectedGenre ? (
                         <>
                             <span
                                 onClick={() => handleGenreClick(null)}
-                                className="cursor-pointer hover:underline text-[#e5e5e5] transition-colors whitespace-nowrap"
+                                className="cursor-pointer hover:underline text-white/40 hover:text-white/80 transition-colors whitespace-nowrap text-[15px] md:text-[21px] font-normal"
                             >
                                 {title}
                             </span>
-                            <span className="text-white/60 font-bold text-2xl md:text-[32px] mx-2 md:mx-4 whitespace-nowrap">&gt;</span>
+                            <span className="text-white/20 font-normal text-xs md:text-[16px] mx-1.5 md:mx-2.5 whitespace-nowrap">&gt;</span>
                             <span className="whitespace-nowrap">{selectedGenre.name}</span>
                         </>
                     ) : (
@@ -112,14 +115,14 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                 </h1>
 
                 {!selectedGenre && (
-                    <div className="relative mt-[10px] md:mt-[14px] ml-4 md:ml-[24px]">
+                    <div className="relative mt-[10px] md:mt-[12px] ml-4 md:ml-[24px]">
                         <button
                             onClick={toggleMenu}
-                            className={`flex items-center justify-between w-[95px] md:w-[115px] pl-1 pr-2 md:pl-2 md:pr-2 py-[4px] md:py-[6px] leading-none text-[13px] md:text-[14px] font-bold tracking-[-0.2px] text-white bg-black hover:bg-white/5 ${genreMenuOpen ? 'bg-white/5' : ''} border border-white/80 transition-colors rounded-none active:scale-95`}
+                            className={`flex items-center justify-between min-w-[95px] md:min-w-[115px] px-3 py-[4px] md:py-[6px] leading-none text-[13px] md:text-[14px] font-bold tracking-[-0.2px] text-white bg-black hover:bg-white/5 ${genreMenuOpen ? 'bg-white/5' : ''} border border-white/80 transition-colors rounded-none active:scale-95 gap-x-2`}
                             aria-haspopup="listbox"
                             aria-expanded={genreMenuOpen}
                         >
-                            Genres
+                            <span>{dropdownLabel || 'Genres'}</span>
                             <CaretDownIcon
                                 size={12}
                                 weight="fill"
@@ -132,15 +135,15 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                                 ${genreMenuOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-1 pointer-events-none'}`}
                             role="listbox"
                         >
-                            <div className="w-max max-w-[90vw] md:max-w-none max-h-[60vh] md:max-h-[400px] overflow-y-auto bg-[rgba(0,0,0,0.85)] border border-white/10 rounded-none pt-1 pb-1 px-4 md:pt-2 md:pb-2 md:px-8 scrollbar-hide">
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+                            <div className="w-max max-w-[90vw] md:max-w-none max-h-[60vh] md:max-h-[400px] overflow-y-auto bg-[rgba(0,0,0,0.90)] border border-white/10 rounded-none pt-1 pb-1 px-3 md:pt-2 md:pb-2 md:px-4 scrollbar-hide">
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
                                     {genres.map((genre) => (
                                         <button
                                             key={`${genre.id}-${genre.name}`}
                                             onClick={() => handleGenreClick(genre)}
                                             role="option"
                                             aria-selected={false}
-                                            className={`text-left text-[13px] md:text-[14px] transition-colors hover:underline whitespace-nowrap text-[#e5e5e5]`}
+                                            className={`text-left text-[13px] md:text-[14px] transition-colors hover:underline whitespace-nowrap text-white`}
                                         >
                                             {genre.name}
                                         </button>

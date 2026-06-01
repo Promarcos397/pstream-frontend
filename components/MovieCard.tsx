@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
+import CinemaPlayButton from './CinemaPlayButton';
 import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES, LOGO_SIZE } from '../constants';
@@ -157,6 +158,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const preloadTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const posterRef = useRef<HTMLImageElement>(null);
+  const cardPlayerRef = useRef<any>(null);
+  const cardTrailerTimeRef = useRef<number>(0);
 
 
 
@@ -225,6 +228,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       setLogoUrl(_logoCache.get(cacheKey)!);
       return;
     }
+    if (typeof movie.id === 'string' && movie.id.startsWith('dim')) {
+      setLogoUrl(movie.image_url || '');
+      return;
+    }
     let isMounted = true;
     const fetchLogo = async () => {
       try {
@@ -246,7 +253,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     };
     fetchLogo();
     return () => { isMounted = false; };
-  }, [isVisible, movie.id, movie.media_type, movie.title]);
+  }, [isVisible, movie.id, movie.media_type, movie.title, movie.image_url]);
 
   useEffect(() => {
     if (preload && settings.autoplayPreviews) {
@@ -475,13 +482,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     if (activePopupId === myId) setActivePopupId(null);
     if (activeVideoId === myId) setActiveVideoId(null);
 
+    // Capture current trailer time from the card hover player
+    let trailerT = cardTrailerTimeRef.current;
+    try {
+      if (cardPlayerRef.current && typeof cardPlayerRef.current.getCurrentTime === 'function') {
+        trailerT = cardPlayerRef.current.getCurrentTime() || trailerT;
+      }
+    } catch {}
+
     const savedState = getVideoState(movie.id);
     const rawRect = cardRef.current?.getBoundingClientRect();
     if (rawRect) {
       (window as any).__last_card_rect = rawRect;
     }
 
-    onSelect(movie, savedState?.time || 0, savedState?.videoId || undefined);
+    // Pass trailer time if playing, otherwise fall back to movie watch progress
+    const timeToPass = trailerT > 0 ? trailerT : (savedState?.time || 0);
+    onSelect(movie, timeToPass || undefined, savedState?.videoId || undefined);
   };
 
   const handleDirectPlay = (e: React.MouseEvent) => {
@@ -648,6 +665,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         cropFactor={1.35}
                         onReady={() => setIsHoverVideoReady(true)}
                         onPlay={() => setIsActuallyPlaying(true)}
+                        onPlayerReady={(p) => { cardPlayerRef.current = p; }}
+                        onTimeUpdate={(t) => { cardTrailerTimeRef.current = t; }}
                         onEnded={() => {
                           setIsHoverVideoReady(false);
                           setIsActuallyPlaying(false);
@@ -731,39 +750,30 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               <div className="px-4 pt-6 pb-5 space-y-4 bg-[#181818]">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-4">
-                    {isCinemaOnly && !isBook ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleOpenModal(); }}
-                          className="bg-[#6d6d6e] text-white rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-500 transition active:scale-95 shadow-lg"
-                          title={t('hero.inTheaters')}
-                        >
-                          <TicketIcon size={22} weight="bold" />
-                        </button>
-                        <Link
-                          to={`/watch/movie/${movie.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="bg-white/10 text-white border border-white/20 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-white hover:text-black hover:border-white transition active:scale-95 shadow-md"
-                          title={t('hero.playAnyway', { defaultValue: 'Play Anyway (Force)' })}
-                        >
-                          <PlayIcon size={24} weight="fill" />
-                        </Link>
-                      </div>
-                    ) : (
+                    {isBook ? (
                       <Link
                         to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="bg-white text-black rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200"
-                        title={isBook ? "Read Now" : "Play"}
+                        title="Read Now"
                       >
-                        {isBook ? <BookOpenIcon size={24} weight="fill" /> : <PlayIcon size={28} weight="fill" className="ml-0.5" />}
+                        <BookOpenIcon size={24} weight="fill" />
                       </Link>
+                    ) : (
+                      <CinemaPlayButton
+                        movie={movie}
+                        variant="circular"
+                        isCinemaOnly={isCinemaOnly}
+                      />
                     )}
 
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
                       className={`border-2 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
-                      ${isAdded ? 'border-white bg-white/10 shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'}`}
+                        ${isAdded 
+                          ? 'border-emerald-500/80 bg-emerald-500/15 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)] hover:border-emerald-400 hover:bg-emerald-500/25' 
+                          : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'
+                        }`}
                       title={isAdded ? 'Remove from My List' : 'Add to My List'}
                     >
                       {isAdded ? <CheckIcon size={28} weight="bold" /> : <PlusIcon size={28} weight="bold" />}

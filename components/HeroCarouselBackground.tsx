@@ -14,6 +14,10 @@ interface HeroCarouselBackgroundProps {
     onEnded?: () => void;
     onErrored?: () => void;
     onImageLoad?: () => void;
+    /** Fires ~every 500ms with the current trailer playback position */
+    onTimeUpdate?: (currentTime: number, duration: number) => void;
+    /** Fires once when the YT player instance is ready */
+    onPlayerReady?: (player: any) => void;
 }
 
 const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
@@ -26,7 +30,9 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
     onPlay,
     onEnded,
     onErrored,
-    onImageLoad
+    onImageLoad,
+    onTimeUpdate,
+    onPlayerReady,
 }) => {
     // Only fade out the backdrop and fade in the video once it's ACTUALLY playing frames.
     // This eliminates the 1-2s black screen delay.
@@ -75,6 +81,8 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
                         onPlay={onPlay}
                         onEnded={onEnded}
                         onErrored={onErrored}
+                        onTimeUpdate={onTimeUpdate}
+                        onPlayerReady={onPlayerReady}
                     />
                 )}
             </div>
