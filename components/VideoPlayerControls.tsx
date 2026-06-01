@@ -756,7 +756,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             )}
 
             {/* ── CENTER: Mobile Playback Controls ── */}
-            {!isEmbedFallback && isMobile && (
+            {isMobile && (
                 <div
                     className={`absolute inset-0 z-30 flex items-center justify-center gap-10 transition-opacity duration-300 pointer-events-none ${showUI ? 'opacity-100' : 'opacity-0'}`}
                 >

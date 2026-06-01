@@ -23,6 +23,7 @@ interface EmbedPlayerProps {
     /** Resume position in seconds */
     startTime?: number;
     subtitleLang?: string;
+    activePanel?: string;
     onPlay?: () => void;
     onPause?: () => void;
     onTimeUpdate?: (time: number, duration: number) => void;
@@ -44,6 +45,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     isPlaying = false,
     startTime = 0,
     subtitleLang,
+    activePanel,
     onPlay,
     onPause,
     onTimeUpdate,
@@ -58,6 +60,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
     // Lock the start time for the current content to prevent iframe reloading during watch progress saves
     const [lockedStartTime, setLockedStartTime] = useState(startTime);
+    const seekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         setLockedStartTime(startTime);
@@ -162,11 +165,27 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         const win = iframeRef.current?.contentWindow;
         if (!win) return;
         elapsedRef.current = time; // keep our local tracker in sync
+        
+        // Shotgun seek commands
         win.postMessage({ type: 'seek', time }, '*');
+        win.postMessage({ type: 'seek', value: time }, '*');
+        win.postMessage({ type: 'seek', to: time }, '*');
+        win.postMessage({ event: 'seek', value: time }, '*');
+        win.postMessage({ event: 'seek', to: time }, '*');
         win.postMessage({ type: 'COMMAND', event: 'seek', time }, '*');
         win.postMessage(JSON.stringify({ method: 'seek', time }), '*');
+        win.postMessage(JSON.stringify({ method: 'seek', value: time }), '*');
+        win.postMessage(JSON.stringify({ method: 'seek', to: time }), '*');
+        win.postMessage(JSON.stringify({ method: 'seekTo', value: time }), '*');
         win.postMessage({ action: 'seek', currentTime: time }, '*');
+        win.postMessage({ action: 'seek', to: time }, '*');
         win.postMessage(JSON.stringify({ method: 'seek', params: [time] }), '*');
+        win.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [time, true] }), '*');
+        win.postMessage(JSON.stringify({ event: 'command', func: 'seek', args: [time] }), '*');
+        win.postMessage(JSON.stringify({ event: 'seek', to: time }), '*');
+        win.postMessage(JSON.stringify({ type: 'seek', to: time }), '*');
+        win.postMessage(JSON.stringify({ method: 'setCurrentTime', value: time }), '*');
+        win.postMessage(JSON.stringify({ method: 'setCurrentTime', params: [time] }), '*');
         win.postMessage({ type: 'PLAYER_EVENT', player_status: 'seeked', player_progress: time }, '*');
         console.log(`[EmbedPlayer] Broadcast seek to ${time}s`);
     }, []);
@@ -185,11 +204,26 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     useEffect(() => {
         if (!controllerRef) return;
         controllerRef.current = {
-            seek: broadcastSeek,
+            seek: (time: number) => {
+                broadcastSeek(time);
+                
+                // Debounce the iframe reload to prevent spamming reloads during rapid skipping
+                if (seekTimeoutRef.current) {
+                    clearTimeout(seekTimeoutRef.current);
+                }
+                
+                seekTimeoutRef.current = setTimeout(() => {
+                    setLockedStartTime(time);
+                    seekTimeoutRef.current = null;
+                }, 750); // 750ms debounce window
+            },
             setMuted: broadcastMute,
             getIframe: () => iframeRef.current
         };
-        return () => { controllerRef.current = null; };
+        return () => { 
+            controllerRef.current = null;
+            if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+        };
     }, [controllerRef, broadcastSeek, broadcastMute]);
 
     // React to parent's isPlaying state
@@ -254,7 +288,19 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 onPlay?.();
             }
             if (type === 'pause' || type === 'paused') { stopTimer(); onPause?.(); }
-            if (type === 'ended' || type === 'complete' || type === 'completed') onEnded?.();
+            const typeStr = String(type || '').toLowerCase();
+            const isNextClick = [
+                'next',
+                'nextepisode',
+                'vixsrc_next',
+                'vidlink_next',
+                'next_episode',
+                'next_click'
+            ].includes(typeStr);
+            if (type === 'ended' || type === 'complete' || type === 'completed' || isNextClick) {
+                console.log(`[EmbedPlayer] ⏩ Captured 'next' navigation event from iframe: "${type}"`);
+                onEnded?.();
+            }
             if (type === 'error') handleProviderError();
         };
 
@@ -264,12 +310,29 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
     if (!currentProvider || providerIndex >= ALL_EMBED_PROVIDERS.length) return null;
 
-    const embedUrl = currentProvider.buildUrl({ tmdbId, imdbId, mediaType, season, episode, startTime: lockedStartTime, subtitleLang });
+    const embedUrl = currentProvider.buildUrl({ 
+        tmdbId, 
+        imdbId, 
+        mediaType, 
+        season, 
+        episode, 
+        startTime: lockedStartTime, 
+        subtitleLang: undefined // Disables iframe native subtitles to let our custom overlay render cleanly
+    });
 
     const hideNative = currentProvider.supportsControlsHide;
-    const baseScale  = hideNative ? 1.0 : 1.3;
-    const zoomFactor = videoFit === 'cover' ? 1.35 : 1.0;
-    const totalScale = baseScale * zoomFactor;
+    
+    // Smart high-res scaling factor: renders the iframe at a higher resolution
+    // to make its internal UI elements (controls, menus, buttons) microscopic and sharp (10x smaller).
+    const highResFactor = hideNative ? 1.0 : 10.0;
+    
+    // Zoom factor: crops out the outer edges to hide native player controls and branding.
+    const zoomFactor = videoFit === 'cover' 
+        ? 1.65 
+        : (hideNative ? 1.0 : 1.4);
+        
+    // Calculate the final scale to bring the high-res iframe back to the screen fit
+    const totalScale = zoomFactor / highResFactor;
 
     return (
         <div className="absolute inset-0 overflow-hidden bg-black z-0 pointer-events-auto flex items-center justify-center">
@@ -294,6 +357,18 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                     onError={handleProviderError}
                 />
             </div>
+
+            {/* The Invisible Shield: captures all clicks to block ads and toggles play/pause */}
+            <div 
+                className="absolute inset-0 z-20 cursor-pointer embed-shield"
+                onClick={(e) => {
+                    if (activePanel && activePanel !== 'none') {
+                        // Let the click bubble up to the parent container to close the active settings panel!
+                        return;
+                    }
+                    // Let the click bubble up to the parent VideoPlayer container to determine play/pause and UI visibility!
+                }}
+            />
 
             {/* Edge catchers for UI wake-up */}
             <div className="absolute top-0 inset-x-0 h-4 z-10" style={{ pointerEvents: 'auto' }} />

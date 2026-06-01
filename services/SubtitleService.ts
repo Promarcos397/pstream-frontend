@@ -116,41 +116,44 @@ export const SubtitleService = {
         season?: number,
         episode?: number,
         /** Override preferred language — uses browser language as default */
-        preferredLang?: string
+        preferredLang?: string,
+        imdbId?: string // Allows direct lookup bypassing TMDB external IDs call
     ): Promise<SubtitleTrack[]> => {
         try {
             const allTracks: SubtitleTrack[] = [];
 
+            const targetImdbId = imdbId || (await (async () => {
+                if (tmdbId) {
+                    const cleanId = tmdbId.replace('tt', '');
+                    const extIds = await getExternalIds(cleanId, type);
+                    return extIds?.imdb_id;
+                }
+                return undefined;
+            })());
 
-            if (tmdbId) {
-                // 2. Get IMDB ID for OpenSubtitles
-                const cleanId = tmdbId.replace('tt', '');
-                const extIds = await getExternalIds(cleanId, type);
-                
-                if (extIds?.imdb_id) {
-                    const imdbId = extIds.imdb_id.replace('tt', '');
+            if (targetImdbId) {
+                const cleanImdbId = targetImdbId.replace('tt', '');
 
-                    // 3. Build lang list: browser lang + English + Spanish (widest coverage)
-                    const browserLang = preferredLang || getBrowserLangCode();
-                    const priorityLangs = Array.from(new Set([browserLang, 'en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'ja', 'ko', 'zh', 'ar', 'tr', 'nl', 'pl']));
+                // 3. Build lang list: browser lang + English + Spanish (widest coverage)
+                const browserLang = preferredLang || getBrowserLangCode();
+                const priorityLangs = Array.from(new Set([browserLang, 'en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'ja', 'ko', 'zh', 'ar', 'tr', 'nl', 'pl']));
 
-                    console.log(`[SubtitleService] Fetching OpenSubtitles for langs: ${priorityLangs.slice(0, 6).join(', ')}...`);
+                console.log(`[SubtitleService] Fetching OpenSubtitles for langs: ${priorityLangs.slice(0, 6).join(', ')}...`);
 
-                    const osTracks = await SubtitleService.getOpenSubtitlesTracks(
-                        imdbId, type, season, episode, priorityLangs.slice(0, 8)
-                    );
+                const osTracks = await SubtitleService.getOpenSubtitlesTracks(
+                    cleanImdbId, type, season, episode, priorityLangs
+                );
 
-                    if (osTracks.length > 0) {
-                        console.log(`[SubtitleService] ✅ ${osTracks.length} tracks from OpenSubtitles`);
-                        for (const sub of osTracks) {
-                            if (!allTracks.some(t => t.url === sub.url)) {
-                                allTracks.push(sub);
-                            }
+                if (osTracks.length > 0) {
+                    console.log(`[SubtitleService] ✅ ${osTracks.length} tracks from OpenSubtitles`);
+                    for (const sub of osTracks) {
+                        if (!allTracks.some(t => t.url === sub.url)) {
+                            allTracks.push(sub);
                         }
                     }
-                } else {
-                    console.warn('[SubtitleService] No IMDB ID for OpenSubtitles fallback.');
                 }
+            } else {
+                console.warn('[SubtitleService] No IMDB ID for OpenSubtitles fallback.');
             }
 
             return allTracks;
