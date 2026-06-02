@@ -73,7 +73,7 @@ export const preloadTrailer = async (movie: Movie | null): Promise<{ videoId: st
     }
 
     try {
-        const result = await searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime, tmdbId: movie.id.toString() });
+        const result = await searchTrailerWithMeta({ title, year, type: type as 'movie' | 'tv', isAnime, tmdbId: String(movie.id) });
         if (result) {
             const data = {
                 videoId: result.videoId,

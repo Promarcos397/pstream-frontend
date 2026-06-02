@@ -366,15 +366,27 @@ export const useHls = (videoRef: React.RefObject<HTMLVideoElement>, options: Use
             };
             const onWaiting = () => setIsBuffering(true);
             const onPlaying = () => setIsBuffering(false);
+            const onNativeError = () => {
+                setIsBuffering(false);
+                const code = video.error?.code;
+                console.error('[useHls] Native HLS playback error, code:', code);
+                if (onError) {
+                    onError(`Native HLS load failed (code ${code ?? 'unknown'})`);
+                }
+                // Also trigger token expiry/fatal error to cycle to next source!
+                if (onTokenExpired) onTokenExpired();
+            };
 
             video.addEventListener('loadedmetadata', onMetadata);
             video.addEventListener('waiting', onWaiting);
             video.addEventListener('playing', onPlaying);
+            video.addEventListener('error', onNativeError);
 
             return () => {
                 video.removeEventListener('loadedmetadata', onMetadata);
                 video.removeEventListener('waiting', onWaiting);
                 video.removeEventListener('playing', onPlaying);
+                video.removeEventListener('error', onNativeError);
             };
         }
 

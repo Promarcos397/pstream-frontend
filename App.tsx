@@ -5,16 +5,9 @@ import useSearch from './hooks/useSearch';
 import { useTitle } from './context/TitleContext';
 import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
-import { initCodecSupport } from './utils/browserCodecSupport';
 import { useAuthStore } from './store/useAuthStore';
 import { useWatchStore } from './store/useWatchStore';
 import { LoginWall } from './components/LoginWall';
-
-// Warm browser codec detection immediately on app load.
-// By the time the user clicks Play, the profile is already cached.
-initCodecSupport().then(p => {
-  console.log(`[App] 🎵 Codec profile ready — AC3:${p.canPlayAC3} EAC3:${p.canPlayEAC3} Dolby:${p.isDolbyCapable} → transcode target: ${p.preferredTranscodeTarget}`);
-});
 
 
 

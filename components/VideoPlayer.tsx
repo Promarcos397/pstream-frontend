@@ -12,7 +12,6 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
 import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
-import { useDebridStream } from '../hooks/useDebridStream';
 import { useSkipTimestamps, SkipSegment } from '../hooks/useSkipTimestamps';
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
@@ -227,10 +226,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // Holds the pending error from the standard resolver; cleared if premium succeeds
     const standardErrorRef = useRef<string | null>(null);
 
-    // ——— Torrent fallback ——————————————————————————————————————————————————————————
-    // Triggered silently after MAX_STREAM_RETRIES, only for logged-in users.
-    const debridStream = useDebridStream();
-    const [premiumAttempted, setPremiumAttempted] = useState(false);
+
 
     // Internal tracks (MKV/MP4)
     const [internalTracks, setInternalTracks] = useState<InternalTrack[]>([]);
@@ -545,37 +541,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!sources || sources.length === 0) return;
         setError(null);
 
-        // "Torrent Preferred Always" — If premium already landed, prepend it to the list
-        let finalSources = [...sources];
-        if (debridStream.streamUrl) {
-            const premiumSource = {
-                url: debridStream.streamUrl,
-                quality: debridStream.quality || 'auto',
-                isM3U8: false,
-                isEmbed: false,
-                noProxy: false,
-                provider: 'Premium Server',
-                providerId: 'premium',
-                referer: '',
-                origin: '',
-                headers: {},
-                _type: 'mp4',
-            };
-            const alreadyHasPremium = finalSources.some(s => s.providerId === 'premium');
-            if (!alreadyHasPremium) {
-                finalSources = [premiumSource, ...finalSources];
-            }
-        }
-
-        setAllSources(finalSources);
-
-        // "Torrent Preferred Always" — If we are already playing a premium source,
-        // don't let regular scrapers auto-switch and interrupt the experience.
-        const currentSource = allSources.at(currentSourceIndex);
-        if (currentSource?.providerId === 'premium' && !isBuffering) {
-            console.log('[VideoPlayer] 💎 Premium stream active. Ignoring regular scraper result.');
-            return;
-        }
+        setAllSources(sources);
 
         // Skip any sources that are in the failure cooldown from a previous attempt.
         // Without this, a cache-bust re-fetch that returns the same dead URL gets tried again immediately.
@@ -668,7 +634,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (isEmbedFallback) {
             setTimeout(() => setIsBuffering(false), 500);
         }
-    }, [settings.subtitleLanguage, settings.showSubtitles, debridStream.streamUrl, debridStream.quality]);
+    }, [settings.subtitleLanguage, settings.showSubtitles]);
 
     // ——— Manual source change ——————————————————————————————————————————————————————
     const handleSourceChange = useCallback((index: number) => {
@@ -783,7 +749,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useEffect(() => {
         standardErrorRef.current = null;
         setExtractorEnabled(false);
-        debridStream.reset();
         setIsBuffering(false); // Hide the backend spinner immediately since we load client-side embeds directly
         setError(null);
         setStreamUrl(null);
@@ -793,10 +758,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         // Wipe subtitles from the previous episode/movie
         setCaptions([]);
         setCurrentCaption(null);
-        setPremiumAttempted(false);
         // Reset playback ref so the initial-load overlay shows again for the new episode
         hasPlayedOnceRef.current = false;
         // Reset time display immediately — don't let the old episode's progress show on the new one
+        setCurrentTime(0);
         setCurrentTime(0);
         setDuration(0);
         setProgress(0);
@@ -819,111 +784,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return; // Direct client-side embed playback only — no backend scrapers
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
-    // Apply AllDebrid stream when resolved
-    useEffect(() => {
-        if (!debridStream.streamUrl) return;
-
-        setError(null);
-        standardErrorRef.current = null;
-
-        const debridSources = (debridStream as any).alternatives?.map((alt: any, idx: number) => {
-            const name = alt.name || '';
-            const ext = name.toLowerCase().endsWith('.mkv') ? 'mkv' :
-                name.toLowerCase().endsWith('.webm') ? 'webm' :
-                    name.toLowerCase().endsWith('.avi') ? 'avi' : 'mp4';
-
-            // Extract a cleaner display name from the torrent name
-            const displayName = name.split('/').pop() || name;
-
-            return {
-                url: alt.url,
-                name: displayName,
-                quality: alt.quality || 'auto',
-                isM3U8: false,
-                isEmbed: false,
-                noProxy: true,
-                provider: idx === 0 ? 'Premium Server (Best)' : `Premium Alt ${idx + 1}`,
-                providerId: `torrent-${idx}`,
-                referer: '',
-                origin: '',
-                headers: {},
-                _type: ext,
-                _audio: alt._audio || 'unknown',
-            };
-        }) || [{
-            url: debridStream.streamUrl,
-            name: debridStream.name || 'Torrent Stream',
-            quality: debridStream.quality || 'auto',
-            isM3U8: false,
-            isEmbed: false,
-            noProxy: true,
-            provider: 'Premium Server',
-            providerId: 'torrent-0',
-            referer: '',
-            origin: '',
-            headers: {},
-            _type: (debridStream.name || '').toLowerCase().endsWith('.mkv') ? 'mkv' : 'mp4',
-            _audio: 'unknown',
-        }];
-
-        // ── Source Manifest Log (for filename pattern study) ──────────────────
-        try {
-            const label = `${movie.title || movie.name || 'Unknown'}${mediaType === 'tv' ? ` S${playingSeasonNumber}E${currentEpisode}` : ''}`;
-            console.groupCollapsed(`📦 SOURCE MANIFEST — ${label} (${debridSources.length} sources)`);
-            console.table(
-                debridSources.map((s: any, i: number) => {
-                    const rawName = (debridStream as any).alternatives?.at(i)?.name || s.name || '';
-                    const filename = rawName.split('/').pop() || rawName;
-                    return {
-                        '#': i + 1,
-                        'filename': filename,
-                        'ext': s._type || '?',
-                        'quality': s.quality || '?',
-                        'provider': s.provider || '?',
-                        'url': s.url?.substring(0, 80) + (s.url?.length > 80 ? '…' : ''),
-                    };
-                })
-            );
-            console.groupEnd();
-        } catch (_) { }
-
-        // Torrent is preferred always:
-        // Prepend to allSources so it appears first in manual source list too.
-        setAllSources(prev => {
-            const filtered = prev.filter(s => !s.providerId?.startsWith('torrent'));
-            return [...debridSources, ...filtered];
-        });
-
-        // Always switch to it — use functional update to avoid stale streamUrl closure
-        setStreamUrl(prev => {
-            const bestUrl = debridSources[0].url;
-            if (prev === bestUrl) return prev;
-            setLoadingMessage('Source found! Preparing...');
-            setCurrentSourceIndex(0);
-            setIsStreamM3U8(false);
-            setIsBuffering(true);
-            return bestUrl;
-        });
-    }, [debridStream.streamUrl, (debridStream as any).alternatives]);
-
 
 
     // NOTE: useAudioSilenceDetector was removed — createMediaElementSource() is a destructive
     // one-way pipe into WebAudio that itself causes silence when AudioContext is suspended.
-    // Source quality scoring in useDebridStream already heavily penalises AC3/DTS files (-20 to -30).
-    // That is the correct layer to fix audio compatibility, not a post-hoc silence probe.
+    // Audio compatibility is managed at the source selection layer, not a post-hoc silence probe.
 
-    // ── External subtitles for AllDebrid streams ─────────────────────────────────
-    // Torrent/MKV files have no embedded subtitle streams in the HTTP response,
-    // so we fetch from OpenSubtitles whenever the debrid URL is resolved.
+    // ── External subtitles ────────────────────────────────────────────────────────
+    // Fetch from OpenSubtitles whenever the video player is in use.
     useEffect(() => {
-        if (!useEmbedFallback && !debridStream.streamUrl) return;
+        if (!useEmbedFallback) return;
         let cancelled = false;
 
         const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
         const preferredLang = settings.subtitleLanguage?.toLowerCase() || 'en';
 
-        const debridSubs = (debridStream as any).subtitles || [];
+        const debridSubs: any[] = [];
 
         let expectedDurationSec = 0;
         if (mediaType === 'movie') {
@@ -1026,7 +902,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }).catch(() => { });
 
         return () => { cancelled = true; };
-    }, [debridStream.streamUrl, (debridStream as any).subtitles, movie.id, mediaType, playingSeasonNumber, currentEpisode,
+    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode,
         currentSeasonEpisodes, settings.subtitleLanguage, settings.showSubtitles, useEmbedFallback]);
 
     // ——— HLS Hook ——————————————————————————————————————————————————————————————————
@@ -1066,12 +942,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const activeProvider = activeSource?.provider || 'unknown';
             const activeProviderId = activeSource?.providerId;
             const activeUrl = activeSource?.url || '';
-
-            // Torrent/AllDebrid stream — never retry on 403, CDN errors are transient
-            if (activeProviderId === 'torrent') {
-                console.warn('[VideoPlayer] 403 on AllDebrid stream — ignoring.');
-                return;
-            }
 
             const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
             sourceFailureCooldownRef.current.set(failedSourceKey, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
@@ -1132,12 +1002,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const activeProviderId = activeSource?.providerId;
             const activeUrl = activeSource?.url || '';
 
-            // Torrent/AllDebrid stream errors (often codec related like AC3/HEVC/MKV)
-            // should trigger a fallback to the next source instead of stalling.
-            if (activeProviderId === 'torrent') {
-                console.warn('[VideoPlayer] AllDebrid stream failed (likely codec/container issue) -> falling back.');
-            }
-
             const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
             sourceFailureCooldownRef.current.set(failedSourceKey, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
             reportStreamError({
@@ -1152,14 +1016,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             });
             if (currentSourceIndex < allSources.length - 1) {
                 handleSourceChange(currentSourceIndex + 1);
-            } else if (user && !premiumAttempted) {
-                console.log('[VideoPlayer] 💎 All sources errored — activating premium fallback...');
-                setPremiumAttempted(true);
-                setLoadingMessage('Connecting to high-speed server...');
-                setIsBuffering(true);
-                setError(null);
             } else {
-                console.log('[VideoPlayer] 🔌 Premium fallback failed/skipped — activating iframe embed fallback...');
+                console.log('[VideoPlayer] 🔌 All sources failed — activating iframe embed fallback...');
                 setUseEmbedFallback(true);
                 setError(null);
                 setIsBuffering(false);

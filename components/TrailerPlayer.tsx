@@ -4,7 +4,7 @@ import { useTrailer } from '../hooks/useTrailer';
 import { useGlobalContext } from '../context/GlobalContext';
 import { Movie } from '../types';
 
-const YouTubePlayer = YouTube as any;
+const YouTubePlayer = (YouTube as any).default || YouTube;
 
 interface TrailerPlayerProps {
     movie: Movie | null;

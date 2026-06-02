@@ -625,7 +625,8 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     fetchUrl: bookUrl,
   });
 
-  // Theme E: Anime Dubbed in English
+  // Theme E: Anime Dubbed in English (Temporarily Disabled)
+  /*
   const animeUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
     with_genres: tvGenreId ? `${tvGenreId},16` : 16,
@@ -637,6 +638,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     title: getThemedTitle('Anime Dubbed in English', 'tv', selectedGenreName),
     fetchUrl: animeUrl,
   });
+  */
 
   // Theme F: Gemini's Spill the Tea (High Drama & Gossip)
   const teaUrl = REQUESTS._build(`${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/tv`, {
@@ -1438,7 +1440,8 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     fetchUrl: bookUrl,
   });
 
-  // Theme E: Anime Dubbed in English
+  // Theme E: Anime Dubbed in English (Temporarily Disabled)
+  /*
   const animeUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
     with_genres: selectedGenreId ? `${selectedGenreId},16` : 16,
@@ -1450,6 +1453,7 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     title: getThemedTitle('Anime Dubbed in English', 'tv', selectedGenreName),
     fetchUrl: animeUrl,
   });
+  */
 
   // Theme F: Gossip & High Drama
   const teaUrl = REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`, {
