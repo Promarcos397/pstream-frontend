@@ -33,49 +33,6 @@ export interface EmbedProvider {
 // VidLink is slot 2: confirmed postMessage PLAYER_EVENT + startAt + sub_file
 
 export const TIER_1_PROVIDERS: EmbedProvider[] = [
-    /*
-    {
-        id: 'vidapi-ru',
-        name: 'VidAPI.ru',
-        // controls=false hides ALL native UI — our custom controls take over completely.
-        // overlay=false removes the hover gradient/title bar.
-        // Both confirmed from VidAPI.ru documentation.
-        buildUrl: ({ tmdbId, mediaType, season, episode, startTime }) => {
-            const base = mediaType === 'movie'
-                ? `https://vidapi.ru/embed/movie/${tmdbId}`
-                : `https://vidapi.ru/embed/tv/${tmdbId}/${season}/${episode}`;
-            const params = new URLSearchParams({ controls: 'false', overlay: 'false' });
-            if (startTime && startTime > 5) params.set('resumeAt', String(Math.floor(startTime)));
-            return `${base}?${params.toString()}`;
-        },
-        maintained: true,
-        supports: ['movie', 'tv'],
-        supportsPostMessage: true,
-        supportsStartAt: true,
-        supportsControlsHide: true,
-    },
-    */
-    /*
-    {
-        id: 'vidlink',
-        name: 'VidLink',
-        // postMessage PLAYER_EVENT confirmed. startAt param confirmed. sub_file for subtitles.
-        // For TV: nextbutton=true shows the native next-ep button inside the embed.
-        buildUrl: ({ tmdbId, mediaType, season, episode, startTime }) => {
-            const base = mediaType === 'movie'
-                ? `https://vidlink.pro/movie/${tmdbId}`
-                : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`;
-            const params = new URLSearchParams({ title: 'false', poster: 'false' });
-            if (mediaType === 'tv') params.set('nextbutton', 'true');
-            if (startTime && startTime > 5) params.set('startAt', String(Math.floor(startTime)));
-            return `${base}?${params.toString()}`;
-        },
-        maintained: true,
-        supports: ['movie', 'tv'],
-        supportsPostMessage: true,
-        supportsStartAt: true,
-    },
-    */
     {
         id: 'vidfast',
         name: 'VidFast',
@@ -83,7 +40,7 @@ export const TIER_1_PROVIDERS: EmbedProvider[] = [
         buildUrl: ({ tmdbId, mediaType, season, episode, startTime, subtitleLang }) => {
             const base = mediaType === 'movie'
                 ? `https://vidfast.pro/movie/${tmdbId}`
-                : `https://vidfast.pro/tv/${tmdbId}/${season}/${episode}`;
+                : `https://vidfast.pro/tv/${tmdbId}/${season || 1}/${episode || 1}`;
             const params = new URLSearchParams();
             params.set('autoplay', 'true');
             if (startTime && startTime > 5) params.set('startAt', String(Math.floor(startTime)));
@@ -98,6 +55,95 @@ export const TIER_1_PROVIDERS: EmbedProvider[] = [
         supportsStartAt: true,
     },
     {
+        id: 'vidlink',
+        name: 'VidLink',
+        buildUrl: ({ tmdbId, mediaType, season, episode, startTime }) => {
+            const isAnime = (mediaType as string) === 'anime' || (mediaType as any) === 'mal';
+            const base = isAnime
+                ? `https://vidlink.pro/anime/${tmdbId}/${episode || 1}/sub`
+                : (mediaType === 'movie'
+                    ? `https://vidlink.pro/movie/${tmdbId}`
+                    : `https://vidlink.pro/tv/${tmdbId}/${season || 1}/${episode || 1}`);
+            
+            const params = new URLSearchParams();
+            params.set('primaryColor', '63b8bc'); // Match P-Stream Cyan
+            params.set('secondaryColor', '1a1a1a'); // Harmonized dark slate
+            params.set('iconColor', 'ffffff'); // Sharp white icons
+            params.set('icons', 'vid'); // Premium icons style
+            params.set('player', 'jw'); // Professional JWPlayer core
+            params.set('title', 'false');
+            params.set('poster', 'false');
+            params.set('autoplay', 'true');
+            
+            if (mediaType === 'tv') {
+                params.set('nextbutton', 'true');
+            }
+            if (startTime && startTime > 5) {
+                params.set('startAt', String(Math.floor(startTime)));
+            }
+            
+            const qs = params.toString();
+            return qs ? `${base}?${qs}` : base;
+        },
+        maintained: true,
+        supports: ['movie', 'tv', 'anime'],
+        supportsPostMessage: true,
+        supportsStartAt: true,
+    },
+    {
+        id: 'vidsync',
+        name: 'Vidsync',
+        buildUrl: ({ tmdbId, mediaType, season, episode }) => {
+            return mediaType === 'movie'
+                ? `https://vidsync.xyz/embed/movie/${tmdbId}`
+                : `https://vidsync.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+        },
+        maintained: true,
+        supports: ['movie', 'tv'],
+        supportsPostMessage: true,
+        supportsStartAt: true,
+    },
+    {
+        id: 'vidking',
+        name: 'Vidking Player',
+        buildUrl: ({ tmdbId, mediaType, season, episode, startTime }) => {
+            const base = mediaType === 'movie'
+                ? `https://www.vidking.net/embed/movie/${tmdbId}`
+                : `https://www.vidking.net/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+            
+            const params = new URLSearchParams();
+            params.set('color', '0dcaf0'); // Primary theme color without # (Default Blue / Cyan theme)
+            params.set('autoPlay', 'true');
+            if (mediaType === 'tv') {
+                params.set('nextEpisode', 'true');
+                params.set('episodeSelector', 'true');
+            }
+            if (startTime && startTime > 5) {
+                params.set('progress', String(Math.floor(startTime)));
+            }
+            const qs = params.toString();
+            return qs ? `${base}?${qs}` : base;
+        },
+        maintained: true,
+        supports: ['movie', 'tv'],
+        supportsPostMessage: true,
+        supportsStartAt: true,
+    },
+    /*
+    {
+        id: 'vidup',
+        name: 'VidUP',
+        buildUrl: ({ tmdbId, mediaType, season, episode }) => {
+            return mediaType === 'movie'
+                ? `https://vidup.to/movie/${tmdbId}`
+                : `https://vidup.to/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+        },
+        maintained: true,
+        supports: ['movie', 'tv'],
+        supportsPostMessage: true,
+        supportsStartAt: false,
+    },
+    {
         id: 'vidapi-xyz',
         name: 'VidAPI.xyz',
         buildUrl: ({ tmdbId, mediaType, season, episode }) =>
@@ -109,11 +155,18 @@ export const TIER_1_PROVIDERS: EmbedProvider[] = [
     },
     {
         id: 'vidsrc-me',
-        name: 'VidSrc.me',
-        buildUrl: ({ tmdbId, mediaType, season, episode }) =>
-            mediaType === 'movie'
-                ? `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`
-                : `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
+        name: 'VidSrc.me (Vidsrc-embed)',
+        buildUrl: ({ tmdbId, mediaType, season, episode, subtitleLang }) => {
+            const base = mediaType === 'movie'
+                ? `https://vidsrc-embed.ru/embed/movie/${tmdbId}`
+                : `https://vidsrc-embed.ru/embed/tv/${tmdbId}/${season}-${episode}`;
+            const params = new URLSearchParams();
+            params.set('autoplay', '1');
+            if (mediaType === 'tv') params.set('autonext', '1');
+            if (subtitleLang) params.set('ds_lang', subtitleLang.substring(0, 2));
+            const qs = params.toString();
+            return qs ? `${base}?${qs}` : base;
+        },
         maintained: true,
         supports: ['movie', 'tv', 'anime'],
     },
@@ -177,11 +230,13 @@ export const TIER_1_PROVIDERS: EmbedProvider[] = [
         maintained: true,
         supports: ['movie', 'tv', 'anime'],
     },
+    */
 ];
 
 // ─── Tier 2: Good fallbacks, less maintained or minor popups ─────────────────
 
 export const TIER_2_PROVIDERS: EmbedProvider[] = [
+    /*
     {
         id: '1embed',
         name: '1Embed',
@@ -272,7 +327,8 @@ export const TIER_2_PROVIDERS: EmbedProvider[] = [
         maintained: false,
         supports: ['movie', 'tv', 'anime'],
     },
+    */
 ];
 
 // Flat list for easy iteration
-export const ALL_EMBED_PROVIDERS = [...TIER_1_PROVIDERS, ...TIER_2_PROVIDERS];
+export const ALL_EMBED_PROVIDERS = [...TIER_1_PROVIDERS, ...TIER_2_PROVIDERS].filter(p => p !== undefined);

@@ -31,6 +31,8 @@ interface EmbedPlayerProps {
     onProviderChange?: (providerId: string) => void;
     onAllFailed?: () => void;
     startProviderIndex?: number;
+    providerIndex?: number;
+    onProviderIndexChange?: (index: number) => void;
     /** Mutable ref object that receives control functions */
     controllerRef?: React.MutableRefObject<EmbedController | null>;
 }
@@ -53,14 +55,41 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     onProviderChange,
     onAllFailed,
     startProviderIndex = 0,
+    providerIndex,
+    onProviderIndexChange,
     controllerRef
 }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
-    const [providerIndex, setProviderIndex] = useState(startProviderIndex);
+    const [localProviderIndex, setLocalProviderIndex] = useState(startProviderIndex);
+
+    const activeProviderIndex = providerIndex !== undefined ? providerIndex : localProviderIndex;
+    const setActiveProviderIndex = useCallback((idx: number | ((prev: number) => number)) => {
+        if (onProviderIndexChange) {
+            const nextIdx = typeof idx === 'function' ? (idx as any)(activeProviderIndex) : idx;
+            onProviderIndexChange(nextIdx);
+        } else {
+            setLocalProviderIndex(idx as any);
+        }
+    }, [onProviderIndexChange, activeProviderIndex]);
 
     // Lock the start time for the current content to prevent iframe reloading during watch progress saves
     const [lockedStartTime, setLockedStartTime] = useState(startTime);
     const seekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingSeekTimeRef = useRef<number | null>(null);
+    const seekVerifiedRef = useRef<boolean>(false);
+
+    // ── Elapsed timer (fallback when provider sends no postMessage) ────────────
+    const elapsedRef = useRef(startTime);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const hasRealTimeUpdateRef = useRef(false);
+
+    // Sync lockedStartTime when provider changes, so the new iframe starts at our current progress!
+    useEffect(() => {
+        if (elapsedRef.current > 5) {
+            setLockedStartTime(elapsedRef.current);
+        }
+        seekVerifiedRef.current = false;
+    }, [activeProviderIndex]);
 
     useEffect(() => {
         setLockedStartTime(startTime);
@@ -68,17 +97,12 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     }, [tmdbId, season, episode]);
 
     useEffect(() => {
-        if (providerIndex >= ALL_EMBED_PROVIDERS.length) {
+        if (activeProviderIndex >= ALL_EMBED_PROVIDERS.length) {
             onAllFailed?.();
         }
-    }, [providerIndex, onAllFailed]);
+    }, [activeProviderIndex, onAllFailed]);
 
-    const currentProvider = ALL_EMBED_PROVIDERS[providerIndex];
-
-    // ── Elapsed timer (fallback when provider sends no postMessage) ────────────
-    const elapsedRef = useRef(startTime);
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const hasRealTimeUpdateRef = useRef(false);
+    const currentProvider = ALL_EMBED_PROVIDERS[activeProviderIndex];
 
     const stopTimer = useCallback(() => {
         if (timerRef.current) {
@@ -110,8 +134,8 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 errorCode: 'EMBED_FAILED'
             });
         }
-        setProviderIndex(prev => prev + 1);
-    }, [currentProvider, tmdbId, mediaType, season, episode]);
+        setActiveProviderIndex(prev => prev + 1);
+    }, [currentProvider, tmdbId, mediaType, season, episode, setActiveProviderIndex]);
 
     const estimatedDuration = mediaType === 'tv' ? 2700 : 7200;
 
@@ -136,7 +160,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             stopTimer();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tmdbId, season, episode, providerIndex, lockedStartTime]);
+    }, [tmdbId, season, episode, activeProviderIndex, lockedStartTime]);
 
     useEffect(() => {
         if (currentProvider) {
@@ -187,6 +211,14 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         win.postMessage(JSON.stringify({ method: 'setCurrentTime', value: time }), '*');
         win.postMessage(JSON.stringify({ method: 'setCurrentTime', params: [time] }), '*');
         win.postMessage({ type: 'PLAYER_EVENT', player_status: 'seeked', player_progress: time }, '*');
+        
+        // VidFast / Vidking specific inbound seek command formats
+        win.postMessage({ command: 'seek', time }, '*');
+        win.postMessage(JSON.stringify({ command: 'seek', time }), '*');
+        
+        // StreamVault / generic data wrappers
+        win.postMessage({ type: 'seek', data: { time } }, '*');
+        
         console.log(`[EmbedPlayer] Broadcast seek to ${time}s`);
     }, []);
 
@@ -207,15 +239,41 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             seek: (time: number) => {
                 broadcastSeek(time);
                 
-                // Debounce the iframe reload to prevent spamming reloads during rapid skipping
+                // Clear any pending seek timer
                 if (seekTimeoutRef.current) {
                     clearTimeout(seekTimeoutRef.current);
                 }
                 
-                seekTimeoutRef.current = setTimeout(() => {
-                    setLockedStartTime(time);
-                    seekTimeoutRef.current = null;
-                }, 750); // 750ms debounce window
+                // Special Treatment based on provider capabilities:
+                if (currentProvider?.supportsPostMessage) {
+                    // Category 1: Programmatic Seeker (Tier 1).
+                    // If we have already verified that postMessage works in this session,
+                    // we NEVER reload the iframe — the player is perfectly functional.
+                    if (seekVerifiedRef.current) {
+                        console.log(`[EmbedPlayer] 🚀 postMessage seek already verified for this session. Skipping watchdog reload fallback.`);
+                        pendingSeekTimeRef.current = null;
+                        return;
+                    }
+
+                    pendingSeekTimeRef.current = time;
+                    console.log(`[EmbedPlayer] 🕒 Scheduling smart watchdog for programmatic seek verification at ${time}s.`);
+                    
+                    seekTimeoutRef.current = setTimeout(() => {
+                        if (pendingSeekTimeRef.current !== null) {
+                            console.log(`[EmbedPlayer] ⚠️ postMessage seek verification timed out for ${time}s. Falling back to iframe reload.`);
+                            setLockedStartTime(time);
+                            pendingSeekTimeRef.current = null;
+                        }
+                        seekTimeoutRef.current = null;
+                    }, 1500); // Generous 1500ms watchdog for the very first seek
+                } else {
+                    // Category 2: Hard Fallback (Tier 2). Trigger debounced reload immediately for skips.
+                    console.log(`[EmbedPlayer] ⚙️ Provider does not support postMessage. Triggering debounced iframe reload at ${time}s.`);
+                    seekTimeoutRef.current = setTimeout(() => {
+                        setLockedStartTime(time);
+                        seekTimeoutRef.current = null;
+                    }, 400); // 400ms rapid skip debounce for hard reloads
+                }
             },
             setMuted: broadcastMute,
             getIframe: () => iframeRef.current
@@ -224,7 +282,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             controllerRef.current = null;
             if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
         };
-    }, [controllerRef, broadcastSeek, broadcastMute]);
+    }, [controllerRef, broadcastSeek, broadcastMute, currentProvider]);
 
     // React to parent's isPlaying state
     useEffect(() => {
@@ -239,6 +297,45 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 try { data = JSON.parse(data); } catch { return; }
             }
             if (!data || typeof data !== 'object') return;
+
+            // ── Collision-Free Vidsync Telemetry ──────────────────────────────
+            if (data.type === 'VIDSYNC_PLAYER_EVENT' && data.data) {
+                const d = data.data;
+                const type = d.event;
+                const time = d.currentTime;
+                const dur = d.duration;
+                
+                if (type === 'play' || type === 'playing') {
+                    hasRealTimeUpdateRef.current = true;
+                    if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
+                    stopTimer();
+                    onPlay?.();
+                }
+                if (type === 'pause' || type === 'paused') { stopTimer(); onPause?.(); }
+                if (type === 'ended' || type === 'complete') onEnded?.();
+                if (type === 'timeupdate' && typeof time === 'number') {
+                    hasRealTimeUpdateRef.current = true;
+                    if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
+                    stopTimer();
+                    elapsedRef.current = time;
+                    onTimeUpdate?.(time, dur || estimatedDuration);
+                    onPlay?.();
+                }
+                
+                // Watchdog verification for Vidsync
+                if (pendingSeekTimeRef.current !== null && typeof time === 'number') {
+                    if (Math.abs(time - pendingSeekTimeRef.current) < 3.5) {
+                        console.log(`[EmbedPlayer] 🎉 Programmatic postMessage seek verified for Vidsync at ${time}s! Skipping iframe reload.`);
+                        seekVerifiedRef.current = true;
+                        pendingSeekTimeRef.current = null;
+                        if (seekTimeoutRef.current) {
+                            clearTimeout(seekTimeoutRef.current);
+                            seekTimeoutRef.current = null;
+                        }
+                    }
+                }
+                return;
+            }
 
             // VidAPI.ru format
             if (data.type === 'PLAYER_EVENT' && data.player_status != null) {
@@ -268,16 +365,29 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             // VidLink / VixSrc / CinemaOS PLAYER_EVENT format
             const d = (data.type === 'PLAYER_EVENT' && data.data) ? data.data : data;
             const type = d.type || d.event;
+            const time = d.currentTime ?? d.time ?? d.player_progress;
 
             if (type === 'timeupdate') {
                 hasRealTimeUpdateRef.current = true;
                 if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
                 stopTimer();
-                const time = d.currentTime ?? d.time ?? d.player_progress;
                 const dur = d.duration ?? d.player_duration ?? 0;
                 if (typeof time === 'number') {
                     elapsedRef.current = time;
                     onTimeUpdate?.(time, dur || estimatedDuration);
+                    
+                    // Verify programmatic postMessage seek
+                    if (pendingSeekTimeRef.current !== null) {
+                        if (Math.abs(time - pendingSeekTimeRef.current) < 3.5) {
+                            console.log(`[EmbedPlayer] 🎉 Programmatic postMessage seek verified at ${time}s! Skipping iframe reload.`);
+                            seekVerifiedRef.current = true;
+                            pendingSeekTimeRef.current = null;
+                            if (seekTimeoutRef.current) {
+                                clearTimeout(seekTimeoutRef.current);
+                                seekTimeoutRef.current = null;
+                            }
+                        }
+                    }
                 }
                 onPlay?.();
             }
@@ -308,7 +418,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         return () => window.removeEventListener('message', handler);
     }, [onTimeUpdate, onPlay, onPause, onEnded, stopTimer, handleProviderError, estimatedDuration]);
 
-    if (!currentProvider || providerIndex >= ALL_EMBED_PROVIDERS.length) return null;
+    if (!currentProvider || activeProviderIndex >= ALL_EMBED_PROVIDERS.length) return null;
 
     const embedUrl = currentProvider.buildUrl({ 
         tmdbId, 
@@ -317,19 +427,19 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         season, 
         episode, 
         startTime: lockedStartTime, 
-        subtitleLang: undefined // Disables iframe native subtitles to let our custom overlay render cleanly
+        subtitleLang: subtitleLang || 'en' // Allows loading provider-native subtitles (e.g. English) inside the iframe
     });
 
     const hideNative = currentProvider.supportsControlsHide;
     
     // Smart high-res scaling factor: renders the iframe at a higher resolution
-    // to make its internal UI elements (controls, menus, buttons) microscopic and sharp (10x smaller).
-    const highResFactor = hideNative ? 1.0 : 10.0;
+    // to make its internal UI elements (controls, menus, buttons) microscopic and sharp (12x smaller).
+    const highResFactor = hideNative ? 1.0 : 15.0;
     
     // Zoom factor: crops out the outer edges to hide native player controls and branding.
     const zoomFactor = videoFit === 'cover' 
         ? 1.65 
-        : (hideNative ? 1.0 : 1.4);
+        : (hideNative ? 1.0 : 1.65);
         
     // Calculate the final scale to bring the high-res iframe back to the screen fit
     const totalScale = zoomFactor / highResFactor;

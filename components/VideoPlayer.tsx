@@ -18,6 +18,7 @@ import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
 import VideoPlayerSettingsTouch from './VideoPlayerSettingsTouch';
 import { EmbedPlayer, EmbedController } from './EmbedPlayer';
+import { ALL_EMBED_PROVIDERS } from '../services/EmbedProviders';
 import { ArrowLeftIcon } from '@phosphor-icons/react';
 
 
@@ -236,8 +237,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<number | null>(null);
     const [selectedSubtitleTrackId, setSelectedSubtitleTrackId] = useState<number | null>(null);
 
-    // Embed Fallback state (FORCED TRUE FOR AUDITING)
+    // Embed Fallback state (Direct client-side embeds only)
     const [useEmbedFallback, setUseEmbedFallback] = useState(true);
+    const [embedProviderIndex, setEmbedProviderIndex] = useState(0);
+
+    const embedSourcesMapped = useMemo(() => {
+        return ALL_EMBED_PROVIDERS.map((p) => ({
+            id: p.id,
+            name: p.name,
+            provider: 'Premium Embed',
+            quality: p.supportsPostMessage ? 'Tier-1 (Seamless)' : 'Tier-2 (Reload)',
+            isM3U8: false,
+        }));
+    }, []);
 
 
     const activeStreamUrl = useMemo(() => streamUrl, [streamUrl]);
@@ -265,7 +277,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         sourceFailureCooldownRef.current.clear();
         hasPlayedOnceRef.current = false; // force clean subtitle gate for new content
         reportedSuccessRef.current = null;
-        // setUseEmbedFallback(false); // DISABLED FOR AUDITING
+        setUseEmbedFallback(true); // Retain direct client-side embed mode across episodes
+        setEmbedProviderIndex(0); // Reset provider index to default (VidLink) on episode switch
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
     // ——— Fullscreen toggle —————————————————————————————————————————————————————————
@@ -771,12 +784,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         standardErrorRef.current = null;
         setExtractorEnabled(false);
         debridStream.reset();
-        setIsBuffering(true);
+        setIsBuffering(false); // Hide the backend spinner immediately since we load client-side embeds directly
         setError(null);
         setStreamUrl(null);
         setAllSources([]);
         setCurrentSourceIndex(0);
-        setLoadingMessage('Locating stream...');
+        setLoadingMessage('Loading player...');
         // Wipe subtitles from the previous episode/movie
         setCaptions([]);
         setCurrentCaption(null);
@@ -801,45 +814,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
 
 
-    // Fire torrent resolver on mount
+    // Fire extractors resolver immediately on mount (DISABLED FOR DIRECT EMBED PLAYBACK)
     useEffect(() => {
-        return; // DISABLED FOR AUDITING EMBEDS
-        const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
-        const searchTitle = movie.title || movie.name || '';
-        console.log(`[VideoPlayer] 🎯 AllDebrid resolver: ${searchTitle} (${type})`);
-
-        const slowTimer = setTimeout(() => setLoadingMessage('Establishing connection...'), 6000);
-        const slowerTimer = setTimeout(() => setLoadingMessage('Preparing playback...'), 14000);
-
-        const doResolve = (imdbId: string) => {
-            debridStream.resolve(
-                imdbId,
-                type,
-                mediaType === 'tv' ? playingSeasonNumber : undefined,
-                mediaType === 'tv' ? currentEpisode : undefined,
-                searchTitle,
-                String(movie.id)
-            ).then(result => {
-                clearTimeout(slowTimer);
-                clearTimeout(slowerTimer);
-                if (!result) {
-                    // AllDebrid couldn't find it — fall back to extractors
-                    console.log('[VideoPlayer] AllDebrid: no result — activating extractor fallback.');
-                    setExtractorEnabled(true);
-                }
-            });
-        };
-
-        if (movie.imdb_id) {
-            doResolve(movie.imdb_id);
-        } else {
-            getExternalIds(movie.id, type)
-                .then((ext: any) => ext?.imdb_id || '')
-                .catch(() => '')
-                .then(doResolve);
-        }
-
-        return () => { clearTimeout(slowTimer); clearTimeout(slowerTimer); };
+        return; // Direct client-side embed playback only — no backend scrapers
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
     // Apply AllDebrid stream when resolved
@@ -1370,8 +1347,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
                 // Immediately snap to the cue at current playtime — no waiting for next timeupdate.
                 // This is the "precision" fix: caption is correct the instant you switch tracks.
-                if (isMounted && videoRef.current) {
-                    const now = videoRef.current.currentTime - subtitleOffset;
+                if (isMounted) {
+                    const now = currentTime - subtitleOffset;
                     const immediateCue = cues.find(c => now >= c.start && now <= c.end);
                     setCurrentCueText(immediateCue?.text || '');
                 }
@@ -1397,23 +1374,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
     }, [currentCaption]);
 
-    // Poll video currentTime to update the active cue text
+    // Update active cue text when currentTime or subtitleOffset changes
     useEffect(() => {
-        const update = () => {
-            const video = videoRef.current;
-            if (!video) return;
-            const t = video.currentTime - subtitleOffset;
-            const cue = parsedCuesRef.current.find(c => t >= c.start && t <= c.end);
-            setCurrentCueText(cue ? cue.text : '');
-        };
-        const vid = videoRef.current;
-        vid?.addEventListener('timeupdate', update);
-
-        // Immediately run an update when this effect fires (e.g. if subtitleOffset changed while paused)
-        update();
-
-        return () => vid?.removeEventListener('timeupdate', update);
-    }, [subtitleObjectUrl, subtitleOffset]);
+        const t = currentTime - subtitleOffset;
+        const cue = parsedCuesRef.current.find(c => t >= c.start && t <= c.end);
+        setCurrentCueText(cue ? cue.text : '');
+    }, [currentTime, subtitleOffset, subtitleObjectUrl]);
 
     // Disable native subtitles to prevent double-rendering (since we use our own overlay)
     useEffect(() => {
@@ -1775,6 +1741,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     controllerRef={embedControllerRef}
                     subtitleLang={settings.subtitleLanguage || 'en'}
                     activePanel={activePanel}
+                    providerIndex={embedProviderIndex}
+                    onProviderIndexChange={setEmbedProviderIndex}
                     startTime={(() => {
                         // Compute resume time from the same store the native player uses (sync threshold > 5s)
                         if (mediaType === 'tv') {
@@ -1875,7 +1843,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             className="subtitle-overlay"
                             style={{
                                 ...overlayStyle,
-                                bottom: showUI ? (isMobile ? '12rem' : '10.5rem') : '6rem',
+                                bottom: useEmbedFallback
+                                    ? (showUI ? (isMobile ? '16rem' : '14.5rem') : '10rem')
+                                    : (showUI ? (isMobile ? '12rem' : '10.5rem') : '6rem'),
                                 left: '0',
                                 transform: 'none',
                                 maxWidth: '100%',
@@ -1922,7 +1892,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         className="subtitle-overlay"
                         style={{
                             ...overlayStyle,
-                            bottom: showUI ? (isMobile ? '12rem' : '10.5rem') : '6rem',
+                            bottom: useEmbedFallback
+                                ? (showUI ? (isMobile ? '16rem' : '14.5rem') : '10rem')
+                                : (showUI ? (isMobile ? '12rem' : '10.5rem') : '6rem'),
                             left: '50%',
                             transform: 'translateX(-50%)',
                             background: 'transparent',
@@ -2169,9 +2141,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             selectedSubtitleTrackId={selectedSubtitleTrackId}
                             onInternalAudioChange={handleInternalAudioChange}
                             onInternalSubtitleChange={handleInternalSubtitleChange}
-                            allSources={allSources}
-                            currentSourceIndex={currentSourceIndex}
-                            onSourceChange={handleSourceChange}
+                            allSources={useEmbedFallback ? embedSourcesMapped : allSources}
+                            currentSourceIndex={useEmbedFallback ? embedProviderIndex : currentSourceIndex}
+                            onSourceChange={useEmbedFallback ? setEmbedProviderIndex : handleSourceChange}
                             showTitle={title || movie.title || movie.name}
                             videoDuration={duration}
                         />
@@ -2209,9 +2181,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             selectedSubtitleTrackId={selectedSubtitleTrackId}
                             onInternalAudioChange={handleInternalAudioChange}
                             onInternalSubtitleChange={handleInternalSubtitleChange}
-                            allSources={allSources}
-                            currentSourceIndex={currentSourceIndex}
-                            onSourceChange={handleSourceChange}
+                            allSources={useEmbedFallback ? embedSourcesMapped : allSources}
+                            currentSourceIndex={useEmbedFallback ? embedProviderIndex : currentSourceIndex}
+                            onSourceChange={useEmbedFallback ? setEmbedProviderIndex : handleSourceChange}
                             showTitle={title || movie.title || movie.name}
                             videoDuration={duration}
                         />

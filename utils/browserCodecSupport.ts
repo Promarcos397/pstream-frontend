@@ -55,6 +55,14 @@ function tryCanPlayType(mime: string): boolean {
 
 async function tryAudioMediaCapabilities(contentType: string): Promise<boolean> {
     if (typeof navigator === 'undefined' || !('mediaCapabilities' in navigator)) return false;
+    
+    // Safely bypass mediaCapabilities decodingInfo on iOS / Safari / WebKit to prevent process crashes
+    const ua = navigator.userAgent;
+    const isWebKit = /AppleWebKit/i.test(ua) && (
+        /Safari/i.test(ua) || /iPhone|iPad|iPod/i.test(ua) || /CriOS|FxiOS/i.test(ua)
+    );
+    if (isWebKit) return false;
+
     try {
         const r = await (navigator as any).mediaCapabilities.decodingInfo({
             type: 'file',
@@ -71,6 +79,19 @@ async function tryAudioMediaCapabilities(contentType: string): Promise<boolean> 
  */
 async function tryVideoHWDecode(contentType: string): Promise<boolean> {
     if (typeof navigator === 'undefined' || !('mediaCapabilities' in navigator)) return false;
+
+    // Safely bypass mediaCapabilities decodingInfo on iOS / Safari / WebKit to prevent process crashes
+    const ua = navigator.userAgent;
+    const isWebKit = /AppleWebKit/i.test(ua) && (
+        /Safari/i.test(ua) || /iPhone|iPad|iPod/i.test(ua) || /CriOS|FxiOS/i.test(ua)
+    );
+    if (isWebKit) {
+        // Fallback for Safari/Apple which natively hardware-accelerates standard codecs
+        if (contentType.includes('avc1')) return true;
+        if (contentType.includes('hvc1') || contentType.includes('hev1')) return true;
+        return false;
+    }
+
     try {
         const r = await (navigator as any).mediaCapabilities.decodingInfo({
             type: 'file',
