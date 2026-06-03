@@ -377,7 +377,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
         // Case 1: There is a next episode in this same season
         if (currentIdx !== -1 && currentIdx < currentSeasonEpisodes.length - 1) {
-            return { episode: currentSeasonEpisodes.at(currentIdx + 1)!, season: playingSeasonNumber };
+            return { episode: currentSeasonEpisodes[currentIdx + 1]!, season: playingSeasonNumber };
         }
         // Case 2: Last episode of the season — find the next season
         const nextSeason = seasonList.find(s => s > playingSeasonNumber);
@@ -401,7 +401,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const currentIdx = currentSeasonEpisodes.findIndex(ep => ep.episode_number === currentEpisode);
         // Case 1: There is a previous episode in this same season
         if (currentIdx > 0) {
-            return { episode: currentSeasonEpisodes.at(currentIdx - 1)!, season: playingSeasonNumber };
+            return { episode: currentSeasonEpisodes[currentIdx - 1]!, season: playingSeasonNumber };
         }
         // Case 2: First episode of the season — find the previous season
         const prevSeason = [...seasonList].reverse().find(s => s < playingSeasonNumber);
@@ -547,7 +547,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         // Without this, a cache-bust re-fetch that returns the same dead URL gets tried again immediately.
         let startIndex = 0;
         for (let i = 0; i < sources.length; i++) {
-            const candidate = sources.at(i);
+            const candidate = sources[i];
             const sourceKey = `${candidate.providerId || candidate.provider || 'unknown'}::${candidate.url || ''}`;
             const blockedUntil = sourceFailureCooldownRef.current.get(sourceKey) || 0;
             if (blockedUntil <= Date.now()) {
@@ -638,13 +638,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     // ——— Manual source change ——————————————————————————————————————————————————————
     const handleSourceChange = useCallback((index: number) => {
-        if (!allSources.at(index)) return;
-        const candidate = allSources.at(index);
+        if (!allSources[index]) return;
+        const candidate = allSources[index];
         const sourceKey = `${candidate.providerId || candidate.provider || 'unknown'}::${candidate.url || ''}`;
         const blockedUntil = sourceFailureCooldownRef.current.get(sourceKey) || 0;
         if (blockedUntil > Date.now()) {
             const nextIndex = index + 1;
-            if (allSources.at(nextIndex)) {
+            if (allSources[nextIndex]) {
                 handleSourceChange(nextIndex);
             }
             return;
@@ -723,7 +723,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 if (data?.episodes && data.episodes.length > 0) {
                     setCurrentSeasonEpisodes(data.episodes);
                     // Select the last episode of the previous season
-                    const lastEp = data.episodes.at(-1)!;
+                    const lastEp = data.episodes[data.episodes.length - 1]!;
                     setCurrentEpisode(lastEp.episode_number);
                 }
             }).catch(() => { });
@@ -938,7 +938,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         },
         onTokenExpired: () => {
-            const activeSource = allSources.at(currentSourceIndex);
+            const activeSource = allSources[currentSourceIndex];
             const activeProvider = activeSource?.provider || 'unknown';
             const activeProviderId = activeSource?.providerId;
             const activeUrl = activeSource?.url || '';
@@ -958,7 +958,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             // 403/401: First try cycling to next source in the current source list.
             // Only fall back to a full backend re-fetch if we've exhausted all sources.
             const nextIdx = currentSourceIndex + 1;
-            if (allSources.at(nextIdx)) {
+            if (allSources[nextIdx]) {
                 console.log(`[VideoPlayer] 🔄 403 on source ${currentSourceIndex} → trying source ${nextIdx}`);
                 handleSourceChange(nextIdx);
             } else if (retryCountRef.current < MAX_STREAM_RETRIES) {
@@ -997,7 +997,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         },
         onError: (errMsg) => {
-            const activeSource = allSources.at(currentSourceIndex);
+            const activeSource = allSources[currentSourceIndex];
             const activeProvider = activeSource?.provider || 'unknown';
             const activeProviderId = activeSource?.providerId;
             const activeUrl = activeSource?.url || '';
@@ -1051,8 +1051,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     // Report provider success after 10s of uninterrupted playback on a source.
     useEffect(() => {
-        const activeProvider = allSources.at(currentSourceIndex)?.provider;
-        const activeProviderId = allSources.at(currentSourceIndex)?.providerId;
+        const activeProvider = allSources[currentSourceIndex]?.provider;
+        const activeProviderId = allSources[currentSourceIndex]?.providerId;
         if (!activeProvider) return;
         if (!isPlaying || isBuffering || currentTime < 10) return;
         if (reportedSuccessRef.current === activeProvider) return;

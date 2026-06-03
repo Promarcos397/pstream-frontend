@@ -223,10 +223,10 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
         let maxSat = 0, vibR = 0, vibG = 0, vibB = 0;
 
         for (let i = 0; i < imgData.length; i += 4) {
-          const pixelR = imgData.at(i) ?? 0;
-          const pixelG = imgData.at(i + 1) ?? 0;
-          const pixelB = imgData.at(i + 2) ?? 0;
-          const pixelA = imgData.at(i + 3) ?? 0;
+          const pixelR = imgData[i] ?? 0;
+          const pixelG = imgData[i + 1] ?? 0;
+          const pixelB = imgData[i + 2] ?? 0;
+          const pixelA = imgData[i + 3] ?? 0;
 
           if (pixelA > 180) {
             const brightness = (pixelR * 299 + pixelG * 587 + pixelB * 114) / 1000;
@@ -272,9 +272,9 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           let fallbackR = 0, fallbackG = 0, fallbackB = 0;
           const total = imgData.length / 4;
           for (let i = 0; i < imgData.length; i += 4) {
-            fallbackR += imgData.at(i) ?? 0;
-            fallbackG += imgData.at(i + 1) ?? 0;
-            fallbackB += imgData.at(i + 2) ?? 0;
+            fallbackR += imgData[i] ?? 0;
+            fallbackG += imgData[i + 1] ?? 0;
+            fallbackB += imgData[i + 2] ?? 0;
           }
           setAccentRGB({
             r: Math.round(fallbackR / total),
