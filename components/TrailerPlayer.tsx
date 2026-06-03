@@ -45,9 +45,12 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     const DEFAULT_CROP: Record<string, number> = { card: 1.35, hero: 1.15, modal: 1.35 };
     const zoomFactor = cropFactor ?? DEFAULT_CROP[variant] ?? 1.35;
 
-    // Artificial inflation (1200% size) shrinks YouTube chrome to ~1-2px at visual scale.
-    // Stays well under GPU texture limits while forcing YouTube to serve max quality.
-    const artificialScale = 12.0;
+    // Artificial inflation shrinks YouTube chrome to make it unobtrusive.
+    // We use a safe scaling factor (2.2 for WebKit/Safari, 2.5 for others) to stay well 
+    // under GPU texture limits and prevent process crashes on iOS.
+    const isWebKit = typeof window !== 'undefined' && 
+        (/iPad|iPhone|iPod/.test(navigator.userAgent) || /^((?!chrome|android).)*safari/i.test(navigator.userAgent));
+    const artificialScale = isWebKit ? 2.2 : 2.5;
 
     // Unified scaling logic for all variants
     const getSizingStyle = (): React.CSSProperties => {

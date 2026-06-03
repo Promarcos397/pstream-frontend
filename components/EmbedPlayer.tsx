@@ -433,8 +433,14 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     const hideNative = currentProvider.supportsControlsHide;
     
     // Smart high-res scaling factor: renders the iframe at a higher resolution
-    // to make its internal UI elements (controls, menus, buttons) microscopic and sharp (12x smaller).
-    const highResFactor = hideNative ? 1.0 : 15.0;
+    // to make its internal UI elements (controls, menus, buttons) microscopic and sharp.
+    // We use a safe scaling factor (2.2 for WebKit/Safari, 2.5 for others) to stay well
+    // under GPU texture limits and prevent process crashes on iOS.
+    const isWebKit = typeof window !== 'undefined' && 
+        (/iPad|iPhone|iPod/.test(navigator.userAgent) || /^((?!chrome|android).)*safari/i.test(navigator.userAgent));
+    const highResFactor = hideNative 
+        ? 1.0 
+        : (isWebKit ? 2.2 : 2.5);
     
     // Zoom factor: crops out the outer edges to hide native player controls and branding.
     const zoomFactor = videoFit === 'cover' 
