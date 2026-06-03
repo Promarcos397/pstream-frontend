@@ -73,7 +73,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
 
   // Click outside to collapse
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         // Only collapse if the input is NOT focused and there is no text.
         // This prevents autofill/autocorrect popups from closing the bar.
@@ -85,7 +85,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [searchQuery, onActiveChange]);
 
   // Pre-fetching search results as user types (debounce: 500ms)
