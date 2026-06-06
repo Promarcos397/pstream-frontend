@@ -128,7 +128,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
           style={{
             backgroundColor: `rgba(0, 0, 0, ${opacity})`
           }}
-          className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-0 transition-all duration-300 ease-out border-none shadow-none translate-y-0 sm:hidden"
+          className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0 sm:hidden"
         >
           <div className="flex items-center justify-between py-1 w-full">
             <div className="flex items-center justify-start gap-2.5">
