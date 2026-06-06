@@ -1,23 +1,7 @@
-// ─── TMDB API Configuration ──────────────────────────────────────────────────
-// API key is read from environment — never hardcode in source.
-// Set VITE_TMDB_API_KEY in your .env file (and Cloudflare Pages env vars).
-export const API_KEY = (import.meta as any).env?.VITE_TMDB_API_KEY || '';
 export const BASE_URL = 'https://api.themoviedb.org/3';
 export const IMG_PATH = 'https://image.tmdb.org/t/p/w780';
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 export const LOGO_SIZE = 'w780'; // Higher resolution for professional display
-
-// Helper to get current display language from localStorage
-const getCurrentLanguage = (): string => {
-  try {
-    const settings = localStorage.getItem('pstream-settings');
-    if (settings) {
-      const parsed = JSON.parse(settings);
-      return parsed.displayLanguage || 'en-US';
-    }
-  } catch { }
-  return 'en-US';
-};
 
 // Dynamic REQUESTS - URLs are handled by the tmdb service which injects keys/language
 export const REQUESTS = {
@@ -51,7 +35,7 @@ export const REQUESTS = {
     return this._build(`${BASE_URL}/discover/${type}`, {
       with_genres: genreId,
       sort_by: sortBy,
-      'vote_count.gte': type === 'tv' ? 20 : 100
+      'vote_count.gte': type === 'tv' ? 5 : 25
     }, extra);
   },
 
@@ -69,9 +53,8 @@ export const REQUESTS = {
     });
   },
   get fetchUSSeries()            { return this._build(`${BASE_URL}/discover/tv`, { with_origin_country: 'US', sort_by: 'popularity.desc' }); },
-  get fetchFamiliarFavoritesTV() { return this._build(`${BASE_URL}/discover/tv`, { sort_by: 'vote_count.desc' }); },
   get fetchExcitingSeriesTV()    { return this.fetchByGenre('tv', 10759, 'popularity.desc'); }, // Simplified
-  get fetchLoveTheseTV()         { return this._build(`${BASE_URL}/discover/tv`, { sort_by: 'vote_average.desc', 'vote_count.gte': 2000 }); },
+  get fetchLoveTheseTV()         { return this._build(`${BASE_URL}/discover/tv`, { sort_by: 'vote_average.desc', 'vote_count.gte': 500 }); },
 
   get fetchBoredomBustersMovies()    { 
     return this._build(`${BASE_URL}/discover/movie`, {
@@ -87,7 +70,7 @@ export const REQUESTS = {
       sort_by: 'popularity.desc'
     });
   },
-  get fetchLoveTheseMovies()         { return this._build(`${BASE_URL}/discover/movie`, { sort_by: 'vote_average.desc', 'vote_count.gte': 5000 }); },
+  get fetchLoveTheseMovies()         { return this._build(`${BASE_URL}/discover/movie`, { sort_by: 'vote_average.desc', 'vote_count.gte': 1200 }); },
 
   get fetchTrendingTV()     { return `${BASE_URL}/trending/tv/day`; },
   get fetchTrendingMovies() { return `${BASE_URL}/trending/movie/day`; },
@@ -104,7 +87,7 @@ export const REQUESTS = {
     return this._build(`${BASE_URL}/discover/${type}`, {
       with_genres: genreIds,
       sort_by: 'popularity.desc',
-      'vote_count.gte': 200
+      'vote_count.gte': 50
     }, extra);
   },
   fetchTopPicks(type: 'movie' | 'tv', topGenreIds: string) {
@@ -112,13 +95,13 @@ export const REQUESTS = {
       with_genres: topGenreIds,
       sort_by: 'popularity.desc',
       'vote_average.gte': 6.5,
-      'vote_count.gte': 500
+      'vote_count.gte': 120
     });
   },
   get fetchAwardWinningSeries() {
     return this._build(`${BASE_URL}/discover/tv`, {
       sort_by: 'vote_average.desc',
-      'vote_count.gte': 2000,
+      'vote_count.gte': 500,
       with_original_language: 'en'
     });
   },
@@ -130,14 +113,14 @@ export const REQUESTS = {
       'primary_release_date.lte': fmt(today),
       'primary_release_date.gte': fmt(past),
       sort_by: 'popularity.desc',
-      'vote_count.gte': 50
+      'vote_count.gte': 12
     });
   },
   get fetchCriticallyAcclaimedDrama() {
     return this.fetchByGenre('tv', 18, 'vote_average.desc'); // Let fetchByGenre handle it
   },
   get fetchFamiliarFavorites() {
-    return this._build(`${BASE_URL}/discover/tv`, { sort_by: 'vote_count.desc', 'vote_count.gte': 3000 });
+    return this._build(`${BASE_URL}/discover/tv`, { sort_by: 'vote_count.desc', 'vote_count.gte': 800 });
   },
   get fetchImaginativeSeries() {
     return this.fetchByGenre('tv', 10765, 'popularity.desc');
@@ -147,7 +130,7 @@ export const REQUESTS = {
       with_genres: genreIds,
       with_origin_country: country,
       sort_by: 'popularity.desc',
-      'vote_count.gte': 100
+      'vote_count.gte': 25
     });
   },
 };

@@ -9,6 +9,8 @@ import {
   buildMovieSubpageManifest,
   buildTvSubpageManifest,
 } from './genreManifestBuilder';
+import { HeroEngine } from '../services/HeroEngine';
+import { isUrlCached } from '../services/api';
 
 // Re-export context helpers from HeroEngine so both systems share the same logic
 export { getTimeSlot, getSeason, getCurrentHoliday } from '../services/HeroEngine';
@@ -38,6 +40,9 @@ const makeUrlSig = (url: string): string => {
   } catch { return url; }
 };
 
+// Cache to track which page/genre combinations have already been visited to skip skeletons on revisit
+const visitedCache = new Set<string>();
+
 // ─── useDynamicManifest ───────────────────────────────────────────────────────
 export const useDynamicManifest = (
   pageType: 'home' | 'movie' | 'tv' | 'new_popular',
@@ -50,15 +55,6 @@ export const useDynamicManifest = (
     getLikedMovies, clearSeenIds,
     getVideoState, getLastWatchedEpisode,
   } = useGlobalContext();
-
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    clearSeenIds();
-    setIsLoading(true);
-    const timer = setTimeout(() => setIsLoading(false), 180);
-    return () => clearTimeout(timer);
-  }, [pageType, selectedGenreId, clearSeenIds]);
 
   const rows = useMemo<SmartRow[]>(() => {
     const manifest: SmartRow[] = [];
@@ -112,16 +108,18 @@ export const useDynamicManifest = (
       manifest.push({ key: 'top10-tv',       title: 'Top 10 Series in the UK Today',    fetchUrl: REQUESTS.fetchTrendingTV,      type: 'top10' });
       manifest.push({ key: 'new-releases',   title: 'Newly Added to the Collection',    fetchUrl: REQUESTS.fetchNewReleases });
       manifest.push({ key: 'worth-wait',     title: 'Worth the Wait',                   fetchUrl: REQUESTS.fetchUpcoming + '&page=2' });
-      manifest.push({ key: 'rising-stars',   title: 'Rising Stars: Under the Radar',    fetchUrl: REQUESTS.fetchByGenre('movie', 28, 'vote_average.desc', '&vote_count.gte=100&vote_count.lte=1000') });
-      manifest.push({ key: 'new-this-year',  title: `The Best of ${year} So Far`,        fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', `&release_date.gte=${year}-01-01&vote_count.gte=50`) });
-      manifest.push({ key: 'new-tv-year',    title: `New Series Everyone Is Watching`,  fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'vote_average.desc', `&first_air_date.gte=${year}-01-01&vote_count.gte=30`) });
+      manifest.push({ key: 'rising-stars',   title: 'Rising Stars: Under the Radar',    fetchUrl: REQUESTS.fetchByGenre('movie', 28, 'vote_average.desc', '&vote_count.gte=25&vote_count.lte=250') });
+      manifest.push({ key: 'new-this-year',  title: `The Best of ${year} So Far`,        fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', `&release_date.gte=${year}-01-01&vote_count.gte=12`) });
+
+      // new-tv-year - need to fix this
+      manifest.push({ key: 'new-tv-year',    title: `New Series Everyone Is Watching`,  fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'vote_average.desc', `&first_air_date.gte=${year}-01-01&vote_count.gte=8`) });
       manifest.push({ key: 'internet-buzz',  title: "The Shows the Internet Can't Stop Talking About", fetchUrl: REQUESTS.fetchTrendingTV + '&page=2' });
       manifest.push({ key: 'films-buzz',     title: 'The Films Everyone Is Discussing', fetchUrl: REQUESTS.fetchTrendingMovies + '&page=2' });
       manifest.push({ key: 'np-upcoming',    title: 'Coming to the Collection Soon',    fetchUrl: REQUESTS.fetchUpcoming });
-      manifest.push({ key: 'np-acclaimed',   title: 'New and Acclaimed',                fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', `&release_date.gte=${year - 1}-01-01&vote_count.gte=300`) });
+      manifest.push({ key: 'np-acclaimed',   title: 'New and Acclaimed',                fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', `&release_date.gte=${year - 1}-01-01&vote_count.gte=80`) });
       manifest.push({ key: 'np-series-new',  title: 'Series Picking Up Steam',          fetchUrl: REQUESTS.fetchByGenre('tv', 10765, 'popularity.desc', `&first_air_date.gte=${year - 1}-01-01`) });
       manifest.push({ key: 'np-drama-new',   title: 'New Dramas With Something to Say', fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'popularity.desc', `&first_air_date.gte=${year}-01-01`) });
-      manifest.push({ key: 'np-hidden',      title: 'Flying Under the Radar',           fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', '&vote_count.gte=100&vote_count.lte=800') });
+      manifest.push({ key: 'np-hidden',      title: 'Flying Under the Radar',           fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', '&vote_count.gte=25&vote_count.lte=200') });
       manifest.push({ key: 'np-intl',        title: 'International Discoveries',        fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'popularity.desc') + '&without_original_language=en' });
       return manifest;
     }
@@ -188,6 +186,45 @@ export const useDynamicManifest = (
 
     return manifest;
   }, [pageType, selectedGenreId, selectedGenreName, continueWatching, myList, user, getLikedMovies, t]);
+
+  const cacheKey = `${pageType}-${selectedGenreId || 'all'}`;
+  const alreadyVisited = useMemo(() => visitedCache.has(cacheKey), [cacheKey]);
+
+  // Synchronously verify if hero and the first 3 rows' API responses are already cached
+  const isDataCached = useMemo(() => {
+    // 1. Check if Hero is cached
+    const heroCacheKey = selectedGenreId ? `${pageType}_${selectedGenreId}` : pageType;
+    const heroCached = HeroEngine.getCachedHero(heroCacheKey);
+    if (!heroCached) return false;
+
+    // 2. Check if first 3 rows with fetchUrls are cached
+    const rowsWithUrls = rows.filter(r => r.fetchUrl);
+    const checkCount = Math.min(rowsWithUrls.length, 3);
+    for (let i = 0; i < checkCount; i++) {
+      if (!isUrlCached(rowsWithUrls[i].fetchUrl!)) {
+        return false;
+      }
+    }
+    return true;
+  }, [rows, pageType, selectedGenreId]);
+
+  const skipSkeleton = alreadyVisited || isDataCached;
+  const [isLoading, setIsLoading] = useState(!skipSkeleton);
+
+  useEffect(() => {
+    clearSeenIds();
+    if (!skipSkeleton) {
+      setIsLoading(true);
+      const timer = setTimeout(() => {
+        visitedCache.add(cacheKey);
+        setIsLoading(false);
+      }, 480);
+      return () => clearTimeout(timer);
+    } else {
+      visitedCache.add(cacheKey);
+      setIsLoading(false);
+    }
+  }, [pageType, selectedGenreId, clearSeenIds, cacheKey, skipSkeleton]);
 
   return { rows, isLoading };
 };

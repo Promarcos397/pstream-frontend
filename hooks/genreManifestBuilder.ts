@@ -224,9 +224,9 @@ export const getProfileRows = (profileKey: string): ProfileRowDef[] => {
 
 const getMovieFallbackProfiles = (softerVotes: boolean): ProfileRowDef[] => [
   { key: 'popular-films', title: 'Popular Films', sort: 'popularity.desc', extra: '' },
-  { key: 'acclaimed-films', title: 'Critically Acclaimed Films', sort: 'vote_average.desc', extra: softerVotes ? '&vote_count.gte=500' : '&vote_count.gte=1500' },
-  { key: 'hidden-gem-films', title: 'Hidden Gem Films', sort: 'vote_average.desc', extra: '&vote_count.gte=200&vote_count.lte=1200' },
-  { key: 'new-releases-films', title: 'New Releases', sort: 'release_date.desc', extra: '&vote_count.gte=20' },
+  { key: 'acclaimed-films', title: 'Critically Acclaimed Films', sort: 'vote_average.desc', extra: softerVotes ? '&vote_count.gte=150' : '&vote_count.gte=400' },
+  { key: 'hidden-gem-films', title: 'Hidden Gem Films', sort: 'vote_average.desc', extra: '&vote_count.gte=50&vote_count.lte=300' },
+  { key: 'new-releases-films', title: 'New Releases', sort: 'release_date.desc', extra: '&vote_count.gte=5' },
 ];
 
 export interface BuildGenreSliceOpts {
@@ -290,26 +290,26 @@ export const buildGenreManifestSlice = (opts: BuildGenreSliceOpts): SmartRow[] =
     if (row) rows.push(row);
   });
 
-  const movieAcclaimedThreshold = softerMovieVotes ? '&vote_count.gte=500' : '&vote_count.gte=1500';
+  const movieAcclaimedThreshold = softerMovieVotes ? '&vote_count.gte=150' : '&vote_count.gte=400';
 
   const dimensionRows: (SmartRow | null)[] = [
     gRow(`genre-p2-${selectedGenreId}`, 'More to Explore', 'popularity.desc', '&page=2'),
-    gRow(`genre-acclaimed-${selectedGenreId}`, 'Critically Acclaimed', 'vote_average.desc', isTV ? '&vote_count.gte=150' : movieAcclaimedThreshold),
+    gRow(`genre-acclaimed-${selectedGenreId}`, 'Critically Acclaimed', 'vote_average.desc', isTV ? '&vote_count.gte=40' : movieAcclaimedThreshold),
     gRow(`genre-cult-${selectedGenreId}`, 'Cult Favorites', 'vote_count.desc', '&vote_average.gte=6.0&vote_average.lte=8.0'),
-    gRow(`genre-hidden-${selectedGenreId}`, 'Hidden Gems', 'vote_average.desc', isTV ? '&vote_count.gte=30&vote_count.lte=300' : '&vote_count.gte=200&vote_count.lte=1200'),
-    gRow(`genre-2020s-${selectedGenreId}`, 'Best of the 2020s', 'vote_average.desc', `${getReleaseDateParam('2020-01-01')}&vote_count.gte=${isTV ? 20 : 100}`),
-    gRow(`genre-2010s-${selectedGenreId}`, 'Defining the 2010s', 'vote_average.desc', `${getReleaseDateParam('2010-01-01', '2019-12-31')}&vote_count.gte=${isTV ? 50 : 500}`),
-    gRow(`genre-classics-${selectedGenreId}`, `Classic ${baseGenreName}`, 'vote_average.desc', `${getReleaseDateParam(undefined, '2009-12-31')}&vote_count.gte=${isTV ? 30 : 1000}`),
+    gRow(`genre-hidden-${selectedGenreId}`, 'Hidden Gems', 'vote_average.desc', isTV ? '&vote_count.gte=8&vote_count.lte=80' : '&vote_count.gte=50&vote_count.lte=300'),
+    gRow(`genre-2020s-${selectedGenreId}`, 'Best of the 2020s', 'vote_average.desc', `${getReleaseDateParam('2020-01-01')}&vote_count.gte=${isTV ? 5 : 25}`),
+    gRow(`genre-2010s-${selectedGenreId}`, 'Defining the 2010s', 'vote_average.desc', `${getReleaseDateParam('2010-01-01', '2019-12-31')}&vote_count.gte=${isTV ? 12 : 120}`),
+    gRow(`genre-classics-${selectedGenreId}`, `Classic ${baseGenreName}`, 'vote_average.desc', `${getReleaseDateParam(undefined, '2009-12-31')}&vote_count.gte=${isTV ? 8 : 250}`),
     gRow(`genre-intl-${selectedGenreId}`, 'Global Hits', 'popularity.desc', '&without_original_language=en'),
     gRow(`genre-british-${selectedGenreId}`, 'Best of British', 'popularity.desc', '&with_origin_country=GB'),
     gRow(isTV ? 'genre-korean-tv' : 'genre-korean-movie', isTV ? 'K-Drama Fever' : 'Korean Cinema', 'popularity.desc', '&with_origin_country=KR'),
-    gRow(`genre-recent-${selectedGenreId}`, 'Newly Added', isTV ? 'first_air_date.desc' : 'release_date.desc', '&vote_count.gte=20'),
+    gRow(`genre-recent-${selectedGenreId}`, 'Newly Added', isTV ? 'first_air_date.desc' : 'release_date.desc', '&vote_count.gte=5'),
     gRow(`genre-deep3-${selectedGenreId}`, 'Deeper Cuts', 'popularity.desc', '&page=3'),
     gRow(`genre-deep4-${selectedGenreId}`, 'More to Watch', 'popularity.desc', '&page=4'),
     gRow(`genre-legends-${selectedGenreId}`, 'All-Time Greats', 'vote_count.desc', '&vote_average.gte=8.0'),
-    gRow(`genre-sleeper-${selectedGenreId}`, 'Quiet Masterpieces', 'vote_average.desc', isTV ? '&vote_count.gte=10&vote_count.lte=80' : '&vote_count.gte=40&vote_count.lte=199'),
-    gRow(`genre-modern-${selectedGenreId}`, 'Modern Favorites', 'vote_average.desc', `${getReleaseDateParam('2018-01-01')}&vote_count.gte=${isTV ? 50 : 300}`),
-    gRow(`genre-year-${selectedGenreId}`, `Best of ${year}`, 'vote_average.desc', `${getReleaseDateParam(`${year}-01-01`)}&vote_count.gte=${isTV ? 10 : 30}`),
+    gRow(`genre-sleeper-${selectedGenreId}`, 'Quiet Masterpieces', 'vote_average.desc', isTV ? '&vote_count.gte=3&vote_count.lte=20' : '&vote_count.gte=10&vote_count.lte=50'),
+    gRow(`genre-modern-${selectedGenreId}`, 'Modern Favorites', 'vote_average.desc', `${getReleaseDateParam('2018-01-01')}&vote_count.gte=${isTV ? 12 : 80}`),
+    gRow(`genre-year-${selectedGenreId}`, `Best of ${year}`, 'vote_average.desc', `${getReleaseDateParam(`${year}-01-01`)}&vote_count.gte=${isTV ? 3 : 8}`),
   ];
   dimensionRows.forEach(r => r && rows.push(r));
 
@@ -579,7 +579,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     sort_by: 'popularity.desc',
     'primary_release_date.gte': '2000-01-01',
     'primary_release_date.lte': '2005-12-31',
-    'vote_count.gte': selectedGenreId ? 100 : 500,
+    'vote_count.gte': selectedGenreId ? 25 : 120,
   });
   pool.push({
     key: `${moviePrefix}-theme-retro00s`,
@@ -592,7 +592,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     sort_by: 'popularity.desc',
     'primary_release_date.gte': '1990-01-01',
     'primary_release_date.lte': '1999-12-31',
-    'vote_count.gte': selectedGenreId ? 100 : 500,
+    'vote_count.gte': selectedGenreId ? 25 : 120,
   });
   pool.push({
     key: `${moviePrefix}-theme-retro90s`,
@@ -605,7 +605,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   const quickUrl = REQUESTS._build(`${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/tv`, {
     sort_by: 'popularity.desc',
     with_genres: quickTVGenre || '',
-    'vote_count.gte': selectedGenreId ? 20 : 150,
+    'vote_count.gte': selectedGenreId ? 5 : 40,
   });
   pool.push({
     key: `${tvPrefix}-theme-quickwatch`,
@@ -617,7 +617,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   const bookUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
     with_keywords: '818,10214',
-    'vote_count.gte': selectedGenreId ? 10 : 80,
+    'vote_count.gte': selectedGenreId ? 3 : 20,
   });
   pool.push({
     key: `${tvPrefix}-theme-books`,
@@ -631,7 +631,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     sort_by: 'popularity.desc',
     with_genres: tvGenreId ? `${tvGenreId},16` : 16,
     with_original_language: 'ja',
-    'vote_count.gte': selectedGenreId ? 10 : 80,
+    'vote_count.gte': selectedGenreId ? 3 : 20,
   });
   pool.push({
     key: `${tvPrefix}-theme-animedub`,
@@ -644,7 +644,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   const teaUrl = REQUESTS._build(`${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/tv`, {
     sort_by: 'popularity.desc',
     with_genres: tvGenreId ? `${tvGenreId},18` : '18,10764,10767',
-    'vote_count.gte': selectedGenreId ? 10 : 100,
+    'vote_count.gte': selectedGenreId ? 3 : 25,
   });
   pool.push({
     key: `${tvPrefix}-theme-spilltea`,
@@ -668,7 +668,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     sort_by: 'popularity.desc',
     'primary_release_date.gte': '1980-01-01',
     'primary_release_date.lte': '1989-12-31',
-    'vote_count.gte': selectedGenreId ? 50 : 300,
+    'vote_count.gte': selectedGenreId ? 12 : 80,
   });
   pool.push({
     key: `${moviePrefix}-theme-retro80s`,
@@ -990,7 +990,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     const vintageUrl = buildScopedQuery('movie', {
       sort_by: 'popularity.desc',
       'primary_release_date.lte': '2010-01-01',
-      'vote_count.gte': 300,
+      'vote_count.gte': 80,
     });
     pool.push({
       key: `${moviePrefix}-theme-vintage-crime`,
@@ -1014,7 +1014,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     sort_by: 'popularity.desc',
     'primary_release_date.gte': '2000-01-01',
     'primary_release_date.lte': '2005-12-31',
-    'vote_count.gte': selectedGenreId ? 100 : 500,
+    'vote_count.gte': selectedGenreId ? 25 : 120,
   });
   pool.push({
     key: `${moviePrefix}-theme-retro00s`,
@@ -1027,7 +1027,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     sort_by: 'popularity.desc',
     'primary_release_date.gte': '1990-01-01',
     'primary_release_date.lte': '1999-12-31',
-    'vote_count.gte': selectedGenreId ? 100 : 500,
+    'vote_count.gte': selectedGenreId ? 25 : 120,
   });
   pool.push({
     key: `${moviePrefix}-theme-retro90s`,
@@ -1040,7 +1040,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     sort_by: 'popularity.desc',
     'primary_release_date.gte': '1980-01-01',
     'primary_release_date.lte': '1989-12-31',
-    'vote_count.gte': selectedGenreId ? 50 : 300,
+    'vote_count.gte': selectedGenreId ? 12 : 80,
   });
   pool.push({
     key: `${moviePrefix}-theme-retro80s`,
@@ -1052,7 +1052,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
   const quickUrl = buildScopedQuery('movie', {
     sort_by: 'popularity.desc',
     'with_runtime.lte': 90,
-    'vote_count.gte': selectedGenreId ? 50 : 250,
+    'vote_count.gte': selectedGenreId ? 12 : 60,
   });
   pool.push({
     key: `${moviePrefix}-theme-quickwatch`,
@@ -1064,7 +1064,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
   const bookUrl = buildScopedQuery('movie', {
     sort_by: 'popularity.desc',
     with_keywords: '818,10214',
-    'vote_count.gte': selectedGenreId ? 20 : 150,
+    'vote_count.gte': selectedGenreId ? 5 : 40,
   });
   pool.push({
     key: `${moviePrefix}-theme-books`,

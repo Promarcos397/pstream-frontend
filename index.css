@@ -45,6 +45,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: #000000;
   color: white;
+  overflow-x: hidden;
   overscroll-behavior-y: none; /* Prevent elastic bouncing on mobile */
   user-select: none; /* Prevent accidental text selection while navigating */
   -webkit-user-select: none;

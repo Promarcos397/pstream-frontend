@@ -79,10 +79,14 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
     // Auto-hide timer for controls overlay
     const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const [isInView, setIsInView]     = useState(false);
-    const [showVideo, setShowVideo]   = useState(false);
-    const [videoReady, setVideoReady] = useState(false);
-    const [trailerPct, setTrailerPct] = useState(0);
+    const [isInView, setIsInView]         = useState(false);
+    const [showVideo, setShowVideo]       = useState(false);
+    const [videoReady, setVideoReady]     = useState(false);
+    const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
+    const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
+    const [hasVideoEnded, setHasVideoEnded] = useState(false);
+    const [replayCount, setReplayCount]   = useState(0);
+    const [trailerPct, setTrailerPct]     = useState(0);
     const [currentTimeSec, setCurrentTimeSec] = useState(0);
     const [durationSec, setDurationSec]       = useState(0);
 
@@ -100,15 +104,17 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
 
     // Must match TrailerPlayer's variant key: `${variant}-${movie.id}`
     const myVideoId = `card-${movie.id}`;
-    const isMyVideoPlaying = activeVideoId === myVideoId && videoReady;
+    const isMyVideoActive = activeVideoId === myVideoId;
 
-    // ── Reset controls when video stops ──────────────────────────────────────
+    // ── Reset when movie changes or video is no longer active ────────────────
     useEffect(() => {
-        if (!isMyVideoPlaying) {
+        if (!isMyVideoActive) {
             setShowControls(false);
             setIsVideoPaused(false);
+            setIsActuallyPlaying(false);
+            setHasVideoEnded(false);
         }
-    }, [isMyVideoPlaying]);
+    }, [isMyVideoActive]);
 
     // ── Controls overlay helpers ──────────────────────────────────────────────
     const openControls = () => {
@@ -117,12 +123,31 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
         controlsTimerRef.current = setTimeout(() => setShowControls(false), 3000);
     };
 
+    // ── Tap handler: tap-to-play (first tap starts trailer), then tap controls ─
     const handleMediaTap = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (isMyVideoPlaying) {
-            openControls();
+        if (isActuallyPlaying) {
+            if (isVideoPaused) {
+                const player = playerInstanceRef.current;
+                if (player) { try { player.playVideo(); } catch {} }
+                setIsVideoPaused(false);
+                openControls();
+            } else if (hasVideoEnded) {
+                setHasVideoEnded(false);
+                setIsPlayingTrailer(true);
+                setIsActuallyPlaying(true);
+                setReplayCount(c => c + 1);
+            } else {
+                if (showControls) setShowControls(false);
+                else openControls();
+            }
         } else {
-            onSelect(movie);
+            // First tap → start trailer
+            setIsPlayingTrailer(true);
+            setIsActuallyPlaying(true);
+            setHasVideoEnded(false);
+            setShowVideo(true);
+            setActiveVideoId(myVideoId);
         }
     };
 
@@ -202,22 +227,22 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
         return () => { observer.disconnect(); preloadObserver.disconnect(); };
     }, [nextMovie]);
 
-    // ── Start / stop video based on visibility ────────────────────────────────
+    // ── Stop video when scrolled out of view ─────────────────────────────────
     useEffect(() => {
-        if (isInView) {
-            setShowVideo(true);
-            setTrailerPct(0);
-            setIsVideoPaused(false);
-            setActiveVideoId(myVideoId);
-            if (nextMovie) preloadTrailer(nextMovie);
-        } else {
+        if (!isInView) {
             setShowVideo(false);
             setVideoReady(false);
+            setIsPlayingTrailer(false);
+            setIsActuallyPlaying(false);
+            setHasVideoEnded(false);
             setTrailerPct(0);
             setCurrentTimeSec(0);
             setDurationSec(0);
             setShowControls(false);
             setActiveVideoId(prev => (prev === myVideoId ? null : prev) as string | null);
+        } else {
+            // When scrolled back in, preload next card's trailer
+            if (nextMovie) preloadTrailer(nextMovie);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isInView, myVideoId]);
@@ -255,32 +280,51 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                 className="relative w-full aspect-video overflow-hidden bg-black shrink-0 cursor-pointer"
                 onClick={handleMediaTap}
             >
-                {/* Backdrop */}
+                {/* Backdrop — hidden once trailer is actively playing */}
                 {backdropSrc && (
                     <img
                         src={backdropSrc}
                         alt={movie.title || movie.name || ''}
-                        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isMyVideoPlaying ? 'opacity-0' : 'opacity-100'}`}
+                        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
                         loading="lazy"
                     />
                 )}
 
+                {/* Play hint overlay when not yet started */}
+                {!isActuallyPlaying && backdropSrc && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                        <div className="w-[54px] h-[54px] rounded-full bg-black/50 border border-white/25 flex items-center justify-center shadow-2xl">
+                            <PlayIcon size={26} weight="fill" className="text-white ml-1" />
+                        </div>
+                    </div>
+                )}
+
                 {/* Trailer */}
                 {showVideo && (
-                    <div className="absolute inset-0">
+                    <div className={`absolute inset-0 transition-opacity duration-300 ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
                         <TrailerPlayer
-                            key={`spotlight-${movie.id}`}
+                            key={`spotlight-${movie.id}-${replayCount}`}
                             movie={movie}
                             variant="card"
-                            onReady={() => setVideoReady(true)}
-                            onPlay={() => setVideoReady(true)}
-                            onEnded={() => { setShowVideo(false); setVideoReady(false); }}
-                            onErrored={() => { setShowVideo(false); setVideoReady(false); }}
+                            onReady={() => { setVideoReady(true); setIsPlayingTrailer(true); }}
+                            onPlay={() => {
+                                setIsActuallyPlaying(true);
+                                setIsVideoPaused(false);
+                            }}
+                            onEnded={() => {
+                                setIsPlayingTrailer(false);
+                                setIsActuallyPlaying(false);
+                                setHasVideoEnded(true);
+                            }}
+                            onErrored={() => {
+                                setIsPlayingTrailer(false);
+                                setIsActuallyPlaying(false);
+                                setShowVideo(false);
+                            }}
                             onPlayerReady={p => { playerInstanceRef.current = p; }}
                             onTimeUpdate={(currentTime, duration) => {
                                 setCurrentTimeSec(currentTime);
                                 setDurationSec(duration);
-                                // Trailer auto-pauses at remaining < 8s; clamp bar to that window
                                 const usable = Math.max(duration - 8, 1);
                                 setTrailerPct(Math.min(100, (currentTime / usable) * 100));
                             }}
@@ -288,47 +332,48 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                     </div>
                 )}
 
-                {/* ── CONTROLS OVERLAY (tap to reveal) ────────────────── */}
-                {isMyVideoPlaying && showControls && (
-                    <div className="absolute inset-0 bg-black/30 z-20 flex items-center justify-center">
+                {/* Paused / ended overlay */}
+                {isActuallyPlaying && (isVideoPaused || hasVideoEnded) && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+                        <div className="w-[60px] h-[60px] rounded-full bg-black/50 border border-white/20 flex items-center justify-center shadow-2xl">
+                            <PlayIcon size={30} weight="fill" className="text-white ml-1" />
+                        </div>
+                    </div>
+                )}
+
+                {/* ── CONTROLS OVERLAY (tap to reveal while playing) ───── */}
+                {isActuallyPlaying && !isVideoPaused && showControls && (
+                    <div className="absolute inset-0 bg-black/25 z-20 flex items-center justify-center">
                         <button
                             onClick={handlePlayPause}
-                            className="w-[60px] h-[60px] rounded-full bg-white/90 flex items-center justify-center shadow-xl active:scale-90 transition-transform z-30"
+                            className="w-[60px] h-[60px] rounded-full bg-black/50 border border-white/20 flex items-center justify-center active:scale-90 transition-transform z-30 pointer-events-auto cursor-pointer"
                         >
-                            {isVideoPaused
-                                ? <PlayIcon  size={30} weight="fill" className="text-black ml-1" />
-                                : <PauseIcon size={30} weight="fill" className="text-black" />
-                            }
+                            <PauseIcon size={30} weight="fill" className="text-white" />
                         </button>
                     </div>
                 )}
 
                 {/* ── INTERACTIVE PROGRESS BAR (moves up when controls open) ── */}
-                {isMyVideoPlaying && (
+                {isActuallyPlaying && (
                     <div
                         className="absolute left-0 right-0 z-30 transition-all duration-300 ease-out"
                         style={{
-                            bottom:   showControls ? '44px' : '0px',
-                            padding:  showControls ? '0 16px' : '0',
-                            height:   showControls ? '20px'  : '2px',
+                            bottom:  showControls ? '44px' : '0px',
+                            padding: showControls ? '0 16px' : '0',
+                            height:  showControls ? '20px'  : '2px',
                         }}
                     >
                         {showControls ? (
-                            // Draggable scrub bar with thumb
                             <div
-                                className="relative w-full h-full flex items-center cursor-pointer touch-none select-none"
+                                className="relative w-full h-full flex items-center cursor-pointer touch-none select-none pointer-events-auto"
                                 onClick={handleScrub}
-                                onPointerMove={e => {
-                                    if (e.buttons !== 1) return;
-                                    handleScrub(e);
-                                }}
+                                onPointerMove={e => { if (e.buttons !== 1) return; handleScrub(e); }}
                             >
                                 <div className="relative w-full h-[3px] bg-white/25 rounded-full">
                                     <div
                                         className="absolute left-0 top-0 bottom-0 bg-[#E50914] rounded-full"
                                         style={{ width: `${trailerPct}%` }}
                                     />
-                                    {/* Circular thumb */}
                                     <div
                                         className="absolute top-1/2 -translate-y-1/2 w-[14px] h-[14px] bg-[#E50914] rounded-full shadow-lg pointer-events-none"
                                         style={{ left: `calc(${trailerPct}% - 7px)` }}
@@ -336,7 +381,6 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                                 </div>
                             </div>
                         ) : (
-                            // Passive thin bar at media bottom
                             <div className="w-full h-full bg-white/10 relative overflow-hidden">
                                 <div
                                     className="absolute top-0 left-0 bottom-0 bg-[#E50914] transition-[width] duration-500 ease-linear"
@@ -347,8 +391,8 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                     </div>
                 )}
 
-                {/* Time display — ~1 inch above the scrub bar when controls open */}
-                {isMyVideoPlaying && showControls && (
+                {/* Time display */}
+                {isActuallyPlaying && showControls && (
                     <div className="absolute z-30 pointer-events-none" style={{ bottom: '68px', right: '20px' }}>
                         <span className="text-white text-[13px] font-semibold tracking-wide drop-shadow-md tabular-nums">
                             {fmtTime(currentTimeSec)}
@@ -356,26 +400,36 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                     </div>
                 )}
 
-                {/* Mute button — z-25 so it stays above the dark overlay */}
-                {isMyVideoPlaying && (
+                {/* Mute / Replay button */}
+                {isActuallyPlaying && (
                     <button
-                        onClick={e => { e.stopPropagation(); setGlobalMute(!globalMute); }}
-                        className="absolute bottom-3 right-3 w-6 h-6 rounded-full bg-black/50 border border-white/25 text-white flex items-center justify-center backdrop-blur-md hover:bg-black/70 transition-colors"
+                        onClick={e => {
+                            e.stopPropagation();
+                            if (hasVideoEnded) {
+                                setHasVideoEnded(false);
+                                setIsPlayingTrailer(true);
+                                setIsActuallyPlaying(true);
+                                setReplayCount(c => c + 1);
+                            } else {
+                                setGlobalMute(!globalMute);
+                            }
+                        }}
+                        className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/50 border border-white/25 text-white flex items-center justify-center backdrop-blur-md hover:bg-black/70 transition-colors"
                         style={{ zIndex: 25 }}
                     >
-                        {globalMute
-                            ? <SpeakerSlashIcon size={14} weight="bold" className="text-white" />
-                            : <SpeakerHighIcon  size={14} weight="bold" className="text-white" />
+                        {hasVideoEnded
+                            ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                            : globalMute
+                                ? <SpeakerSlashIcon size={14} weight="bold" className="text-white" />
+                                : <SpeakerHighIcon  size={14} weight="bold" className="text-white" />
                         }
                     </button>
                 )}
 
-                {/* Maturity disc — top-right, above overlay */}
+                {/* Maturity disc */}
                 <div className="absolute top-3 right-3 z-30 pointer-events-none drop-shadow-md">
                     <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} size="xs" />
                 </div>
-
-
             </div>
 
             {/* Accent glow line at media/content boundary */}

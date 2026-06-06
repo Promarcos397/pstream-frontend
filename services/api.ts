@@ -16,6 +16,8 @@
 // ─── TMDB ─────────────────────────────────────────────────────────────────────
 export {
   getMovieImages,
+  getCachedMovieImages,
+  isUrlCached,
   getMovieDetails,
   getMovieVideos,
   getMovieCredits,

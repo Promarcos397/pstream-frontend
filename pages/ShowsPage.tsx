@@ -36,14 +36,14 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
           selectedGenre={selectedGenre}
           onGenreSelect={setSelectedGenre}
         />
-
-      <AnimatePresence>
-        {!isAppReady || isLoading ? (
+        <AnimatePresence initial={false}>
+        {(!isAppReady || isLoading) && (
           <motion.div
             key="skeletons"
+            className="absolute inset-0 z-[100] bg-black md:bg-[#141414] pointer-events-none"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.3 }}
           >
              {!isAppReady && (
                <div className="absolute inset-0 opacity-0 pointer-events-none overflow-hidden" aria-hidden>
@@ -62,49 +62,44 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
                 <ManifestSkeleton count={8} />
              </main>
           </motion.div>
-        ) : (
-          <motion.div
-            key="content"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-          >
-            <HeroCarousel
-              key={`shows-${selectedGenre?.id || 'all'}`}
-              fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV}
-              onSelect={onSelectMovie}
-              onPlay={onPlay}
-              genreId={selectedGenre?.id}
-              pageType="tv"
-            />
-            <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6">
-              {rows.map((row, index) => (
-                row.type === 'top10' ? (
-                  <TopTenRow
-                    key={row.key}
-                    index={index}
-                    title={row.title}
-                    fetchUrl={row.fetchUrl}
-                    onSelect={onSelectMovie}
-                  />
-                ) : (
-                  <Row
-                    key={row.key}
-                    index={index}
-                    title={row.title}
-                    fetchUrl={row.fetchUrl}
-                    data={row.data}
-                    onSelect={onSelectMovie}
-                    onPlay={onPlay}
-                    rowKey={row.key}
-                    onViewAll={onViewAll}
-                  />
-                )
-              ))}
-            </main>
-          </motion.div>
         )}
       </AnimatePresence>
+
+      <div className={`transition-opacity duration-300 ${(!isAppReady || isLoading) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <HeroCarousel
+          key={`shows-${selectedGenre?.id || 'all'}`}
+          fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV}
+          onSelect={onSelectMovie}
+          onPlay={onPlay}
+          genreId={selectedGenre?.id}
+          pageType="tv"
+        />
+        <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6">
+          {rows.map((row, index) => (
+            row.type === 'top10' ? (
+              <TopTenRow
+                key={row.key}
+                index={index}
+                title={row.title}
+                fetchUrl={row.fetchUrl}
+                onSelect={onSelectMovie}
+              />
+            ) : (
+              <Row
+                key={row.key}
+                index={index}
+                title={row.title}
+                fetchUrl={row.fetchUrl}
+                data={row.data}
+                onSelect={onSelectMovie}
+                onPlay={onPlay}
+                rowKey={row.key}
+                onViewAll={onViewAll}
+              />
+            )
+          ))}
+        </main>
+      </div>
     </div>
   );
 };

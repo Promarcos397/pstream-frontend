@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES } from '../constants';
 import { Movie } from '../types';
-import { getMovieImages } from '../services/api';
+import { getMovieImages, getCachedMovieImages } from '../services/api';
 
 interface MobileHeroProps {
   movie: Movie;
@@ -18,10 +18,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   const { myList, toggleList } = useGlobalContext();
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const is404 = typeof movie.id === 'string' && movie.id.startsWith('dim');
-
-  const [localLogoUrl, setLocalLogoUrl] = useState<string | null>(logoUrl || null);
-  const [isHighResLoaded, setIsHighResLoaded] = useState<boolean>(false);
-  const [isLogoLoaded, setIsLogoLoaded] = useState<boolean>(false);
+  const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
   
   const isLocalAsset = (path?: string | null) => {
     if (!path) return false;
@@ -42,9 +39,51 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
     ? movie.backdrop_path!
     : movie.backdrop_path ? `https://image.tmdb.org/t/p/w780${movie.backdrop_path}` : '';
 
-  const [bgImageSrc, setBgImageSrc] = useState<string>(is404 ? defaultBackdrop : defaultPoster);
-  const [fallbackBg, setFallbackBg] = useState<string>(is404 ? defaultBackdrop : defaultPoster);
-  const [hasBakedInText, setHasBakedInText] = useState<boolean>(true);
+  // Synchronous cache lookup to avoid layout flashes on mount
+  const cachedImages = getCachedMovieImages(movie.id, mediaType);
+  let initialBg = is404 ? defaultBackdrop : defaultPoster;
+  let initialHasBakedText = true;
+  let initialLogo = logoUrl || null;
+
+  if (cachedImages && !is404) {
+    const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 500;
+    let textlessPoster = cachedImages.posters?.find((p: any) => p.iso_639_1 === null);
+    if (isTabletOrDesktop) {
+      if (movie.backdrop_path) {
+        initialBg = movie.backdrop_path.startsWith('http')
+          ? movie.backdrop_path
+          : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
+        initialHasBakedText = false;
+      } else if (textlessPoster) {
+        initialBg = `https://image.tmdb.org/t/p/w780${textlessPoster.file_path}`;
+        initialHasBakedText = false;
+      }
+    } else {
+      if (textlessPoster) {
+        initialBg = `https://image.tmdb.org/t/p/w780${textlessPoster.file_path}`;
+        initialHasBakedText = false;
+      } else if (movie.backdrop_path) {
+        initialBg = movie.backdrop_path.startsWith('http')
+          ? movie.backdrop_path
+          : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
+        initialHasBakedText = false;
+      }
+    }
+
+    if (!logoUrl && cachedImages.logos && cachedImages.logos.length > 0) {
+      const logoObj = cachedImages.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+      if (logoObj) {
+        initialLogo = `https://image.tmdb.org/t/p/w500${logoObj.file_path}`;
+      }
+    }
+  }
+
+  const [localLogoUrl, setLocalLogoUrl] = useState<string | null>(initialLogo);
+  const [isHighResLoaded, setIsHighResLoaded] = useState<boolean>(!!cachedImages);
+  const [isLogoLoaded, setIsLogoLoaded] = useState<boolean>(!!initialLogo);
+  const [bgImageSrc, setBgImageSrc] = useState<string>(initialBg);
+  const [fallbackBg, setFallbackBg] = useState<string>(initialBg);
+  const [hasBakedInText, setHasBakedInText] = useState<boolean>(initialHasBakedText);
   const [logoImgFailed, setLogoImgFailed] = useState<boolean>(false);
   const [accentRGB, setAccentRGB] = useState<{r:number;g:number;b:number} | null>(null);
 
@@ -52,16 +91,51 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   useEffect(() => {
     let isMounted = true;
     
-    const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 500;
-    const initialBg = is404 ? defaultBackdrop : ((isTabletOrDesktop && defaultBackdrop) ? defaultBackdrop : defaultPoster);
+    // Synchronous cache lookup for the new movie ID
+    const cachedImages = getCachedMovieImages(movie.id, mediaType);
+    let resolvedBg = is404 ? defaultBackdrop : defaultPoster;
+    let bakedInText = true;
+    let resolvedLogo = logoUrl || null;
 
-    // Reset state on movie/logoUrl change to trigger animations cleanly
-    setLocalLogoUrl(logoUrl || null);
-    setBgImageSrc(initialBg);
-    setFallbackBg(initialBg);
-    setIsHighResLoaded(false);
-    setIsLogoLoaded(false);
-    setHasBakedInText(true);
+    if (cachedImages && !is404) {
+      const isTabletOrDesktop = typeof window !== 'undefined' && window.innerWidth >= 500;
+      let textlessPoster = cachedImages.posters?.find((p: any) => p.iso_639_1 === null);
+      if (isTabletOrDesktop) {
+        if (movie.backdrop_path) {
+          resolvedBg = movie.backdrop_path.startsWith('http')
+            ? movie.backdrop_path
+            : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
+          bakedInText = false;
+        } else if (textlessPoster) {
+          resolvedBg = `https://image.tmdb.org/t/p/w780${textlessPoster.file_path}`;
+          bakedInText = false;
+        }
+      } else {
+        if (textlessPoster) {
+          resolvedBg = `https://image.tmdb.org/t/p/w780${textlessPoster.file_path}`;
+          bakedInText = false;
+        } else if (movie.backdrop_path) {
+          resolvedBg = movie.backdrop_path.startsWith('http')
+            ? movie.backdrop_path
+            : `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
+          bakedInText = false;
+        }
+      }
+
+      if (!logoUrl && cachedImages.logos && cachedImages.logos.length > 0) {
+        const logoObj = cachedImages.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+        if (logoObj) {
+          resolvedLogo = `https://image.tmdb.org/t/p/w500${logoObj.file_path}`;
+        }
+      }
+    }
+
+    setLocalLogoUrl(resolvedLogo);
+    setBgImageSrc(resolvedBg);
+    setFallbackBg(resolvedBg);
+    setIsHighResLoaded(!!cachedImages);
+    setIsLogoLoaded(!!resolvedLogo);
+    setHasBakedInText(bakedInText);
     setLogoImgFailed(false);
 
     const loadHeroAssets = async () => {
@@ -323,7 +397,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
             ${c(0.02)} 80%,
             rgba(0,0,0,0) 95%
           )`,
-          transition: 'background 1.2s ease-in-out'
+          transition: 'background 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
         className="absolute inset-x-0 top-0 h-[190vh] pointer-events-none -z-10"
       />
@@ -331,7 +405,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
       <div
         style={{
           background: `radial-gradient(ellipse 110% 65% at 50% 20%, ${c(0.8)} 0%, ${c(0.2)} 50%, transparent 70%)`,
-          transition: 'background 1.2s ease-in-out',
+          transition: 'background 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
         className="absolute inset-x-0 top-0 h-[130vh] pointer-events-none -z-10"
       />
@@ -339,7 +413,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
       <div
         style={{
           background: `radial-gradient(ellipse 75% 30% at 50% 8%, ${c(0.7)} 0%, transparent 60%)`,
-          transition: 'background 1.2s ease-in-out',
+          transition: 'background 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
         className="absolute inset-x-0 top-0 h-[55vh] pointer-events-none -z-10"
       />
@@ -349,19 +423,11 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
         onClick={() => onSelect(movie)}
         className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] aspect-[2/2.75] min-[500px]:aspect-[4/3] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] min-[500px]:translate-x-0 transition-all duration-200"
       >
-        {/* Layer A (Under): Blurred Instant Fallback Image */}
-        <img 
-          src={fallbackBg} 
-          alt="" 
-          className="absolute inset-0 w-full h-full object-cover filter blur-[8px] scale-[1.05] opacity-60 select-none pointer-events-none"
-          aria-hidden
-        />
-
-        {/* Layer B (Upper): High-Resolution Resolved Image with smooth cross-fade */}
+        {/* High-Resolution Resolved Image */}
         <img 
           src={bgImageSrc} 
           alt={movie.title || movie.name} 
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out select-none pointer-events-none ${isHighResLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
           loading="eager"
           draggable={false}
         />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 
 type NewTab = 'watching' | 'justlanded' | 'top10movies' | 'top10series' | 'comingsoon';
 
@@ -67,7 +68,7 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
                     <button
                         key={tab.id}
                         onClick={() => onTabChange(tab.id)}
-                        className={`flex items-center justify-center h-[46px] px-3.5 ${cornerClass} text-[14px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0 ${
+                        className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 ${cornerClass} text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0 ${
                             isActive
                                 ? 'bg-white/[0.18] backdrop-blur-md text-white border border-white/25'
                                 : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border border-white/10'
@@ -95,18 +96,21 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
             </div>
 
             {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid background */}
-            <div
-                style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
-                className={`fixed top-[calc(56px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[72px] z-[79] pt-4 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start select-none max-w-full overflow-x-auto scrollbar-hide transition-all duration-300 ease-out ${
-                    showTemp 
-                        ? 'opacity-100 translate-y-0 pointer-events-auto' 
-                        : '-translate-y-full opacity-0 pointer-events-none'
-                }`}
-            >
-                <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start space-x-2 shrink-0 overflow-visible">
-                    {pills}
-                </div>
-            </div>
+            {ReactDOM.createPortal(
+                <div
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
+                    className={`fixed top-[calc(60px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[144px] z-[79] pt-2 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start select-none max-w-full overflow-x-auto scrollbar-hide transition-all duration-300 ease-out ${
+                        showTemp 
+                            ? 'opacity-100 translate-y-0 pointer-events-auto' 
+                            : '-translate-y-full opacity-0 pointer-events-none'
+                    }`}
+                >
+                    <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start space-x-2 shrink-0 overflow-visible">
+                        {pills}
+                    </div>
+                </div>,
+                document.body
+            )}
         </>
     );
 };

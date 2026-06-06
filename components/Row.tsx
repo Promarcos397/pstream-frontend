@@ -370,7 +370,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
           {initialLoad
             ? Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="movie-card-container relative flex-none w-[calc((100vw-3rem)/2.5)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[7/5] bg-[#1e1e1e] rounded-sm overflow-hidden border border-white/[0.04] pointer-events-auto mr-1 md:mr-1.5 lg:mr-2">
+              <div key={i} className="movie-card-container relative flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.20] bg-[#1e1e1e] rounded-sm overflow-hidden border border-white/[0.04] pointer-events-auto mr-1 md:mr-1.5 lg:mr-2">
                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" style={{ animationDelay: `${i * 0.08}s` }} />
                 <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
                 <div className="absolute bottom-4 left-3 space-y-2">

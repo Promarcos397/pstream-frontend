@@ -29,7 +29,7 @@ export interface HeroPackage {
 // ─── Shared context types (mirrored from useDynamicManifest) ─────────────────
 export type TimeSlot  = 'morning' | 'afternoon' | 'evening' | 'late_night' | 'night_owl';
 export type Season    = 'spring'  | 'summer'    | 'autumn'  | 'winter';
-export type Holiday   = 'halloween' | 'christmas' | 'valentines' | 'new_year' | 'easter' | 'summer_break' | null;
+export type Holiday   = 'halloween' | 'christmas' | 'valentines' | 'new_year' | 'easter' | 'summer_break' | 'eid-al-fitr' | 'eid-al-adha' | null;
 
 export function getTimeSlot(): TimeSlot {
   const h = new Date().getHours();
@@ -54,12 +54,15 @@ export function getCurrentHoliday(): Holiday {
   const day   = now.getDate();
   if ((month === 10 && day >= 25) || (month === 11 && day === 1)) return 'halloween';
   if (month === 12 && day >= 20)                                   return 'christmas';
-  if (month === 1  && day === 1)                                   return 'christmas';
   if (month === 1  && day >= 2 && day <= 8)                        return 'new_year';
   if (month === 2  && day >= 10 && day <= 16)                      return 'valentines';
   if (month === 3  && day >= 28)                                   return 'easter';
   if (month === 4  && day <= 5)                                    return 'easter';
+  // eid-al-fitr
+  if (month === 4 && day >= 10 && day <= 14)                       return 'eid-al-fitr';
+  if (month === 6 && day >= 15 && day <= 20)                       return 'eid-al-adha';
   if ((month === 7 && day >= 20) || month === 8 || (month === 9 && day <= 5)) return 'summer_break';
+
   return null;
 }
 
@@ -235,7 +238,7 @@ const HOLIDAY_HOME_OVERRIDE: Partial<Record<NonNullable<Holiday>, HeroPoolItem[]
   ],
   christmas: [
     { url: () => REQUESTS.fetchComedyMovies, label: 'Christmas Comedy', preferGenres: [35] },
-    { url: () => REQUESTS.fetchFamiliarFavorites, label: 'Christmas Family Film', preferGenres: [10751] },
+    { url: () => REQUESTS.fetchFamiliarFavoritesMovies, label: 'Christmas Family Film', preferGenres: [10751] },
   ],
   valentines: [
     { url: () => REQUESTS.fetchRomanceMovies, label: 'Valentine\'s Romance', preferGenres: [10749] },
@@ -402,7 +405,7 @@ class HeroEngineService {
         const response = await tmdb.get<TMDBResponse>(url);
         const BLACKLIST = [1087040];
         const results = (response.data.results || []).filter(
-          (m: any) => m.backdrop_path && m.vote_count >= 200 && !BLACKLIST.includes(m.id)
+          (m: any) => m.backdrop_path && m.vote_count >= 10 && !BLACKLIST.includes(m.id)
         );
 
         if (results.length === 0) throw new Error(`No results for "${slotLabel}"`);

@@ -177,7 +177,7 @@ const RowMobile: React.FC<RowMobileProps> = ({
             ? Array.from({ length: 8 }).map((_, i) => (
                 <div 
                   key={i} 
-                  className="flex-none w-[calc((100vw-3rem)/3.2)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[3/4] bg-zinc-800 rounded-lg overflow-hidden border border-white/[0.04] mr-2 relative"
+                  className="flex-none w-[calc((100vw-3rem)/3.2)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden border border-white/[0.04] mr-2 relative"
                 >
                   <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" style={{ animationDelay: `${i * 0.08}s` }} />
                   <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />

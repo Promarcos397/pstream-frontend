@@ -92,6 +92,16 @@ tmdb.interceptors.response.use(
 
 const _imageCache = new Map<string, any>();
 const _pending    = new Map<string, Promise<any>>();
+const _dataCache  = new Map<string, any>();
+
+export const getCachedMovieImages = (id: number | string, type: 'movie' | 'tv') => {
+  const url = `/${type}/${id}/images`;
+  return _dataCache.get(url) || null;
+};
+
+export const isUrlCached = (url: string): boolean => {
+  return _dataCache.has(url);
+};
 
 // ─── Fetch functions ──────────────────────────────────────────────────────────
 
@@ -232,8 +242,6 @@ export const searchMovies = async (query: string) => {
     return [];
   }
 };
-
-const _dataCache = new Map<string, any>();
 
 export const fetchData = async (url: string) => {
   if (_dataCache.has(url)) return _dataCache.get(url);

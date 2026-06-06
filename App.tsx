@@ -8,6 +8,35 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from './store/useAuthStore';
 import { useWatchStore } from './store/useWatchStore';
 import { LoginWall } from './components/LoginWall';
+import { useCastStore } from './store/useCastStore';
+import { AnimatePresence, motion } from 'framer-motion';
+
+const TAB_ORDER = ['home', 'tv', 'movies', 'new', 'list', 'settings'];
+
+const pageVariants = {
+  initial: (dir: 'left' | 'right') => ({
+    x: dir === 'right' ? '100%' : 0,
+    zIndex: dir === 'right' ? 1 : 0,
+  }),
+  animate: (dir: 'left' | 'right') => ({
+    x: 0,
+    zIndex: dir === 'right' ? 1 : 0,
+    position: 'relative' as const,
+  }),
+  exit: (dir: 'left' | 'right') => ({
+    x: dir === 'right' ? 0 : '100%',
+    zIndex: dir === 'right' ? 0 : 1,
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+  }),
+};
+
+const pageTransition = {
+  type: 'tween' as const,
+  ease: [0.16, 1, 0.3, 1] as const, // premium Apple style easeOut
+  duration: 0.42,
+};
 
 
 
@@ -41,10 +70,12 @@ const App: React.FC = () => {
   const { t } = useTranslation();
   const { isInitialized, user, initializeAuth } = useAuthStore();
   const { updateProgress, getProgress } = useWatchStore();
+  const { initializeCast } = useCastStore();
 
   useEffect(() => {
     initializeAuth();
-  }, [initializeAuth]);
+    initializeCast();
+  }, [initializeAuth, initializeCast]);
 
   // Inject navigate into window for non-React context access
   useEffect(() => {
@@ -230,6 +261,37 @@ const App: React.FC = () => {
   };
 
   const activeTab = getActiveTab();
+  const [prevTabState, setPrevTabState] = useState(() => {
+    const idx = TAB_ORDER.indexOf(activeTab);
+    return {
+      activeTab,
+      tabIndex: idx === -1 ? 0 : idx,
+      dir: 'right' as 'left' | 'right'
+    };
+  });
+
+  const dir = prevTabState.dir;
+
+  if (
+    prevTabState.activeTab !== activeTab ||
+    (location.state?.direction && location.state.direction !== prevTabState.dir)
+  ) {
+    const currentIdx = TAB_ORDER.indexOf(activeTab) === -1 ? 0 : TAB_ORDER.indexOf(activeTab);
+    const prevIdx = prevTabState.tabIndex;
+    let nextDir: 'left' | 'right' = 'right';
+
+    if (location.state?.direction) {
+      nextDir = location.state.direction;
+    } else if (currentIdx !== prevIdx) {
+      nextDir = currentIdx > prevIdx ? 'right' : 'left';
+    }
+
+    setPrevTabState({
+      activeTab,
+      tabIndex: currentIdx,
+      dir: nextDir
+    });
+  }
   const isWatching = location.pathname.startsWith('/watch');
   const isSettings = location.pathname.startsWith('/settings');
 
@@ -293,18 +355,38 @@ const App: React.FC = () => {
 
 
   const mainContent = (
-    <div>
-      <Routes location={backgroundLocation}>
-        <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
-        <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
-        <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/settings/*" element={<SettingsPage />} />
-        <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-      </Routes>
+    <div className="relative w-full overflow-hidden">
+      <AnimatePresence mode="popLayout" initial={true} custom={dir}>
+        <motion.div
+          key={backgroundLocation.pathname}
+          custom={dir}
+          variants={pageVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={pageTransition}
+          style={{
+            willChange: 'transform',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            transform: 'translate3d(0,0,0)',
+            WebkitTransform: 'translate3d(0,0,0)'
+          }}
+          className="w-full min-h-screen bg-black md:bg-[#141414]"
+        >
+          <Routes location={backgroundLocation}>
+            <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
+            <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+            <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
+            <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+            <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+            <Route path="/settings/*" element={<SettingsPage />} />
+            <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+          </Routes>
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 
