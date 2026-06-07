@@ -1,5 +1,5 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-06 21:28:47
+# Generated: 2026-06-07 10:07:02
 # Root: D:\coding-projects\streaming-app\pstream-frontend
 
 pstream-frontend/
@@ -163,6 +163,8 @@ pstream-frontend/
 │   ├── pstream-wordmark.svg
 │   ├── StandardGalacticAlphabet-Regular.ttf
 │   └── sw.js
+├── scratch
+│   └── scrape_docs.py
 ├── services
 │   ├── api.ts
 │   ├── EmbedProviders.ts
@@ -224,6 +226,7 @@ pstream-frontend/
 ├── .env
 ├── .env.local
 ├── .gitignore
+├── 1780822510378.md
 ├── alldebrid_keys.txt
 ├── App.tsx
 ├── constants.ts
@@ -240,6 +243,7 @@ pstream-frontend/
 ├── piracy_megathread_decoded.md
 ├── playwright.config.ts
 ├── postcss.config.js
+├── provider_audit_results.md
 ├── tailwind.config.js
 ├── tsconfig.json
 ├── types.ts
@@ -247,4 +251,4 @@ pstream-frontend/
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 23 directories, 220 files
+# 24 directories, 223 files

@@ -59,3 +59,5 @@ alldebrid_keys.txt
 iframe_auditor.html
 playwright-report/
 test-results/
+client_secret_*.json
+scratch/
