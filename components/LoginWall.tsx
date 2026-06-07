@@ -18,7 +18,13 @@ export const LoginWall: React.FC = () => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: window.location.origin + '/'
+          }
+        });
         if (error) throw error;
         // Auto-login or show success message for email verification if required
       }

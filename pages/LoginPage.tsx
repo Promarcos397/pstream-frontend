@@ -103,7 +103,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
             data: {
               display_name: displayName.trim(),
               avatar_url: selectedAvatar
-            }
+            },
+            emailRedirectTo: window.location.origin + '/'
           }
         });
         if (err) throw err;

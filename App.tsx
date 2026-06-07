@@ -60,6 +60,16 @@ import { Navigate } from 'react-router-dom';
 import { dimensionsAsMovies } from './data/notFoundDimensions';
 
 const App: React.FC = () => {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const { query, setQuery, results, isLoading, mode, setMode } = useSearch();
   const navigate = useNavigate();
@@ -354,7 +364,21 @@ const App: React.FC = () => {
   }
 
 
-  const mainContent = (
+  const innerRoutes = (
+    <Routes location={backgroundLocation}>
+      <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
+      <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+      <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
+      <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+      <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+      <Route path="/settings/*" element={<SettingsPage />} />
+      <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+    </Routes>
+  );
+
+  const mainContent = isMobile ? (
     <div className="relative w-full overflow-hidden">
       <AnimatePresence mode="popLayout" initial={true} custom={dir}>
         <motion.div
@@ -372,21 +396,15 @@ const App: React.FC = () => {
             transform: 'translate3d(0,0,0)',
             WebkitTransform: 'translate3d(0,0,0)'
           }}
-          className="w-full min-h-screen bg-black md:bg-[#141414]"
+          className="w-full min-h-screen bg-black"
         >
-          <Routes location={backgroundLocation}>
-            <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
-            <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-            <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
-            <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-            <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-            <Route path="/settings/*" element={<SettingsPage />} />
-            <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-          </Routes>
+          {innerRoutes}
         </motion.div>
       </AnimatePresence>
+    </div>
+  ) : (
+    <div className="w-full min-h-screen bg-[#141414]">
+      {innerRoutes}
     </div>
   );
 
