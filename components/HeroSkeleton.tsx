@@ -4,7 +4,7 @@ export const HeroSkeleton: React.FC = () => {
   return (
     <div className="w-full relative overflow-hidden bg-black select-none">
       {/* 1. MOBILE SKELETON: Renders on < 640px viewports (Centered Floating Card + Ambient Wash) */}
-      <div className="block sm:hidden relative w-full px-4 pt-[calc(130px+env(safe-area-inset-top))] pb-6 flex flex-col items-center justify-center animate-pulse">
+      <div className="block sm:hidden relative w-full px-4 pt-[calc(122px+env(safe-area-inset-top))] pb-6 flex flex-col items-center justify-center animate-pulse">
         {/* Glowing ambient wash background placeholder */}
         <div className="absolute inset-x-0 top-0 h-[50vh] bg-gradient-to-b from-white/[0.04] to-transparent pointer-events-none -z-10" />
         <div className="absolute top-[15%] w-[80%] aspect-square rounded-full bg-white/[0.02] filter blur-[40px] pointer-events-none -z-10" />

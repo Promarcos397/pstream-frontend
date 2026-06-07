@@ -382,7 +382,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
 
   return (
     <div 
-      className="relative z-0 overflow-visible w-full px-4 pt-[calc(130px+env(safe-area-inset-top))] sm:pt-[calc(96px+env(safe-area-inset-top))] pb-6 sm:pb-14 flex flex-col items-center justify-center transition-all duration-700 ease-in-out"
+      className="relative z-0 overflow-visible w-full px-4 pt-[calc(122px+env(safe-area-inset-top))] sm:pt-[calc(96px+env(safe-area-inset-top))] pb-6 sm:pb-14 flex flex-col items-center justify-center transition-all duration-700 ease-in-out"
     >
       {/* ── Layer 1: Deep background wash ── */}
       <div 

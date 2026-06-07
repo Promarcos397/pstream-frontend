@@ -40,7 +40,7 @@ const Layout: React.FC<LayoutProps> = ({
       <div 
         className={`min-h-screen transition-all duration-300 ${
           isMobile 
-            ? 'pb-[calc(96px+env(safe-area-inset-bottom))] sm:pb-0 sm:pl-[72px]' 
+            ? 'pb-[calc(76px+env(safe-area-inset-bottom))] sm:pb-0 sm:pl-[72px]' 
             : 'pb-0 pl-0'
         }`}
       >

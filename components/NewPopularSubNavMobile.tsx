@@ -70,8 +70,8 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
                         onClick={() => onTabChange(tab.id)}
                         className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 ${cornerClass} text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0 ${
                             isActive
-                                ? 'bg-white/[0.18] backdrop-blur-md text-white border border-white/25'
-                                : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border border-white/10'
+                                ? 'bg-white/[0.18] backdrop-blur-md text-white border-[1.6px] border-white/40'
+                                : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border-[1.6px] border-white/15'
                         }`}
                     >
                         {tab.label}
@@ -89,17 +89,19 @@ const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
     return (
         <>
             {/* 1. Original sub-nav: absolute at the top, scrolls naturally with the page content */}
-            <div className="absolute top-[calc(68px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-1 pb-3 flex items-center justify-start select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
+            <div className="absolute top-[calc(60px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-0 pb-[4px] flex items-center justify-start select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
                 <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start space-x-2 shrink-0 overflow-visible">
                     {pills}
                 </div>
             </div>
 
-            {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid background */}
+            {/* 2. Temporary fixed sub-nav: fixed at top, slides down on scroll-up, slides up on scroll-down, with solid black background */}
             {ReactDOM.createPortal(
                 <div
-                    style={{ backgroundColor: 'rgba(0, 0, 0, 1)' }}
-                    className={`fixed top-[calc(60px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[144px] z-[79] pt-2 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-3 flex items-center justify-start select-none max-w-full overflow-x-auto scrollbar-hide transition-all duration-300 ease-out ${
+                    style={{ 
+                        backgroundColor: '#000000'
+                    }}
+                    className={`fixed top-[calc(58px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[144px] z-[79] pt-0 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-[4px] flex items-center justify-start select-none max-w-full overflow-x-auto scrollbar-hide transition-all duration-300 ease-out ${
                         showTemp 
                             ? 'opacity-100 translate-y-0 pointer-events-auto' 
                             : '-translate-y-full opacity-0 pointer-events-none'

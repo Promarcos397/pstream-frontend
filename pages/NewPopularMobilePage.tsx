@@ -200,7 +200,7 @@ const NewPopularMobilePage: React.FC<NewPopularMobilePageProps> = ({
             <NewPopularSubNavMobile activeTab={activeTab} onTabChange={setActiveTab} />
 
             {/* Spacer: mobile top header (56px) + sub-nav (~70px) + safe-area */}
-            <div className="h-[calc(140px+env(safe-area-inset-top))]" />
+            <div className="h-[calc(122px+env(safe-area-inset-top))]" />
 
             {/* Feed */}
             <div className="px-4 pb-[calc(90px+env(safe-area-inset-bottom))]">

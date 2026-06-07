@@ -1,5 +1,5 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-01 02:34:33
+# Generated: 2026-06-06 21:28:47
 # Root: D:\coding-projects\streaming-app\pstream-frontend
 
 pstream-frontend/
@@ -101,7 +101,6 @@ pstream-frontend/
 ├── hooks
 │   ├── genreManifestBuilder.ts
 │   ├── useAudioSilenceDetector.ts
-│   ├── useDebridStream.ts
 │   ├── useDynamicManifest.ts
 │   ├── useHls.ts
 │   ├── useIsInTheaters.ts
@@ -149,6 +148,8 @@ pstream-frontend/
 │   ├── SearchResultsPage.tsx
 │   ├── SettingsPage.tsx
 │   └── ShowsPage.tsx
+├── playwright-report
+│   └── index.html
 ├── public
 │   ├── icons
 │   │   ├── icon-192.png
@@ -192,15 +193,24 @@ pstream-frontend/
 │   └── ViewingActivitySection.tsx
 ├── store
 │   ├── useAuthStore.ts
+│   ├── useCastStore.ts
 │   ├── useLibraryStore.ts
 │   ├── useSettingsStore.ts
 │   └── useWatchStore.ts
+├── test-results
+│   ├── .playwright-artifacts-0
+│   ├── .playwright-artifacts-1
+│   ├── .playwright-artifacts-2
+│   ├── .playwright-artifacts-3
+│   ├── .playwright-artifacts-4
+│   └── .playwright-artifacts-5
+├── tests
+│   └── iphone-compat.spec.ts
 ├── types
 │   └── assets.d.ts
 ├── ui
 │   └── SettingsUI.tsx
 ├── utils
-│   ├── browserCodecSupport.ts
 │   ├── captions.ts
 │   ├── deviceHelper.ts
 │   ├── ebml.ts
@@ -217,14 +227,18 @@ pstream-frontend/
 ├── alldebrid_keys.txt
 ├── App.tsx
 ├── constants.ts
+├── diff_output.txt
 ├── download (1).zip
 ├── download.zip
 ├── file_tree_frondend.txt
 ├── i18n.ts
+├── iframe_auditor.html
 ├── index.css
 ├── index.html
 ├── index.tsx
 ├── package.json
+├── piracy_megathread_decoded.md
+├── playwright.config.ts
 ├── postcss.config.js
 ├── tailwind.config.js
 ├── tsconfig.json
@@ -233,4 +247,4 @@ pstream-frontend/
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 20 directories, 209 files
+# 23 directories, 220 files

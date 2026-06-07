@@ -130,7 +130,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
           }}
           className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0 sm:hidden"
         >
-          <div className="flex items-center justify-between py-1 w-full">
+          <div className="flex items-center justify-between w-full">
             <div className="flex items-center justify-start gap-2.5">
               {location.pathname !== '/' ? (
                 <button
@@ -229,7 +229,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
       {/* Mobile Bottom Navigation Bar → Left Sidebar on sm: (foldable/tablet) */}
       <div className="
-        fixed bottom-4 left-8 right-8 z-[10020] mx-auto max-w-[310px] w-auto bg-[#1d1d1d] border border-white/10 rounded-full py-1 px-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.65)]
+        fixed bottom-[calc(16px+env(safe-area-inset-bottom))] left-8 right-8 z-[10020] mx-auto max-w-[310px] w-auto bg-[#1d1d1d] border border-white/10 rounded-full py-1 px-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.65)]
         sm:bottom-0 sm:top-0 sm:left-0 sm:right-auto sm:w-[72px] sm:h-full sm:rounded-none sm:border-0 sm:border-r sm:border-white/[0.08]
         sm:bg-[#121212] sm:shadow-2xl sm:flex sm:flex-col sm:items-center sm:justify-start sm:py-0 sm:px-0 sm:pb-0 sm:pt-0 sm:mx-0 sm:max-w-none
       ">
