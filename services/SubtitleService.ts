@@ -1,5 +1,7 @@
 import { getExternalIds } from './api';
 import { LANG_LABELS, LANG_TO_OS } from '../constants';
+import { GoatAPIService } from './GoatAPIService';
+import ISO6391 from 'iso-639-1';
 
 export interface SubtitleTrack {
     url: string;
@@ -10,12 +12,137 @@ export interface SubtitleTrack {
 
 
 
+const ISO3_TO_LANG: Record<string, string> = {
+    eng: 'en',
+    fre: 'fr', fra: 'fr',
+    ger: 'de', deu: 'de',
+    spa: 'es',
+    ita: 'it',
+    por: 'pt',
+    rus: 'ru',
+    jpn: 'ja',
+    kor: 'ko',
+    chi: 'zh', zho: 'zh',
+    ara: 'ar',
+    tur: 'tr',
+    nld: 'nl', dut: 'nl',
+    pol: 'pl',
+    swe: 'sv',
+    dan: 'da',
+    fin: 'fi',
+    nno: 'no', nob: 'no', nor: 'no',
+    hun: 'hu',
+    ell: 'el', gre: 'el',
+    heb: 'he',
+    cze: 'cs', ces: 'cs',
+    rum: 'ro', ron: 'ro',
+    tha: 'th',
+    vie: 'vi',
+    ind: 'id',
+    ukr: 'uk',
+    hrv: 'hr',
+    slo: 'sk', slk: 'sk',
+    bul: 'bg',
+    srp: 'sr',
+    hin: 'hi',
+};
+
+const NATIVE_NAMES_TO_LANG: Record<string, string> = {
+    english: 'en',
+    spanish: 'es', español: 'es', espanol: 'es', castilian: 'es', castellano: 'es',
+    french: 'fr', français: 'fr', francais: 'fr',
+    german: 'de', deutsch: 'de',
+    italian: 'it', italiano: 'it',
+    portuguese: 'pt', português: 'pt', portugues: 'pt',
+    russian: 'ru', русский: 'ru',
+    japanese: 'ja', 日本語: 'ja', nihongo: 'ja',
+    korean: 'ko', 한국어: 'ko', hangugeo: 'ko',
+    chinese: 'zh', 中文: 'zh', 汉语: 'zh', 漢語: 'zh',
+    arabic: 'ar', العربية: 'ar',
+    turkish: 'tr', türkçe: 'tr', turkce: 'tr',
+    dutch: 'nl', nederlands: 'nl',
+    polish: 'pl', polski: 'pl',
+    swedish: 'sv', svenska: 'sv',
+    danish: 'da', dansk: 'da',
+    finnish: 'fi', suomi: 'fi',
+    norwegian: 'no', norsk: 'no',
+    hungarian: 'hu', magyar: 'hu',
+    greek: 'el', ελληνικά: 'el',
+    hebrew: 'he', עברית: 'he',
+    czech: 'cs', čeština: 'cs',
+    romanian: 'ro', română: 'ro',
+    thai: 'th', ไทย: 'th',
+    vietnamese: 'vi', 'tiếng việt': 'vi',
+    indonesian: 'id', 'bahasa indonesia': 'id',
+    ukrainian: 'uk', українська: 'uk',
+    croatian: 'hr', hrvatski: 'hr',
+    slovak: 'sk', slovenčina: 'sk',
+    bulgarian: 'bg', български: 'bg',
+    serbian: 'sr', srpski: 'sr',
+    hindi: 'hi', हिन्दी: 'hi',
+};
+
 function labelToLangCode(label: string): string {
-    const trimmed = label.trim().split(/[\s(]/)[0].toLowerCase();
+    if (!label) return 'en';
+    const trimmed = label.trim().toLowerCase();
+    
+    // 1. Try direct match in LANG_LABELS keys (2-letter ISO code)
+    if (LANG_LABELS[trimmed]) {
+        return trimmed;
+    }
+    
+    // Clean label for iso-639-1 (strip parentheticals, HI indicator, numbers)
+    const cleanForISO = trimmed
+        .replace(/\(.*\)/g, '')
+        .replace(/\bhi\b/i, '')
+        .replace(/\b\d+\b/g, '')
+        .trim();
+        
+    const isoCode = ISO6391.getCode(cleanForISO);
+    if (isoCode) {
+        return isoCode;
+    }
+    
+    // Extract first word/token for matching
+    const cleanWord = trimmed.split(/[\s(_,-]/)[0];
+    if (NATIVE_NAMES_TO_LANG[cleanWord]) {
+        return NATIVE_NAMES_TO_LANG[cleanWord];
+    }
+    
+    // Try matching the whole trimmed string against native names
+    if (NATIVE_NAMES_TO_LANG[trimmed]) {
+        return NATIVE_NAMES_TO_LANG[trimmed];
+    }
+    
+    // 2. Try match in 3-letter ISO/OS maps
+    if (ISO3_TO_LANG[cleanWord]) {
+        return ISO3_TO_LANG[cleanWord];
+    }
+    if (ISO3_TO_LANG[trimmed]) {
+        return ISO3_TO_LANG[trimmed];
+    }
+
+    // 3. Try matching standard LANG_LABELS values (English name)
     const entry = Object.entries(LANG_LABELS).find(([code, name]) =>
-        name.toLowerCase() === trimmed || code === trimmed
+        name.toLowerCase() === trimmed || name.toLowerCase() === cleanWord
     );
-    return entry?.[0] || 'en';
+    if (entry) {
+        return entry[0];
+    }
+
+    // 4. Fallback: check if the string contains a language name as a substring
+    for (const [name, code] of Object.entries(NATIVE_NAMES_TO_LANG)) {
+        if (trimmed.includes(name)) {
+            return code;
+        }
+    }
+    for (const [code, name] of Object.entries(LANG_LABELS)) {
+        if (trimmed.includes(name.toLowerCase())) {
+            return code;
+        }
+    }
+
+    return 'en'; // Default fallback
 }
 
 /** Detect the user's preferred language code from the browser */
@@ -81,18 +208,9 @@ export const SubtitleService = {
                     .replace('.gz', '')
                     .replace('download/', 'download/subencoding-utf8/');
                 const lang = labelToLangCode(sub.LanguageName || '');
-                let label = LANG_LABELS[lang] || sub.LanguageName || lang.toUpperCase();
+                const label = LANG_LABELS[lang] || sub.LanguageName || lang.toUpperCase();
 
                 langCounts[lang] = (langCounts[lang] || 0) + 1;
-                
-                let releaseName = sub.MovieReleaseName || sub.SubFileName || '';
-                if (releaseName) {
-                    releaseName = releaseName.replace(/\.(srt|vtt|ass|ssa)$/i, '');
-                    if (releaseName.length > 40) releaseName = releaseName.substring(0, 40) + '...';
-                    label = `${label} - ${releaseName}`;
-                } else if (langCounts[lang] > 1) {
-                    label = `${label} (${langCounts[lang]})`;
-                }
 
                 const duration = sub.MovieTimeMS ? parseFloat(sub.MovieTimeMS) / 1000 : undefined;
 
@@ -122,6 +240,21 @@ export const SubtitleService = {
         try {
             const allTracks: SubtitleTrack[] = [];
 
+            // 1. Fetch GoatAPI Subtitles in parallel
+            const goatSubPromise = GoatAPIService.fetchSubtitles(tmdbId, type, season, episode)
+                .then(subs => {
+                    return subs.map(sub => {
+                        const lang = labelToLangCode(sub.language);
+                        return {
+                            url: sub.url,
+                            lang: lang,
+                            label: LANG_LABELS[lang] || sub.language,
+                            duration: undefined
+                        };
+                    });
+                })
+                .catch(() => [] as SubtitleTrack[]);
+
             const targetImdbId = imdbId || (await (async () => {
                 if (tmdbId) {
                     const cleanId = tmdbId.replace('tt', '');
@@ -131,32 +264,51 @@ export const SubtitleService = {
                 return undefined;
             })());
 
-            if (targetImdbId) {
+            const osSubPromise = (async () => {
+                if (!targetImdbId) {
+                    console.warn('[SubtitleService] No IMDB ID for OpenSubtitles fallback.');
+                    return [] as SubtitleTrack[];
+                }
                 const cleanImdbId = targetImdbId.replace('tt', '');
-
-                // 3. Build lang list: browser lang + English + Spanish (widest coverage)
                 const browserLang = preferredLang || getBrowserLangCode();
                 const priorityLangs = Array.from(new Set([browserLang, 'en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'ja', 'ko', 'zh', 'ar', 'tr', 'nl', 'pl']));
 
                 console.log(`[SubtitleService] Fetching OpenSubtitles for langs: ${priorityLangs.slice(0, 6).join(', ')}...`);
-
-                const osTracks = await SubtitleService.getOpenSubtitlesTracks(
+                return SubtitleService.getOpenSubtitlesTracks(
                     cleanImdbId, type, season, episode, priorityLangs
                 );
+            })();
 
-                if (osTracks.length > 0) {
-                    console.log(`[SubtitleService] ✅ ${osTracks.length} tracks from OpenSubtitles`);
-                    for (const sub of osTracks) {
-                        if (!allTracks.some(t => t.url === sub.url)) {
-                            allTracks.push(sub);
-                        }
-                    }
+            const [goatTracks, osTracks] = await Promise.all([goatSubPromise, osSubPromise]);
+
+            // Add GoatAPI tracks first (preferred direct sources)
+            for (const t of goatTracks) {
+                if (!allTracks.some(existing => existing.url === t.url)) {
+                    allTracks.push(t);
                 }
-            } else {
-                console.warn('[SubtitleService] No IMDB ID for OpenSubtitles fallback.');
             }
 
-            return allTracks;
+            // Append OpenSubtitles tracks
+            for (const t of osTracks) {
+                if (!allTracks.some(existing => existing.url === t.url)) {
+                    allTracks.push(t);
+                }
+            }
+
+            // Rename labels to languageName only, with duplicate numbering
+            const finalLangsCount: Record<string, number> = {};
+            const finalTracks = allTracks.map(t => {
+                const baseLabel = t.label;
+                finalLangsCount[t.lang] = (finalLangsCount[t.lang] || 0) + 1;
+                const count = finalLangsCount[t.lang];
+                return {
+                    ...t,
+                    label: count > 1 ? `${baseLabel} ${count}` : baseLabel
+                };
+            });
+
+            console.log(`[SubtitleService] Loaded total of ${finalTracks.length} tracks (GoatAPI: ${goatTracks.length}, OpenSubtitles: ${osTracks.length})`);
+            return finalTracks;
         } catch (err) {
             console.error('[SubtitleService] Error:', err);
             return [];

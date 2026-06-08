@@ -233,6 +233,7 @@
         "opacity": "Opacitet",
         "blur": "Oskärpa",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "Konsol",
             "typewriter": "Skrivmaskin",
             "print": "Tryck",

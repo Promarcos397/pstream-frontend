@@ -43,6 +43,7 @@ export const TIER_1_PROVIDERS: EmbedProvider[] = [
                 : `https://vidfast.pro/tv/${tmdbId}/${season || 1}/${episode || 1}`;
             const params = new URLSearchParams();
             params.set('autoplay', 'true');
+            params.set('controls', 'false');
             if (startTime && startTime > 5) params.set('startAt', String(Math.floor(startTime)));
             if (mediaType === 'tv') params.set('nextButton', 'true');
             if (subtitleLang) params.set('sub', subtitleLang);
@@ -53,6 +54,7 @@ export const TIER_1_PROVIDERS: EmbedProvider[] = [
         supports: ['movie', 'tv', 'anime'],
         supportsPostMessage: true,
         supportsStartAt: true,
+        supportsControlsHide: true,
     },
     {
         id: 'vidlink',

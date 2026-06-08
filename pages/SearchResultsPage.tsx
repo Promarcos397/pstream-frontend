@@ -24,6 +24,90 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
+  const suggestions = React.useMemo(() => {
+    if (!results || results.length === 0) return [];
+    
+    const candidates: { text: string; popularity: number; type: 'title' | 'person' | 'keyword' }[] = [];
+    const seenTexts = new Set<string>();
+    const queryCleaned = query.trim().toLowerCase();
+
+    const addCandidate = (text: string, popularity: number, type: 'title' | 'person' | 'keyword') => {
+      if (!text) return;
+      
+      // Smart cleaning: remove years, "The Movie", "(TV Series)", "Season X", "Vol X", etc.
+      let clean = text
+        .replace(/\s*[([{(](movie|tv series|short|video|series|film|season\s*\d+|vol(ume)?\s*\d+|part\s*\d+)[)\]}]/gi, '')
+        .replace(/\s+:\s+the\s+movie\s*$/gi, '')
+        .replace(/\s+-\s+the\s+series\s*$/gi, '')
+        .replace(/\s*[([]?\d{4}[)\]]?\s*$/, '')
+        .trim();
+
+      // Clean multiple spaces
+      clean = clean.replace(/\s+/g, ' ');
+
+      if (clean.length < 2 || clean.length > 35) return;
+
+      const lower = clean.toLowerCase();
+      
+      // Do not suggest the exact query
+      if (lower === queryCleaned) return;
+
+      // Avoid duplicates
+      if (seenTexts.has(lower)) return;
+      seenTexts.add(lower);
+
+      candidates.push({ text: clean, popularity, type });
+    };
+
+    // 1. Process Movie and TV titles, and Actors
+    results.forEach(movie => {
+      const popularity = movie.popularity || 0;
+      if (movie.media_type === 'person') {
+        // Only suggest person if popularity is substantial
+        if (popularity > 1.5) {
+          addCandidate(movie.name || '', popularity, 'person');
+        }
+      } else {
+        const title = movie.title || movie.name || '';
+        addCandidate(title, popularity, 'title');
+        
+        // 2. Smart Sub-Phrase / Keyword extraction from titles
+        const splitters = [':', '-', '('];
+        for (const splitter of splitters) {
+          const idx = title.indexOf(splitter);
+          if (idx > 0) {
+            const part = title.slice(0, idx).trim();
+            if (part.toLowerCase().includes(queryCleaned) && part.length > queryCleaned.length) {
+              addCandidate(part, popularity * 1.1, 'keyword'); // boost clean bases
+            }
+          }
+        }
+      }
+    });
+
+    // 3. Post-processing: Filter out suggestions that are substrings of other more popular suggestions.
+    candidates.sort((a, b) => b.popularity - a.popularity);
+
+    const filteredSuggestions: string[] = [];
+    candidates.forEach(cand => {
+      const isRedundant = filteredSuggestions.some(existing => {
+        const existingLower = existing.toLowerCase();
+        const candLower = cand.text.toLowerCase();
+        // If one is a prefix of another or vice versa, collapse to the shorter, more general one
+        if (candLower.startsWith(existingLower) || existingLower.startsWith(candLower)) {
+          return true;
+        }
+        return false;
+      });
+
+      if (!isRedundant) {
+        filteredSuggestions.push(cand.text);
+      }
+    });
+
+    return filteredSuggestions.slice(0, 12);
+  }, [results, query]);
+
   if (query.trim().length === 0) {
     return (
       <div className="pt-[calc(6rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen bg-black md:bg-[#121212]" />
@@ -39,8 +123,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
         <div className="mb-8">
           <ExploreSuggestions 
             label={t('search.moreToExplore', { defaultValue: 'More to explore:' })}
-            // Skip the first 8 results to avoid repeating what's already visible in the top row
-            items={results.slice(8, 20).map(m => m.title || m.name || '').filter(Boolean)}
+            items={suggestions}
             onItemClick={(title) => triggerSearch(navigate, title)}
           />
         </div>
@@ -93,8 +176,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
         <div className="mt-8">
           <ExploreSuggestions 
             label={t('search.moreToExplore', { defaultValue: 'More to explore:' })}
-            // Skip the first 8 results to avoid repeating what's already visible in the top row
-            items={results.slice(8, 20).map(m => m.title || m.name || '').filter(Boolean)}
+            items={suggestions}
             onItemClick={(title) => triggerSearch(navigate, title)}
           />
         </div>

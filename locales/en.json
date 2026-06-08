@@ -242,6 +242,7 @@
         "opacity": "Opacity",
         "blur": "Blur",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "Console",
             "typewriter": "Typewriter",
             "print": "Print",

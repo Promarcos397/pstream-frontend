@@ -233,6 +233,7 @@
         "opacity": "Transparantie",
         "blur": "Vervaging",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "Console",
             "typewriter": "Typemachine",
             "print": "Druk",

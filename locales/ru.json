@@ -233,6 +233,7 @@
         "opacity": "Прозрачность",
         "blur": "Размытие",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "Консольный",
             "typewriter": "Печатная машинка",
             "print": "Печать",

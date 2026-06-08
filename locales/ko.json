@@ -233,6 +233,7 @@
         "opacity": "불투명도",
         "blur": "흐림",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "콘솔",
             "typewriter": "타자기",
             "print": "인쇄체",

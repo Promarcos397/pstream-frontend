@@ -233,6 +233,7 @@
         "opacity": "Deckkraft",
         "blur": "Weichzeichner",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "Konsole",
             "typewriter": "Schreibmaschine",
             "print": "Druckschrift",

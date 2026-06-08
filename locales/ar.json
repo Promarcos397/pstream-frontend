@@ -233,6 +233,7 @@
         "opacity": "الشفافية",
         "blur": "التمويه",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "كونسول",
             "typewriter": "آلة كاتبة",
             "print": "طباعة",

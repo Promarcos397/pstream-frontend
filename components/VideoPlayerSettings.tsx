@@ -134,16 +134,6 @@ export const AudioSubPanel: React.FC<{
     };
 
     const getSubtitleDisplayLabel = (cap: any, fallbackLabel: string) => {
-        if (cap.duration) {
-            const formatted = formatSubDuration(cap.duration);
-            if (videoDuration && videoDuration > 0) {
-                const diff = Math.abs(cap.duration - videoDuration);
-                if (diff <= 90) {
-                    return `${fallbackLabel} (${formatted} - Match)`;
-                }
-            }
-            return `${fallbackLabel} (${formatted})`;
-        }
         return fallbackLabel;
     };
 
@@ -283,7 +273,7 @@ export const AudioSubPanel: React.FC<{
                 </div>
                 <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
                     {groupCaps.map((cap, index) => {
-                        const displayLabel = groupCaps.length > 1 ? `${cap.label} (Track ${index + 1})` : cap.label;
+                        const displayLabel = cap.label;
                         const isSelected = currentCaption === cap.url;
                         return (
                             <li 
@@ -303,9 +293,11 @@ export const AudioSubPanel: React.FC<{
         );
     }
 
+    const hasAudioTracks = audioTracks.length > 0 || (internalTracks && internalTracks.filter(t => t.type === 'audio').length > 0);
+
     return (
         <div className="flex flex-row w-full h-full">
-            {renderAudioColumn()}
+            {hasAudioTracks && renderAudioColumn()}
             {renderSubtitleColumn()}
         </div>
     );

@@ -233,6 +233,7 @@
         "opacity": "不透明度",
         "blur": "ぼかし",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "コンソール",
             "typewriter": "タイプライター",
             "print": "プリント",

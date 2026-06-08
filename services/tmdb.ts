@@ -225,18 +225,54 @@ export const searchMovies = async (query: string) => {
       ...(tvRes.data.results || [])
     ];
 
-    const uniqueMap = new Map();
+    const uniqueMap = new Map<string, any>();
     allResults.forEach(item => {
-      if (!uniqueMap.has(item.id)) {
-        // Enforce media_type since /movie and /tv endpoints don't always include it
-        if (!item.media_type) {
-          item.media_type = item.title ? 'movie' : 'tv';
-        }
-        uniqueMap.set(item.id, item);
+      if (!item) return;
+      const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
+      // Normalize media_type back onto the item if missing
+      if (!item.media_type) {
+        item.media_type = mediaType;
+      }
+      const key = `${mediaType}-${item.id}`;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, item);
       }
     });
 
-    return Array.from(uniqueMap.values());
+    // Group by title (case-insensitive) to filter out duplicate names
+    const titleGroups = new Map<string, any[]>();
+    uniqueMap.forEach(item => {
+      const title = (item.name || item.title || '').trim().toLowerCase();
+      if (!titleGroups.has(title)) {
+        titleGroups.set(title, []);
+      }
+      titleGroups.get(title)!.push(item);
+    });
+
+    const finalResults: any[] = [];
+    titleGroups.forEach(group => {
+      if (group.length === 1) {
+        finalResults.push(group[0]);
+      } else {
+        // Find item with highest popularity
+        let bestItem = group[0];
+        group.forEach(item => {
+          if ((item.popularity || 0) > (bestItem.popularity || 0)) {
+            bestItem = item;
+          }
+        });
+        
+        group.forEach(item => {
+          if (item === bestItem) {
+            finalResults.push(item);
+          } else if (item.vote_count !== undefined && item.vote_count >= 100) {
+            finalResults.push(item);
+          }
+        });
+      }
+    });
+
+    return finalResults;
   } catch (e) {
     console.error('[TMDB] Search error:', e);
     return [];

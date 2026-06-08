@@ -88,37 +88,31 @@ export const AudioSubPanelTouch: React.FC<{
     };
 
     const getSubtitleDisplayLabel = (cap: any, fallbackLabel: string) => {
-        if (cap.duration) {
-            const formatted = formatSubDuration(cap.duration);
-            if (videoDuration && videoDuration > 0) {
-                const diff = Math.abs(cap.duration - videoDuration);
-                if (diff <= 90) {
-                    return `${fallbackLabel} (${formatted} - Match)`;
-                }
-            }
-            return `${fallbackLabel} (${formatted})`;
-        }
         return fallbackLabel;
     };
 
+    const hasAudioTracks = audioTracks.length > 0 || (internalTracks && internalTracks.filter(t => t.type === 'audio').length > 0);
+
     return (
         <div className="flex flex-col h-full">
-            <div className="flex border-b border-white/10 shrink-0">
-                <button 
-                    className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'audio' ? 'text-white border-b-2 border-red-500' : 'text-white/50'}`}
-                    onClick={() => setActiveTab('audio')}
-                >
-                    Audio
-                </button>
-                <button 
-                    className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'subtitles' ? 'text-white border-b-2 border-red-500' : 'text-white/50'}`}
-                    onClick={() => setActiveTab('subtitles')}
-                >
-                    Subtitles
-                </button>
-            </div>
+            {hasAudioTracks && (
+                <div className="flex border-b border-white/10 shrink-0">
+                    <button 
+                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'audio' ? 'text-white border-b-2 border-red-500' : 'text-white/50'}`}
+                        onClick={() => setActiveTab('audio')}
+                    >
+                        Audio
+                    </button>
+                    <button 
+                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'subtitles' ? 'text-white border-b-2 border-red-500' : 'text-white/50'}`}
+                        onClick={() => setActiveTab('subtitles')}
+                    >
+                        Subtitles
+                    </button>
+                </div>
+            )}
 
-            {activeTab === 'audio' ? (
+            {hasAudioTracks && activeTab === 'audio' ? (
                 <ul className="flex-1 overflow-y-auto scrollbar-none">
                     {audioTracks.map((track) => (
                         <li 
@@ -191,7 +185,7 @@ export const AudioSubPanelTouch: React.FC<{
 
                         {groupedCaptions.flatMap(([langKey, caps]) => {
                             return caps.map((cap, index) => {
-                                const displayLabel = caps.length > 1 ? `${cap.label} (Track ${index + 1})` : cap.label;
+                                const displayLabel = cap.label;
                                 const isSelected = cap.url === currentCaption;
                                 return (
                                     <li 

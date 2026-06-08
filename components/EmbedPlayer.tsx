@@ -319,7 +319,6 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                     stopTimer();
                     elapsedRef.current = time;
                     onTimeUpdate?.(time, dur || estimatedDuration);
-                    onPlay?.();
                 }
                 
                 // Watchdog verification for Vidsync
@@ -389,7 +388,6 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                         }
                     }
                 }
-                onPlay?.();
             }
             if (type === 'play' || type === 'playing') {
                 hasRealTimeUpdateRef.current = true;
@@ -427,7 +425,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         season, 
         episode, 
         startTime: lockedStartTime, 
-        subtitleLang: subtitleLang || 'en' // Allows loading provider-native subtitles (e.g. English) inside the iframe
+        subtitleLang: undefined
     });
 
     const hideNative = currentProvider.supportsControlsHide;
@@ -436,16 +434,25 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     // to make its internal UI elements (controls, menus, buttons) microscopic and sharp.
     // We use a safe scaling factor (2.2 for WebKit/Safari, 2.5 for others) to stay well
     // under GPU texture limits and prevent process crashes on iOS.
-    const isWebKit = typeof window !== 'undefined' && 
-        (/iPad|iPhone|iPod/.test(navigator.userAgent) || /^((?!chrome|android).)*safari/i.test(navigator.userAgent));
-    const highResFactor = hideNative 
-        ? 1.0 
-        : (isWebKit ? 2.2 : 2.5);
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || 
+        (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+    const isMac = /Macintosh|Mac OS X/.test(ua);
+    const isIOSOrMac = isIOS || isMac;
+
+    const getHighResFactor = () => {
+        // Apply scaling factor to all providers to ensure any branding, logos, or unhidden controls are scaled down
+        return isIOSOrMac ? 6 : 16;
+    };
+    const highResFactor = getHighResFactor();
     
     // Zoom factor: crops out the outer edges to hide native player controls and branding.
+    // On non-Apple platforms, the high scale (4.5) already renders controls microscopic, 
+    // allowing a gentler crop (1.25) to preserve the video frame.
+    const defaultZoom = isIOSOrMac ? 1.75 : 1.75;
     const zoomFactor = videoFit === 'cover' 
         ? 1.65 
-        : (hideNative ? 1.0 : 1.65);
+        : defaultZoom;
         
     // Calculate the final scale to bring the high-res iframe back to the screen fit
     const totalScale = zoomFactor / highResFactor;
@@ -461,6 +468,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                     height: `${100 / totalScale}%`,
                     left: `${(100 - 100 / totalScale) / 2}%`,
                     top: `${(100 - 100 / totalScale) / 2}%`,
+                    clipPath: 'inset(0% 0% 8% 0%)', // Hides the bottom 8% of the iframe containing the controls
                 }}
             >
                 <iframe

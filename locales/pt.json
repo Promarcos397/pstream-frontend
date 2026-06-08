@@ -233,6 +233,7 @@
         "opacity": "Opacidade",
         "blur": "Desfoque",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "Consola",
             "typewriter": "Máquina de escrever",
             "print": "Imprimir",

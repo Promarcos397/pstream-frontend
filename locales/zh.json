@@ -233,6 +233,7 @@
         "opacity": "不透明度",
         "blur": "模糊",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "等宽字体",
             "typewriter": "打字机",
             "print": "印刷体",

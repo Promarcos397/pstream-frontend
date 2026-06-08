@@ -5,8 +5,7 @@ export interface SubtitleOption {
 }
 
 export const SUBTITLE_FONTS: SubtitleOption[] = [
-  { id: 'brand',      label: 'Netflix Sans',               value: "'Netflix Sans', sans-serif" },
-  { id: 'sans-serif', label: 'subtitles.fonts.sansSerif',  value: "'Netflix Sans', 'Roboto', 'Helvetica Neue', Arial, sans-serif" },
+  { id: 'brand',      label: 'subtitles.fonts.brand',      value: "'Netflix Sans', sans-serif" },
   { id: 'monospace',  label: 'subtitles.fonts.monospace',  value: "'Netflix Sans', 'Consolas', monospace" },
   { id: 'typewriter', label: 'subtitles.fonts.typewriter', value: "'Courier New', Courier, monospace" },
   { id: 'print',      label: 'subtitles.fonts.print',      value: "'Palatino', 'Book Antiqua', Palatino, serif" },

@@ -32,7 +32,7 @@ const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({ settings, updateSet
                             : 'bg-white text-gray-900 border-gray-300 focus:ring-black focus:border-black'}`}
                 >
                     {options.map((opt) => (
-                        <option key={opt.id} value={opt.id}>{t(opt.label, { defaultValue: opt.id })}</option>
+                        <option key={opt.id} value={opt.id}>{t(opt.label)}</option>
                     ))}
                 </select>
                 <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${isMobile ? 'text-white/40' : 'text-gray-400 group-hover:text-gray-600'}`}>

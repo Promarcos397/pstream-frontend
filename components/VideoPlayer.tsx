@@ -10,7 +10,6 @@ import { streamCache } from '../utils/streamCache';
 import { useTouchGestures } from '../hooks/useTouchGestures';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
-import { useHls } from '../hooks/useHls';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 import { useSkipTimestamps, SkipSegment } from '../hooks/useSkipTimestamps';
 import VideoPlayerControls from './VideoPlayerControls';
@@ -448,20 +447,34 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             artwork,
         });
 
-        // Wire OS controls to the actual video element
-        const video = videoRef.current;
-        if (!video) return;
-
-        navigator.mediaSession.setActionHandler('play', () => { video.play(); });
-        navigator.mediaSession.setActionHandler('pause', () => { video.pause(); });
+        // Wire OS controls to the actual video player / embed controller
+        navigator.mediaSession.setActionHandler('play', () => { 
+            setIsPlaying(true); 
+        });
+        navigator.mediaSession.setActionHandler('pause', () => { 
+            setIsPlaying(false); 
+        });
         navigator.mediaSession.setActionHandler('seekbackward', (details) => {
-            video.currentTime = Math.max(0, video.currentTime - (details.seekOffset || 10));
+            const offset = details.seekOffset || 10;
+            const target = Math.max(0, currentTimeRef.current - offset);
+            currentTimeRef.current = target;
+            embedControllerRef.current?.seek(target);
+            setCurrentTime(target);
         });
         navigator.mediaSession.setActionHandler('seekforward', (details) => {
-            video.currentTime = Math.min(video.duration, video.currentTime + (details.seekOffset || 10));
+            const offset = details.seekOffset || 10;
+            const target = Math.min(duration || estimatedDurationRef.current, currentTimeRef.current + offset);
+            currentTimeRef.current = target;
+            embedControllerRef.current?.seek(target);
+            setCurrentTime(target);
         });
         navigator.mediaSession.setActionHandler('seekto', (details) => {
-            if (details.seekTime != null) video.currentTime = details.seekTime;
+            if (details.seekTime != null) {
+                const target = details.seekTime;
+                currentTimeRef.current = target;
+                embedControllerRef.current?.seek(target);
+                setCurrentTime(target);
+            }
         });
 
         // Wire "next track" to the next episode handler if available
@@ -483,20 +496,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
         navigator.mediaSession.setActionHandler('previoustrack', null);
 
-        // Sync position state so the OS scrubber knows the duration
-        const syncPosition = () => {
-            if (!video.duration || isNaN(video.duration)) return;
-            try {
-                navigator.mediaSession.setPositionState({
-                    duration: video.duration,
-                    playbackRate: video.playbackRate,
-                    position: video.currentTime,
-                });
-            } catch (_) { }
+        return () => {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.setActionHandler('play', null);
+                navigator.mediaSession.setActionHandler('pause', null);
+                navigator.mediaSession.setActionHandler('seekbackward', null);
+                navigator.mediaSession.setActionHandler('seekforward', null);
+                navigator.mediaSession.setActionHandler('seekto', null);
+                navigator.mediaSession.setActionHandler('nexttrack', null);
+                navigator.mediaSession.setActionHandler('previoustrack', null);
+            }
         };
-        video.addEventListener('timeupdate', syncPosition);
-        return () => { video.removeEventListener('timeupdate', syncPosition); };
-    }, [movie, mediaType, playingSeasonNumber, currentEpisode, currentSeasonEpisodes, nextEpisodeInfo]);
+    }, [movie, mediaType, playingSeasonNumber, currentEpisode, currentSeasonEpisodes, nextEpisodeInfo, duration]);
+
+    // Sync position state so the OS scrubber knows the duration
+    useEffect(() => {
+        if (!('mediaSession' in navigator) || !navigator.mediaSession.metadata) return;
+        if (!duration || isNaN(duration)) return;
+        try {
+            navigator.mediaSession.setPositionState({
+                duration: duration,
+                playbackRate: isPlaying ? 1 : 0,
+                position: currentTime,
+            });
+        } catch (_) { }
+    }, [currentTime, duration, isPlaying]);
 
     const [currentCueText, setCurrentCueText] = useState<string>('');
 
@@ -741,15 +765,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // ——— Keyboard shortcuts ————————————————————————————————————————————————————————
     // Moved to the bottom of the component to avoid TDZ compile errors with showControls.
 
-    // ——— AllDebrid / Torrent: Primary Source ——————————————————————————————————————
-    // Fires immediately on mount. Extractors only activate if this fails.
-    const [extractorEnabled, setExtractorEnabled] = useState(false);
-
+    // Resolve direct stream from GoatAPI
     // Reset everything when content changes
     useEffect(() => {
         standardErrorRef.current = null;
-        setExtractorEnabled(false);
-        setIsBuffering(false); // Hide the backend spinner immediately since we load client-side embeds directly
+        setIsBuffering(false); // No spinner needed since we mount EmbedPlayer immediately
         setError(null);
         setStreamUrl(null);
         setAllSources([]);
@@ -760,8 +780,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setCurrentCaption(null);
         // Reset playback ref so the initial-load overlay shows again for the new episode
         hasPlayedOnceRef.current = false;
-        // Reset time display immediately — don't let the old episode's progress show on the new one
-        setCurrentTime(0);
+        // Reset time display immediately
         setCurrentTime(0);
         setDuration(0);
         setProgress(0);
@@ -779,27 +798,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
 
 
-    // Fire extractors resolver immediately on mount (DISABLED FOR DIRECT EMBED PLAYBACK)
-    useEffect(() => {
-        return; // Direct client-side embed playback only — no backend scrapers
-    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
-
-
-
     // NOTE: useAudioSilenceDetector was removed — createMediaElementSource() is a destructive
     // one-way pipe into WebAudio that itself causes silence when AudioContext is suspended.
     // Audio compatibility is managed at the source selection layer, not a post-hoc silence probe.
 
-    // ── External subtitles ────────────────────────────────────────────────────────
-    // Fetch from OpenSubtitles whenever the video player is in use.
+    // ── Subtitle Fetcher Hook ──────────────────────────────────────────────────────
+    // Fetch external subtitles whenever the current content changes.
+    // Depends ONLY on movie.id, mediaType, playingSeasonNumber, and currentEpisode.
     useEffect(() => {
-        if (!useEmbedFallback) return;
         let cancelled = false;
 
         const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
         const preferredLang = settings.subtitleLanguage?.toLowerCase() || 'en';
-
-        const debridSubs: any[] = [];
 
         let expectedDurationSec = 0;
         if (mediaType === 'movie') {
@@ -808,8 +818,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             const currentEpObj = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode);
             expectedDurationSec = (currentEpObj?.runtime || 0) * 60;
         }
-        const actualDurationSec = videoRef.current?.duration || 0;
+        const actualDurationSec = duration || (videoRef.current?.duration || 0);
         const targetDuration = actualDurationSec > 0 ? actualDurationSec : expectedDurationSec;
+
+        setCaptions([]); // Clear captions list for new content
 
         SubtitleService.getSubtitleTracks(
             String(movie.id), type,
@@ -819,18 +831,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             movie.imdb_id
         ).then(tracks => {
             if (cancelled) return;
+            if (!tracks.length) return;
 
-            // Merge debridSubs and tracks, deduplicating by URL
-            const combined = [...debridSubs];
-            for (const t of tracks) {
-                if (!combined.some(c => c.url === t.url)) {
-                    combined.push(t);
-                }
-            }
-
-            if (!combined.length) return;
-
-            const mappedCaptions = combined.map((sub, idx) => ({
+            const mappedCaptions = tracks.map((sub, idx) => ({
                 id: `sub-ext-${idx}`,
                 label: sub.label,
                 url: sub.url,
@@ -853,297 +856,75 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     if (diffA !== diffB) {
                         return diffA - diffB;
                     }
-                    return 0; // Maintain download count sorting
+                    return 0; // Maintain default sorting
                 });
             }
 
-            setCaptions(prev => {
-                // If we already have HLS/Embedded captions, keep them but append these
-                const existingUrls = new Set(prev.map(p => p.url));
-                const newOnes = mappedCaptions.filter(m => !existingUrls.has(m.url));
-                return [...prev, ...newOnes];
-            });
-
-            if (!settings.showSubtitles) return;
-
-            // Pick: preferred lang → 3rd English (avoids SDH/CC) → 1st English → anything
-            // But we prioritize the track with the closest duration!
-            const matchingLangs = mappedCaptions.filter(s => s.lang === preferredLang);
-            const enTracks = mappedCaptions.filter(s => s.lang === 'en');
-
-            const findBestTrack = (tracksList: typeof mappedCaptions) => {
-                if (tracksList.length === 0) return null;
-                if (targetDuration > 0) {
-                    const closeMatches = tracksList.filter(t => t.duration && Math.abs(t.duration - targetDuration) <= 90);
-                    if (closeMatches.length > 0) return closeMatches[0];
-
-                    const sortedByCloseness = [...tracksList].sort((a, b) => {
-                        const diffA = a.duration ? Math.abs(a.duration - targetDuration) : Infinity;
-                        const diffB = b.duration ? Math.abs(b.duration - targetDuration) : Infinity;
-                        return diffA - diffB;
-                    });
-                    if (sortedByCloseness[0] && sortedByCloseness[0].duration && Math.abs(sortedByCloseness[0].duration - targetDuration) < 300) {
-                        return sortedByCloseness[0];
-                    }
-                }
-                return null;
-            };
-
-            const bestPreferred = findBestTrack(matchingLangs);
-            const bestEnglish = findBestTrack(enTracks);
-
-            const target = bestPreferred
-                || matchingLangs[0]
-                || bestEnglish
-                || enTracks[2] || enTracks[0]
-                || mappedCaptions[0];
-
-            if (target) setCurrentCaption(target.url);
-        }).catch(() => { });
+            setCaptions(mappedCaptions);
+        }).catch(() => {});
 
         return () => { cancelled = true; };
-    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode,
-        currentSeasonEpisodes, settings.subtitleLanguage, settings.showSubtitles, useEmbedFallback]);
+    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode, movie.imdb_id]);
 
-    // ——— HLS Hook ——————————————————————————————————————————————————————————————————
-    const {
-        isBuffering: hlsBuffering,
-        qualityLevels: hlsLevels,
-        currentQuality: hlsQuality,
-        audioTracks: hlsAudios,
-        currentAudioTrack: hlsAudio,
-        subtitleTracks: hlsSubtitles,
-        changeQuality,
-        changeAudioTrack
-    } = useHls(videoRef, {
-        streamUrl: activeStreamUrl,
-        isM3U8: isStreamM3U8,
-        autoPlay: settings.autoplayVideo,
-        streamReferer: streamReferer,
-        preferredAudioLanguage: settings.audioLanguage,
-        onManifestParsed: () => {
-            const video = videoRef.current;
-            if (video) {
-                const saved = mediaType === 'tv'
-                    ? getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode)
-                    : getVideoState(movie.id);
-                if (saved?.time > 10 && saved.time < (video.duration - 30)) {
-                    video.currentTime = saved.time;
-                }
-            }
-            // Auto fullscreen on mobile — only on first load
-            if (isMobile && !hasAutoFullscreenedRef.current && containerRef.current) {
-                hasAutoFullscreenedRef.current = true;
-                requestMobileLandscapeFullscreen(containerRef.current);
-            }
-        },
-        onTokenExpired: () => {
-            const activeSource = allSources[currentSourceIndex];
-            const activeProvider = activeSource?.provider || 'unknown';
-            const activeProviderId = activeSource?.providerId;
-            const activeUrl = activeSource?.url || '';
-
-            const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
-            sourceFailureCooldownRef.current.set(failedSourceKey, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
-            reportStreamError({
-                provider: activeProvider,
-                providerId: activeProviderId,
-                tmdbId: String(movie.id || ''),
-                type: mediaType === 'tv' ? 'tv' : 'movie',
-                season: playingSeasonNumber,
-                episode: currentEpisode,
-                error: 'token-expired-or-ip-blocked',
-                errorCode: 'HLS_TOKEN_EXPIRED'
-            });
-            // 403/401: First try cycling to next source in the current source list.
-            // Only fall back to a full backend re-fetch if we've exhausted all sources.
-            const nextIdx = currentSourceIndex + 1;
-            if (allSources[nextIdx]) {
-                console.log(`[VideoPlayer] 🔄 403 on source ${currentSourceIndex} → trying source ${nextIdx}`);
-                handleSourceChange(nextIdx);
-            } else if (retryCountRef.current < MAX_STREAM_RETRIES) {
-                if (Date.now() < retryCooldownUntilRef.current) {
-                    console.log('[VideoPlayer] 🕗 Retry cooldown active — waiting before backend re-fetch.');
-                    return;
-                }
-                retryCountRef.current += 1;
-                const exponentialDelay = Math.min(RETRY_BASE_DELAY_MS * (2 ** (retryCountRef.current - 1)), RETRY_MAX_DELAY_MS);
-                const jitter = Math.floor(Math.random() * 400);
-                const waitMs = exponentialDelay + jitter;
-                retryCooldownUntilRef.current = Date.now() + waitMs;
-                console.log(`[VideoPlayer] 🔄 All sources failed, busting cache + backend re-fetch #${retryCountRef.current}`);
-                // ⚠️ CRITICAL: Bust the cache so re-fetch doesn't return the same blocked URLs.
-                // The cache has no way to know a URL is 403-blocked (no expiry param).
-                if (cacheKeyRef.current) {
-                    streamCache.remove(cacheKeyRef.current);
-                    console.log(`[VideoPlayer] 🗑️ Cache busted for blocked stream`);
-                }
-                // Reset source index so cycling restarts from 0 on the fresh sources
-                setCurrentSourceIndex(0);
-                setTimeout(() => {
-                    setRetryCount(c => c + 1);
-                }, waitMs);
-            } else {
-                console.warn(`[VideoPlayer] ❌ Max retries (${MAX_STREAM_RETRIES}) reached — activating extractor fallback.`);
-                if (!extractorEnabled) {
-                    setExtractorEnabled(true);
-                    setLoadingMessage('Searching alternatives...');
-                    setIsBuffering(true);
-                    setError(null);
-                } else {
-                    setError('Stream unavailable: all sources are temporarily blocked. Please try again in a minute.');
-                    setIsBuffering(false);
-                }
-            }
-        },
-        onError: (errMsg) => {
-            const activeSource = allSources[currentSourceIndex];
-            const activeProvider = activeSource?.provider || 'unknown';
-            const activeProviderId = activeSource?.providerId;
-            const activeUrl = activeSource?.url || '';
-
-            const failedSourceKey = `${activeProviderId || activeProvider}::${activeUrl}`;
-            sourceFailureCooldownRef.current.set(failedSourceKey, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
-            reportStreamError({
-                provider: activeProvider,
-                providerId: activeProviderId,
-                tmdbId: String(movie.id || ''),
-                type: mediaType === 'tv' ? 'tv' : 'movie',
-                season: playingSeasonNumber,
-                episode: currentEpisode,
-                error: errMsg,
-                errorCode: 'HLS_GENERIC_ERROR'
-            });
-            if (currentSourceIndex < allSources.length - 1) {
-                handleSourceChange(currentSourceIndex + 1);
-            } else {
-                console.log('[VideoPlayer] 🔌 All sources failed — activating iframe embed fallback...');
-                setUseEmbedFallback(true);
-                setError(null);
-                setIsBuffering(false);
-            }
+    // ── Subtitle Auto-Selection Hook ────────────────────────────────────────────────
+    // Automatically select the best matching subtitle track when captions load or settings change.
+    useEffect(() => {
+        if (!settings.showSubtitles || captions.length === 0) {
+            setCurrentCaption(null);
+            return;
         }
-    });
 
-    useEffect(() => {
-        setQualityLevels(hlsLevels);
-        setCurrentQualityLevel(hlsQuality);
-        setAudioTracks(hlsAudios);
-        setCurrentAudioTrack(hlsAudio);
-        if (!isEmbed) setIsBuffering(hlsBuffering);
+        const preferredLang = settings.subtitleLanguage?.toLowerCase() || 'en';
 
-        // Merge native HLS subtitles if they exist
-        if (hlsSubtitles && hlsSubtitles.length > 0) {
-            setCaptions(prev => {
-                const existingUrls = new Set(prev.map(p => p.url));
-                const newSubs = hlsSubtitles
-                    .filter(sub => sub.url && !existingUrls.has(sub.url))
-                    .map((sub, index) => ({
-                        id: `hls-sub-${sub.id || index}`,
-                        label: ISO6391.getName((sub.lang || 'en').toLowerCase().split('-')[0]) || sub.name || `Subtitle ${index + 1}`,
-                        url: sub.url!,
-                        lang: (sub.lang || 'en').toLowerCase().split('-')[0]
-                    }));
-                return [...prev, ...newSubs];
-            });
+        let expectedDurationSec = 0;
+        if (mediaType === 'movie') {
+            expectedDurationSec = (movie.runtime || 0) * 60;
+        } else if (mediaType === 'tv') {
+            const currentEpObj = currentSeasonEpisodes.find(e => e.episode_number === currentEpisode);
+            expectedDurationSec = (currentEpObj?.runtime || 0) * 60;
         }
-    }, [hlsLevels, hlsQuality, hlsAudios, hlsAudio, hlsBuffering, isEmbed, hlsSubtitles]);
+        const actualDurationSec = duration || (videoRef.current?.duration || 0);
+        const targetDuration = actualDurationSec > 0 ? actualDurationSec : expectedDurationSec;
 
-    // Report provider success after 10s of uninterrupted playback on a source.
-    useEffect(() => {
-        const activeProvider = allSources[currentSourceIndex]?.provider;
-        const activeProviderId = allSources[currentSourceIndex]?.providerId;
-        if (!activeProvider) return;
-        if (!isPlaying || isBuffering || currentTime < 10) return;
-        if (reportedSuccessRef.current === activeProvider) return;
+        const matchingLangs = captions.filter(s => s.lang === preferredLang);
+        const enTracks = captions.filter(s => s.lang === 'en');
 
-        reportedSuccessRef.current = activeProvider;
-        reportStreamSuccess(activeProvider, activeProviderId);
-    }, [isPlaying, isBuffering, currentTime, allSources, currentSourceIndex]);
+        const findBestTrack = (tracksList: typeof captions) => {
+            if (tracksList.length === 0) return null;
+            if (targetDuration > 0) {
+                const closeMatches = tracksList.filter(t => t.duration && Math.abs(t.duration - targetDuration) <= 90);
+                if (closeMatches.length > 0) return closeMatches[0];
 
-    // ——— Seek to resume time on load ———————————————————————————————————————————————
-    useEffect(() => {
-        const video = videoRef.current;
-        if (!video) return;
-
-        // Reset video time immediately to prevent previous episode's progress leak
-        try {
-            video.currentTime = 0;
-        } catch (_) { }
-
-        // Calculate the best resume time:
-        // 1. For TV: getEpisodeProgress for this S+E
-        // 2. For Movie: getVideoState time
-        // 3. Fallback to resumeTime prop passed from CinemaPage
-        const getResumeTime = () => {
-            if (mediaType === 'tv') {
-                const prog = getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode);
-                if (prog && prog.time > 5 && prog.duration > 0 && (prog.time / prog.duration) < 0.95) {
-                    return prog.time;
-                }
-            } else {
-                const state = getVideoState(movie.id);
-                if (state && state.time > 5 && state.duration && (state.time / state.duration) < 0.95) {
-                    return state.time;
+                const sortedByCloseness = [...tracksList].sort((a, b) => {
+                    const diffA = a.duration ? Math.abs(a.duration - targetDuration) : Infinity;
+                    const diffB = b.duration ? Math.abs(b.duration - targetDuration) : Infinity;
+                    return diffA - diffB;
+                });
+                if (sortedByCloseness[0] && sortedByCloseness[0].duration && Math.abs(sortedByCloseness[0].duration - targetDuration) < 300) {
+                    return sortedByCloseness[0];
                 }
             }
-            return resumeTime > 5 ? resumeTime : 0;
+            return null;
         };
 
-        const handleCanPlay = () => {
-            const t = getResumeTime();
-            if (t > 0 && video.currentTime < 2) {
-                video.currentTime = t;
-                console.log(`[VideoPlayer] ▶ Resuming from ${Math.round(t)}s`);
-            }
-            // Mark video as ready so subtitles can render
-            setIsVideoReady(true);
-            hasPlayedOnceRef.current = true;
-        };
+        const bestPreferred = findBestTrack(matchingLangs);
+        const bestEnglish = findBestTrack(enTracks);
 
-        // Reset ready state whenever stream URL changes (new episode / new source)
-        // but NOT when just caption/subtitle track changes
-        setIsVideoReady(false);
+        const target = bestPreferred
+            || matchingLangs[0]
+            || bestEnglish
+            || enTracks[2] || enTracks[0]
+            || captions[0];
 
-        video.addEventListener('canplay', handleCanPlay, { once: true });
-        return () => video.removeEventListener('canplay', handleCanPlay);
-    }, [streamUrl, mediaType, playingSeasonNumber, currentEpisode]);
-
-    // ——— Time Update & History —————————————————————————————————————————————————————
-    const handleTimeUpdate = useCallback(() => {
-        const video = videoRef.current;
-        if (!video || isNaN(video.duration) || video.duration === 0) return;
-
-        const time = video.currentTime;
-        const dur = video.duration;
-        setCurrentTime(time);
-        setDuration(dur);
-        setProgress((time / dur) * 100);
-
-        // Track buffered range so the seek bar can show how much is loaded ahead
-        if (video.buffered.length > 0) {
-            try {
-                const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-                setBufferedAmount((bufferedEnd / dur) * 100);
-            } catch (_) { }
+        if (target) {
+            setCurrentCaption(target.url);
         }
+    }, [captions, settings.showSubtitles, settings.subtitleLanguage, duration]);
+
+    const changeQuality = useCallback((_level: number) => {}, []);
+    const changeAudioTrack = useCallback((_trackId: number) => {}, []);
 
 
-        if (time > 0 && Math.abs(time - lastSavedTimeRef.current) > 5) {
-            lastSavedTimeRef.current = time;
-            addToHistory(movie);
-            if (mediaType === 'tv') {
-                updateEpisodeProgress(movie, playingSeasonNumber, currentEpisode, time, dur);
-            } else {
-                updateVideoState(movie, time, undefined, dur);
-            }
-        }
-
-        if (video.buffered.length > 0) {
-            const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-            setBufferedAmount((bufferedEnd / dur) * 100);
-        }
-    }, [mediaType, movie, playingSeasonNumber, currentEpisode, addToHistory, updateEpisodeProgress, updateVideoState]);
 
     // ——— Instant progress save on manual scrub —————————————————————————————————————
     // timeupdate only fires every ~250ms and has a 5s throttle gate — so if the
@@ -1180,6 +961,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         let isMounted = true;
         const loadSubtitles = async () => {
             try {
+                // Direct client-side fetch only (no proxies)
                 const res = await fetch(currentCaption);
                 const text = await res.text();
                 if (!text || !isMounted) return;
@@ -1355,9 +1137,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
             if (activePanel !== 'none') return;
-            
+
             const key = e.key.toLowerCase();
-            
+
             // Allow key repeat only for navigation/adjustment actions (seeking, volume)
             if (e.repeat && !['arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'l', 'j'].includes(key)) {
                 return;
@@ -1534,7 +1316,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             onMouseMove={showControls}
             onClick={(e) => {
                 const target = e.target as HTMLElement;
-                
+
                 // If a settings panel is open: close it first and prevent any other background click actions
                 if (activePanel !== 'none') {
                     const panelContainer = target.closest('.settings-panel') || target.closest('.settings-panel-touch');
@@ -1545,12 +1327,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         return;
                     }
                 }
-                
+
                 // Only act on clicks directly on the background/video/embed-shield
-                const isBackgroundClick = target === containerRef.current || 
-                                          target === videoRef.current || 
-                                          target.classList.contains('embed-shield');
-                                          
+                const isBackgroundClick = target === containerRef.current ||
+                    target === videoRef.current ||
+                    target.classList.contains('embed-shield');
+
                 if (isBackgroundClick) {
                     // Ignore synthesized clicks from touch devices
                     if (Date.now() - lastTouchTimeRef.current < 900) return;
@@ -1569,7 +1351,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         }
                         setPpRippleTrigger(t => t + 1);
                     }
-                    
+
                     // Always wake up / show the controls UI and reset hide timer
                     showControls();
                 } else {
@@ -1587,97 +1369,60 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 toggleFullscreen();
             }}
         >
-            {useEmbedFallback ? (
-                <EmbedPlayer
-                    tmdbId={String(movie.id)}
-                    imdbId={movie.imdb_id}
-                    mediaType={mediaType as 'movie' | 'tv'}
-                    season={playingSeasonNumber}
-                    episode={currentEpisode}
-                    videoFit={videoFit}
-                    isPlaying={isPlaying}
-                    controllerRef={embedControllerRef}
-                    subtitleLang={settings.subtitleLanguage || 'en'}
-                    activePanel={activePanel}
-                    providerIndex={embedProviderIndex}
-                    onProviderIndexChange={setEmbedProviderIndex}
-                    startTime={(() => {
-                        // Compute resume time from the same store the native player uses (sync threshold > 5s)
+            <EmbedPlayer
+                tmdbId={String(movie.id)}
+                imdbId={movie.imdb_id}
+                mediaType={mediaType as 'movie' | 'tv'}
+                season={playingSeasonNumber}
+                episode={currentEpisode}
+                videoFit={videoFit}
+                isPlaying={isPlaying}
+                controllerRef={embedControllerRef}
+                subtitleLang={settings.subtitleLanguage || 'en'}
+                activePanel={activePanel}
+                providerIndex={embedProviderIndex}
+                onProviderIndexChange={setEmbedProviderIndex}
+                startTime={(() => {
+                    // Compute resume time from the same store the native player uses (sync threshold > 5s)
+                    if (mediaType === 'tv') {
+                        const prog = getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode);
+                        if (prog && prog.time > 5 && (prog.duration === 0 || (prog.time / prog.duration) < 0.95)) return prog.time;
+                    } else {
+                        const state = getVideoState(movie.id);
+                        if (state && state.time > 5 && (state.duration === 0 || (state.time / state.duration) < 0.95)) return state.time;
+                    }
+                    return resumeTime > 5 ? resumeTime : 0;
+                })()}
+                onPlay={() => {
+                    setIsPlaying(true);
+                    setIsVideoReady(true);
+                    hasPlayedOnceRef.current = true;
+                }}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => {
+                    if (settings.autoplayNextEpisode) handleNextEpisode();
+                }}
+                onTimeUpdate={(t, d) => {
+                    setCurrentTime(t);
+                    if (d > 0) {
+                        setDuration(d);
+                        setProgress((t / d) * 100);
+                    }
+                    // Throttled progress save — identical to native player cadence (every 5s starting from 0)
+                    if (t > 0 && Math.abs(t - lastSavedTimeRef.current) > 5) {
+                        lastSavedTimeRef.current = t;
+                        addToHistory(movie);
                         if (mediaType === 'tv') {
-                            const prog = getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode);
-                            if (prog && prog.time > 5 && (prog.duration === 0 || (prog.time / prog.duration) < 0.95)) return prog.time;
+                            updateEpisodeProgress(movie, playingSeasonNumber, currentEpisode, t, d);
                         } else {
-                            const state = getVideoState(movie.id);
-                            if (state && state.time > 5 && (state.duration === 0 || (state.time / state.duration) < 0.95)) return state.time;
+                            updateVideoState(movie, t, undefined, d);
                         }
-                        return resumeTime > 5 ? resumeTime : 0;
-                    })()}
-                    onPlay={() => {
-                        setIsPlaying(true);
-                        setIsVideoReady(true);
-                        hasPlayedOnceRef.current = true;
-                    }}
-                    onPause={() => setIsPlaying(false)}
-                    onEnded={() => {
-                        if (settings.autoplayNextEpisode) handleNextEpisode();
-                    }}
-                    onTimeUpdate={(t, d) => {
-                        setCurrentTime(t);
-                        if (d > 0) {
-                            setDuration(d);
-                            setProgress((t / d) * 100);
-                        }
-                        // Throttled progress save — identical to native player cadence (every 5s starting from 0)
-                        if (t > 0 && Math.abs(t - lastSavedTimeRef.current) > 5) {
-                            lastSavedTimeRef.current = t;
-                            addToHistory(movie);
-                            if (mediaType === 'tv') {
-                                updateEpisodeProgress(movie, playingSeasonNumber, currentEpisode, t, d);
-                            } else {
-                                updateVideoState(movie, t, undefined, d);
-                            }
-                        }
-                    }}
-                    onAllFailed={() => {
-                        setError('All streaming providers have failed. Please try again later.');
-                    }}
-                />
-            ) : (
-                <video
-                    ref={videoRef}
-                    preload="auto"
-                    className={`w-full h-full ${videoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
-                    onTimeUpdate={handleTimeUpdate}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                    onVolumeChange={() => {
-                        if (videoRef.current) {
-                            const vol = videoRef.current.volume;
-                            const elementMuted = videoRef.current.muted;
-
-                            setVolume(vol);
-                            setIsMuted(elementMuted);
-                            volumeRef.current = vol;
-                            mutedRef.current = elementMuted;
-
-                            if (vol > 0) {
-                                try { localStorage.setItem('pstream_vol', String(vol)); } catch { }
-                            }
-                        }
-                    }}
-                    // For direct MP4 streams (AllDebrid CDN), track buffering via native events.
-                    // HLS streams use the hlsBuffering state from useHls instead.
-                    onWaiting={() => { if (!isStreamM3U8) setIsBuffering(true); }}
-                    onPlaying={() => { if (!isStreamM3U8) setIsBuffering(false); }}
-                    onCanPlay={() => { if (!isStreamM3U8) setIsBuffering(false); }}
-                    playsInline
-                    onEnded={() => {
-                        if (settings.autoplayNextEpisode) {
-                            handleNextEpisode();
-                        }
-                    }}
-                />
-            )}
+                    }
+                }}
+                onAllFailed={() => {
+                    setError('All streaming providers have failed. Please try again later.');
+                }}
+            />
 
             {/* â”€â”€ Custom Subtitle Overlay â”€â”€ */}
             {/* Show when: stream is ready (isVideoReady) OR we've played before and are just switching subtitle tracks */}
@@ -1701,9 +1446,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             className="subtitle-overlay"
                             style={{
                                 ...overlayStyle,
-                                bottom: useEmbedFallback
-                                    ? (showUI ? (isMobile ? '16rem' : '14.5rem') : '10rem')
-                                    : (showUI ? (isMobile ? '12rem' : '10.5rem') : '6rem'),
+                                bottom: useEmbedFallback ? '9rem' : '5.5rem',
                                 left: '0',
                                 transform: 'none',
                                 maxWidth: '100%',
@@ -1750,9 +1493,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         className="subtitle-overlay"
                         style={{
                             ...overlayStyle,
-                            bottom: useEmbedFallback
-                                ? (showUI ? (isMobile ? '16rem' : '14.5rem') : '10rem')
-                                : (showUI ? (isMobile ? '12rem' : '10.5rem') : '6rem'),
+                            bottom: useEmbedFallback ? '9rem' : '5.5rem',
                             left: '50%',
                             transform: 'translateX(-50%)',
                             background: 'transparent',

@@ -233,6 +233,7 @@
         "opacity": "Opaklık",
         "blur": "Bulanıklık",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "Konsol",
             "typewriter": "Daktilo",
             "print": "Baskı",

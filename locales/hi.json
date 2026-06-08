@@ -233,6 +233,7 @@
         "opacity": "पारदर्शिता",
         "blur": "धुँधलापन",
         "fonts": {
+            "brand": "Pstream Sans",
             "monospace": "कंसोल",
             "typewriter": "टाइपराइटर",
             "print": "प्रिंट",
