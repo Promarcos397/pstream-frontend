@@ -18,6 +18,7 @@ import VideoPlayerSettingsTouch from './VideoPlayerSettingsTouch';
 import { EmbedPlayer, EmbedController } from './EmbedPlayer';
 import { ALL_EMBED_PROVIDERS } from '../services/EmbedProviders';
 import { ArrowLeftIcon } from '@phosphor-icons/react';
+import { parseSubtitles, CaptionCueType } from '../utils/captions';
 
 
 // Giga Engine Backend URL
@@ -524,6 +525,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     const [currentCueText, setCurrentCueText] = useState<string>('');
 
+    // ——— Autoplay Countdown state ————————————————————————————————————————————————
+    const [showAutoplayCountdown, setShowAutoplayCountdown] = useState(false);
+    const [autoplayCountdownSecs, setAutoplayCountdownSecs] = useState(5);
+    const autoplayCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const countdownCancelledRef = useRef(false);
+
     // HLS state (from hook)
     const [qualityLevels, setQualityLevels] = useState<{ height: number; bitrate: number; level: number }[]>([]);
     const [currentQualityLevel, setCurrentQualityLevel] = useState<number>(-1);
@@ -785,6 +792,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setDuration(0);
         setProgress(0);
         setBufferedAmount(0);
+        // Reset autoplay countdown so it can fire again for the new episode
+        countdownCancelledRef.current = false;
+        setShowAutoplayCountdown(false);
+        if (autoplayCountdownRef.current) {
+            clearInterval(autoplayCountdownRef.current);
+            autoplayCountdownRef.current = null;
+        }
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
     // One-time volume initialisation on mount
@@ -947,9 +961,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         return () => video.removeEventListener('seeked', onSeeked);
     }, [mediaType, movie, playingSeasonNumber, currentEpisode, updateEpisodeProgress, updateVideoState]);
 
-    // ——— Custom Subtitle Cue Engine ———————————————————————————————————————————————
-    // We parse the VTT file directly and drive currentCueText via a polling ref.
-    const parsedCuesRef = useRef<Array<{ start: number; end: number; text: string }>>([]);
+    // ——— Custom Subtitle Cue Engine (subsrt-ts powered) —————————————————————————————
+    // parsedCuesRef holds CaptionCueType objects from subsrt-ts (start/end in ms).
+    // We use cue.content which preserves HTML formatting tags (<i>, <b>, <font color>),
+    // unlike the old regex path which stripped all tags via /<[^>]+>/g.
+    const parsedCuesRef = useRef<CaptionCueType[]>([]);
 
     useEffect(() => {
         if (!currentCaption) {
@@ -966,34 +982,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 const text = await res.text();
                 if (!text || !isMounted) return;
 
-                // Parse VTT/SRT cues
-                const cues: Array<{ start: number; end: number; text: string }> = [];
-                const timeToSec = (t: string) => {
-                    const parts = t.trim().split(':');
-                    if (parts.length === 3) {
-                        return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2].replace(',', '.'));
-                    }
-                    return parseFloat(parts[0]) * 60 + parseFloat(parts[1].replace(',', '.'));
-                };
-                // Universal VTT + SRT regex
-                const cueRegex = /(?:\d+\n)?([\d:,.]+ --> [\d:,.]+)[^\n]*\n([\s\S]*?)(?=\n\n|\n?$)/g;
-                let match;
-                while ((match = cueRegex.exec(text)) !== null) {
-                    const [startStr, endStr] = match[1].split(' --> ');
-                    const cueText = match[2].trim().replace(/<[^>]+>/g, '');
-                    if (cueText) cues.push({ start: timeToSec(startStr), end: timeToSec(endStr), text: cueText });
-                }
+                // Parse via subsrt-ts — handles SRT, VTT, SBV, etc. automatically.
+                // Uses cue.content (HTML-formatted) rather than cue.text (plain) so that
+                // formatting tags like <i>, <b>, and <font color> survive into our overlay.
+                const cues = parseSubtitles(text);
                 parsedCuesRef.current = cues;
 
                 // Immediately snap to the cue at current playtime — no waiting for next timeupdate.
-                // This is the "precision" fix: caption is correct the instant you switch tracks.
                 if (isMounted) {
-                    const now = currentTime - subtitleOffset;
-                    const immediateCue = cues.find(c => now >= c.start && now <= c.end);
-                    setCurrentCueText(immediateCue?.text || '');
+                    const nowMs = (currentTime - subtitleOffset) * 1000;
+                    const immediateCue = cues.find(c => nowMs >= c.start && nowMs <= c.end);
+                    setCurrentCueText(immediateCue?.content || '');
                 }
 
-                // Produce a blob URL and revoke the previous one to prevent memory leaks
+                // Produce a blob URL for the <track> element (converts to VTT)
                 const { convertSubtitlesToObjectUrl } = await import('../utils/captions');
                 const newUrl = convertSubtitlesToObjectUrl(text);
                 if (newUrl && isMounted) {
@@ -1009,16 +1011,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         loadSubtitles();
         return () => {
             isMounted = false;
-            // Revoke blob URL when caption changes or component unmounts
             setSubtitleObjectUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
         };
     }, [currentCaption]);
 
-    // Update active cue text when currentTime or subtitleOffset changes
+    // Update active cue text when currentTime or subtitleOffset changes.
+    // subsrt-ts reports start/end in milliseconds, so we convert currentTime (seconds) → ms.
     useEffect(() => {
-        const t = currentTime - subtitleOffset;
-        const cue = parsedCuesRef.current.find(c => t >= c.start && t <= c.end);
-        setCurrentCueText(cue ? cue.text : '');
+        const nowMs = (currentTime - subtitleOffset) * 1000;
+        const cue = parsedCuesRef.current.find(c => nowMs >= c.start && nowMs <= c.end);
+        setCurrentCueText(cue ? (cue.content || cue.text || '') : '');
     }, [currentTime, subtitleOffset, subtitleObjectUrl]);
 
     // Disable native subtitles to prevent double-rendering (since we use our own overlay)
@@ -1038,6 +1040,57 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             clearInterval(interval);
         };
     }, [streamUrl]);
+
+    // ——— Autoplay Countdown Effect —————————————————————————————————————————————————
+    // Fire a 5-second Netflix-style overlay when within 30s of episode end.
+    // Dismissed instantly if: user cancels, settings turn off autoplay, or no next episode.
+    useEffect(() => {
+        if (
+            !settings.autoplayNextEpisode ||
+            !nextEpisodeInfo ||
+            duration <= 0 ||
+            mediaType !== 'tv'
+        ) {
+            setShowAutoplayCountdown(false);
+            return;
+        }
+
+        const remaining = duration - currentTime;
+        const TRIGGER_AT = 30; // seconds before end
+
+        if (remaining <= TRIGGER_AT && remaining > 0) {
+            if (!showAutoplayCountdown && !countdownCancelledRef.current) {
+                setShowAutoplayCountdown(true);
+                setAutoplayCountdownSecs(5);
+                // Clear any previous interval
+                if (autoplayCountdownRef.current) clearInterval(autoplayCountdownRef.current);
+                autoplayCountdownRef.current = setInterval(() => {
+                    setAutoplayCountdownSecs(prev => {
+                        if (prev <= 1) {
+                            clearInterval(autoplayCountdownRef.current!);
+                            autoplayCountdownRef.current = null;
+                            setShowAutoplayCountdown(false);
+                            handleNextEpisode();
+                            return 5;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            }
+        } else if (remaining > TRIGGER_AT) {
+            // Reset cancel guard when we're far from end (e.g. after seeking back)
+            countdownCancelledRef.current = false;
+            if (showAutoplayCountdown) {
+                if (autoplayCountdownRef.current) clearInterval(autoplayCountdownRef.current);
+                setShowAutoplayCountdown(false);
+            }
+        }
+
+        return () => {
+            if (autoplayCountdownRef.current) clearInterval(autoplayCountdownRef.current);
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTime, duration, nextEpisodeInfo, settings.autoplayNextEpisode, mediaType]);
 
     // ——— TV Details init ——————————————————————————————————————————————————————————
     // Effect 1: Fetch season list once — only needs movie.id and mediaType
@@ -1400,7 +1453,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 }}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => {
-                    if (settings.autoplayNextEpisode) handleNextEpisode();
+                    // If the countdown overlay is already showing, it will handle navigation.
+                    // Only trigger direct autoplay if the countdown was suppressed or disabled.
+                    if (settings.autoplayNextEpisode && !showAutoplayCountdown) handleNextEpisode();
                 }}
                 onTimeUpdate={(t, d) => {
                     setCurrentTime(t);
@@ -1524,6 +1579,99 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 );
             })()}
 
+
+            {/* ——— Autoplay Countdown Overlay ——— */}
+            {showAutoplayCountdown && nextEpisodeInfo && (() => {
+                const TOTAL = 5;
+                const radius = 20;
+                const circumference = 2 * Math.PI * radius;
+                const dashOffset = circumference * (1 - autoplayCountdownSecs / TOTAL);
+                const nextEpNum = nextEpisodeInfo.episode.episode_number;
+                const nextEpName = nextEpisodeInfo.episode.name || '';
+                const nextSeason = nextEpisodeInfo.season;
+                return (
+                    <div
+                        className="absolute bottom-28 right-6 z-[30000] pointer-events-auto"
+                        style={{ animation: 'fadeInUp 0.35s ease' }}
+                    >
+                        <div
+                            style={{
+                                background: 'rgba(20,20,20,0.92)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                border: '1px solid rgba(255,255,255,0.10)',
+                                borderRadius: '16px',
+                                padding: '18px 20px',
+                                minWidth: '260px',
+                                maxWidth: '320px',
+                                boxShadow: '0 8px 40px rgba(0,0,0,0.7)',
+                            }}
+                        >
+                            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                Next Episode
+                            </p>
+                            <p style={{ color: '#fff', fontSize: '15px', fontWeight: 700, marginBottom: '2px', lineHeight: 1.3 }}>
+                                S{nextSeason} E{nextEpNum}{nextEpName ? `: ${nextEpName}` : ''}
+                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '14px' }}>
+                                {/* Circular countdown timer */}
+                                <div style={{ position: 'relative', width: 48, height: 48, flexShrink: 0 }}>
+                                    <svg width="48" height="48" viewBox="0 0 48 48" style={{ transform: 'rotate(-90deg)' }}>
+                                        <circle cx="24" cy="24" r={radius} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="3" />
+                                        <circle
+                                            cx="24" cy="24" r={radius}
+                                            fill="none"
+                                            stroke="#e50914"
+                                            strokeWidth="3"
+                                            strokeLinecap="round"
+                                            strokeDasharray={circumference}
+                                            strokeDashoffset={dashOffset}
+                                            style={{ transition: 'stroke-dashoffset 0.95s linear' }}
+                                        />
+                                    </svg>
+                                    <span style={{
+                                        position: 'absolute', inset: 0,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: '#fff', fontSize: '15px', fontWeight: 700,
+                                    }}>
+                                        {autoplayCountdownSecs}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleNextEpisode(); setShowAutoplayCountdown(false); if (autoplayCountdownRef.current) clearInterval(autoplayCountdownRef.current); }}
+                                        style={{
+                                            background: '#fff', color: '#000',
+                                            border: 'none', borderRadius: '8px',
+                                            padding: '8px 14px', fontSize: '13px', fontWeight: 700,
+                                            cursor: 'pointer', width: '100%',
+                                            transition: 'opacity 0.15s',
+                                        }}
+                                        onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
+                                        onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+                                    >
+                                        Play Now
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setShowAutoplayCountdown(false); countdownCancelledRef.current = true; if (autoplayCountdownRef.current) clearInterval(autoplayCountdownRef.current); }}
+                                        style={{
+                                            background: 'transparent', color: 'rgba(255,255,255,0.55)',
+                                            border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px',
+                                            padding: '7px 14px', fontSize: '12px', fontWeight: 500,
+                                            cursor: 'pointer', width: '100%',
+                                            transition: 'color 0.15s, border-color 0.15s',
+                                        }}
+                                        onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)'; }}
+                                        onMouseOut={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {isBuffering && !useEmbedFallback && (
                 hasPlayedOnceRef.current ? (
