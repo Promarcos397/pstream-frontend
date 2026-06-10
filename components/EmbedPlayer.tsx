@@ -442,7 +442,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
     const getHighResFactor = () => {
         // Apply scaling factor to all providers to ensure any branding, logos, or unhidden controls are scaled down
-        return isIOSOrMac ? 6 : 16;
+        return isIOSOrMac ? 2 : 16;
     };
     const highResFactor = getHighResFactor();
     

@@ -1,5 +1,5 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-07 10:07:02
+# Generated: 2026-06-09 00:06:32
 # Root: D:\coding-projects\streaming-app\pstream-frontend
 
 pstream-frontend/
@@ -164,11 +164,20 @@ pstream-frontend/
 │   ├── StandardGalacticAlphabet-Regular.ttf
 │   └── sw.js
 ├── scratch
-│   └── scrape_docs.py
+│   ├── audit_docs.py
+│   ├── check_subs.js
+│   ├── inject_translations.js
+│   ├── launch_webkit.py
+│   ├── provider_notes.md
+│   ├── scrape_docs.py
+│   ├── test_direct_apis.py
+│   ├── test_player.html
+│   └── test_search.js
 ├── services
 │   ├── api.ts
 │   ├── EmbedProviders.ts
 │   ├── ghostAuth.ts
+│   ├── GoatAPIService.ts
 │   ├── HeroEngine.ts
 │   ├── NetworkPriority.ts
 │   ├── ProviderHealthService.ts
@@ -200,12 +209,7 @@ pstream-frontend/
 │   ├── useSettingsStore.ts
 │   └── useWatchStore.ts
 ├── test-results
-│   ├── .playwright-artifacts-0
-│   ├── .playwright-artifacts-1
-│   ├── .playwright-artifacts-2
-│   ├── .playwright-artifacts-3
-│   ├── .playwright-artifacts-4
-│   └── .playwright-artifacts-5
+│   └── .last-run.json
 ├── tests
 │   └── iphone-compat.spec.ts
 ├── types
@@ -226,9 +230,9 @@ pstream-frontend/
 ├── .env
 ├── .env.local
 ├── .gitignore
-├── 1780822510378.md
 ├── alldebrid_keys.txt
 ├── App.tsx
+├── client_secret_432066495032-1s1qo2tifqgldir2tf37bh2b50joisnv.apps.googleusercontent.com.json
 ├── constants.ts
 ├── diff_output.txt
 ├── download (1).zip
@@ -243,7 +247,6 @@ pstream-frontend/
 ├── piracy_megathread_decoded.md
 ├── playwright.config.ts
 ├── postcss.config.js
-├── provider_audit_results.md
 ├── tailwind.config.js
 ├── tsconfig.json
 ├── types.ts
@@ -251,4 +254,4 @@ pstream-frontend/
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 24 directories, 223 files
+# 24 directories, 226 files
