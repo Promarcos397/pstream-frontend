@@ -2,10 +2,36 @@
 
 @font-face {
   font-family: 'PStream Sans';
-  src: url('./assets/fonts/Morandi-W01-Regular.otf') format('opentype');
+  src: url('/fonts/netflix-sans.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
+}
+
+@font-face {
+  font-family: 'PStream Sans';
+  src: url('/fonts/ns-md.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PStream Sans';
+  src: url('/fonts/ns-bd.woff2') format('woff2');
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@supports (font-variation-settings: normal) {
+  @font-face {
+    font-family: 'PStream Sans';
+    src: url('/fonts/netflix-sans-core-variable-full.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
 }
 
 .font-netflix {
@@ -13,9 +39,9 @@
 }
 
 /* Fallback utilities for legacy class names to point to Netflix Sans */
-.font-harmonia, 
-.font-harmonia-mono, 
-.font-harmonia-condensed, 
+.font-harmonia,
+.font-harmonia-mono,
+.font-harmonia-condensed,
 .font-leaner {
   font-family: 'PStream Sans', sans-serif;
 }
@@ -28,7 +54,8 @@ html {
   scroll-behavior: smooth;
   scrollbar-width: auto;
   scrollbar-color: #4e4e4e #141414;
-  -webkit-tap-highlight-color: transparent; /* Fix blue highlight on mobile */
+  -webkit-tap-highlight-color: transparent;
+  /* Fix blue highlight on mobile */
   -webkit-text-size-adjust: 100%;
 }
 
@@ -44,8 +71,10 @@ body {
   background-color: #000000;
   color: white;
   overflow-x: hidden;
-  overscroll-behavior-y: none; /* Prevent elastic bouncing on mobile */
-  user-select: none; /* Prevent accidental text selection while navigating */
+  overscroll-behavior-y: none;
+  /* Prevent elastic bouncing on mobile */
+  user-select: none;
+  /* Prevent accidental text selection while navigating */
   -webkit-user-select: none;
   /* Support for iOS safe areas */
   padding-bottom: env(safe-area-inset-bottom);
@@ -58,18 +87,21 @@ body {
 }
 
 /* Allow selection in inputs */
-input, textarea {
+input,
+textarea {
   user-select: text;
   -webkit-user-select: text;
 }
 
 /* Momentum scrolling for touch devices */
-.overflow-x-auto, .overflow-y-auto {
+.overflow-x-auto,
+.overflow-y-auto {
   -webkit-overflow-scrolling: touch;
 }
 
 /* Better touch targets for buttons */
-button, [role="button"] {
+button,
+[role="button"] {
   touch-action: manipulation;
 }
 
@@ -77,12 +109,15 @@ button, [role="button"] {
 .pt-safe {
   padding-top: env(safe-area-inset-top);
 }
+
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
 .pl-safe {
   padding-left: env(safe-area-inset-left);
 }
+
 .pr-safe {
   padding-right: env(safe-area-inset-right);
 }
@@ -130,7 +165,7 @@ button, [role="button"] {
 }
 
 .text-shadow-hard {
-  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
 }
 
 .backdrop-pop {
@@ -144,13 +179,25 @@ button, [role="button"] {
 }
 
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes modalSpring {
-  0% { opacity: 0; transform: scale(0.6) translateY(40px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+  0% {
+    opacity: 0;
+    transform: scale(0.6) translateY(40px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .animate-modal-spring {
@@ -185,18 +232,37 @@ button, [role="button"] {
 }
 
 @keyframes fadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 @keyframes slideInUp {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes scaleIn {
-  0% { opacity: 0; transform: scale(0.98); }
-  100% { opacity: 1; transform: scale(1); }
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .animate-fadeIn {
@@ -242,41 +308,102 @@ button, [role="button"] {
 
 /* ─── Play/Pause Ripple ───────────────────────────────────────────────────────── */
 @keyframes pp-ripple {
-  0%   { opacity: 0; transform: scale(0.8); }
-  25%  { opacity: 1; transform: scale(1); }
-  60%  { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.1); }
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
 }
 
 /* ─── Seek Flash ─────────────────────────────────────────────────────────────── */
 @keyframes seek-flash {
-  0%   { opacity: 0.6; }
-  60%  { opacity: 0.5; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0.6;
+  }
+
+  60% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
 
 @keyframes seek-circle-flash {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-  25% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  60% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+
+  25% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
 }
 
 /* ─── Auto-Next Episode Popup Animation ──────────────────────────────────────── */
 @keyframes slide-in-right {
-  0%   { opacity: 0; transform: translateX(32px) scale(0.96); }
-  60%  { opacity: 1; transform: translateX(-4px) scale(1.01); }
-  100% { opacity: 1; transform: translateX(0) scale(1); }
+  0% {
+    opacity: 0;
+    transform: translateX(32px) scale(0.96);
+  }
+
+  60% {
+    opacity: 1;
+    transform: translateX(-4px) scale(1.01);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }
 
 @keyframes slide-out-right {
-  0%   { opacity: 1; transform: translateX(0); }
-  100% { opacity: 0; transform: translateX(40px); }
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(40px);
+  }
 }
 
 @keyframes progress-fill {
-  0%   { width: 0%; }
-  100% { width: 100%; }
+  0% {
+    width: 0%;
+  }
+
+  100% {
+    width: 100%;
+  }
 }
 
 .animate-progress {
@@ -284,13 +411,33 @@ button, [role="button"] {
 }
 
 @keyframes rank-jiggle {
-  0%   { transform: rotate(0deg) translateX(0px); }
-  15%  { transform: rotate(-1.5deg) translateX(-1px); }
-  30%  { transform: rotate(1.2deg) translateX(1px); }
-  45%  { transform: rotate(-0.8deg) translateX(-1px); }
-  60%  { transform: rotate(0.6deg) translateX(0.5px); }
-  75%  { transform: rotate(-0.3deg) translateX(0px); }
-  100% { transform: rotate(0deg) translateX(0px); }
+  0% {
+    transform: rotate(0deg) translateX(0px);
+  }
+
+  15% {
+    transform: rotate(-1.5deg) translateX(-1px);
+  }
+
+  30% {
+    transform: rotate(1.2deg) translateX(1px);
+  }
+
+  45% {
+    transform: rotate(-0.8deg) translateX(-1px);
+  }
+
+  60% {
+    transform: rotate(0.6deg) translateX(0.5px);
+  }
+
+  75% {
+    transform: rotate(-0.3deg) translateX(0px);
+  }
+
+  100% {
+    transform: rotate(0deg) translateX(0px);
+  }
 }
 
 .animate-rank-jiggle {
@@ -300,6 +447,11 @@ button, [role="button"] {
 
 /* ─── NEW: Autoplay Button Fill ────────────────────────────────────────────── */
 @keyframes buttonFillProgress {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
 }

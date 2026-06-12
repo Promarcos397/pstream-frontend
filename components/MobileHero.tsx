@@ -441,7 +441,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           {/* Logo or Text Title Overlay */}
           {!hasBakedInText && (
             localLogoUrl && !logoImgFailed ? (
-              <div className="relative inline-flex items-end mb-4 max-w-[75%] sm:max-w-[80%] max-h-[85px] sm:max-h-[110px] w-full justify-center">
+              <div className="relative inline-flex items-end mb-4 max-w-[75%] sm:max-w-[80%] max-h-[75px] sm:max-h-[95px] w-full justify-center">
                 {/* Premium dual-layer drop shadow for maximum readability */}
                 <img
                   src={localLogoUrl}
@@ -470,13 +470,13 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
                 <img
                   src={localLogoUrl}
                   alt={movie.title || movie.name}
-                  className="relative object-contain object-bottom max-h-[80px] sm:max-h-[100px] w-auto transition-opacity duration-300"
+                  className="relative object-contain object-bottom max-h-[70px] sm:max-h-[85px] w-auto transition-opacity duration-300"
                   style={{ zIndex: 1 }}
                   onError={() => setLogoImgFailed(true)}
                 />
               </div>
             ) : (
-              <h2 className="text-xl sm:text-2xl font-black font-leaner drop-shadow-xl leading-tight text-white tracking-wide uppercase mb-4 max-w-[90%] line-clamp-2">
+              <h2 className="text-lg sm:text-xl font-black font-leaner drop-shadow-xl leading-tight text-white tracking-wide uppercase mb-4 max-w-[90%] line-clamp-2">
                 {movie.title || movie.name}
               </h2>
             )
@@ -484,7 +484,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
 
           {/* Categories / Genres */}
           {genresList.length > 0 && (
-            <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-1 mb-4 text-xs sm:text-[14px] font-semibold text-white/80 tracking-wide select-none drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]">
+            <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-1 mb-4 text-[11px] sm:text-xs font-semibold text-white/80 tracking-wide select-none drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]">
               {genresList.map((g, idx) => (
                 <React.Fragment key={g}>
                   <span>{g}</span>
@@ -504,12 +504,12 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
                 e.stopPropagation();
                 onPlay(movie);
               }}
-              className="flex-1 flex items-center justify-center h-[44px] sm:h-[48px] rounded-[4px] bg-white hover:bg-neutral-200 text-black font-bold text-[15px] sm:text-[16px] gap-2 transition-all active:scale-95 shadow-md font-sans"
+              className="flex-1 flex items-center justify-center h-[58px] sm:h-[64px] rounded-[4px] bg-white hover:bg-neutral-200 text-black font-bold text-[21px] sm:text-[22px] gap-2 transition-all active:scale-95 shadow-md font-sans"
             >
               {is404 ? (
-                <House size={22} weight="fill" />
+                <House size={30} weight="fill" />
               ) : (
-                <Play size={22} weight="fill" />
+                <Play size={30} weight="fill" />
               )}
               <span>{is404 ? t('nav.home', { defaultValue: 'Home' }) : t('hero.play', { defaultValue: 'Play' })}</span>
             </button>
@@ -520,9 +520,9 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
                 e.stopPropagation();
                 toggleList(movie);
               }}
-              className="flex-1 flex items-center justify-center h-[44px] sm:h-[48px] rounded-[4px] bg-[#6d6d6e]/40 hover:bg-[#6d6d6e]/25 text-white font-bold text-[15px] sm:text-[16px] gap-2 transition-all active:scale-95 shadow-md font-sans"
+              className="flex-1 flex items-center justify-center h-[58px] sm:h-[64px] rounded-[4px] bg-[#6d6d6e]/40 hover:bg-[#6d6d6e]/25 text-white font-bold text-[21px] sm:text-[22px] gap-2 transition-all active:scale-95 shadow-md font-sans"
             >
-              {isAdded ? <Check size={22} weight="bold" /> : <Plus size={22} weight="bold" />}
+              {isAdded ? <Check size={30} weight="bold" /> : <Plus size={30} weight="bold" />}
               <span>{t('nav.myList', { defaultValue: 'My List' })}</span>
             </button>
           </div>

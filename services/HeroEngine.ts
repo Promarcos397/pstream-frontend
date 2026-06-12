@@ -1,6 +1,6 @@
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
-import { getMovieImages, getExternalIds, fetchData } from './api';
+import { getMovieImages, getExternalIds, fetchData, isBlacklisted } from './api';
 import tmdb from './tmdb';
 
 /**
@@ -30,6 +30,7 @@ export interface HeroPackage {
 export type TimeSlot  = 'morning' | 'afternoon' | 'evening' | 'late_night' | 'night_owl';
 export type Season    = 'spring'  | 'summer'    | 'autumn'  | 'winter';
 export type Holiday   = 'halloween' | 'christmas' | 'valentines' | 'new_year' | 'easter' | 'summer_break' | 'eid-al-fitr' | 'eid-al-adha' | null;
+
 
 export function getTimeSlot(): TimeSlot {
   const h = new Date().getHours();
@@ -403,9 +404,8 @@ class HeroEngineService {
         console.log(`[HeroEngine v3] Curating "${slotLabel}" (${slot}) for ${cacheKey}…`);
 
         const response = await tmdb.get<TMDBResponse>(url);
-        const BLACKLIST = [1087040];
         const results = (response.data.results || []).filter(
-          (m: any) => m.backdrop_path && m.vote_count >= 10 && !BLACKLIST.includes(m.id)
+          (m: any) => m.backdrop_path && m.vote_count >= 10 && !isBlacklisted(m, 'any')
         );
 
         if (results.length === 0) throw new Error(`No results for "${slotLabel}"`);

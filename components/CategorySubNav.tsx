@@ -91,6 +91,18 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
         return null;
     }
 
+    // Transpose genres for a 3-column, column-first layout matching Netflix
+    const sortedGenres = [...genres].sort((a, b) => a.name.localeCompare(b.name));
+    const numCols = 3;
+    const numRows = Math.ceil(sortedGenres.length / numCols);
+    const transposedGenres: (Genre | null)[] = [];
+    for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < numCols; c++) {
+            const idx = c * numRows + r;
+            transposedGenres.push(idx < sortedGenres.length ? sortedGenres[idx] : null);
+        }
+    }
+
     const portalElement = document.getElementById('category-subnav-portal');
 
     const content = (
@@ -135,19 +147,22 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                                 ${genreMenuOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-1 pointer-events-none'}`}
                             role="listbox"
                         >
-                            <div className="w-max max-w-[90vw] md:max-w-none max-h-[60vh] md:max-h-[400px] overflow-y-auto bg-[rgba(0,0,0,0.90)] border border-white/10 rounded-none pt-1 pb-1 px-3 md:pt-2 md:pb-2 md:px-4 scrollbar-hide">
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
-                                    {genres.map((genre) => (
-                                        <button
-                                            key={`${genre.id}-${genre.name}`}
-                                            onClick={() => handleGenreClick(genre)}
-                                            role="option"
-                                            aria-selected={false}
-                                            className={`text-left text-[13px] md:text-[14px] transition-colors hover:underline whitespace-nowrap text-white`}
-                                        >
-                                            {genre.name}
-                                        </button>
-                                    ))}
+                            <div className="w-max max-w-[90vw] md:max-w-none max-h-[60vh] md:max-h-[400px] overflow-y-auto bg-[rgba(0,0,0,0.90)] border border-white/10 rounded-none pt-2 pb-2 pl-3 pr-6 md:pt-3 md:pb-3 md:pl-4 md:pr-8 scrollbar-hide">
+                                <div className="grid grid-cols-[repeat(3,max-content)] gap-x-6 md:gap-x-8 gap-y-1.5">
+                                    {transposedGenres.map((genre, idx) => {
+                                        if (!genre) return <div key={`empty-${idx}`} className="h-4 pointer-events-none" />;
+                                        return (
+                                            <button
+                                                key={`${genre.id}-${genre.name}`}
+                                                onClick={() => handleGenreClick(genre)}
+                                                role="option"
+                                                aria-selected={false}
+                                                className={`text-left text-[15px] md:text-[16px] font-regular transition-colors hover:underline whitespace-nowrap text-white`}
+                                            >
+                                                {genre.name}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

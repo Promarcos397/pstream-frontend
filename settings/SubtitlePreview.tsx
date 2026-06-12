@@ -41,6 +41,7 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ settings, backdropUrl
                         padding: overlayStyle.padding,
                         borderRadius: overlayStyle.borderRadius,
                         backdropFilter: overlayStyle.backdropFilter,
+                        fontWeight: overlayStyle.fontWeight,
                         display: 'inline-block',
                         whiteSpace: 'pre-wrap',
                         textAlign: 'center',

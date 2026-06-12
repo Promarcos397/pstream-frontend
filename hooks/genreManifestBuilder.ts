@@ -46,7 +46,7 @@ export const insertTop10 = (
   });
 };
 
-export const resolveProfileKey = (selectedGenreId: number, selectedGenreName?: string): string => {
+export const resolveProfileKey = (selectedGenreId: number, mediaType: 'movie' | 'tv', selectedGenreName?: string): string => {
   if (selectedGenreId === 99) {
     if (selectedGenreName && (selectedGenreName.toLowerCase().includes('science') || selectedGenreName.toLowerCase().includes('nature'))) {
       return '99-science-nature';
@@ -57,14 +57,14 @@ export const resolveProfileKey = (selectedGenreId: number, selectedGenreName?: s
     return '35-standup';
   }
   if (selectedGenreId === 16) {
-    return '16-anime';
+    return mediaType === 'tv' ? '16-anime' : '16';
   }
   return String(selectedGenreId);
 };
 
 type ProfileRowDef = { key: string; title: string; sort: string; extra: string };
 
-export const getProfileRows = (profileKey: string): ProfileRowDef[] => {
+export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): ProfileRowDef[] => {
   switch (profileKey) {
     case '28':
     case '12':
@@ -91,6 +91,14 @@ export const getProfileRows = (profileKey: string): ProfileRowDef[] => {
         { key: 'classic-anime', title: 'Retro & Classic Anime', sort: 'vote_count.desc', extra: '&with_keywords=210024&first_air_date.lte=2015-01-01' },
       ];
     case '35':
+      if (mediaType === 'movie') {
+        return [
+          { key: 'rom-com', title: 'Romantic Comedies', sort: 'popularity.desc', extra: '&with_genres=10749' },
+          { key: 'dark-comedy', title: 'Dark Comedy & Satire', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+          { key: 'raunchy-comedy', title: 'Raunchy Comedies', sort: 'popularity.desc', extra: '&with_keywords=9716' },
+          { key: 'family-comedy', title: 'Dinner Table Laughs', sort: 'popularity.desc', extra: '&with_genres=10751' },
+        ];
+      }
       return [
         { key: 'rom-com', title: 'Romantic Comedies', sort: 'popularity.desc', extra: '&with_genres=10749' },
         { key: 'dark-comedy', title: 'Dark Comedy & Satire', sort: 'popularity.desc', extra: '&with_keywords=10224' },
@@ -217,6 +225,139 @@ export const getProfileRows = (profileKey: string): ProfileRowDef[] => {
         { key: 'current-affairs', title: 'Current Affairs & Specials', sort: 'popularity.desc', extra: '' },
         { key: 'doc-news', title: 'Investigative Journalism', sort: 'popularity.desc', extra: '&with_genres=99' },
       ];
+    case '10001': // Pride / LGBTQ
+      if (mediaType === 'movie') {
+        return [
+          { key: 'glaad-awards', title: '2026 GLAAD Award Winners & Nominees', sort: 'popularity.desc', extra: '&with_keywords=9003&release_date.gte=2025-01-01' },
+          { key: 'slaying-onscreen', title: 'Slaying On-Screen', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=28|53' },
+          { key: 'critics-love', title: 'Films the Critics Love', sort: 'popularity.desc', extra: '&with_keywords=9003&vote_average.gte=7.8' },
+          { key: 'feel-good-favs', title: 'Serving Feel-Good Favorites', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=35' },
+          { key: 'love-out-loud', title: 'Love Out Loud', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=10749' },
+          { key: 'beyond-binary', title: 'Beyond the Binary', sort: 'popularity.desc', extra: '&with_keywords=9003' },
+          { key: 'inspired-true', title: 'Inspired by True Events', sort: 'popularity.desc', extra: '&with_keywords=9003&with_keywords=818' },
+        ];
+      }
+      return [
+        { key: 'glaad-awards', title: '2026 GLAAD Award Winners & Nominees', sort: 'popularity.desc', extra: '&with_keywords=9003&release_date.gte=2025-01-01' },
+        { key: 'slaying-onscreen', title: 'Slaying On-Screen', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=28|53' },
+        { key: 'critics-love', title: 'Shows the Critics Love', sort: 'popularity.desc', extra: '&with_keywords=9003&vote_average.gte=7.8' },
+        { key: 'feel-good-favs', title: 'Serving Feel-Good Favorites', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=35' },
+        { key: 'love-out-loud', title: 'Love Out Loud', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=10749' },
+        { key: 'beyond-binary', title: 'Beyond the Binary', sort: 'popularity.desc', extra: '&with_keywords=9003' },
+        { key: 'inspired-true', title: 'Inspired by True Events', sort: 'popularity.desc', extra: '&with_keywords=9003&with_keywords=818' },
+        { key: 'unscripted', title: 'Unscripted (No Notes)', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=10764' },
+      ];
+    case '10002': // Astrology
+      return [
+        { key: 'zodiac-matches', title: 'Zodiac Matches', sort: 'popularity.desc', extra: '&with_keywords=185246|10168|15386' },
+        { key: 'cosmic-journeys', title: 'Cosmic & Spiritual Journeys', sort: 'popularity.desc', extra: '&with_keywords=185246|10168|15386&vote_average.gte=7' },
+        { key: 'fate-destiny', title: 'Fate & Destiny Sagas', sort: 'popularity.desc', extra: '&with_keywords=185246|10168|15386' },
+      ];
+    case '10003': // Black Stories
+      return [
+        { key: 'black-directors', title: 'Black Directors & Writers', sort: 'popularity.desc', extra: '&with_keywords=237248|175510|242137|161556' },
+        { key: 'black-leads', title: 'Acclaimed Black Leads', sort: 'popularity.desc', extra: '&with_keywords=237248|175510|242137|161556&vote_average.gte=7.5' },
+        { key: 'black-narratives', title: 'Powerful Black Narratives', sort: 'popularity.desc', extra: '&with_keywords=237248|175510|242137|161556' },
+      ];
+    case '10004': // Book Adaptations
+      return [
+        { key: 'page-to-screen', title: 'Page-to-Screen Masterpieces', sort: 'popularity.desc', extra: '&with_keywords=818|10214' },
+        { key: 'literary-adaptations', title: 'Literary Adaptations', sort: 'vote_count.desc', extra: '&with_keywords=818|10214' },
+        { key: 'bestseller-hits', title: 'Bestseller Hits', sort: 'popularity.desc', extra: '&with_keywords=818|10214&vote_average.gte=7' },
+      ];
+    case '10005': // British
+      return [
+        { key: 'british-mysteries', title: 'British Mystery & Suspense', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_genres=80|53|9648' },
+        { key: 'british-comedies', title: 'Witty British Comedies', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_genres=35' },
+        { key: 'british-period-dramas', title: 'British Period & Costume Dramas', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_keywords=5691|180370' },
+      ];
+    case '10006': // European
+      return [
+        { key: 'euro-thrillers', title: 'European Crime & Thrillers', sort: 'popularity.desc', extra: '&with_origin_country=FR|DE|IT|ES&with_genres=80|53' },
+        { key: 'euro-dramas', title: 'European Prestige Dramas', sort: 'popularity.desc', extra: '&with_origin_country=FR|DE|IT|ES&with_genres=18' },
+        { key: 'euro-comedies', title: 'European Comedy Hits', sort: 'popularity.desc', extra: '&with_origin_country=FR|DE|IT|ES&with_genres=35' },
+      ];
+    case '10007': // Moods
+      return [
+        { key: 'feel-good-moods', title: 'Feel-Good Favorites', sort: 'popularity.desc', extra: '&with_keywords=9663|10224|10185&vote_average.gte=7' },
+        { key: 'gripping-drama', title: 'Intense & Gripping Drama', sort: 'popularity.desc', extra: '&with_keywords=9663|10224|10185&with_genres=18|53' },
+        { key: 'relaxed-vibes', title: 'Chilled & Relaxed Vibes', sort: 'popularity.desc', extra: '&with_keywords=9663|10224|10185' },
+      ];
+    case '10008': // US / Hollywood
+      if (mediaType === 'tv') {
+        return [
+          { key: 'prestige-american-dramas', title: 'Prestige American Dramas', sort: 'popularity.desc', extra: '&with_origin_country=US&with_genres=18&vote_average.gte=7.5' },
+          { key: 'us-comedy-series', title: 'US Comedy Series', sort: 'popularity.desc', extra: '&with_origin_country=US&with_genres=35' },
+          { key: 'us-action-adventure-series', title: 'US Action & Adventure Series', sort: 'popularity.desc', extra: '&with_origin_country=US&with_genres=10759' },
+        ];
+      }
+      return [
+        { key: 'hollywood-blockbusters', title: 'Hollywood Blockbusters', sort: 'popularity.desc', extra: '&with_origin_country=US&vote_count.gte=5000' },
+        { key: 'prestige-american-dramas', title: 'Prestige American Dramas', sort: 'popularity.desc', extra: '&with_origin_country=US&with_genres=18&vote_average.gte=7.5' },
+        { key: 'indie-usa-cinema', title: 'Indie USA Cinema', sort: 'popularity.desc', extra: '&with_origin_country=US&vote_count.lte=2000' },
+      ];
+    case '10009': // Classics
+      if (mediaType === 'tv') {
+        return [
+          { key: 'golden-age-hollywood', title: 'Golden Age Hollywood Classics', sort: 'vote_count.desc', extra: '&with_origin_country=US' },
+          { key: 'retro-favorites', title: 'Retro Favorites', sort: 'popularity.desc', extra: '' },
+          { key: 'essential-classics', title: 'Essential Classics', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+        ];
+      }
+      return [
+        { key: 'golden-age-hollywood', title: 'Golden Age Hollywood Classics', sort: 'vote_count.desc', extra: '&with_origin_country=US' },
+        { key: 'retro-favorites', title: 'Retro Favorites', sort: 'popularity.desc', extra: '' },
+        { key: 'essential-classics', title: 'Essential Film Classics', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+      ];
+    case '10010': // Cult
+      return [
+        { key: 'cult-favorites', title: 'Cult Favorites', sort: 'popularity.desc', extra: '&with_keywords=10084' },
+        { key: 'indie-cult', title: 'Indie Cult Classics', sort: 'vote_count.desc', extra: '&with_keywords=10084&vote_average.gte=7.0' },
+        { key: 'sci-fi-horror-cult', title: 'Sci-Fi & Horror Cults', sort: 'popularity.desc', extra: '&with_keywords=10084&with_genres=878|27' },
+      ];
+    case '10011': // Independent
+      if (mediaType === 'tv') {
+        return [
+          { key: 'indie-dramas', title: 'Independent Dramas', sort: 'popularity.desc', extra: '&with_genres=18' },
+          { key: 'prestige-tv-favorites', title: 'Prestige TV Favorites', sort: 'vote_average.desc', extra: '' },
+          { key: 'under-the-radar-indies', title: 'Under-the-Radar Indies', sort: 'popularity.desc', extra: '' },
+        ];
+      }
+      return [
+        { key: 'indie-dramas', title: 'Independent Dramas', sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'festival-favorites', title: 'Film Festival Favorites', sort: 'vote_average.desc', extra: '' },
+        { key: 'under-the-radar-indies', title: 'Under-the-Radar Indies', sort: 'popularity.desc', extra: '' },
+      ];
+    case '10012': // International
+      if (mediaType === 'tv') {
+        return [
+          { key: 'subtitled-masterpieces', title: 'Subtitled Masterpieces', sort: 'vote_average.desc', extra: '&without_original_language=en&vote_count.gte=500' },
+          { key: 'world-tv', title: 'Award-Winning World TV', sort: 'popularity.desc', extra: '&without_original_language=en&vote_average.gte=7.5' },
+          { key: 'global-action-series', title: 'Global Action Series', sort: 'popularity.desc', extra: '&without_original_language=en&with_genres=10759' },
+        ];
+      }
+      return [
+        { key: 'subtitled-masterpieces', title: 'Subtitled Masterpieces', sort: 'vote_average.desc', extra: '&without_original_language=en&vote_count.gte=500' },
+        { key: 'world-cinema', title: 'Award-Winning World Cinema', sort: 'popularity.desc', extra: '&without_original_language=en&vote_average.gte=7.5' },
+        { key: 'global-action', title: 'Global Action Hits', sort: 'popularity.desc', extra: '&without_original_language=en&with_genres=28' },
+      ];
+    case '10013': // Shorts
+      return [
+        { key: 'short-films', title: 'Award-Winning Short Films', sort: 'vote_count.desc', extra: '' },
+        { key: 'quick-animation-shorts', title: 'Animated Shorts', sort: 'popularity.desc', extra: '&with_genres=16' },
+      ];
+    case '10014': // Sport
+      return [
+        { key: 'sports-dramas', title: 'Inspiring Sports Dramas', sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'docu-sports', title: 'Sports Docuseries & Profiles', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'high-stakes-games', title: 'High-Stakes Competitions', sort: 'popularity.desc', extra: '' },
+      ];
+    case '10015': // Teen
+      return [
+        { key: 'teen-angst-drama', title: 'Teen Dramas & Angst', sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'high-school-comedy', title: 'High School Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'coming-of-age-journeys', title: 'Coming-of-Age Journeys', sort: 'popularity.desc', extra: '' },
+      ];
     default:
       return [];
   }
@@ -278,8 +419,8 @@ export const buildGenreManifestSlice = (opts: BuildGenreSliceOpts): SmartRow[] =
     return { key: fullKey, title, fetchUrl: url };
   };
 
-  const profileKey = resolveProfileKey(selectedGenreId, selectedGenreName);
-  let profileRows = getProfileRows(profileKey);
+  const profileKey = resolveProfileKey(selectedGenreId, mediaType, selectedGenreName);
+  let profileRows = getProfileRows(profileKey, mediaType);
 
   if (profileRows.length === 0 && mediaType === 'movie' && (homeHybrid || isTvOnlyGenreId(selectedGenreId))) {
     profileRows = getMovieFallbackProfiles(softerMovieVotes);
@@ -293,23 +434,7 @@ export const buildGenreManifestSlice = (opts: BuildGenreSliceOpts): SmartRow[] =
   const movieAcclaimedThreshold = softerMovieVotes ? '&vote_count.gte=150' : '&vote_count.gte=400';
 
   const dimensionRows: (SmartRow | null)[] = [
-    gRow(`genre-p2-${selectedGenreId}`, 'More to Explore', 'popularity.desc', '&page=2'),
-    gRow(`genre-acclaimed-${selectedGenreId}`, 'Critically Acclaimed', 'vote_average.desc', isTV ? '&vote_count.gte=40' : movieAcclaimedThreshold),
-    gRow(`genre-cult-${selectedGenreId}`, 'Cult Favorites', 'vote_count.desc', '&vote_average.gte=6.0&vote_average.lte=8.0'),
-    gRow(`genre-hidden-${selectedGenreId}`, 'Hidden Gems', 'vote_average.desc', isTV ? '&vote_count.gte=8&vote_count.lte=80' : '&vote_count.gte=50&vote_count.lte=300'),
-    gRow(`genre-2020s-${selectedGenreId}`, 'Best of the 2020s', 'vote_average.desc', `${getReleaseDateParam('2020-01-01')}&vote_count.gte=${isTV ? 5 : 25}`),
-    gRow(`genre-2010s-${selectedGenreId}`, 'Defining the 2010s', 'vote_average.desc', `${getReleaseDateParam('2010-01-01', '2019-12-31')}&vote_count.gte=${isTV ? 12 : 120}`),
     gRow(`genre-classics-${selectedGenreId}`, `Classic ${baseGenreName}`, 'vote_average.desc', `${getReleaseDateParam(undefined, '2009-12-31')}&vote_count.gte=${isTV ? 8 : 250}`),
-    gRow(`genre-intl-${selectedGenreId}`, 'Global Hits', 'popularity.desc', '&without_original_language=en'),
-    gRow(`genre-british-${selectedGenreId}`, 'Best of British', 'popularity.desc', '&with_origin_country=GB'),
-    gRow(isTV ? 'genre-korean-tv' : 'genre-korean-movie', isTV ? 'K-Drama Fever' : 'Korean Cinema', 'popularity.desc', '&with_origin_country=KR'),
-    gRow(`genre-recent-${selectedGenreId}`, 'Newly Added', isTV ? 'first_air_date.desc' : 'release_date.desc', '&vote_count.gte=5'),
-    gRow(`genre-deep3-${selectedGenreId}`, 'Deeper Cuts', 'popularity.desc', '&page=3'),
-    gRow(`genre-deep4-${selectedGenreId}`, 'More to Watch', 'popularity.desc', '&page=4'),
-    gRow(`genre-legends-${selectedGenreId}`, 'All-Time Greats', 'vote_count.desc', '&vote_average.gte=8.0'),
-    gRow(`genre-sleeper-${selectedGenreId}`, 'Quiet Masterpieces', 'vote_average.desc', isTV ? '&vote_count.gte=3&vote_count.lte=20' : '&vote_count.gte=10&vote_count.lte=50'),
-    gRow(`genre-modern-${selectedGenreId}`, 'Modern Favorites', 'vote_average.desc', `${getReleaseDateParam('2018-01-01')}&vote_count.gte=${isTV ? 12 : 80}`),
-    gRow(`genre-year-${selectedGenreId}`, `Best of ${year}`, 'vote_average.desc', `${getReleaseDateParam(`${year}-01-01`)}&vote_count.gte=${isTV ? 3 : 8}`),
   ];
   dimensionRows.forEach(r => r && rows.push(r));
 
@@ -398,16 +523,16 @@ const getThemedTitle = (baseTitle: string, mediaType: 'movie' | 'tv', selectedGe
     return `2000s ${genre} ${suffix}`;
   }
   if (baseTitle.includes("90s Nostalgia Trip") || baseTitle.includes("90s")) {
-    return `90s ${genre} Nostalgia`;
+    return `90s ${genre} ${suffix}`;
   }
   if (baseTitle.includes("80s Classics") || baseTitle.includes("80s")) {
-    return `80s ${genre} Classics`;
+    return `80s ${genre} ${suffix}`;
   }
   if (baseTitle.includes("30-Minute Hits") || baseTitle.includes("30-Minute")) {
     return `30-Minute ${genre} Hits`;
   }
   if (baseTitle.includes("Based on Books") || baseTitle.includes("Books")) {
-    return `${genre} Series Based on Books`;
+    return `${genre} ${suffix} Based on Books`;
   }
   if (baseTitle.includes("Familiar Favorites") || baseTitle.includes("Familiar")) {
     return `Familiar ${genre} Favorites`;
@@ -575,41 +700,40 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   const pool: SmartRow[] = [];
 
   // Theme A: Retro Flashback 2000-2005 (Nostalgia Pack)
-  const retro00sUrl = buildScopedQuery('movie', {
+  const retro00sUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
-    'primary_release_date.gte': '2000-01-01',
-    'primary_release_date.lte': '2005-12-31',
-    'vote_count.gte': selectedGenreId ? 25 : 120,
+    'first_air_date.gte': '2000-01-01',
+    'first_air_date.lte': '2005-12-31',
+    'vote_count.gte': selectedGenreId ? 20 : 100,
   });
   pool.push({
-    key: `${moviePrefix}-theme-retro00s`,
-    title: getThemedTitle('Best of the 2000s (2000-2005)', 'movie', selectedGenreName),
+    key: `${tvPrefix}-theme-retro00s`,
+    title: getThemedTitle('Best of the 2000s', 'tv', selectedGenreName),
     fetchUrl: retro00sUrl,
   });
 
   // Theme B: 90s Nostalgia Trip
-  const retro90sUrl = buildScopedQuery('movie', {
+  const retro90sUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
-    'primary_release_date.gte': '1990-01-01',
-    'primary_release_date.lte': '1999-12-31',
-    'vote_count.gte': selectedGenreId ? 25 : 120,
+    'first_air_date.gte': '1990-01-01',
+    'first_air_date.lte': '1999-12-31',
+    'vote_count.gte': selectedGenreId ? 20 : 100,
   });
   pool.push({
-    key: `${moviePrefix}-theme-retro90s`,
-    title: getThemedTitle('90s Nostalgia Trip', 'movie', selectedGenreName),
+    key: `${tvPrefix}-theme-retro90s`,
+    title: getThemedTitle('90s Nostalgia Trip', 'tv', selectedGenreName),
     fetchUrl: retro90sUrl,
   });
 
   // Theme C: In a Bit of a Hurry? Try These 30-Minute Hits!
-  const quickTVGenre = selectedGenreId ? tvGenreId : '35,16,10762';
-  const quickUrl = REQUESTS._build(`${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/tv`, {
+  const quickUrl = buildScopedQuery('movie', {
     sort_by: 'popularity.desc',
-    with_genres: quickTVGenre || '',
-    'vote_count.gte': selectedGenreId ? 5 : 40,
+    'with_runtime.lte': 90,
+    'vote_count.gte': selectedGenreId ? 12 : 60,
   });
   pool.push({
-    key: `${tvPrefix}-theme-quickwatch`,
-    title: getThemedTitle('Try These 30-Minute Hits', 'tv', selectedGenreName),
+    key: `${moviePrefix}-theme-quickwatch`,
+    title: getThemedTitle('Try These 30-Minute Hits', 'movie', selectedGenreName),
     fetchUrl: quickUrl,
   });
 
@@ -664,15 +788,15 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   });
 
   // Theme H: 80s Classics
-  const retro80sUrl = buildScopedQuery('movie', {
+  const retro80sUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
-    'primary_release_date.gte': '1980-01-01',
-    'primary_release_date.lte': '1989-12-31',
-    'vote_count.gte': selectedGenreId ? 12 : 80,
+    'first_air_date.gte': '1980-01-01',
+    'first_air_date.lte': '1989-12-31',
+    'vote_count.gte': selectedGenreId ? 10 : 70,
   });
   pool.push({
-    key: `${moviePrefix}-theme-retro80s`,
-    title: getThemedTitle('80s Classics', 'movie', selectedGenreName),
+    key: `${tvPrefix}-theme-retro80s`,
+    title: getThemedTitle('80s Classics', 'tv', selectedGenreName),
     fetchUrl: retro80sUrl,
   });
 
@@ -726,7 +850,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
       { key: 'home-exciting', title: 'High-Octane Action', fetchUrl: REQUESTS.fetchExcitingMovies },
       { key: 'home-scifi', title: 'Sci-Fi Worlds to Get Lost In', fetchUrl: REQUESTS.fetchSciFiMovies },
       { key: 'home-comedy', title: 'Laugh-Out-Loud Comedies', fetchUrl: REQUESTS.fetchComedyMovies },
-      { key: 'home-binge-tv', title: 'Impossible to Watch Just One Episode', fetchUrl: REQUESTS.fetchBoredomBustersTV },
+      { key: 'home-binge-movies', title: 'Impossible to Watch Just One Episode', fetchUrl: REQUESTS.fetchBoredomBustersMovies },
       { key: 'home-drama', title: 'Drama That Makes You Think', fetchUrl: REQUESTS.fetchCriticallyAcclaimedDrama },
       { key: 'home-crime', title: 'Crime That Keeps You Guessing', fetchUrl: REQUESTS.fetchCrimeTV },
     ];
@@ -786,7 +910,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
       const needMovieBoost = movieCountTracked < Math.max(8, Math.floor(tvCountTracked * 0.75));
       if (needMovieBoost) {
         if (tryFill('movie', movieGenreId!, page, page)) movieCountTracked++;
-      } else if (page % 2 === 0) {
+      } else if (page % 2 === 1) {
         if (tryFill('movie', movieGenreId!, page, page)) movieCountTracked++;
       } else if (tryFill('tv', tvGenreId!, page, page)) {
         tvCountTracked++;
@@ -1018,7 +1142,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
   });
   pool.push({
     key: `${moviePrefix}-theme-retro00s`,
-    title: getThemedTitle('Best of the 2000s (2000-2005)', 'movie', selectedGenreName),
+    title: getThemedTitle('Best of the 2000s', 'movie', selectedGenreName),
     fetchUrl: retro00sUrl,
   });
 
@@ -1375,16 +1499,6 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
       title: 'US Drama Series',
       fetchUrl: usDramaUrl,
     });
-
-    const survivalUrl = buildScopedQuery('tv', {
-      sort_by: 'popularity.desc',
-      with_keywords: '549,10224', // survival / high stakes
-    });
-    pool.push({
-      key: `${tvPrefix}-theme-survival`,
-      title: 'Adrenaline & Survival Action',
-      fetchUrl: survivalUrl,
-    });
   }
 
   // Theme A: Retro Flashback 2000-2005 (Nostalgia Pack)
@@ -1396,7 +1510,7 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
   });
   pool.push({
     key: `${tvPrefix}-theme-retro00s`,
-    title: getThemedTitle('Best of the 2000s (2000-2005)', 'tv', selectedGenreName),
+    title: getThemedTitle('Best of the 2000s', 'tv', selectedGenreName),
     fetchUrl: retro00sUrl,
   });
 

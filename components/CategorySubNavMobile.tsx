@@ -106,7 +106,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
 
     const pills = (
         <>
-            <div className={`flex items-center gap-2 shrink-0 overflow-hidden ${
+            <div className={`flex items-center gap-1 shrink-0 overflow-hidden ${
                 shouldAnimate ? 'transition-all duration-300 ease-out' : 'transition-none'
             } ${
                 isSubPage 
@@ -192,8 +192,8 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
             )}
 
             {/* 1. Original sub-nav: absolute at the top, scrolls naturally with the page content */}
-            <div className="absolute top-[calc(60px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-0 pb-[4px] flex items-center justify-start select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
-                <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start gap-2 shrink-0 overflow-visible">
+            <div className="absolute top-[calc(57px+env(safe-area-inset-top))] sm:top-[calc(16px+env(safe-area-inset-top))] left-0 right-0 sm:left-[72px] z-[78] pt-[3px] pb-[4px] flex items-center justify-start select-none bg-transparent overflow-x-auto scrollbar-hide max-w-full">
+                <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start gap-1 shrink-0 overflow-visible">
                     {pills}
                 </div>
             </div>
@@ -204,13 +204,13 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                     style={{ 
                         backgroundColor: '#000000'
                     }}
-                    className={`fixed top-[calc(58px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[144px] z-[79] pt-0 sm:pt-[calc(20px+env(safe-area-inset-top))] pb-[4px] flex items-center justify-start select-none max-w-full overflow-x-auto scrollbar-hide transition-all duration-300 ease-out ${
+                    className={`fixed top-[calc(55px+env(safe-area-inset-top))] sm:top-0 left-0 right-0 sm:left-[144px] z-[79] pt-[3px] sm:pt-[calc(20px+env(safe-area-inset-top))] pb-[4px] flex items-center justify-start select-none max-w-full overflow-x-auto scrollbar-hide transition-all duration-300 ease-out ${
                         showTemp 
                             ? 'opacity-100 translate-y-0 pointer-events-auto' 
                             : '-translate-y-full opacity-0 pointer-events-none'
                     }`}
                 >
-                    <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start gap-2 shrink-0 overflow-visible">
+                    <div className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] mx-auto px-4 flex items-center justify-start gap-1 shrink-0 overflow-visible">
                         {pills}
                     </div>
                 </div>,
@@ -220,7 +220,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
             {/* Genres Dropdown Menu rendered via Portal to prevent clipping inside scroll container */}
             {genreMenuOpen && genres && genres.length > 0 && ReactDOM.createPortal(
                 <div
-                    className={`fixed top-[calc(118px+env(safe-area-inset-top))] z-[10030] animate-fadeIn ${
+                    className={`fixed top-[calc(115px+env(safe-area-inset-top))] z-[10030] animate-fadeIn ${
                         isSubPage ? 'left-4' : 'right-4'
                     }`}
                     role="listbox"

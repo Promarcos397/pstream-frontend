@@ -61,3 +61,5 @@ playwright-report/
 test-results/
 client_secret_*.json
 scratch/
+scraped_docs
+algorithm/

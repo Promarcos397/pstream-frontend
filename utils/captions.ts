@@ -1,8 +1,21 @@
 import DOMPurify from "dompurify";
-import { parse, convert } from "subsrt-ts";
-import { ContentCaption } from "subsrt-ts/dist/types/handler";
+import { convert } from "subsrt-ts";
 
-export type CaptionCueType = ContentCaption;
+export interface CustomCue {
+    type: 'caption';
+    start: number; // in ms
+    end: number; // in ms
+    text: string;
+    content: string;
+    settings?: {
+        align?: 'left' | 'right' | 'center' | 'start' | 'end' | 'middle';
+        position?: string; // e.g. "15%"
+        line?: string;
+        size?: string;
+    };
+}
+
+export type CaptionCueType = CustomCue;
 
 export function convertSubtitlesToObjectUrl(text: string): string {
     try {
@@ -56,11 +69,83 @@ export function parseSubtitles(
     const textTrimmed = text.trim();
     if (!textTrimmed) return [];
 
+    // Regex to match WebVTT/SRT timestamp line and settings
+    const timeRegex = /^(\d{2}:\d{2}:\d{2}[.,]\d{3}|\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[.,]\d{3}|\d{2}:\d{2}[.,]\d{3})(.*)$/;
+
+    const timeToMs = (str: string): number => {
+        const parts = str.replace(',', '.').split(':');
+        let hrs = 0, mins = 0, secs = 0;
+        if (parts.length === 3) {
+            hrs = parseFloat(parts[0]);
+            mins = parseFloat(parts[1]);
+            secs = parseFloat(parts[2]);
+        } else if (parts.length === 2) {
+            mins = parseFloat(parts[0]);
+            secs = parseFloat(parts[1]);
+        }
+        return Math.floor((hrs * 3600 + mins * 60 + secs) * 1000);
+    };
+
     try {
-        // Use subsrt-ts parse directly, which auto-detects formats securely 
-        // Handles SRT, VTT, SBV, JSON, etc.
-        const cues = parse(textTrimmed);
-        return cues.filter((cue) => cue.type === "caption") as CaptionCueType[];
+        const lines = textTrimmed.split(/\r?\n/);
+        const cues: CaptionCueType[] = [];
+        let currentCue: Partial<CaptionCueType> | null = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) {
+                if (currentCue && currentCue.start !== undefined && currentCue.end !== undefined) {
+                    cues.push(currentCue as CaptionCueType);
+                }
+                currentCue = null;
+                continue;
+            }
+
+            const match = line.match(timeRegex);
+            if (match) {
+                const start = timeToMs(match[1]);
+                const end = timeToMs(match[2]);
+                const settingsStr = match[3].trim();
+
+                const settings: any = {};
+                if (settingsStr) {
+                    const parts = settingsStr.split(/\s+/);
+                    parts.forEach(part => {
+                        const [key, val] = part.split(':');
+                        if (key && val) {
+                            settings[key] = val;
+                        }
+                    });
+                }
+
+                currentCue = {
+                    type: 'caption',
+                    start,
+                    end,
+                    text: '',
+                    content: '',
+                    settings: Object.keys(settings).length > 0 ? settings : undefined
+                };
+            } else if (currentCue) {
+                const textLine = lines[i];
+                // Strip WebVTT voice/speaker tags like <v Name> and </v>
+                const cleanLine = textLine.replace(/<v\s+[^>]*>|<\/v>/g, '');
+                
+                if (currentCue.content) {
+                    currentCue.content += '\n' + cleanLine;
+                    currentCue.text += '\n' + cleanLine;
+                } else {
+                    currentCue.content = cleanLine;
+                    currentCue.text = cleanLine;
+                }
+            }
+        }
+
+        if (currentCue && currentCue.start !== undefined && currentCue.end !== undefined) {
+            cues.push(currentCue as CaptionCueType);
+        }
+
+        return cues;
     } catch (e) {
         console.error("Failed to parse subtitles:", e);
         return [];

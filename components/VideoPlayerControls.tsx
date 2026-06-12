@@ -101,6 +101,8 @@ const formatRemaining = (currentTime: number, duration: number): string => {
     return `-${m}:${s.toString().padStart(2, '0')}`;
 };
 
+const disableAutoNextButton = false; // Enabled to allow Next Episode and Watch Credits buttons to work
+
 // ─── Volume Popup ─────────────────────────────────────────────────────────────
 const VolumePopup: React.FC<{
     volume: number;
@@ -267,7 +269,7 @@ const VolumePopup: React.FC<{
     );
 };
 
-// ─── Next Episode Popup ───────────────────────────────────────────────────────
+// ─── Next Episode Popup ─────────────────────────────────────────────────────────
 const NextEpisodePopup: React.FC<{
     data: NonNullable<VideoPlayerControlsProps['nextEpisodeData']>;
     isMobile: boolean;
@@ -530,31 +532,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const [showNextEpPopup, setShowNextEpPopup] = useState(false);
     const [dragProgress, setDragProgress] = useState(0);
 
-    // ——— Manual Autoplay Countdown Timer (independent of currentTime to prevent stuck countdowns) ———
-    const [countdown, setCountdown] = useState(5);
-
-    useEffect(() => {
-        if (!showAutoplayCountdown) {
-            setCountdown(5);
-            return;
-        }
-
-        if (!isPlaying) return;
-
-        const timer = setInterval(() => {
-            setCountdown(prev => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    onPlayNextNow?.();
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, [showAutoplayCountdown, isPlaying, onPlayNextNow]);
-
     const isTV = mediaType === 'tv';
     const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup;
 
@@ -744,7 +721,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         className="text-white text-sm line-clamp-1 drop-shadow-md"
                     />
                     <div className="flex-1" />
-                    {onToggleFit && (
+                    {onToggleFit && !isEmbedFallback && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onToggleFit(); }}
                             className="flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md border border-white/20 rounded-full text-white/90 hover:bg-white/20 transition-all active:scale-95"
@@ -802,7 +779,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         <ArrowLeftIcon size={42} weight="bold" />
                     </button>
                     
-                    {onToggleFit && (
+                    {onToggleFit && !isEmbedFallback && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onToggleFit(); }}
                             className="flex items-center gap-2 px-4 py-2 bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-full text-white/80 hover:text-white hover:bg-zinc-800 transition-all active:scale-95 shadow-xl"
@@ -835,36 +812,24 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 >
                     {/* ── PERSISTENT FLOATING BUTTONS (Skip & Manual Autoplay) ── */}
                     {/* These completely ignore the showUI opacity so they stay on screen after controls hide */}
-                    <div className="absolute right-4 md:right-8 bottom-[96px] sm:bottom-[108px] md:bottom-[120px] z-40 pointer-events-none flex flex-col items-end gap-2">
+                    <div className="absolute right-4 md:right-8 bottom-full mb-2 z-40 pointer-events-none flex flex-col items-end gap-2">
                         
                         {/* Manual Autoplay Popup */}
                         {showAutoplayCountdown && onCancelAutoplay && onPlayNextNow && (
                             <div className="pointer-events-auto flex items-center gap-3 animate-fadeIn">
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onCancelAutoplay(); }}
-                                    className="flex items-center justify-center px-4 sm:px-6 h-[34px] md:h-[45px] bg-[#6d6d6e]/50 hover:bg-[#6d6d6e]/70 text-white font-bold rounded-[4px] transition-colors shadow-lg active:scale-95 text-[14px] md:text-[17px] border border-transparent select-none"
+                                    className="flex items-center justify-center px-4 sm:px-6 h-[34px] md:h-[45px] bg-black/60 hover:bg-black/80 backdrop-blur-md text-white font-bold text-[14px] md:text-[16px] rounded-[4px] transition-colors shadow-lg active:scale-95 border border-white/10"
                                 >
                                     Watch credits
                                 </button>
                                 
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onPlayNextNow(); }}
-                                    className="relative overflow-hidden flex items-center justify-center gap-2 px-5 sm:px-8 h-[35px] md:h-[45px] bg-white hover:bg-neutral-200 text-black font-bold rounded-[4px] shadow-lg active:scale-95 transition-colors text-[14px] md:text-[17px] select-none"
+                                    className="flex items-center justify-center gap-2 px-5 sm:px-8 h-[35px] md:h-[45px] bg-neutral-200 hover:bg-white text-black font-bold text-[15px] md:text-[18px] rounded-[4px] shadow-lg active:scale-95 transition-colors"
                                 >
-                                    {/* Progress Fill */}
-                                    <div
-                                        key="autoplay-fill"
-                                        className="absolute left-0 top-0 bottom-0 bg-red-600/25 origin-left pointer-events-none"
-                                        style={{
-                                            width: '100%',
-                                            animation: 'buttonFillProgress 5s linear forwards',
-                                            animationPlayState: isPlaying ? 'running' : 'paused',
-                                        }}
-                                    />
-                                    <span className="relative z-10 flex items-center gap-2">
-                                        <PlayIcon size={isMobile ? 18 : 22} weight="fill" className="text-black" />
-                                        Next episode {countdown}s
-                                    </span>
+                                    <PlayIcon size={22} weight="fill" className="text-black" />
+                                    Next episode
                                 </button>
                             </div>
                         )}
@@ -1004,7 +969,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                             {/* RIGHT GROUP */}
                             <div className={`flex items-center min-w-0 ${isMobile ? 'gap-4' : 'gap-5 md:gap-8 justify-end'}`} style={!isMobile ? { flex: '1 1 0%' } : {}}>
-                                {isTV && hasNextEpisode && onNextEpisode && (
+                                {isTV && hasNextEpisode && onNextEpisode && !disableAutoNextButton && (
                                     <div className="relative">
                                         {showNextEpPopup && nextEpisodeData && (
                                             <NextEpisodePopup

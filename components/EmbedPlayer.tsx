@@ -93,7 +93,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
     useEffect(() => {
         setLockedStartTime(startTime);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tmdbId, season, episode]);
 
     useEffect(() => {
@@ -103,6 +103,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     }, [activeProviderIndex, onAllFailed]);
 
     const currentProvider = ALL_EMBED_PROVIDERS[activeProviderIndex];
+    const supportsInbound = currentProvider?.supportsInboundControl === true;
 
     const stopTimer = useCallback(() => {
         if (timerRef.current) {
@@ -118,7 +119,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 onTimeUpdate?.(elapsedRef.current, estimatedDuration);
             }, 500);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [onTimeUpdate]);
 
     const handleProviderError = useCallback(() => {
@@ -139,7 +140,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
     const estimatedDuration = mediaType === 'tv' ? 2700 : 7200;
 
-    // ── Auto-start: assume autoplay after 4s if no real events arrive ──────────
+    // ── Auto-start: assume autoplay after fallback timeout if no real events arrive ──────────
     const autoStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
@@ -148,19 +149,22 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         elapsedRef.current = lockedStartTime;
         hasRealTimeUpdateRef.current = false;
 
+        const timeoutDuration = currentProvider?.supportsPostMessage ? 12000 : 7000;
+
         autoStartRef.current = setTimeout(() => {
             if (!hasRealTimeUpdateRef.current) {
+                console.log(`[EmbedPlayer] Fallback autoplay timer fired after ${timeoutDuration}ms for provider: ${currentProvider?.name}`);
                 startTimer();
                 onPlay?.();
             }
-        }, 4000);
+        }, timeoutDuration);
 
         return () => {
             if (autoStartRef.current) clearTimeout(autoStartRef.current);
             stopTimer();
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tmdbId, season, episode, activeProviderIndex, lockedStartTime]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tmdbId, season, episode, activeProviderIndex, lockedStartTime, currentProvider]);
 
     useEffect(() => {
         if (currentProvider) {
@@ -183,13 +187,17 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         win.postMessage({ action: cmd }, '*');
         win.postMessage({ event: 'command', command: cmd }, '*');
         win.postMessage({ type: 'PLAYER_EVENT', player_status: play ? 'playing' : 'paused' }, '*');
+        
+        // VidFast / Vidking specific formats
+        win.postMessage({ command: cmd }, '*');
+        win.postMessage(JSON.stringify({ command: cmd }), '*');
     }, []);
 
     const broadcastSeek = useCallback((time: number) => {
         const win = iframeRef.current?.contentWindow;
         if (!win) return;
         elapsedRef.current = time; // keep our local tracker in sync
-        
+
         // Shotgun seek commands
         win.postMessage({ type: 'seek', time }, '*');
         win.postMessage({ type: 'seek', value: time }, '*');
@@ -211,14 +219,14 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         win.postMessage(JSON.stringify({ method: 'setCurrentTime', value: time }), '*');
         win.postMessage(JSON.stringify({ method: 'setCurrentTime', params: [time] }), '*');
         win.postMessage({ type: 'PLAYER_EVENT', player_status: 'seeked', player_progress: time }, '*');
-        
+
         // VidFast / Vidking specific inbound seek command formats
         win.postMessage({ command: 'seek', time }, '*');
         win.postMessage(JSON.stringify({ command: 'seek', time }), '*');
-        
+
         // StreamVault / generic data wrappers
         win.postMessage({ type: 'seek', data: { time } }, '*');
-        
+
         console.log(`[EmbedPlayer] Broadcast seek to ${time}s`);
     }, []);
 
@@ -230,6 +238,14 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         win.postMessage({ type: muted ? 'mute' : 'unmute' }, '*');
         win.postMessage({ action: muted ? 'mute' : 'unmute' }, '*');
         win.postMessage({ volume: muted ? 0 : (vol ?? 1) }, '*');
+
+        // VidFast / Vidking specific formats
+        win.postMessage({ command: 'mute', muted }, '*');
+        win.postMessage(JSON.stringify({ command: 'mute', muted }), '*');
+        if (vol !== undefined) {
+            win.postMessage({ command: 'volume', level: vol }, '*');
+            win.postMessage(JSON.stringify({ command: 'volume', level: vol }), '*');
+        }
     }, []);
 
     // Populate the controller ref so parent can call these directly
@@ -238,14 +254,14 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         controllerRef.current = {
             seek: (time: number) => {
                 broadcastSeek(time);
-                
+
                 // Clear any pending seek timer
                 if (seekTimeoutRef.current) {
                     clearTimeout(seekTimeoutRef.current);
                 }
-                
+
                 // Special Treatment based on provider capabilities:
-                if (currentProvider?.supportsPostMessage) {
+                if (currentProvider?.supportsPostMessage && currentProvider?.supportsInboundControl !== false) {
                     // Category 1: Programmatic Seeker (Tier 1).
                     // If we have already verified that postMessage works in this session,
                     // we NEVER reload the iframe — the player is perfectly functional.
@@ -257,7 +273,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
                     pendingSeekTimeRef.current = time;
                     console.log(`[EmbedPlayer] 🕒 Scheduling smart watchdog for programmatic seek verification at ${time}s.`);
-                    
+
                     seekTimeoutRef.current = setTimeout(() => {
                         if (pendingSeekTimeRef.current !== null) {
                             console.log(`[EmbedPlayer] ⚠️ postMessage seek verification timed out for ${time}s. Falling back to iframe reload.`);
@@ -278,7 +294,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             setMuted: broadcastMute,
             getIframe: () => iframeRef.current
         };
-        return () => { 
+        return () => {
             controllerRef.current = null;
             if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
         };
@@ -304,7 +320,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 const type = d.event;
                 const time = d.currentTime;
                 const dur = d.duration;
-                
+
                 if (type === 'play' || type === 'playing') {
                     hasRealTimeUpdateRef.current = true;
                     if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
@@ -320,7 +336,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                     elapsedRef.current = time;
                     onTimeUpdate?.(time, dur || estimatedDuration);
                 }
-                
+
                 // Watchdog verification for Vidsync
                 if (pendingSeekTimeRef.current !== null && typeof time === 'number') {
                     if (Math.abs(time - pendingSeekTimeRef.current) < 3.5) {
@@ -374,7 +390,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 if (typeof time === 'number') {
                     elapsedRef.current = time;
                     onTimeUpdate?.(time, dur || estimatedDuration);
-                    
+
                     // Verify programmatic postMessage seek
                     if (pendingSeekTimeRef.current !== null) {
                         if (Math.abs(time - pendingSeekTimeRef.current) < 3.5) {
@@ -418,42 +434,47 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
     if (!currentProvider || activeProviderIndex >= ALL_EMBED_PROVIDERS.length) return null;
 
-    const embedUrl = currentProvider.buildUrl({ 
-        tmdbId, 
-        imdbId, 
-        mediaType, 
-        season, 
-        episode, 
-        startTime: lockedStartTime, 
+    const embedUrl = currentProvider.buildUrl({
+        tmdbId,
+        imdbId,
+        mediaType,
+        season,
+        episode,
+        startTime: lockedStartTime,
         subtitleLang: undefined
     });
 
     const hideNative = currentProvider.supportsControlsHide;
-    
+
     // Smart high-res scaling factor: renders the iframe at a higher resolution
     // to make its internal UI elements (controls, menus, buttons) microscopic and sharp.
     // We use a safe scaling factor (2.2 for WebKit/Safari, 2.5 for others) to stay well
     // under GPU texture limits and prevent process crashes on iOS.
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-    const isIOS = /iPad|iPhone|iPod/.test(ua) || 
+    const isIOS = /iPad|iPhone|iPod/.test(ua) ||
         (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
     const isMac = /Macintosh|Mac OS X/.test(ua);
     const isIOSOrMac = isIOS || isMac;
 
+    // TEMP: Set to true to temporarily pause scaling and zoom hacks
+    const tempPauseScaling = true;
+
     const getHighResFactor = () => {
+        if (tempPauseScaling) return 1;
         // Apply scaling factor to all providers to ensure any branding, logos, or unhidden controls are scaled down
-        return isIOSOrMac ? 2 : 16;
+        return isIOSOrMac ? 2 : 2;
     };
     const highResFactor = getHighResFactor();
-    
+
     // Zoom factor: crops out the outer edges to hide native player controls and branding.
     // On non-Apple platforms, the high scale (4.5) already renders controls microscopic, 
     // allowing a gentler crop (1.25) to preserve the video frame.
-    const defaultZoom = isIOSOrMac ? 1.75 : 1.75;
-    const zoomFactor = videoFit === 'cover' 
-        ? 1.65 
-        : defaultZoom;
-        
+    const defaultZoom = isIOSOrMac ? 1 : 1;
+    const zoomFactor = tempPauseScaling ? 1 : (videoFit === 'cover'
+        ? 1
+        : defaultZoom);
+
+
     // Calculate the final scale to bring the high-res iframe back to the screen fit
     const totalScale = zoomFactor / highResFactor;
 
@@ -468,7 +489,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                     height: `${100 / totalScale}%`,
                     left: `${(100 - 100 / totalScale) / 2}%`,
                     top: `${(100 - 100 / totalScale) / 2}%`,
-                    clipPath: 'inset(0% 0% 8% 0%)', // Hides the bottom 8% of the iframe containing the controls
+                    clipPath: 'inset(0% 0% 0% 0%)', // Hides the bottom 8% of the iframe to remove native controls
                 }}
             >
                 <iframe
@@ -483,9 +504,10 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             </div>
 
             {/* The Invisible Shield: captures all clicks to block ads and toggles play/pause */}
-            <div 
-                className="absolute inset-0 z-20 cursor-pointer embed-shield"
+            <div
+                className={`absolute inset-0 z-20 cursor-pointer embed-shield ${!supportsInbound ? 'pointer-events-none' : ''}`}
                 onClick={(e) => {
+                    if (!supportsInbound) return;
                     if (activePanel && activePanel !== 'none') {
                         // Let the click bubble up to the parent container to close the active settings panel!
                         return;

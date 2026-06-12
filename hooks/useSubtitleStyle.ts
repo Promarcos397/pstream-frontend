@@ -62,7 +62,7 @@ export function useSubtitleStyle(customSettings?: AppSettings): {
       borderRadius:    bg === 'transparent' ? 0 : 6,
       color,
       fontFamily:      fontStack,
-      fontWeight:      500,
+      fontWeight:      (subtitleFontFamily === 'brand' || subtitleFontFamily === 'small-caps') ? 700 : 500,
       lineHeight:      1.4,
       letterSpacing:   '0.01em',
       textShadow:      shadow,

@@ -32,11 +32,50 @@ export const REQUESTS = {
   },
 
   fetchByGenre(type: 'movie' | 'tv', genreId: number, sortBy = 'popularity.desc', extra = '') {
-    return this._build(`${BASE_URL}/discover/${type}`, {
-      with_genres: genreId,
+    const params: Record<string, string | number> = {
       sort_by: sortBy,
       'vote_count.gte': type === 'tv' ? 5 : 25
-    }, extra);
+    };
+    
+    // Intercept custom Netflix-style genres
+    if (genreId === 10001) { // Pride / LGBTQ
+      params.with_keywords = '9003';
+    } else if (genreId === 10002) { // Astrology
+      params.with_keywords = '185246|10168|15386';
+    } else if (genreId === 10003) { // Black Stories
+      params.with_keywords = '237248|175510|242137|161556';
+    } else if (genreId === 10004) { // Book Adaptations
+      params.with_keywords = '818|10214';
+    } else if (genreId === 10005) { // British
+      params.with_origin_country = 'GB';
+    } else if (genreId === 10006) { // European
+      params.with_origin_country = 'FR|DE|IT|ES|NL|DK|SE|NO|FI|PL';
+    } else if (genreId === 10007) { // Moods
+      params.with_keywords = '9663|10224|10185';
+    } else if (genreId === 10008) { // US / Hollywood
+      params.with_origin_country = 'US';
+    } else if (genreId === 10009) { // Classics
+      if (type === 'tv') params['first_air_date.lte'] = '1985-01-01';
+      else params['primary_release_date.lte'] = '1985-01-01';
+    } else if (genreId === 10010) { // Cult
+      params.with_keywords = '10084|12339';
+    } else if (genreId === 10011) { // Independent
+      params.vote_average_gte = 7.5;
+      params['vote_count.lte'] = 800;
+      params['vote_count.gte'] = 50;
+    } else if (genreId === 10012) { // International
+      params.without_original_language = 'en';
+    } else if (genreId === 10013) { // Shorts
+      params['with_runtime.lte'] = 40;
+    } else if (genreId === 10014) { // Sport
+      params.with_keywords = '6075|9715|180370';
+    } else if (genreId === 10015) { // Teen
+      params.with_keywords = '175602|4565|1701';
+    } else {
+      params.with_genres = genreId;
+    }
+
+    return this._build(`${BASE_URL}/discover/${type}`, params, extra);
   },
 
   get fetchActionTV()            { return this.fetchByGenre('tv', 10759); },

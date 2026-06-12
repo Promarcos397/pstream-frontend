@@ -60,6 +60,9 @@ const fmtTime = (s: number) => {
     return `${m}:${sec.toString().padStart(2, '0')}`;
 };
 
+// Progress cache for trailers (cleared on page/tab unmounts)
+const trailerTimeCache: Record<string | number, number> = {};
+
 // ---------------------------------------------------------------------------
 const SpotlightCard: React.FC<SpotlightCardProps> = ({
     movie,
@@ -70,7 +73,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
     hidePlay = false,
     nextMovie,
 }) => {
-    const { myList, toggleList, activeVideoId, setActiveVideoId, globalMute, setGlobalMute } = useGlobalContext();
+    const { myList, toggleList, activeVideoId, setActiveVideoId, globalMute, setGlobalMute, settings } = useGlobalContext();
     const isAdded = myList.some(m => String(m.id) === String(movie.id));
 
     const cardRef = useRef<HTMLDivElement>(null);
@@ -89,6 +92,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
     const [trailerPct, setTrailerPct]     = useState(0);
     const [currentTimeSec, setCurrentTimeSec] = useState(0);
     const [durationSec, setDurationSec]       = useState(0);
+    const [trailerStartTime, setTrailerStartTime] = useState(0);
 
     // Controls overlay
     const [showControls, setShowControls]   = useState(false);
@@ -105,6 +109,13 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
     // Must match TrailerPlayer's variant key: `${variant}-${movie.id}`
     const myVideoId = `card-${movie.id}`;
     const isMyVideoActive = activeVideoId === myVideoId;
+
+    // Cleanup trailer progress for this movie when the card unmounts (e.g. navigating to a new tab/page)
+    useEffect(() => {
+        return () => {
+            delete trailerTimeCache[movie.id];
+        };
+    }, [movie.id]);
 
     // ── Reset when movie changes or video is no longer active ────────────────
     useEffect(() => {
@@ -125,31 +136,35 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
 
     // ── Tap handler: tap-to-play (first tap starts trailer), then tap controls ─
     const handleMediaTap = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (isActuallyPlaying) {
-            if (isVideoPaused) {
-                const player = playerInstanceRef.current;
-                if (player) { try { player.playVideo(); } catch {} }
-                setIsVideoPaused(false);
-                openControls();
-            } else if (hasVideoEnded) {
-                setHasVideoEnded(false);
-                setIsPlayingTrailer(true);
-                setIsActuallyPlaying(true);
-                setReplayCount(c => c + 1);
-            } else {
-                if (showControls) setShowControls(false);
-                else openControls();
-            }
-        } else {
-            // First tap → start trailer
+    e.stopPropagation();
+    
+    if (isActuallyPlaying) {
+        if (hasVideoEnded) {
+            setTrailerStartTime(0);
+            setHasVideoEnded(false);
             setIsPlayingTrailer(true);
             setIsActuallyPlaying(true);
-            setHasVideoEnded(false);
-            setShowVideo(true);
-            setActiveVideoId(myVideoId);
+            setReplayCount(c => c + 1);
+        } else {
+            // Tapping the container while playing OR paused will now 
+            // strictly toggle the control interface overlays
+            if (showControls) {
+                setShowControls(false);
+                if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+            } else {
+                openControls();
+            }
         }
-    };
+    } else {
+        // First tap → start trailer
+        setTrailerStartTime(trailerTimeCache[movie.id] || 0);
+        setIsPlayingTrailer(true);
+        setIsActuallyPlaying(true);
+        setHasVideoEnded(false);
+        setShowVideo(true);
+        setActiveVideoId(myVideoId);
+    }
+};
 
     const handlePlayPause = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -227,7 +242,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
         return () => { observer.disconnect(); preloadObserver.disconnect(); };
     }, [nextMovie]);
 
-    // ── Stop video when scrolled out of view ─────────────────────────────────
+    // ── Stop video when scrolled out of view / Autoplay when in view ─────────
     useEffect(() => {
         if (!isInView) {
             setShowVideo(false);
@@ -243,9 +258,22 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
         } else {
             // When scrolled back in, preload next card's trailer
             if (nextMovie) preloadTrailer(nextMovie);
+
+            // Autoplay trailer logic when scrolled in view
+            if (settings?.autoplayPreviews !== false && !isComingSoon && !hidePlay) {
+                const timer = setTimeout(() => {
+                    setTrailerStartTime(trailerTimeCache[movie.id] || 0);
+                    setIsPlayingTrailer(true);
+                    setIsActuallyPlaying(true);
+                    setHasVideoEnded(false);
+                    setShowVideo(true);
+                    setActiveVideoId(myVideoId);
+                }, 800); // 800ms debounce
+                return () => clearTimeout(timer);
+            }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isInView, myVideoId]);
+    }, [isInView, myVideoId, isComingSoon, hidePlay, settings?.autoplayPreviews, nextMovie, setActiveVideoId]);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     const releaseDate = movie.release_date || movie.first_air_date || '';
@@ -306,6 +334,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                             key={`spotlight-${movie.id}-${replayCount}`}
                             movie={movie}
                             variant="card"
+                            initialSeekTime={trailerStartTime}
                             onReady={() => { setVideoReady(true); setIsPlayingTrailer(true); }}
                             onPlay={() => {
                                 setIsActuallyPlaying(true);
@@ -315,16 +344,19 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                                 setIsPlayingTrailer(false);
                                 setIsActuallyPlaying(false);
                                 setHasVideoEnded(true);
+                                trailerTimeCache[movie.id] = 0; // Reset progress
                             }}
                             onErrored={() => {
                                 setIsPlayingTrailer(false);
                                 setIsActuallyPlaying(false);
                                 setShowVideo(false);
+                                trailerTimeCache[movie.id] = 0; // Reset progress
                             }}
                             onPlayerReady={p => { playerInstanceRef.current = p; }}
                             onTimeUpdate={(currentTime, duration) => {
                                 setCurrentTimeSec(currentTime);
                                 setDurationSec(duration);
+                                trailerTimeCache[movie.id] = currentTime; // Save progress
                                 const usable = Math.max(duration - 8, 1);
                                 setTrailerPct(Math.min(100, (currentTime / usable) * 100));
                             }}
@@ -335,9 +367,23 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                 {/* Paused / ended overlay */}
                 {isActuallyPlaying && (isVideoPaused || hasVideoEnded) && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                        <div className="w-[60px] h-[60px] rounded-full bg-black/50 border border-white/20 flex items-center justify-center shadow-2xl">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation(); // Stop handleMediaTap from hijacking this click
+                                if (hasVideoEnded) {
+                                    setTrailerStartTime(0);
+                                    setHasVideoEnded(false);
+                                    setIsPlayingTrailer(true);
+                                    setIsActuallyPlaying(true);
+                                    setReplayCount(c => c + 1);
+                                } else {
+                                    handlePlayPause(e);
+                                }
+                            }}
+                            className="w-[60px] h-[60px] rounded-full bg-black/50 border border-white/20 flex items-center justify-center shadow-2xl pointer-events-auto active:scale-95 transition-transform cursor-pointer"
+                        >
                             <PlayIcon size={30} weight="fill" className="text-white ml-1" />
-                        </div>
+                        </button>
                     </div>
                 )}
 
@@ -405,7 +451,8 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                     <button
                         onClick={e => {
                             e.stopPropagation();
-                            if (hasVideoEnded) {
+                             if (hasVideoEnded) {
+                                setTrailerStartTime(0);
                                 setHasVideoEnded(false);
                                 setIsPlayingTrailer(true);
                                 setIsActuallyPlaying(true);
@@ -414,7 +461,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                                 setGlobalMute(!globalMute);
                             }
                         }}
-                        className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/50 border border-white/25 text-white flex items-center justify-center backdrop-blur-md hover:bg-black/70 transition-colors"
+                        className="absolute bottom-3 right-3 w-6 h-6 rounded-full bg-black/50 border border-white/25 text-white flex items-center justify-center backdrop-blur-md hover:bg-black/70 transition-colors"
                         style={{ zIndex: 25 }}
                     >
                         {hasVideoEnded
@@ -442,7 +489,10 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
             />
 
             {/* ── BELOW-MEDIA CONTENT ─────────────────────────────────── */}
-            <div className="px-4 pb-6 pt-4 flex flex-col flex-grow gap-3">
+            <div 
+                className="px-4 pb-6 pt-4 flex flex-col flex-grow gap-3 cursor-pointer select-none"
+                onClick={() => onSelect(movie)}
+            >
 
                 {/* Logo or title */}
                 <div className="flex items-center gap-2">

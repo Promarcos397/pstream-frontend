@@ -27,6 +27,7 @@ export {
   getReleaseDates,
   searchMovies,
   fetchData,
+  isBlacklisted,
   setTmdbLanguage as setApiLanguage,
   default,
 } from './tmdb';

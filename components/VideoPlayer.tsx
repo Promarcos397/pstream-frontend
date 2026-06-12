@@ -20,6 +20,7 @@ import { ALL_EMBED_PROVIDERS } from '../services/EmbedProviders';
 import { ArrowLeftIcon } from '@phosphor-icons/react';
 import { parseSubtitles, CaptionCueType } from '../utils/captions';
 
+
 const GIGA_BACKEND_URL = import.meta.env.VITE_GIGA_BACKEND_URL || 'https://ibrahimar397-pstream-giga.hf.space';
 const FORCE_PROXY_HOST_PATTERNS: RegExp[] = [];
 const RETRY_BASE_DELAY_MS = 1200;
@@ -120,7 +121,8 @@ function requestMobileLandscapeFullscreen(el: HTMLElement) {
         }
     } catch (e) { }
 }
-
+// we need to do webkit-requestfullscreen as well and it should go fullscreen
+// and when we exit fullscreen we need to do webkit-exit-fullscreen as well
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, resumeTime = 0, onClose }) => {
     const HIDE_CUSTOM_UI = false; 
     const { t } = useTranslation();
@@ -329,9 +331,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentCaption, setCurrentCaption] = useState<string | null>(null);
     const [subtitleObjectUrl, setSubtitleObjectUrl] = useState<string | null>(null);
     const [subtitleOffset, setSubtitleOffset] = useState(0);
-    const speakerSideRef = useRef<'left' | 'right'>('right');
-    const [subtitleSide, setSubtitleSide] = useState<'left' | 'center' | 'right'>('center');
-    const prevCueRef = useRef<string>('');
 
     useEffect(() => {
         const backdrop = movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : '';
@@ -474,6 +473,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     }, [currentTime, duration, isPlaying]);
 
     const [currentCueText, setCurrentCueText] = useState<string>('');
+    const [currentCueSettings, setCurrentCueSettings] = useState<CaptionCueType['settings'] | undefined>(undefined);
+
+    const isDialogue = useMemo(() => {
+        if (!currentCueText) return false;
+        const lines = currentCueText.split(/\r?\n|<br\s*\/?>/i);
+        if (lines.length < 2) return false;
+        return lines.some(line => {
+            const clean = line.replace(/<\/?[^>]+(>|$)/g, "").trim();
+            return clean.startsWith('-') || clean.startsWith('–') || clean.startsWith('—');
+        });
+    }, [currentCueText]);
 
     // ——— Manual Autoplay State ———
     const [showAutoplayCountdown, setShowAutoplayCountdown] = useState(false);
@@ -594,9 +604,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             }
         }
 
-        if (isEmbedFallback) {
-            setTimeout(() => setIsBuffering(false), 500);
-        }
+        // Keep buffering active until EmbedPlayer communicates playback start
     }, [settings.subtitleLanguage, settings.showSubtitles]);
 
     const handleSourceChange = useCallback((index: number) => {
@@ -641,7 +649,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setStreamUrl(finalUrl);
         setIsStreamM3U8(!!candidate.isM3U8);
         setStreamReferer(activeReferer || null);
-        if (isEmbedFallback) setTimeout(() => setIsBuffering(false), 500);
     }, [allSources]);
 
     const handleEpisodeSelect = useCallback(async (ep: Episode, seasonNum?: number, episodes?: Episode[]) => {
@@ -868,6 +875,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!currentCaption) {
             setSubtitleObjectUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
             setCurrentCueText('');
+            setCurrentCueSettings(undefined);
             parsedCuesRef.current = [];
             return;
         }
@@ -885,6 +893,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     const nowMs = (currentTime - subtitleOffset) * 1000;
                     const immediateCue = cues.find(c => nowMs >= c.start && nowMs <= c.end);
                     setCurrentCueText(immediateCue?.content || '');
+                    setCurrentCueSettings(immediateCue?.settings);
                 }
 
                 const { convertSubtitlesToObjectUrl } = await import('../utils/captions');
@@ -910,6 +919,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const nowMs = (currentTime - subtitleOffset) * 1000;
         const cue = parsedCuesRef.current.find(c => nowMs >= c.start && nowMs <= c.end);
         setCurrentCueText(cue ? (cue.content || cue.text || '') : '');
+        setCurrentCueSettings(cue ? cue.settings : undefined);
     }, [currentTime, subtitleOffset, subtitleObjectUrl]);
 
     useEffect(() => {
@@ -929,49 +939,76 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         };
     }, [streamUrl]);
 
+    useEffect(() => {
+        const handleEmbedMessage = (e: MessageEvent) => {
+            // Guard checking for VidAPI broadcast signature
+            if (e.data?.type !== 'PLAYER_EVENT' || !e.data?.data) return;
+
+            const { player_status, player_progress, player_duration } = e.data.data;
+
+            // Sync local buffering state once provider initializes and plays
+            if (player_status === 'playing') {
+                setIsPlaying(true);
+                setIsBuffering(false);
+                setIsVideoReady(true);
+                hasPlayedOnceRef.current = true;
+            } else if (player_status === 'paused') {
+                setIsPlaying(false);
+            }
+
+            // Keep local time tracker in sync for UI control rendering
+            if (player_progress != null) {
+                setCurrentTime(player_progress);
+                currentTimeRef.current = player_progress;
+            }
+            if (player_duration != null && player_duration > 0) {
+                setDuration(player_duration);
+                setProgress((player_progress / player_duration) * 100);
+            }
+
+            // Handle auto-advancing on episode completion
+            if (player_status === 'completed') {
+                if (isTransitioningRef.current) return;
+                
+                // Safety: Only pass if user watched major chunk of video
+                if (player_duration > 0 && (player_progress / player_duration) > 0.80) {
+                    if (settings.autoplayNextEpisode && !showAutoplayCountdown) {
+                        handleNextEpisode();
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('message', handleEmbedMessage);
+        return () => window.removeEventListener('message', handleEmbedMessage);
+    }, [settings.autoplayNextEpisode, showAutoplayCountdown, handleNextEpisode]);
+
     // ——— Manual Autoplay Prompt Effect —————————————————————————————————————
+    const TRIGGER_PERCENT = 98.5;
+    const currentProgress = duration > 0 ? (currentTime / duration) * 100 : 0;
+    const hasCreditsSegment = skipSegments.some(s => s.type === 'credits');
+
     useEffect(() => {
         if (
             !settings.autoplayNextEpisode ||
             !nextEpisodeInfo ||
             duration <= 0 ||
-            mediaType !== 'tv'
+            mediaType !== 'tv' ||
+            hasCreditsSegment 
         ) {
             setShowAutoplayCountdown(false);
             return;
         }
 
-        const creditsSegment = skipSegments.find(s => s.type === 'credits');
-        let shouldTrigger = false;
-
-        if (creditsSegment) {
-            shouldTrigger = currentTime >= creditsSegment.start && currentTime < creditsSegment.end;
-        } else {
-            const currentProgress = (currentTime / duration) * 100;
-            shouldTrigger = currentProgress >= 98.5;
+        if (currentProgress < TRIGGER_PERCENT - 2) {
+            countdownCancelledRef.current = false;
+            setShowAutoplayCountdown(false);
         }
 
-        if (shouldTrigger) {
-            if (!countdownCancelledRef.current && !showAutoplayCountdown) {
-                setShowAutoplayCountdown(true);
-            }
-        } else {
-            // Reset countdown cancel guard if we seek back before trigger point
-            if (creditsSegment) {
-                if (currentTime < creditsSegment.start - 5) {
-                    countdownCancelledRef.current = false;
-                    setShowAutoplayCountdown(false);
-                }
-            } else {
-                const currentProgress = (currentTime / duration) * 100;
-                if (currentProgress < 96.5) {
-                    countdownCancelledRef.current = false;
-                    setShowAutoplayCountdown(false);
-                }
-            }
+        if (currentProgress >= TRIGGER_PERCENT && !countdownCancelledRef.current && !showAutoplayCountdown) {
+            setShowAutoplayCountdown(true);
         }
-    }, [currentTime, duration, nextEpisodeInfo, settings.autoplayNextEpisode, mediaType, skipSegments, showAutoplayCountdown]);
-
+    }, [currentProgress, duration, nextEpisodeInfo, settings.autoplayNextEpisode, mediaType, hasCreditsSegment]);
 
     const handleCancelAutoplay = useCallback(() => {
         countdownCancelledRef.current = true;
@@ -1068,7 +1105,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
             const key = e.key.toLowerCase();
 
-            if (e.repeat && !['arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'l', 'j'].includes(key)) {
+            if (e.repeat && !['arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'l', 'j', '[', ']', '{', '}'].includes(key)) {
                 return;
             }
 
@@ -1077,7 +1114,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 return;
             }
 
-            const registeredKeys = [' ', 'k', 'l', 'j', 'arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'f', 'm', 'n', 'p', 's', 'escape'];
+            const registeredKeys = [' ', 'k', 'l', 'j', 'arrowright', 'arrowleft', 'arrowup', 'arrowdown', 'f', 'm', 'n', 'p', 's', 'escape', '[', ']', '{', '}', '\\'];
 
             if (!registeredKeys.includes(key)) {
                 showControls();
@@ -1221,13 +1258,28 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 setCurrentCaption(preferred.url);
                             }
                             break;
+                        case '[':
+                            setSubtitleOffset(prev => parseFloat((prev - 0.1).toFixed(1)));
+                            break;
+                        case ']':
+                            setSubtitleOffset(prev => parseFloat((prev + 0.1).toFixed(1)));
+                            break;
+                        case '{':
+                            setSubtitleOffset(prev => parseFloat((prev - 1.0).toFixed(1)));
+                            break;
+                        case '}':
+                            setSubtitleOffset(prev => parseFloat((prev + 1.0).toFixed(1)));
+                            break;
+                        case '\\':
+                            setSubtitleOffset(0);
+                            break;
                     }
                     break;
             }
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption, showControls, useEmbedFallback, duration, isMuted]);
+    }, [onClose, activePanel, nextEpisodeInfo, handleNextEpisode, previousEpisodeInfo, handlePreviousEpisode, isFullscreen, isPseudoFullscreen, toggleFullscreen, captions, currentCaption, showControls, useEmbedFallback, duration, isMuted, setSubtitleOffset]);
 
     return (
         <div
@@ -1308,9 +1360,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 onPlay={() => {
                     setIsPlaying(true);
                     setIsVideoReady(true);
+                    setIsBuffering(false);
                     hasPlayedOnceRef.current = true;
+                    showControls();
                 }}
-                onPause={() => setIsPlaying(false)}
+                onPause={() => {
+                    setIsPlaying(false);
+                    showControls();
+                }}
                 onEnded={() => {
                     // SAFETY LOCK 3: Double-fire and Provider Failure Cascade guards
                     if (isTransitioningRef.current) return;
@@ -1323,6 +1380,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     }
                 }}
                 onTimeUpdate={(t, d) => {
+                    setIsVideoReady(true);
+                    setIsBuffering(false);
                     setCurrentTime(t);
                     if (d > 0) {
                         setDuration(d);
@@ -1344,106 +1403,60 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             />
 
             {/* ── Custom Subtitle Overlay ── */}
-            {(isVideoReady || hasPlayedOnceRef.current) && subtitleObjectUrl && currentCueText && (() => {
-                const lines = currentCueText.split(/\n/);
-                const isDialogue = lines.length >= 2 && lines.filter(l => /^[-–]\s/.test(l.trim())).length >= 2;
-
-                if (currentCueText !== prevCueRef.current) {
-                    prevCueRef.current = currentCueText;
-                    if (isDialogue) {
-                        speakerSideRef.current = speakerSideRef.current === 'right' ? 'left' : 'right';
-                    }
-                }
-
-                if (isDialogue) {
-                    const speakerLines = lines.map(l => l.replace(/^[-–]\s*/, '').trim()).filter(Boolean);
-                    return (
-                        <div
-                            className="subtitle-overlay"
-                            style={{
-                                bottom: useEmbedFallback ? '9rem' : '5.5rem',
-                                left: '0',
-                                right: '0',
-                                transform: 'none',
-                                maxWidth: '100%',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '10px',
-                                pointerEvents: 'none',
-                                paddingLeft: '8%',
-                                paddingRight: '8%',
-                                width: '100%',
-                                background: 'transparent',
-                                backgroundColor: 'transparent',
-                                backdropFilter: 'none',
-                                boxShadow: 'none'
-                            }}
-                        >
-                            {speakerLines.map((line, i) => {
-                                const isLeft = i % 2 === 0;
-                                return (
-                                    <div key={currentCueText + '-' + i} className={`w-full flex ${isLeft ? 'justify-start' : 'justify-end'}`}>
-                                        <span
-                                            className={`subtitle-line px-4 py-2 text-[14px] md:text-[17px] leading-relaxed shadow-lg max-w-[75%] md:max-w-[50%] animate-scaleIn transition-all duration-300 ${
-                                                isLeft
-                                                    ? 'bg-zinc-900/90 text-white border border-white/5 rounded-[18px] rounded-bl-[4px]'
-                                                    : 'bg-[#e50914]/85 text-white border border-[#e50914]/20 rounded-[18px] rounded-br-[4px]'
-                                            }`}
-                                            style={{
-                                                fontFamily: overlayStyle.fontFamily,
-                                                backdropFilter: 'blur(8px)',
-                                                WebkitBackdropFilter: 'blur(8px)',
-                                                textShadow: '0 1px 2px rgba(0,0,0,0.6)',
-                                            }}
-                                        >
-                                            {parseSubtitleTags(line)}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    );
-                }
-
-                return (
-                    <div
-                        className="subtitle-overlay"
+            {(isVideoReady || hasPlayedOnceRef.current) && subtitleObjectUrl && currentCueText && (
+                <div
+                    className="subtitle-overlay"
+                    style={{
+                        ...overlayStyle,
+                        bottom: useEmbedFallback ? '9rem' : '5.5rem',
+                        left: currentCueSettings?.position ? currentCueSettings.position : '50%',
+                        transform: currentCueSettings?.position 
+                            ? (currentCueSettings.align === 'right' || currentCueSettings.align === 'end' 
+                                ? 'translateX(-100%)' 
+                                : (currentCueSettings.align === 'center' || currentCueSettings.align === 'middle' 
+                                    ? 'translateX(-50%)' 
+                                    : 'none'))
+                            : 'translateX(-50%)',
+                        textAlign: currentCueSettings?.align 
+                            ? (currentCueSettings.align === 'middle' 
+                                ? 'center' 
+                                : (currentCueSettings.align === 'start' 
+                                    ? 'left' 
+                                    : (currentCueSettings.align === 'end' 
+                                        ? 'right' 
+                                        : currentCueSettings.align))) as any
+                            : 'center',
+                        background: 'transparent',
+                        backgroundColor: 'transparent',
+                        backdropFilter: 'none',
+                        padding: 0,
+                        transition: 'all 0.25s ease',
+                    }}
+                >
+                    <span
+                        className="subtitle-line"
                         style={{
-                            ...overlayStyle,
-                            bottom: useEmbedFallback ? '9rem' : '5.5rem',
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            background: 'transparent',
-                            backgroundColor: 'transparent',
-                            backdropFilter: 'none',
-                            padding: 0,
-                            transition: 'all 0.25s ease',
+                            color: overlayStyle.color,
+                            fontFamily: overlayStyle.fontFamily,
+                            fontSize: overlayStyle.fontSize,
+                            textShadow: overlayStyle.textShadow,
+                            backgroundColor: overlayStyle.backgroundColor,
+                            padding: overlayStyle.padding,
+                            borderRadius: overlayStyle.borderRadius,
+                            backdropFilter: overlayStyle.backdropFilter,
+                            fontWeight: overlayStyle.fontWeight,
+                            textAlign: isDialogue ? 'left' : 'center',
+                            display: 'inline-block',
+                            whiteSpace: 'pre-wrap',
                         }}
                     >
-                        <span
-                            key={currentCueText}
-                            className="subtitle-line animate-scaleIn"
-                            style={{
-                                color: overlayStyle.color,
-                                fontFamily: overlayStyle.fontFamily,
-                                fontSize: overlayStyle.fontSize,
-                                textShadow: overlayStyle.textShadow,
-                                backgroundColor: overlayStyle.backgroundColor,
-                                padding: overlayStyle.padding,
-                                borderRadius: overlayStyle.borderRadius,
-                                backdropFilter: overlayStyle.backdropFilter,
-                                display: 'inline-block',
-                                whiteSpace: 'pre-wrap',
-                            }}
-                        >
-                            {parseSubtitleTags(currentCueText)}
-                        </span>
-                    </div>
-                );
-            })()}
+                        {parseSubtitleTags(currentCueText)}
+                    </span>
+                </div>
+            )}
 
-            {isBuffering && !useEmbedFallback && (
-                hasPlayedOnceRef.current ? (
+            {isBuffering && (
+                (hasPlayedOnceRef.current || useEmbedFallback) ? (
                     <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
                         <div className="relative w-12 h-12">
                             <div className="absolute inset-0 rounded-full border-[3px] border-white/10" />
@@ -1617,6 +1630,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         skipSegments={skipSegments}
                         onSkipSegment={handleSkipSegment}
                     />
+
 
                     {isMobile ? (
                         <VideoPlayerSettingsTouch

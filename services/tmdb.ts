@@ -46,6 +46,97 @@ function rotateKey(): boolean {
   return false;
 }
 
+// ─── Content Blacklist (NSFW & Sensitive Content) ───────────────────────────
+export const BLACKLIST = {
+  hard: {
+    ids: new Set<number>([
+      397194,  // Le Clitoris
+      34267,   // Africa Blood and Guts
+      1076935, // Money Shot: The Pornhub Story
+      315486,  // Hot Girls Wanted
+      234190,  // X-Rated: The Greatest Adult Movies of All Time
+      20       // Bowling for Columbine
+    ]),
+    keywords: [
+      'pornhub',
+      'pornstar',
+      'clitoris',
+      'orgasm',
+      'deep throat',
+      'after porn ends',
+      'blood and guts',
+      'blood & guts',
+      'hot girls wanted',
+      'x-rated',
+      'adult movie',
+      'africa addio',
+      'columbine',
+      'sex, lures & videotape',
+      'inside deep throat',
+      'the pornantulas',
+      'after porn',
+      'voyeur',
+      'kamasutra',
+      'kama sutra',
+      'erotica',
+      'nudist',
+      'nudism',
+      'playboy',
+      'penthouse',
+      'sadomasochism',
+      'bdsm',
+      'softcore',
+      'hardcore porn',
+      'porno',
+      'pornography'
+    ]
+  },
+  soft: {
+    ids: new Set<number>([
+      95897,   // Overflow
+      78501,   // Sweet Punishment: I'm the Guard's Personal Pet
+      241002,  // Adam's Sweet Agony
+      1057265  // Peddi
+    ]),
+    keywords: [
+      'overflow',
+      'sweet punishment',
+      "adam's sweet agony",
+      "adams sweet agony",
+      'peddi'
+    ]
+  }
+};
+
+export function isBlacklisted(item: any, type: 'hard' | 'soft' | 'any' = 'any'): boolean {
+  if (!item) return false;
+  
+  // Hard blacklist adult flag check
+  if (item.adult === true && (type === 'hard' || type === 'any')) {
+    return true;
+  }
+
+  const id = Number(item.id);
+  const title = (item.title || item.name || '').toLowerCase();
+  const origTitle = (item.original_title || item.original_name || '').toLowerCase();
+
+  const matchesKeywords = (keywords: string[]) =>
+    keywords.some(kw => title.includes(kw) || origTitle.includes(kw));
+
+  if (type === 'hard' || type === 'any') {
+    if (BLACKLIST.hard.ids.has(id)) return true;
+    if (matchesKeywords(BLACKLIST.hard.keywords)) return true;
+  }
+  if (type === 'soft' || type === 'any') {
+    if (BLACKLIST.soft.ids.has(id)) return true;
+    if (matchesKeywords(BLACKLIST.soft.keywords)) return true;
+  }
+  return false;
+}
+
+
+
+
 // ─── Axios instance ───────────────────────────────────────────────────────────
 
 let _lang = 'en-US';
@@ -65,6 +156,7 @@ tmdb.interceptors.request.use((config) => {
   config.params = {
     ...(!hasApiKey && { api_key: getKey() }),
     ...(!hasLang   && { language: _lang }),
+    include_adult: false,
     ...config.params,  // caller params WIN — they can override language per-call
   };
   return config;
@@ -123,6 +215,10 @@ export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') 
 export const getMovieDetails = async (id: number | string, type: 'movie' | 'tv') => {
   try {
     const { data } = await tmdb.get(`/${type}/${id}`);
+    if (isBlacklisted(data, 'hard')) {
+      console.warn(`[TMDB] Details request blocked for blacklisted content: ${id}`);
+      return null;
+    }
     return data;
   } catch (e) {
     console.error(`[TMDB] Details ${type}/${id}:`, e);
@@ -180,7 +276,8 @@ export const getExternalIds = async (id: number | string, type: 'movie' | 'tv') 
 export const getRecommendations = async (id: number | string, type: 'movie' | 'tv') => {
   try {
     const { data } = await tmdb.get(`/${type}/${id}/recommendations`);
-    return data.results || [];
+    const results = data.results || [];
+    return results.filter((item: any) => !isBlacklisted(item, 'any'));
   } catch (e) {
     console.error(`[TMDB] Recommendations ${type}/${id}:`, e);
     return [];
@@ -227,7 +324,7 @@ export const searchMovies = async (query: string) => {
 
     const uniqueMap = new Map<string, any>();
     allResults.forEach(item => {
-      if (!item) return;
+      if (!item || isBlacklisted(item, 'hard')) return;
       const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
       // Normalize media_type back onto the item if missing
       if (!item.media_type) {
@@ -285,8 +382,9 @@ export const fetchData = async (url: string) => {
   try {
     const { data } = await tmdb.get(url);
     const results = data.results || [];
-    _dataCache.set(url, results);
-    return results;
+    const filteredResults = results.filter((item: any) => !isBlacklisted(item, 'any'));
+    _dataCache.set(url, filteredResults);
+    return filteredResults;
   } catch (e) {
     console.error('[TMDB] fetchData error:', e);
     return [];

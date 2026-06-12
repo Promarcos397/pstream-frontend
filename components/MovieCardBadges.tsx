@@ -30,7 +30,7 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({ adult, voteAverage
   return (
     <span
       // Tweak 'border-[1.5px]' below to change the stroke thickness
-      className={`inline-flex items-center justify-center rounded-full ${dim} text-white font-bold flex-shrink-0 border-[2.5px] border-white shadow-sm`}
+      className={`inline-flex items-center justify-center rounded-full ${dim} text-white font-bold flex-shrink-0 border-[1.8px] border-white shadow-sm`}
       style={{ backgroundColor: bg }}
     >
       {rating}

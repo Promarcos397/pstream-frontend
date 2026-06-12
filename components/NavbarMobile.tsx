@@ -110,15 +110,13 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       active:scale-95 sm:hover:bg-white/[0.03] group
       ${isActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`;
   };
-
   const getPillClass = (isActive: boolean) => {
-    return `flex flex-col items-center justify-center transition-all duration-300 px-5 py-1.5 rounded-full
+    return `flex flex-col items-center justify-center transition-all duration-300 px-6 py-1.5 rounded-full
       sm:w-full sm:h-auto sm:bg-transparent sm:rounded-none sm:px-0 sm:py-0
       ${isActive 
         ? 'bg-white/15 text-white sm:bg-transparent' 
         : 'text-white/45 hover:text-white/80'}`;
   };
-
   return (
     <>
       {/* Mobile Top Header (Netflix style) */}
