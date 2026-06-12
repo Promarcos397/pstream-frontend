@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../services/supabaseClient';
 import { Movie } from '../types';
+import { useAuthStore } from './useAuthStore';
 
 export interface UserRating {
   tmdbId: string;
@@ -57,22 +58,21 @@ export const useLibraryStore = create<LibraryStore>()(
           ratings: { ...state.ratings, [key]: newRating }
         }));
 
-        supabase.auth.getSession().then(({ data: sessionData }) => {
-          if (sessionData.session?.user) {
-            supabase.from('user_ratings')
-              .upsert({
-                user_id: sessionData.session.user.id,
-                tmdb_id: String(tmdbId),
-                type,
-                rating,
-                movie_data: movieData || null,
-                updated_at: new Date(updatedAt).toISOString()
-              }, { onConflict: 'user_id,tmdb_id' })
-              .then(({ error }) => {
-                if (error) console.error('[Sync] Rating sync error:', error.message);
-              });
-          }
-        });
+        const user = useAuthStore.getState().user;
+        if (user) {
+          supabase.from('user_ratings')
+            .upsert({
+              user_id: user.id,
+              tmdb_id: String(tmdbId),
+              type,
+              rating,
+              movie_data: movieData || null,
+              updated_at: new Date(updatedAt).toISOString()
+            }, { onConflict: 'user_id,tmdb_id' })
+            .then(({ error }) => {
+              if (error) console.error('[Sync] Rating sync error:', error.message);
+            });
+        }
       },
 
       removeRating: (tmdbId) => {
@@ -83,15 +83,14 @@ export const useLibraryStore = create<LibraryStore>()(
           return { ratings: next };
         });
 
-        supabase.auth.getSession().then(({ data: sessionData }) => {
-          if (sessionData.session?.user) {
-            supabase.from('user_ratings')
-              .delete()
-              .eq('user_id', sessionData.session.user.id)
-              .eq('tmdb_id', String(tmdbId))
-              .then();
-          }
-        });
+        const user = useAuthStore.getState().user;
+        if (user) {
+          supabase.from('user_ratings')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('tmdb_id', String(tmdbId))
+            .then();
+        }
       },
 
       getRating: (tmdbId) => {
@@ -117,29 +116,28 @@ export const useLibraryStore = create<LibraryStore>()(
           return { myList: next };
         });
 
-        supabase.auth.getSession().then(({ data: sessionData }) => {
-          if (sessionData.session?.user) {
-            if (isPresent) {
-              supabase.from('user_list')
-                .delete()
-                .eq('user_id', sessionData.session.user.id)
-                .eq('tmdb_id', key)
-                .then();
-            } else {
-              supabase.from('user_list')
-                .upsert({
-                  user_id: sessionData.session.user.id,
-                  tmdb_id: key,
-                  type: movie.name ? 'tv' : 'movie',
-                  movie_data: movie,
-                  added_at: new Date().toISOString()
-                }, { onConflict: 'user_id,tmdb_id' })
-                .then(({ error }) => {
-                  if (error) console.error('[Sync] List sync error:', error.message);
-                });
-            }
+        const user = useAuthStore.getState().user;
+        if (user) {
+          if (isPresent) {
+            supabase.from('user_list')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('tmdb_id', key)
+              .then();
+          } else {
+            supabase.from('user_list')
+              .upsert({
+                user_id: user.id,
+                tmdb_id: key,
+                type: movie.name ? 'tv' : 'movie',
+                movie_data: movie,
+                added_at: new Date().toISOString()
+              }, { onConflict: 'user_id,tmdb_id' })
+              .then(({ error }) => {
+                if (error) console.error('[Sync] List sync error:', error.message);
+              });
           }
-        });
+        }
       },
 
       isInList: (tmdbId) => {

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { DEFAULT_SUBTITLE_SETTINGS } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { AppSettings } from '../types';
+import { useAuthStore } from './useAuthStore';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   ...DEFAULT_SUBTITLE_SETTINGS,
@@ -28,44 +29,43 @@ export const useSettingsStore = create<SettingsStore>()(
     (set, get) => ({
       settings: DEFAULT_SETTINGS,
       globalMute: false,
-
+ 
       updateSettings: (newSettings) => {
         set((state) => ({ settings: { ...state.settings, ...newSettings } }));
         // Background sync to cloud if logged in
-        supabase.auth.getSession().then(({ data }) => {
-          if (data.session?.user) {
-            const state = get();
-            const dbPayload = {
-              display_language: state.settings.displayLanguage,
-              audio_language: state.settings.audioLanguage,
-              subtitle_language: state.settings.subtitleLanguage,
-              show_subtitles: state.settings.showSubtitles,
-              subtitle_size: state.settings.subtitleSize,
-              subtitle_bg_opacity: state.settings.subtitleOpacity,
-              subtitle_color: state.settings.subtitleColor,
-              subtitle_bg_color: state.settings.subtitleWindowColor,
-              autoplay_previews: state.settings.autoplayPreviews,
-              autoplay_next_episode: state.settings.autoplayNextEpisode,
-              autoplay_video: state.settings.autoplayVideo,
-              avatar_url: state.settings.avatarUrl,
-              updated_at: new Date().toISOString(),
-            };
-            supabase.from('user_settings')
-              .upsert({ user_id: data.session.user.id, ...dbPayload })
-              .then(({ error }) => {
-                if (error) console.error('[Sync] Settings sync error:', error.message);
-              });
+        const user = useAuthStore.getState().user;
+        if (user) {
+          const state = get();
+          const dbPayload = {
+            display_language: state.settings.displayLanguage,
+            audio_language: state.settings.audioLanguage,
+            subtitle_language: state.settings.subtitleLanguage,
+            show_subtitles: state.settings.showSubtitles,
+            subtitle_size: state.settings.subtitleSize,
+            subtitle_bg_opacity: state.settings.subtitleOpacity,
+            subtitle_color: state.settings.subtitleColor,
+            subtitle_bg_color: state.settings.subtitleWindowColor,
+            autoplay_previews: state.settings.autoplayPreviews,
+            autoplay_next_episode: state.settings.autoplayNextEpisode,
+            autoplay_video: state.settings.autoplayVideo,
+            avatar_url: state.settings.avatarUrl,
+            updated_at: new Date().toISOString(),
+          };
+          supabase.from('user_settings')
+            .upsert({ user_id: user.id, ...dbPayload })
+            .then(({ error }) => {
+              if (error) console.error('[Sync] Settings sync error:', error.message);
+            });
 
-            // Sync display_name to Supabase Auth metadata
-            if (newSettings.displayName !== undefined) {
-              supabase.auth.updateUser({
-                data: { display_name: newSettings.displayName.trim() }
-              }).then(({ error }) => {
-                if (error) console.error('[Sync] Auth metadata sync error:', error.message);
-              });
-            }
+          // Sync display_name to Supabase Auth metadata
+          if (newSettings.displayName !== undefined) {
+            supabase.auth.updateUser({
+              data: { display_name: newSettings.displayName.trim() }
+            }).then(({ error }) => {
+              if (error) console.error('[Sync] Auth metadata sync error:', error.message);
+            });
           }
-        });
+        }
       },
 
       setGlobalMute: (mute) => {

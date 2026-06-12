@@ -137,7 +137,7 @@ const CinemaPlayButton: React.FC<CinemaPlayButtonProps> = ({
                 <Link
                     to={watchUrl}
                     onClick={handleClick}
-                    className={`bg-white text-black rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200 ${className}`}
+                    className={`bg-white text-black rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-200 transition-colors duration-150 shadow-md ${className}`}
                     title={playLabel}
                 >
                     <PlayIcon size={24} weight="fill" className="ml-0.5" />
@@ -152,9 +152,9 @@ const CinemaPlayButton: React.FC<CinemaPlayButtonProps> = ({
                 onClick={handleClick}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                className={`relative flex items-center justify-center rounded-full w-10 h-10 md:w-11 md:h-11 shadow-lg transition-all duration-300 active:scale-95 overflow-hidden
+                className={`relative flex items-center justify-center rounded-full w-10 h-10 md:w-11 md:h-11 shadow-lg transition-colors duration-150 overflow-hidden
                     ${isHovered 
-                        ? 'bg-white text-black scale-110' 
+                        ? 'bg-white text-black' 
                         : 'bg-[#6d6d6e]/85 text-white hover:bg-neutral-500'
                     } ${className}`}
                 title={t('hero.inTheaters', { defaultValue: 'In Theaters' })}
@@ -205,7 +205,7 @@ const CinemaPlayButton: React.FC<CinemaPlayButtonProps> = ({
             <Link
                 to={watchUrl}
                 onClick={handleClick}
-                className={`flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[35px] md:h-[45px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[15px] md:text-[18px] gap-2 active:scale-95 shadow-lg ${className}`}
+                className={`flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[35px] md:h-[45px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[15px] md:text-[18px] gap-2 shadow-lg ${className}`}
             >
                 <PlayIcon size={22} weight="fill" className="text-black" />
                 <span>{playLabel}</span>
@@ -220,7 +220,7 @@ const CinemaPlayButton: React.FC<CinemaPlayButtonProps> = ({
             onClick={handleClick}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className={`group/theater relative flex items-center justify-center overflow-hidden rounded-[4px] font-bold shadow-md transition-all duration-300 active:scale-95
+            className={`group/theater relative flex items-center justify-center overflow-hidden rounded-[4px] font-bold shadow-md transition-all duration-300
                 ${isHovered 
                     ? 'bg-white text-black px-5 sm:px-7' 
                     : 'bg-[#6d6d6e]/50 text-white px-4 sm:px-6'

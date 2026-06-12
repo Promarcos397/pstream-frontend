@@ -13,6 +13,164 @@ interface AuthStore {
   signOut: () => Promise<void>;
 }
 
+let realtimeChannel: any = null;
+let lastFocusSyncTime = 0;
+
+const teardownRealtimeSubscription = () => {
+  if (realtimeChannel) {
+    console.info('[Sync] Tearing down user_sync Realtime channel');
+    supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+};
+
+const setupRealtimeSubscription = (userId: string) => {
+  if (realtimeChannel) {
+    teardownRealtimeSubscription();
+  }
+
+  console.info('[Sync] Initializing user_sync Realtime channel for user:', userId);
+  realtimeChannel = supabase
+    .channel(`public:user_sync:${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'watch_history',
+        filter: `user_id=eq.${userId}`
+      },
+      (payload) => {
+        console.info('[Sync] Realtime watch_history change received:', payload.eventType);
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const w = payload.new;
+          if (w) {
+            useWatchStore.getState().syncFromCloud([{
+              tmdbId: w.tmdb_id,
+              type: w.type,
+              season: w.season || undefined,
+              episode: w.episode || undefined,
+              watchedTime: w.watched_time,
+              duration: w.duration,
+              percentage: w.percentage,
+              movieData: w.movie_data || undefined,
+              updatedAt: new Date(w.updated_at).getTime()
+            }]);
+          }
+        } else if (payload.eventType === 'DELETE') {
+          const w = payload.old;
+          if (w && w.tmdb_id) {
+            const key = w.season && w.episode ? `${w.tmdb_id}-S${w.season}E${w.episode}` : String(w.tmdb_id);
+            useWatchStore.setState((state) => {
+              const next = { ...state.history };
+              delete next[key];
+              return { history: next };
+            });
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_settings',
+        filter: `user_id=eq.${userId}`
+      },
+      (payload) => {
+        console.info('[Sync] Realtime user_settings change received:', payload.eventType);
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const s = payload.new;
+          if (s) {
+            useSettingsStore.getState().syncFromCloud({
+              displayLanguage: s.display_language,
+              audioLanguage: s.audio_language,
+              subtitleLanguage: s.subtitle_language,
+              showSubtitles: s.show_subtitles,
+              subtitleSize: s.subtitle_size,
+              subtitleOpacity: s.subtitle_bg_opacity,
+              subtitleColor: s.subtitle_color,
+              subtitleWindowColor: s.subtitle_bg_color,
+              autoplayPreviews: s.autoplay_previews,
+              autoplayNextEpisode: s.autoplay_next_episode,
+              autoplayVideo: s.autoplay_video,
+              avatarUrl: s.avatar_url
+            });
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_ratings',
+        filter: `user_id=eq.${userId}`
+      },
+      (payload) => {
+        console.info('[Sync] Realtime user_ratings change received:', payload.eventType);
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const r = payload.new;
+          if (r) {
+            useLibraryStore.getState().syncFromCloud([{
+              tmdbId: r.tmdb_id,
+              type: r.type,
+              rating: r.rating,
+              movieData: r.movie_data || undefined,
+              updatedAt: new Date(r.updated_at).getTime()
+            }], []);
+          }
+        } else if (payload.eventType === 'DELETE') {
+          const r = payload.old;
+          if (r && r.tmdb_id) {
+            useLibraryStore.setState((state) => {
+              const next = { ...state.ratings };
+              delete next[r.tmdb_id];
+              return { ratings: next };
+            });
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_list',
+        filter: `user_id=eq.${userId}`
+      },
+      (payload) => {
+        console.info('[Sync] Realtime user_list change received:', payload.eventType);
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const l = payload.new;
+          if (l) {
+            useLibraryStore.getState().syncFromCloud([], [{
+              tmdbId: l.tmdb_id,
+              type: l.type,
+              movieData: l.movie_data || undefined,
+              addedAt: new Date(l.added_at).getTime()
+            }]);
+          }
+        } else if (payload.eventType === 'DELETE') {
+          const l = payload.old;
+          if (l && l.tmdb_id) {
+            useLibraryStore.setState((state) => {
+              const next = { ...state.myList };
+              delete next[l.tmdb_id];
+              return { myList: next };
+            });
+          }
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log('[Sync] Realtime multiplex channel status:', status);
+    });
+};
+
 export const useAuthStore = create<AuthStore>()((set, get) => ({
   user: null,
   isInitialized: false,
@@ -24,6 +182,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       set({ user, isInitialized: true });
       
       if (user) {
+        setupRealtimeSubscription(user.id);
         get().syncFromCloud();
       }
     });
@@ -31,11 +190,16 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
     // Listen for auth changes
     supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user || null;
+      const prevUser = get().user;
       set({ user });
       
       if (user) {
+        if (!prevUser || prevUser.id !== user.id) {
+          setupRealtimeSubscription(user.id);
+        }
         get().syncFromCloud();
       } else {
+        teardownRealtimeSubscription();
         // User logged out, nuke local state to protect privacy
         useSettingsStore.getState().setGlobalMute(false);
         useWatchStore.getState().clearHistory();
@@ -45,6 +209,28 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
         localStorage.removeItem('pstream-library-store');
       }
     });
+
+    // Setup window focus and visibility event listeners for cross-device syncing
+    if (typeof window !== 'undefined') {
+      const handleFocusOrVisibility = () => {
+        const user = get().user;
+        if (!user) return;
+        const now = Date.now();
+        // Throttle focus-based cloud sync to at most once every 10 seconds
+        if (now - lastFocusSyncTime > 10000) {
+          lastFocusSyncTime = now;
+          console.info('[Sync] Page focused/visible, executing background sync...');
+          get().syncFromCloud();
+        }
+      };
+
+      window.addEventListener('focus', handleFocusOrVisibility);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          handleFocusOrVisibility();
+        }
+      });
+    }
   },
 
   syncFromCloud: async () => {
@@ -162,6 +348,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
   },
 
   signOut: async () => {
+    teardownRealtimeSubscription();
     await supabase.auth.signOut();
   }
 }));

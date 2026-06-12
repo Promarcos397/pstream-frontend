@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../services/supabaseClient';
 import { Movie } from '../types';
+import { useAuthStore } from './useAuthStore';
 
 export interface WatchProgress {
   tmdbId: string;
@@ -74,38 +75,46 @@ export const useWatchStore = create<WatchStore>()(
         });
 
         const syncToCloud = () => {
-          supabase.auth.getSession().then(({ data: sessionData }) => {
-            if (sessionData.session?.user) {
-              const dbPayload = {
-                user_id: sessionData.session.user.id,
-                tmdb_id: String(data.tmdbId),
-                type: data.type,
-                season: data.season || null,
-                episode: data.episode || null,
-                watched_time: data.watchedTime,
-                duration: data.duration,
-                percentage: percentage,
-                movie_data: movieData || null,
-                updated_at: new Date(updatedAt).toISOString()
-              };
+          const user = useAuthStore.getState().user;
+          if (user) {
+            const dbPayload = {
+              user_id: user.id,
+              tmdb_id: String(data.tmdbId),
+              type: data.type,
+              season: data.season || null,
+              episode: data.episode || null,
+              watched_time: data.watchedTime,
+              duration: data.duration,
+              percentage: percentage,
+              movie_data: movieData || null,
+              updated_at: new Date(updatedAt).toISOString()
+            };
 
-              // Use upsert to handle conflict on (user_id, tmdb_id, season, episode)
-              supabase.from('watch_history')
-                .upsert(dbPayload, { onConflict: 'user_id,tmdb_id,season,episode' })
-                .then(({ error }) => {
-                  if (error) console.error('[Sync] Watch history sync error:', error.message);
-                });
-            }
-          });
+            // Use upsert to handle conflict on (user_id, tmdb_id, season, episode)
+            supabase.from('watch_history')
+              .upsert(dbPayload, { onConflict: 'user_id,tmdb_id,season,episode' })
+              .then(({ error }) => {
+                if (error) console.error('[Sync] Watch history sync error:', error.message);
+              });
+          }
         };
 
         // Debounce cloud sync slightly to avoid spam unless forced
-        if ((window as any)._syncTimer) clearTimeout((window as any)._syncTimer);
+        if (!(window as any)._syncTimers) {
+          (window as any)._syncTimers = {};
+        }
+        if ((window as any)._syncTimers[key]) {
+          clearTimeout((window as any)._syncTimers[key]);
+          delete (window as any)._syncTimers[key];
+        }
         
         if (forceSyncImmediate) {
           syncToCloud();
         } else {
-          (window as any)._syncTimer = setTimeout(syncToCloud, 3000);
+          (window as any)._syncTimers[key] = setTimeout(() => {
+            syncToCloud();
+            delete (window as any)._syncTimers[key];
+          }, 3000);
         }
       },
 
@@ -128,28 +137,52 @@ export const useWatchStore = create<WatchStore>()(
       },
 
       removeHistoryItem: (tmdbId, season, episode) => {
-        const key = season && episode ? `${tmdbId}-S${season}E${episode}` : String(tmdbId);
+        // Clear active sync timers to prevent any pending debounce upsert from resurrecting the item
+        if ((window as any)._syncTimers) {
+          if (season && episode) {
+            const key = `${tmdbId}-S${season}E${episode}`;
+            if ((window as any)._syncTimers[key]) {
+              clearTimeout((window as any)._syncTimers[key]);
+              delete (window as any)._syncTimers[key];
+            }
+          } else {
+            Object.keys((window as any)._syncTimers).forEach(key => {
+              if (key === String(tmdbId) || key.startsWith(`${tmdbId}-`)) {
+                clearTimeout((window as any)._syncTimers[key]);
+                delete (window as any)._syncTimers[key];
+              }
+            });
+          }
+        }
+
         set((state) => {
           const next = { ...state.history };
-          delete next[key];
+          if (season && episode) {
+            const key = `${tmdbId}-S${season}E${episode}`;
+            delete next[key];
+          } else {
+            // Delete all entries matching the tmdbId (movies, and all episodes of a TV show)
+            Object.keys(next).forEach(k => {
+              if (next[k].tmdbId === String(tmdbId)) {
+                delete next[k];
+              }
+            });
+          }
           return { history: next };
         });
 
-        supabase.auth.getSession().then(({ data: sessionData }) => {
-          if (sessionData.session?.user) {
-            let query = supabase.from('watch_history')
-              .delete()
-              .eq('user_id', sessionData.session.user.id)
-              .eq('tmdb_id', String(tmdbId));
-            
-            if (season && episode) {
-              query = query.eq('season', season).eq('episode', episode);
-            } else {
-              query = query.is('season', null).is('episode', null);
-            }
-            query.then();
+        const user = useAuthStore.getState().user;
+        if (user) {
+          let query = supabase.from('watch_history')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('tmdb_id', String(tmdbId));
+          
+          if (season && episode) {
+            query = query.eq('season', season).eq('episode', episode);
           }
-        });
+          query.then();
+        }
       },
 
       clearHistory: () => {

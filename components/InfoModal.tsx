@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Movie, Episode } from '../types';
 import { IMG_PATH, REQUESTS } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -34,38 +35,174 @@ interface InfoModalProps {
 }
 
 type MovieRating = 'like' | 'dislike' | 'love';
+
+const DoubleThumbsUpIcon: React.FC<{ size?: number; weight?: 'fill' | 'bold'; className?: string; maskColor?: string }> = ({ 
+  size = 22, 
+  weight = 'bold', 
+  className = '',
+  maskColor = '#2f2f2f'
+}) => {
+  const offset = size * 0.35;
+  const maskId = React.useId ? React.useId() : `love-mask-${Math.random().toString(36).substr(2, 9)}`;
+  const safeMaskId = maskId.replace(/:/g, '_');
+
+  return (
+    <div 
+      className={`relative inline-flex items-center justify-center ${className}`}
+      style={{ width: size + offset, height: size + offset }}
+    >
+      <svg 
+        width={size + offset} 
+        height={size + offset} 
+        viewBox={`0 0 ${size + offset} ${size + offset}`}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+      >
+        <defs>
+          <mask id={safeMaskId}>
+            {/* White background: keeps back icon visible */}
+            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+            
+            {/* Black silhouette of front icon to cut it out */}
+            <g transform={`translate(0, ${offset})`} fill="black" stroke="black" strokeWidth={3} strokeLinejoin="round" strokeLinecap="round">
+              <ThumbsUpIcon size={size} weight="fill" />
+            </g>
+          </mask>
+        </defs>
+
+        {/* Draw the back icon, masked by the front icon's cutout */}
+        <g mask={`url(#${safeMaskId})`}>
+          <g transform={`translate(${offset}, 0)`}>
+            <ThumbsUpIcon size={size} weight={weight} />
+          </g>
+        </g>
+      </svg>
+
+      {/* Front icon sits on top of the SVG, aligned with the mask cutout */}
+      <div 
+        className="absolute"
+        style={{
+          left: 0,
+          top: offset,
+          width: size,
+          height: size,
+        }}
+      >
+        <ThumbsUpIcon size={size} weight={weight} />
+      </div>
+    </div>
+  );
+};
+
+const RatingIcon: React.FC<{ rating: MovieRating | undefined; size?: number; weight?: 'fill' | 'bold'; className?: string; maskColor?: string }> = ({
+  rating,
+  size = 22,
+  weight = 'bold',
+  className = '',
+  maskColor = '#2f2f2f'
+}) => {
+  if (rating === 'love') {
+    return <DoubleThumbsUpIcon size={size} weight={weight} className={className} maskColor={maskColor} />;
+  }
+  if (rating === 'dislike') {
+    return <ThumbsDownIcon size={size} weight={weight} className={className} />;
+  }
+  return <ThumbsUpIcon size={size} weight={weight} className={className} />;
+};
+
+const RatingPillOption: React.FC<{
+  option: MovieRating;
+  isActive: boolean;
+  tooltipText: string;
+  onClick: () => void;
+  maskColor?: string;
+}> = ({ option, isActive, tooltipText, onClick, maskColor = '#2f2f2f' }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <div
+      className="relative flex items-center justify-center"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <AnimatePresence>
+        {isHovered && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.9, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
+            exit={{ opacity: 0, y: 2, scale: 0.95, x: '-50%' }}
+            transition={{ duration: 0.1 }}
+            className="absolute bottom-full left-1/2 mb-3 flex flex-col items-center z-[110] pointer-events-none"
+            style={{ transformOrigin: 'bottom center' }}
+          >
+            {/* Tooltip Box */}
+            <div className="bg-[#e6e6e6] text-[#141414] text-[15px] font-extrabold px-5 py-3 rounded-[1px] shadow-[0_8px_24px_rgba(0,0,0,0.5)] whitespace-nowrap leading-none select-none">
+              {tooltipText}
+            </div>
+            {/* Tooltip Arrow */}
+            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#e6e6e6] -mt-[1px]" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <button
+        onClick={onClick}
+        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors duration-150 hover:bg-white/10 flex-shrink-0 text-white
+          ${isActive ? 'bg-white/15' : ''}`}
+        title={tooltipText}
+      >
+        <RatingIcon rating={option} size={20} weight={isActive ? 'fill' : 'bold'} maskColor={maskColor} />
+      </button>
+    </div>
+  );
+};
+
 const InfoModalRatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieRating) => void }> = ({ rating, onRate }) => {
     const [expanded, setExpanded] = useState(false);
-    const CurrentIcon = rating === 'love' ? HeartIcon : rating === 'dislike' ? ThumbsDownIcon : ThumbsUpIcon;
+    const { t } = useTranslation();
+
     return (
         <div className="relative flex items-center" onMouseEnter={() => setExpanded(true)} onMouseLeave={() => setExpanded(false)}>
-            <div
-                className={`flex items-center overflow-hidden transition-all duration-200 border-2 rounded-full bg-[#2a2a2a]/60
-          ${expanded ? 'border-white/60 px-2 gap-2' : 'border-gray-500 justify-center w-10 h-10 sm:w-12 sm:h-12'}`}
-                style={{ height: expanded ? 48 : undefined }}
+            <button
+                type="button"
+                className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white
+                    ${rating
+                        ? 'border-white bg-white/15 hover:bg-white/25'
+                        : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
+                    }`}
             >
-                {expanded ? (
-                    <>
-                        {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
-                            const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
-                            const isActive = rating === r;
-                            return (
-                                <button
-                                    key={r}
-                                    onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-125 flex-shrink-0
-                    ${isActive ? 'text-white' : 'text-white/60 hover:text-white'}`}
-                                    title={r.charAt(0).toUpperCase() + r.slice(1)}
-                                >
-                                    <Icon size={22} weight={isActive ? 'fill' : 'bold'} />
-                                </button>
-                            );
+                <RatingIcon rating={rating} size={22} weight={rating ? 'fill' : 'bold'} className="text-white" maskColor="#2a2a2a" />
+            </button>
+
+            <AnimatePresence>
+                {expanded && (
+                    <motion.div
+                        initial={{ opacity: 0, scaleX: 0, x: '-50%', y: '-50%' }}
+                        animate={{ opacity: 1, scaleX: 1, x: '-50%', y: '-50%' }}
+                        exit={{ opacity: 0, scaleX: 0, x: '-50%', y: '-50%' }}
+                        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                        className="absolute top-1/2 left-1/2 bg-[#2f2f2f] rounded-full px-5 py-2.5 flex items-center justify-center gap-x-3.5 shadow-[0_12px_24px_rgba(0,0,0,0.85)] border border-white/10 z-[100]"
+                        style={{ transformOrigin: 'center center', originX: 0.5 }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {(['dislike', 'like', 'love'] as MovieRating[]).map(r => {
+                             const tooltipText = r === 'love' 
+                               ? t('infoModal.loveThis', { defaultValue: 'Love this!' }) 
+                               : r === 'like' 
+                                 ? t('infoModal.iLikeThis', { defaultValue: 'I like this' }) 
+                                 : t('infoModal.notForMe', { defaultValue: 'Not for me' });
+                             return (
+                               <RatingPillOption
+                                 key={r}
+                                 option={r}
+                                 isActive={rating === r}
+                                 tooltipText={tooltipText}
+                                 onClick={() => { onRate(r); }}
+                               />
+                             );
                         })}
-                    </>
-                ) : (
-                    <CurrentIcon size={22} weight={rating ? 'fill' : 'bold'} className={rating ? 'text-white' : 'text-gray-300'} />
+                    </motion.div>
                 )}
-            </div>
+            </AnimatePresence>
         </div>
     );
 };
@@ -380,7 +517,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         e.stopPropagation();
                         handleClose();
                     }}
-                    className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#181818]/90 flex items-center justify-center border-2 border-transparent hover:border-white hover:scale-110 transition-all duration-200 z-50 cursor-pointer shadow-lg active:scale-95"
+                    className="absolute top-4 right-4 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-colors duration-150 hover:bg-white/10 hover:border-white z-50 cursor-pointer shadow-lg"
                 >
                     <XIcon size={24} className="text-white" />
                 </button>
@@ -439,18 +576,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                     {activeMovie.title || activeMovie.name}
                                 </h2>
                             )}
-                            {watchPct > 1 && (
-                                <div className="relative mt-3 w-full flex items-center">
-                                    <div className="w-full h-[3px] bg-white/25 overflow-hidden" style={{ borderRadius: 0 }}>
-                                        <div className="h-full bg-[#e50914] transition-all duration-300" style={{ width: `${watchPct}%`, borderRadius: 0 }} />
-                                    </div>
-                                    {totalMins > 0 && (
-                                        <span className="absolute left-[100%] ml-2.5 text-gray-400/80 text-[11px] whitespace-nowrap font-medium">
-                                            {watchMins} of {totalMins}m
-                                        </span>
-                                    )}
-                                </div>
-                            )}
                         </div>
 
                         <div className={`flex items-center space-x-3 transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
@@ -474,15 +599,26 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             })()}
                             <button 
                                 onClick={() => toggleList(activeMovie)} 
-                                className={`border-2 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 
+                                className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
                                     ${isAdded 
-                                        ? 'border-emerald-500/80 bg-emerald-500/15 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)] hover:border-emerald-400 hover:bg-emerald-500/25' 
-                                        : 'border-gray-500 bg-[#2a2a2a]/60 text-gray-300 hover:border-white hover:text-white'
+                                        ? 'border-white bg-white/15 hover:bg-white/25' 
+                                        : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
                                     }`}
                             >
                                 {isAdded ? <CheckIcon size={24} /> : <PlusIcon size={24} />}
                             </button>
                             <InfoModalRatingPill rating={getMovieRating(movie.id)} onRate={(r) => rateMovie(activeMovie, r)} />
+                            {(hasResumeMovie || hasResumeTV) && (
+                                <button 
+                                    onClick={() => {
+                                        clearVideoState(activeMovie.id);
+                                    }} 
+                                    className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
+                                    title="Remove from Continue Watching"
+                                >
+                                    <XIcon size={22} weight="bold" />
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -497,7 +633,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             } else { 
                                 setGlobalMute(!globalMute); 
                             } 
-                        }} className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white shadow-xl pointer-events-auto cursor-pointer">
+                        }} className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-colors duration-150 hover:bg-white/10 hover:border-white shadow-xl pointer-events-auto cursor-pointer">
                             {hasVideoEnded ? <ArrowCounterClockwiseIcon size={20} className="text-white" /> : globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
                         </button>
                     )}

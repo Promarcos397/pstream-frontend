@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PlayIcon, PauseIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
+import { PlayIcon, PauseIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, ArrowCounterClockwiseIcon, XIcon } from '@phosphor-icons/react';
 import { Movie, Episode } from '../types';
 import { IMG_PATH, REQUESTS } from '../constants';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -16,6 +16,7 @@ import { useTasteEngine } from '../hooks/useTasteEngine';
 import { MaturityBadge } from './MovieCardBadges';
 import { dimensionsAsMovies, get404Episodes } from '../data/notFoundDimensions';
 import { _modalTrailerCache } from './InfoModal';
+import { DoubleThumbsUpIcon } from './MovieCard';
 
 interface InfoModalTouchProps {
     movie: Movie | null;
@@ -661,7 +662,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                                 }}
                                 className="flex flex-col items-center gap-y-1.5 transition-all active:scale-90"
                             >
-                                <HeartIcon size={20} weight={getMovieRating(movie.id) === 'love' ? 'fill' : 'bold'} className="text-white" />
+                                <DoubleThumbsUpIcon size={20} weight={getMovieRating(movie.id) === 'love' ? 'fill' : 'bold'} className="text-white" maskColor="#2f2f2f" />
                                 <span className="text-[10px] font-medium text-white">{t('infoModal.loveThis', { defaultValue: 'Love this!' })}</span>
                             </button>
                         </div>
@@ -679,6 +680,19 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                         )}
                         <span className="mt-1">{t('infoModal.myList', { defaultValue: 'My List' })}</span>
                     </button>
+
+                    {/* Remove Progress Button */}
+                    {(hasResumeMovie || hasResumeTV) && (
+                        <button
+                            onClick={() => {
+                                clearVideoState(activeMovie.id);
+                            }}
+                            className="h-[54px] flex flex-col items-center justify-center gap-y-1.5 text-[11px] font-bold text-white/60 active:scale-95 transition-all cursor-pointer hover:text-white"
+                        >
+                            <XIcon size={24} weight="bold" className="text-white hover:text-white" />
+                            <span className="mt-1">Remove Progress</span>
+                        </button>
+                    )}
 
                     {/* Rate / Close X Button */}
                     {showRatePopup ? (
@@ -702,10 +716,10 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                                 title="Rate title"
                             >
                                 {(() => {
-                                    const rating = getMovieRating(movie.id);
-                                    if (rating === 'love') return <HeartIcon size={24} weight="fill" className="text-red-500" />;
-                                    if (rating === 'dislike') return <ThumbsDownIcon size={24} weight="fill" className="text-white" />;
-                                    return <ThumbsUpIcon size={24} weight={rating ? 'fill' : 'bold'} className="text-white" />;
+                                     const rating = getMovieRating(movie.id);
+                                     if (rating === 'love') return <DoubleThumbsUpIcon size={24} weight="fill" className="text-white" maskColor="#000000" />;
+                                     if (rating === 'dislike') return <ThumbsDownIcon size={24} weight="fill" className="text-white" />;
+                                     return <ThumbsUpIcon size={24} weight={rating ? 'fill' : 'bold'} className="text-white" />;
                                 })()}
                             </button>
                             <span className="mt-1">{t('infoModal.rate', { defaultValue: 'Rate' })}</span>

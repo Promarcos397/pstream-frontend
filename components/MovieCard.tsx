@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import CinemaPlayButton from './CinemaPlayButton';
-import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
+import { SpeakerSlashIcon, SpeakerHighIcon, PlayIcon, CheckIcon, PlusIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon, BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon, XIcon } from '@phosphor-icons/react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES, LOGO_SIZE } from '../constants';
 import { getMovieImages } from '../services/api';
@@ -66,47 +66,178 @@ interface MovieCardProps {
 
 
 type MovieRating = 'like' | 'dislike' | 'love';
+
+export const DoubleThumbsUpIcon: React.FC<{ size?: number; weight?: 'fill' | 'bold'; className?: string; maskColor?: string }> = ({ 
+  size = 22, 
+  weight = 'bold', 
+  className = '',
+  maskColor = '#2f2f2f'
+}) => {
+  const offset = size * 0.35;
+  const maskId = React.useId ? React.useId() : `love-mask-${Math.random().toString(36).substr(2, 9)}`;
+  const safeMaskId = maskId.replace(/:/g, '_');
+
+  return (
+    <div 
+      className={`relative inline-flex items-center justify-center ${className}`}
+      style={{ width: size + offset, height: size + offset }}
+    >
+      <svg 
+        width={size + offset} 
+        height={size + offset} 
+        viewBox={`0 0 ${size + offset} ${size + offset}`}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+      >
+        <defs>
+          <mask id={safeMaskId}>
+            {/* White background: keeps back icon visible */}
+            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+            
+            {/* Black silhouette of front icon to cut it out */}
+            <g transform={`translate(0, ${offset})`} fill="black" stroke="black" strokeWidth={3} strokeLinejoin="round" strokeLinecap="round">
+              <ThumbsUpIcon size={size} weight="fill" />
+            </g>
+          </mask>
+        </defs>
+
+        {/* Draw the back icon, masked by the front icon's cutout */}
+        <g mask={`url(#${safeMaskId})`}>
+          <g transform={`translate(${offset}, 0)`}>
+            <ThumbsUpIcon size={size} weight={weight} />
+          </g>
+        </g>
+      </svg>
+
+      {/* Front icon sits on top of the SVG, aligned with the mask cutout */}
+      <div 
+        className="absolute"
+        style={{
+          left: 0,
+          top: offset,
+          width: size,
+          height: size,
+        }}
+      >
+        <ThumbsUpIcon size={size} weight={weight} />
+      </div>
+    </div>
+  );
+};
+
+export const RatingIcon: React.FC<{ rating: MovieRating | undefined; size?: number; weight?: 'fill' | 'bold'; className?: string; maskColor?: string }> = ({
+  rating,
+  size = 22,
+  weight = 'bold',
+  className = '',
+  maskColor = '#2f2f2f'
+}) => {
+  if (rating === 'love') {
+    return <DoubleThumbsUpIcon size={size} weight={weight} className={className} maskColor={maskColor} />;
+  }
+  if (rating === 'dislike') {
+    return <ThumbsDownIcon size={size} weight={weight} className={className} />;
+  }
+  return <ThumbsUpIcon size={size} weight={weight} className={className} />;
+};
+
+const RatingPillOption: React.FC<{
+  option: MovieRating;
+  isActive: boolean;
+  tooltipText: string;
+  onClick: () => void;
+  maskColor?: string;
+}> = ({ option, isActive, tooltipText, onClick, maskColor = '#2f2f2f' }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <div
+      className="relative flex items-center justify-center"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <AnimatePresence>
+        {isHovered && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.9, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
+            exit={{ opacity: 0, y: 2, scale: 0.95, x: '-50%' }}
+            transition={{ duration: 0.1 }}
+            className="absolute bottom-full left-1/2 mb-3 flex flex-col items-center z-[110] pointer-events-none"
+            style={{ transformOrigin: 'bottom center' }}
+          >
+            {/* Tooltip Box */}
+            <div className="bg-[#e6e6e6] text-[#141414] text-[15px] font-extrabold px-5 py-3 rounded-[1px] shadow-[0_8px_24px_rgba(0,0,0,0.5)] whitespace-nowrap leading-none select-none">
+              {tooltipText}
+            </div>
+            {/* Tooltip Arrow */}
+            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#e6e6e6] -mt-[1px]" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <button
+        onClick={onClick}
+        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors duration-150 hover:bg-white/10 flex-shrink-0 text-white
+          ${isActive ? 'bg-white/15' : ''}`}
+        title={tooltipText}
+      >
+        <RatingIcon rating={option} size={20} weight={isActive ? 'fill' : 'bold'} maskColor={maskColor} />
+      </button>
+    </div>
+  );
+};
+
 const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieRating) => void }> = ({ rating, onRate }) => {
   const [expanded, setExpanded] = useState(false);
-  const CurrentIcon = rating === 'love' ? HeartIcon : rating === 'dislike' ? ThumbsDownIcon : ThumbsUpIcon;
+  const { t } = useTranslation();
+
   return (
     <div
       className="relative flex items-center"
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
-      <div
-        className={`flex items-center gap-1 overflow-hidden transition-all duration-300 border-2 rounded-full bg-[#2a2a2a]/90 backdrop-blur-md shadow-lg
-          ${expanded ? 'border-white/80 px-4 gap-5' : 'border-gray-500 justify-center w-10 h-10 md:w-11 md:h-11'}`}
-        style={{ height: expanded ? 42 : undefined }}
+      <button
+        type="button"
+        className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white
+          ${rating
+            ? 'border-white bg-white/15 hover:bg-white/25'
+            : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
+          }`}
       >
-        {expanded ? (
-          <>
-            {(['love', 'like', 'dislike'] as MovieRating[]).map(r => {
-               const Icon = r === 'love' ? HeartIcon : r === 'like' ? ThumbsUpIcon : ThumbsDownIcon;
-               const isActive = rating === r;
-               const color = r === 'love' ? 'text-red-500' : r === 'like' ? 'text-blue-400' : 'text-gray-400';
+        <RatingIcon rating={rating} size={20} weight={rating ? 'fill' : 'bold'} className="text-white" maskColor="#2a2a2a" />
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, scaleX: 0, x: '-50%', y: '-50%' }}
+            animate={{ opacity: 1, scaleX: 1, x: '-50%', y: '-50%' }}
+            exit={{ opacity: 0, scaleX: 0, x: '-50%', y: '-50%' }}
+            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+            className="absolute top-1/2 left-1/2 bg-[#2f2f2f] rounded-full px-5 py-2.5 flex items-center justify-center gap-x-3.5 shadow-[0_12px_24px_rgba(0,0,0,0.85)] border border-white/10 z-[100]"
+            style={{ transformOrigin: 'center center', originX: 0.5 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(['dislike', 'like', 'love'] as MovieRating[]).map(r => {
+               const tooltipText = r === 'love' 
+                 ? t('infoModal.loveThis', { defaultValue: 'Love this!' }) 
+                 : r === 'like' 
+                   ? t('infoModal.iLikeThis', { defaultValue: 'I like this' }) 
+                   : t('infoModal.notForMe', { defaultValue: 'Not for me' });
                return (
-                 <button
+                 <RatingPillOption
                    key={r}
-                   onClick={(e) => { e.stopPropagation(); onRate(r); setExpanded(false); }}
-                   className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-125 flex-shrink-0
-                     ${isActive ? color : 'text-white/60 hover:text-white'}`}
-                   title={r.charAt(0).toUpperCase() + r.slice(1)}
-                 >
-                   <Icon size={26} weight={isActive ? 'fill' : 'bold'} />
-                 </button>
+                   option={r}
+                   isActive={rating === r}
+                   tooltipText={tooltipText}
+                   onClick={() => { onRate(r); }}
+                 />
                );
             })}
-          </>
-        ) : (
-          <CurrentIcon
-            size={24}
-            weight={rating ? 'fill' : 'bold'}
-            className={rating === 'love' ? 'text-red-500' : rating === 'like' ? 'text-blue-400' : rating === 'dislike' ? 'text-gray-400' : 'text-white'}
-          />
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     </div>
   );
 };
@@ -396,7 +527,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     // ── STAGE: SHOW ──────────────────────────────────────────────────────
     const showDelay = SHOW_DELAY;
     const showTimer = setTimeout(() => {
-      if (!settings.autoplayPreviews) return;
       const rect = cardRef.current?.getBoundingClientRect();
       if (!rect) return;
       const dx = e.clientX - rect.left - rect.width / 2;
@@ -460,9 +590,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     }
     left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
     return {
-      position: 'absolute',
-      top: hoveredRect.top + window.scrollY + TOP_OFFSET,
-      left: left + window.scrollX,
+      position: 'fixed',
+      top: hoveredRect.top + TOP_OFFSET,
+      left: left,
       width: POPUP_W,
       zIndex: 9999,
     };
@@ -616,7 +746,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
             className="absolute pointer-events-none z-20"
             style={{ top: 'calc(100% + 5px)', left: '25%', right: '25%' }}
           >
-            <div className="h-[2px] group-hover:h-[3px] w-full transition-all duration-300" style={{ background: '#808080', borderRadius: 0 }}>
+            <div className="h-[4px] w-full" style={{ background: '#808080', borderRadius: 0 }}>
               <div
                 className="h-full transition-all duration-300"
                 style={{ width: `${pct}%`, background: '#e50914', borderRadius: 0 }}
@@ -650,7 +780,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
             >
               <div className="relative w-[400px] h-[200px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
 
-                {(!isBook) ? (
+                {(!isBook && settings.autoplayPreviews) ? (
                   <>
                     <img
                       src={imageSrc}
@@ -687,7 +817,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                   />
                 )}
 
-                {!isBook && (
+                {!isBook && settings.autoplayPreviews && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -700,11 +830,11 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                         setGlobalMute(!globalMute);
                       }
                     }}
-                    className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:scale-110 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
+                    className="absolute bottom-4 right-4 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-colors duration-150 hover:bg-white/10 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                   >
                     {hasVideoEnded
-                      ? <ArrowCounterClockwiseIcon size={24} weight="bold" className="text-white" />
-                      : globalMute ? <SpeakerSlashIcon size={24} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
+                      ? <ArrowCounterClockwiseIcon size={20} weight="bold" className="text-white" />
+                      : globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
                     }
                   </button>
                 )}
@@ -754,7 +884,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       <Link
                         to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-white text-black rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-200 transition active:scale-95 shadow-md hover:scale-110 duration-200"
+                        className="bg-white text-black rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-200 transition shadow-md duration-200"
                         title="Read Now"
                       >
                         <BookOpenIcon size={24} weight="fill" />
@@ -769,32 +899,46 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
 
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
-                      className={`border-2 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-90
+                      className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
                         ${isAdded 
-                          ? 'border-emerald-500/80 bg-emerald-500/15 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)] hover:border-emerald-400 hover:bg-emerald-500/25' 
-                          : 'border-gray-500 bg-[#2a2a2a]/80 hover:border-white'
+                          ? 'border-white bg-white/15 hover:bg-white/25' 
+                          : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
                         }`}
                       title={isAdded ? 'Remove from My List' : 'Add to My List'}
                     >
-                      {isAdded ? <CheckIcon size={28} weight="bold" /> : <PlusIcon size={28} weight="bold" />}
+                      {isAdded ? <CheckIcon size={24} weight="bold" /> : <PlusIcon size={24} weight="bold" />}
                     </button>
 
                     <RatingPill
                       rating={getMovieRating(movie.id)}
                       onRate={(r) => { rateMovie(movie, r); }}
                     />
+
+                    {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          clearVideoState(movie.id);
+                          handlePointerLeave();
+                        }}
+                        className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
+                        title="Remove from Continue Watching"
+                      >
+                        <XIcon size={20} weight="bold" />
+                      </button>
+                    )}
                   </div>
 
                   <button
                     onClick={handleOpenModal}
-                    className="border-2 border-gray-500 bg-[#2a2a2a]/80 rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:border-white hover:scale-110 transition-all duration-200 text-white"
+                    className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
                     title="More Info"
                   >
-                    <CaretDownIcon size={24} weight="bold" />
+                    <CaretDownIcon size={22} weight="bold" />
                   </button>
                 </div>
 
-                <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
+                <div className="flex items-center flex-wrap gap-1 text-[13px] font-medium">
                   <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
 
                   {(() => {
@@ -827,7 +971,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                       return (
                         <span key={genreId} className="flex items-center">
                           <span
-                            className="text-grey-400 hover:text-white cursor-pointer transition-colors"
+                            className="text-gray-400 hover:text-white cursor-pointer transition-colors"
                             onClick={(e) => {
                               e.stopPropagation();
                               handlePointerLeave();

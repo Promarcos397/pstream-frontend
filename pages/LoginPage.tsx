@@ -306,7 +306,10 @@ const LandingTopTenRow: React.FC<{ title: string; fetchUrl: string }> = ({ title
     return (
       <div>
         <h2 className="text-white text-xl md:text-2xl font-black mb-4 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56">{title}</h2>
-        <div className="flex gap-2 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56">
+        <div 
+          className="flex gap-2 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56 overflow-x-auto overflow-y-hidden"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
           {Array(6).fill(0).map((_, i) => (
             <div key={i} className={`${SIZES.card} flex-none bg-[#333] rounded animate-pulse`} />
           ))}

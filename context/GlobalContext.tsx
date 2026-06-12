@@ -140,26 +140,32 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const myList = React.useMemo(() => getListArray(), [libraryRatings, libraryList, getListArray]);
   
   const continueWatching = React.useMemo(() => {
-    const seen = new Set<string>();
-    const list: Movie[] = [];
-    Object.values(watchHistory)
+    const latestPerTmdb: Record<string, typeof watchHistory[string]> = {};
+    for (const key in watchHistory) {
+      const entry = watchHistory[key];
+      if (!entry.movieData) continue;
+      const tmdbId = entry.tmdbId;
+      const existing = latestPerTmdb[tmdbId];
+      if (!existing || entry.updatedAt > existing.updatedAt) {
+        latestPerTmdb[tmdbId] = entry;
+      }
+    }
+    return Object.values(latestPerTmdb)
       .sort((a, b) => b.updatedAt - a.updatedAt)
-      .forEach(entry => {
-        if (entry.movieData && !seen.has(entry.tmdbId)) {
-          seen.add(entry.tmdbId);
-          list.push(entry.movieData);
-        }
-      });
-    return list;
+      .map(entry => entry.movieData!);
   }, [watchHistory]);
 
   const videoStates = React.useMemo(() => {
     const states: { [key: string]: VideoState } = {};
-    Object.values(watchHistory)
-      .sort((a, b) => a.updatedAt - b.updatedAt)
-      .forEach(w => {
+    const latestUpdate: Record<string, number> = {};
+    for (const key in watchHistory) {
+      const w = watchHistory[key];
+      const existingTime = latestUpdate[w.tmdbId];
+      if (existingTime === undefined || w.updatedAt > existingTime) {
         states[w.tmdbId] = { time: w.watchedTime, duration: w.duration };
-      });
+        latestUpdate[w.tmdbId] = w.updatedAt;
+      }
+    }
     return states;
   }, [watchHistory]);
 
@@ -224,9 +230,17 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [getProgress]);
 
   const getLastWatchedEpisode = useCallback((showId: number | string) => {
-    const hist = Object.values(watchHistory).filter(w => w.tmdbId === String(showId) && w.type === 'tv');
-    if (hist.length === 0) return undefined;
-    const latest = hist.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    const showIdStr = String(showId);
+    let latest: typeof watchHistory[string] | null = null;
+    for (const key in watchHistory) {
+      const w = watchHistory[key];
+      if (w.tmdbId === showIdStr && w.type === 'tv') {
+        if (!latest || w.updatedAt > latest.updatedAt) {
+          latest = w;
+        }
+      }
+    }
+    if (!latest) return undefined;
     return { season: latest.season!, episode: latest.episode!, time: latest.watchedTime, duration: latest.duration };
   }, [watchHistory]);
 

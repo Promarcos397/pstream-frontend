@@ -7,6 +7,12 @@ import { TitleProvider } from './context/TitleContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import './i18n';
+// Block third-party embed players from clearing our console log
+if (typeof window !== 'undefined') {
+  console.clear = () => {
+    console.info('[System] Blocked attempt to clear the console.');
+  };
+}
 
 
 const rootElement = document.getElementById('root');

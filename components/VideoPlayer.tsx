@@ -398,6 +398,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [subtitleObjectUrl, setSubtitleObjectUrl] = useState<string | null>(null);
     const [subtitleOffset, setSubtitleOffset] = useState(0);
 
+    const [hudMessage, setHudMessage] = useState<{ icon: string; text: string; ts: number } | null>(null);
+    const showHud = useCallback((icon: string, text: string) => {
+        setHudMessage({ icon, text, ts: Date.now() });
+    }, []);
+
+    useEffect(() => {
+        if (!hudMessage) return;
+        const timer = setTimeout(() => {
+            setHudMessage(null);
+        }, 1200);
+        return () => clearTimeout(timer);
+    }, [hudMessage]);
+
     useEffect(() => {
         const backdrop = movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : '';
         (window as any).__video_backdrop = backdrop;
@@ -1280,20 +1293,25 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     setSeekFlash({ side: 'left', ts: Date.now() });
                     setTimeout(() => setSeekFlash(null), 450);
                     break;
-                case 'ArrowUp':
+                case 'ArrowUp': {
+                    const currentVol = useEmbedFallback ? volumeRef.current : (videoRef.current?.volume ?? 1);
+                    const v = Math.min(1, currentVol + 0.1);
+                    setVolume(v);
                     if (useEmbedFallback) {
-                        const v = Math.min(1, volumeRef.current + 0.1);
-                        setVolume(v);
                         embedControllerRef.current?.setMuted(false, v);
-                        if (isMuted) setIsMuted(false);
                     } else if (videoRef.current) {
-                        videoRef.current.volume = Math.min(1, videoRef.current.volume + 0.1);
+                        videoRef.current.volume = v;
+                        videoRef.current.muted = false;
                     }
+                    if (isMuted) setIsMuted(false);
+                    showHud('🔊', `Volume: ${Math.round(v * 100)}%`);
                     break;
-                case 'ArrowDown':
+                }
+                case 'ArrowDown': {
+                    const currentVol = useEmbedFallback ? volumeRef.current : (videoRef.current?.volume ?? 1);
+                    const v = Math.max(0, currentVol - 0.1);
+                    setVolume(v);
                     if (useEmbedFallback) {
-                        const v = Math.max(0, volumeRef.current - 0.1);
-                        setVolume(v);
                         if (v === 0) {
                             setIsMuted(true);
                             embedControllerRef.current?.setMuted(true);
@@ -1302,9 +1320,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             if (isMuted) setIsMuted(false);
                         }
                     } else if (videoRef.current) {
-                        videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
+                        videoRef.current.volume = v;
+                        if (v === 0) {
+                            videoRef.current.muted = true;
+                            setIsMuted(true);
+                        } else {
+                            videoRef.current.muted = false;
+                            if (isMuted) setIsMuted(false);
+                        }
                     }
+                    showHud(v === 0 ? '🔇' : '🔉', `Volume: ${Math.round(v * 100)}%`);
                     break;
+                }
                 default:
                     switch (key) {
                         case 'k':
@@ -1347,18 +1374,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         case 'f':
                             toggleFullscreen();
                             break;
-                        case 'm':
-                            {
-                                const next = !isMuted;
-                                setIsMuted(next);
-                                userMutedRef.current = next;
-                                if (useEmbedFallback) {
-                                    embedControllerRef.current?.setMuted(next);
-                                } else if (videoRef.current) {
-                                    videoRef.current.muted = next;
-                                }
+                        case 'm': {
+                            const next = !isMuted;
+                            setIsMuted(next);
+                            userMutedRef.current = next;
+                            if (useEmbedFallback) {
+                                embedControllerRef.current?.setMuted(next);
+                            } else if (videoRef.current) {
+                                videoRef.current.muted = next;
                             }
+                            showHud(next ? '🔇' : '🔊', next ? 'Muted' : 'Unmuted');
                             break;
+                        }
                         case 'n':
                             if (nextEpisodeInfo) handleNextEpisode();
                             break;
@@ -1373,20 +1400,33 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 setCurrentCaption(preferred.url);
                             }
                             break;
-                        case '[':
-                            setSubtitleOffset(prev => parseFloat((prev - 0.1).toFixed(1)));
+                        case '[': {
+                            const next = parseFloat((subtitleOffset - 0.1).toFixed(1));
+                            setSubtitleOffset(next);
+                            showHud('💬', `Subtitle Sync: ${next > 0 ? '+' : ''}${next.toFixed(1)}s`);
                             break;
-                        case ']':
-                            setSubtitleOffset(prev => parseFloat((prev + 0.1).toFixed(1)));
+                        }
+                        case ']': {
+                            const next = parseFloat((subtitleOffset + 0.1).toFixed(1));
+                            setSubtitleOffset(next);
+                            showHud('💬', `Subtitle Sync: ${next > 0 ? '+' : ''}${next.toFixed(1)}s`);
                             break;
-                        case '{':
-                            setSubtitleOffset(prev => parseFloat((prev - 1.0).toFixed(1)));
+                        }
+                        case '{': {
+                            const next = parseFloat((subtitleOffset - 1.0).toFixed(1));
+                            setSubtitleOffset(next);
+                            showHud('💬', `Subtitle Sync: ${next > 0 ? '+' : ''}${next.toFixed(1)}s`);
                             break;
-                        case '}':
-                            setSubtitleOffset(prev => parseFloat((prev + 1.0).toFixed(1)));
+                        }
+                        case '}': {
+                            const next = parseFloat((subtitleOffset + 1.0).toFixed(1));
+                            setSubtitleOffset(next);
+                            showHud('💬', `Subtitle Sync: ${next > 0 ? '+' : ''}${next.toFixed(1)}s`);
                             break;
+                        }
                         case '\\':
                             setSubtitleOffset(0);
+                            showHud('💬', 'Subtitle Sync: Reset');
                             break;
                     }
                     break;
@@ -1528,6 +1568,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     setError('All streaming providers have failed. Please try again later.');
                 }}
             />
+
+            {/* ── Center HUD Feedback Indicator Overlay ── */}
+            {hudMessage && (
+                <>
+                    <style>{`
+                        @keyframes hudFade {
+                            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.93); }
+                            12% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                            88% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.97); }
+                        }
+                    `}</style>
+                    <div 
+                        className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-[100]"
+                        style={{
+                            animation: 'hudFade 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+                        }}
+                    >
+                        <div className="bg-[#181818]/95 backdrop-blur-md text-white px-5 py-3.5 rounded-lg flex items-center gap-3 shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-white/10 select-none">
+                            <span className="text-2xl leading-none">{hudMessage.icon}</span>
+                            <span className="text-sm font-bold tracking-wide">{hudMessage.text}</span>
+                        </div>
+                    </div>
+                </>
+            )}
 
             {/* ── Custom Subtitle Overlay ── */}
             {(isVideoReady || hasPlayedOnceRef.current) && subtitleObjectUrl && currentCueText && (

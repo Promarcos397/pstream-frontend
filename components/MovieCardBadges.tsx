@@ -131,7 +131,7 @@ export const ProgressIndicator: React.FC<ProgressProps> = React.memo(({ movie, g
   if (pct <= 0) return null;
   return (
     <div
-      className="absolute left-[15%] right-[15%] h-[2px] pointer-events-none z-20"
+      className="absolute left-[15%] right-[15%] h-[4px] pointer-events-none z-20"
       style={{ bottom: '0', borderRadius: 0 }}
     >
       <div className="w-full h-full bg-[#808080]" style={{ borderRadius: 0 }}>
@@ -148,7 +148,7 @@ export const HoverProgressBar: React.FC<ProgressProps> = React.memo(({ movie, ge
   if (pct <= 0) return null;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-[2px] bg-[#808080]" style={{ borderRadius: 0 }}>
+      <div className="flex-1 h-[4px] bg-[#808080]" style={{ borderRadius: 0 }}>
         <div
           className="h-full bg-[#e50914] transition-all duration-300"
           style={{ width: `${pct}%`, borderRadius: 0 }}

@@ -129,7 +129,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                             if (rawRect) (window as any).__last_card_rect = rawRect;
                             onSelect(movie, undefined, trailerVideoId);
                         }}
-                        className="flex items-center justify-center bg-[#6d6d6e]/50 text-white px-4 sm:px-6 h-[34px] md:h-[45px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/35 transition-all duration-300 text-[15px] md:text-[18px] gap-2 md:gap-2 pointer-events-auto active:scale-95"
+                        className="flex items-center justify-center bg-[#6d6d6e]/50 text-white px-4 sm:px-6 h-[34px] md:h-[45px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/35 transition-all duration-300 text-[15px] md:text-[18px] gap-2 md:gap-2 pointer-events-auto"
                     >
                         <InfoIcon weight="bold" className="text-xl md:text-[26px]" />
                         <span className="whitespace-nowrap">{t('hero.moreInfo')}</span>
