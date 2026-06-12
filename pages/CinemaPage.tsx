@@ -129,6 +129,9 @@ const CinemaPage: React.FC = () => {
                 episode={type === 'tv' ? episode : undefined}
                 resumeTime={resumeTime}
                 onClose={handleClose}
+                onEpisodeChange={(newSeason, newEpisode) => {
+                    setSearchParams({ season: String(newSeason), episode: String(newEpisode) }, { replace: true });
+                }}
             />
         </ErrorBoundary>
     );

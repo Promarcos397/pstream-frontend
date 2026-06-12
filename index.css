@@ -455,3 +455,42 @@ button,
     transform: scaleX(1);
   }
 }
+
+/* ─── Seek Rotate Animations ────────────────────────────────────────────────── */
+@keyframes seek-rotate-left {
+  0% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(-28deg);
+  }
+  65% {
+    transform: rotate(4deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes seek-rotate-right {
+  0% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(28deg);
+  }
+  65% {
+    transform: rotate(-4deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-seek-rotate-left {
+  animation: seek-rotate-left 0.45s ease-in-out;
+}
+
+.animate-seek-rotate-right {
+  animation: seek-rotate-right 0.45s ease-in-out;
+}

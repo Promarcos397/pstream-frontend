@@ -23,10 +23,10 @@ interface GlobalContextType {
   addToHistory: (movie: Movie) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   videoStates: { [key: string]: VideoState };
-  updateVideoState: (movieId: number | string | Movie, time: number, videoId?: string, duration?: number) => void;
+  updateVideoState: (movieId: number | string | Movie, time: number, videoId?: string, duration?: number, forceSyncImmediate?: boolean) => void;
   getVideoState: (movieId: number | string) => VideoState | undefined;
   clearVideoState: (movieId: number | string) => void;
-  updateEpisodeProgress: (showId: number | string | Movie, season: number, episode: number, time: number, duration: number) => void;
+  updateEpisodeProgress: (showId: number | string | Movie, season: number, episode: number, time: number, duration: number, forceSyncImmediate?: boolean) => void;
   getEpisodeProgress: (showId: number | string, season: number, episode: number) => EpisodeProgress | undefined;
   getLastWatchedEpisode: (showId: number | string) => { season: number; episode: number; time: number; duration: number } | undefined;
   top10TV: number[];
@@ -183,7 +183,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return undefined;
   }, [getProgress]);
 
-  const updateVideoState = useCallback((movieOrId: string | number | Movie, time: number, videoId?: string, duration?: number) => {
+  const updateVideoState = useCallback((movieOrId: string | number | Movie, time: number, videoId?: string, duration?: number, forceSyncImmediate?: boolean) => {
     const isMovieObj = typeof movieOrId === 'object' && movieOrId !== null && 'id' in movieOrId;
     const movieId = isMovieObj ? String((movieOrId as Movie).id) : String(movieOrId);
     const movieData = isMovieObj ? (movieOrId as Movie) : undefined;
@@ -194,14 +194,14 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       watchedTime: time,
       duration: duration || 0,
       movieData
-    });
+    }, forceSyncImmediate);
   }, [updateProgress]);
 
   const clearVideoState = useCallback((movieId: number | string) => {
     removeHistoryItem(String(movieId));
   }, [removeHistoryItem]);
 
-  const updateEpisodeProgress = useCallback((showOrId: number | string | Movie, season: number, episode: number, time: number, duration: number) => {
+  const updateEpisodeProgress = useCallback((showOrId: number | string | Movie, season: number, episode: number, time: number, duration: number, forceSyncImmediate?: boolean) => {
     const isMovieObj = typeof showOrId === 'object' && showOrId !== null && 'id' in showOrId;
     const showId = isMovieObj ? String((showOrId as Movie).id) : String(showOrId);
     const movieData = isMovieObj ? (showOrId as Movie) : undefined;
@@ -214,7 +214,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       watchedTime: time,
       duration,
       movieData
-    });
+    }, forceSyncImmediate);
   }, [updateProgress]);
 
   const getEpisodeProgress = useCallback((showId: number | string, season: number, episode: number) => {

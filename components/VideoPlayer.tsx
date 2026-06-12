@@ -102,6 +102,7 @@ interface VideoPlayerProps {
     episode?: number;
     resumeTime?: number;
     onClose?: () => void;
+    onEpisodeChange?: (season: number, episode: number) => void;
 }
 
 function requestMobileLandscapeFullscreen(el: HTMLElement) {
@@ -123,7 +124,7 @@ function requestMobileLandscapeFullscreen(el: HTMLElement) {
 }
 // we need to do webkit-requestfullscreen as well and it should go fullscreen
 // and when we exit fullscreen we need to do webkit-exit-fullscreen as well
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, resumeTime = 0, onClose }) => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, resumeTime = 0, onClose, onEpisodeChange }) => {
     const HIDE_CUSTOM_UI = false; 
     const { t } = useTranslation();
     const { user, settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState, setActiveVideoId } = useGlobalContext();
@@ -143,6 +144,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(true);
     const [currentTime, setCurrentTime] = useState(0);
+    const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
     const currentTimeRef = useRef(0);
     
     // SAFETY LOCK 1: Prevents double-firing of "Next Episode" 
@@ -251,6 +253,73 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [seasonList, setSeasonList] = useState<number[]>([]);
     const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState<Episode[]>([]);
 
+    const currentEpisodeRef = useRef(currentEpisode);
+    const playingSeasonNumberRef = useRef(playingSeasonNumber);
+    const mediaTypeRef = useRef(mediaType);
+    const movieRef = useRef(movie);
+    const durationRef = useRef(duration);
+    const pendingSeekSaveRef = useRef(false);
+
+    useEffect(() => { currentEpisodeRef.current = currentEpisode; }, [currentEpisode]);
+    useEffect(() => { playingSeasonNumberRef.current = playingSeasonNumber; }, [playingSeasonNumber]);
+    useEffect(() => { mediaTypeRef.current = mediaType; }, [mediaType]);
+    useEffect(() => { movieRef.current = movie; }, [movie]);
+    useEffect(() => { durationRef.current = duration; }, [duration]);
+
+    const saveProgressImmediately = useCallback((forceCloudSync?: boolean) => {
+        const time = currentTimeRef.current;
+        const dur = durationRef.current > 0 ? durationRef.current : estimatedDurationRef.current;
+        const mv = movieRef.current;
+        const mType = mediaTypeRef.current;
+        const seasonNum = playingSeasonNumberRef.current;
+        const epNum = currentEpisodeRef.current;
+
+        if (time <= 0 || isNaN(time)) return;
+        if (time === lastSavedTimeRef.current) return;
+
+        lastSavedTimeRef.current = time;
+        addToHistory(mv);
+        if (mType === 'tv') {
+            updateEpisodeProgress(mv, seasonNum, epNum, time, dur, forceCloudSync);
+        } else {
+            updateVideoState(mv, time, undefined, dur, forceCloudSync);
+        }
+        console.info(`[VideoPlayer] Progress saved immediately: ${time}s / ${dur}s (forceCloud: ${!!forceCloudSync})`);
+    }, [addToHistory, updateEpisodeProgress, updateVideoState]);
+
+    const triggerAutoFullscreen = useCallback(() => {
+        if (!isMobile || hasAutoFullscreenedRef.current) return;
+        hasAutoFullscreenedRef.current = true;
+        
+        const el = containerRef.current;
+        if (!el) return;
+
+        const isIPhone = /iPhone|iPod/i.test(navigator.userAgent);
+        
+        console.log('[VideoPlayer] Triggering automatic mobile fullscreen');
+        if (isIPhone) {
+            setIsPseudoFullscreen(true);
+            setIsFullscreen(true);
+            try {
+                if ((screen.orientation as any)?.lock) {
+                    (screen.orientation as any).lock('landscape').catch(() => {});
+                }
+            } catch (e) {}
+        } else {
+            requestMobileLandscapeFullscreen(el);
+            setIsFullscreen(true);
+        }
+    }, [isMobile]);
+
+    useEffect(() => {
+        if (isMobile) {
+            const timer = setTimeout(() => {
+                triggerAutoFullscreen();
+            }, 150);
+            return () => clearTimeout(timer);
+        }
+    }, [isMobile, triggerAutoFullscreen]);
+
     useEffect(() => {
         retryCountRef.current = 0;
         setRetryCount(0);
@@ -317,13 +386,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
     useEffect(() => {
         if (mediaType !== 'tv') return;
-        const url = new URL(window.location.href);
-        url.searchParams.set('season', String(playingSeasonNumber));
-        url.searchParams.set('episode', String(currentEpisode));
-        window.history.replaceState(null, '', url.toString());
         
+        onEpisodeChange?.(playingSeasonNumber, currentEpisode);
         lastSyncedUrlRef.current = { s: playingSeasonNumber, e: currentEpisode };
-    }, [mediaType, playingSeasonNumber, currentEpisode]);
+    }, [mediaType, playingSeasonNumber, currentEpisode, onEpisodeChange]);
 
     const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers' | 'playback'>('none');
 
@@ -412,6 +478,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             currentTimeRef.current = target;
             embedControllerRef.current?.seek(target);
             setCurrentTime(target);
+            pendingSeekSaveRef.current = true;
         });
         navigator.mediaSession.setActionHandler('seekforward', (details) => {
             const offset = details.seekOffset || 10;
@@ -419,6 +486,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             currentTimeRef.current = target;
             embedControllerRef.current?.seek(target);
             setCurrentTime(target);
+            pendingSeekSaveRef.current = true;
         });
         navigator.mediaSession.setActionHandler('seekto', (details) => {
             if (details.seekTime != null) {
@@ -426,6 +494,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 currentTimeRef.current = target;
                 embedControllerRef.current?.seek(target);
                 setCurrentTime(target);
+                pendingSeekSaveRef.current = true;
             }
         });
 
@@ -499,6 +568,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const handleSkipSegment = useCallback((segment: SkipSegment) => {
         if (useEmbedFallback) {
             embedControllerRef.current?.seek(segment.end);
+            currentTimeRef.current = segment.end;
+            pendingSeekSaveRef.current = true;
         } else if (videoRef.current) {
             videoRef.current.currentTime = segment.end;
         }
@@ -511,11 +582,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     useTouchGestures(containerRef, {
         onSingleTap: () => {
             lastTouchTimeRef.current = Date.now();
-            if (activePanel !== 'none') {
-                setActivePanel('none');
-                return;
-            }
-            toggleUI();
+            toggleUI(activePanel !== 'none');
         },
     });
 
@@ -650,6 +717,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setIsStreamM3U8(!!candidate.isM3U8);
         setStreamReferer(activeReferer || null);
     }, [allSources]);
+
+    const handlePlaybackSpeedChange = useCallback((speed: number) => {
+        setPlaybackSpeed(speed);
+        if (embedControllerRef.current?.setSpeed) {
+            embedControllerRef.current.setSpeed(speed);
+        }
+        if (videoRef.current) {
+            videoRef.current.playbackRate = speed;
+        }
+    }, []);
 
     const handleEpisodeSelect = useCallback(async (ep: Episode, seasonNum?: number, episodes?: Episode[]) => {
         // Lock out any accidental triggers while mounting
@@ -857,18 +934,42 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (!video) return;
         const onSeeked = () => {
             const time = video.currentTime;
-            const dur = video.duration;
-            if (!time || !dur || isNaN(dur)) return;
-            lastSavedTimeRef.current = time; 
-            if (mediaType === 'tv') {
-                updateEpisodeProgress(movie, playingSeasonNumber, currentEpisode, time, dur);
-            } else {
-                updateVideoState(movie, time, undefined, dur);
-            }
+            if (!time || isNaN(time)) return;
+            currentTimeRef.current = time;
+            saveProgressImmediately(true);
         };
         video.addEventListener('seeked', onSeeked);
         return () => video.removeEventListener('seeked', onSeeked);
-    }, [mediaType, movie, playingSeasonNumber, currentEpisode, updateEpisodeProgress, updateVideoState]);
+    }, [saveProgressImmediately]);
+
+    // Save progress on component unmount
+    useEffect(() => {
+        return () => {
+            saveProgressImmediately(true);
+        };
+    }, [saveProgressImmediately]);
+
+    // Save progress on tab close/unload, app minimize, or backgrounding
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                saveProgressImmediately(true);
+            }
+        };
+        const handleUnload = () => {
+            saveProgressImmediately(true);
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pagehide', handleUnload);
+        window.addEventListener('beforeunload', handleUnload);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pagehide', handleUnload);
+            window.removeEventListener('beforeunload', handleUnload);
+        };
+    }, [saveProgressImmediately]);
 
     const parsedCuesRef = useRef<CaptionCueType[]>([]);
 
@@ -1078,8 +1179,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, [activePanel, showControls]);
 
-    const toggleUI = useCallback(() => {
-        if (activePanel !== 'none') return;
+    const toggleUI = useCallback((forceClosePanels = false) => {
+        if (forceClosePanels) {
+            setActivePanel('none');
+        } else if (activePanel !== 'none') {
+            return;
+        }
 
         setShowUI(prev => {
             const next = !prev;
@@ -1154,6 +1259,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         embedControllerRef.current?.seek(t);
                         setCurrentTime(t);
                         setProgress(duration > 0 ? (t / duration) * 100 : 0);
+                        pendingSeekSaveRef.current = true;
                     } else if (videoRef.current) {
                         videoRef.current.currentTime += 10;
                     }
@@ -1167,6 +1273,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         embedControllerRef.current?.seek(t);
                         setCurrentTime(t);
                         setProgress(duration > 0 ? (t / duration) * 100 : 0);
+                        pendingSeekSaveRef.current = true;
                     } else if (videoRef.current) {
                         videoRef.current.currentTime -= 10;
                     }
@@ -1216,6 +1323,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 embedControllerRef.current?.seek(t);
                                 setCurrentTime(t);
                                 setProgress(duration > 0 ? (t / duration) * 100 : 0);
+                                pendingSeekSaveRef.current = true;
                             } else if (videoRef.current) {
                                 videoRef.current.currentTime += 10;
                             }
@@ -1229,6 +1337,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 embedControllerRef.current?.seek(t);
                                 setCurrentTime(t);
                                 setProgress(duration > 0 ? (t / duration) * 100 : 0);
+                                pendingSeekSaveRef.current = true;
                             } else if (videoRef.current) {
                                 videoRef.current.currentTime -= 10;
                             }
@@ -1353,6 +1462,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 activePanel={activePanel}
                 providerIndex={embedProviderIndex}
                 onProviderIndexChange={setEmbedProviderIndex}
+                playbackSpeed={playbackSpeed}
                 startTime={(() => {
                     if (mediaType === 'tv') {
                         const prog = getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode);
@@ -1369,9 +1479,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     setIsBuffering(false);
                     hasPlayedOnceRef.current = true;
                     showControls();
+                    if (isMobile) {
+                        triggerAutoFullscreen();
+                    }
                 }}
                 onPause={() => {
                     setIsPlaying(false);
+                    saveProgressImmediately(true);
                     showControls();
                 }}
                 onEnded={() => {
@@ -1397,7 +1511,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         setDuration(d);
                         setProgress((t / d) * 100);
                     }
-                    if (t > 0 && Math.abs(t - lastSavedTimeRef.current) > 5) {
+                    if (pendingSeekSaveRef.current) {
+                        saveProgressImmediately(true);
+                        pendingSeekSaveRef.current = false;
+                    } else if (t > 0 && Math.abs(t - lastSavedTimeRef.current) > 5) {
                         lastSavedTimeRef.current = t;
                         addToHistory(movie);
                         if (mediaType === 'tv') {
@@ -1418,7 +1535,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     className="subtitle-overlay"
                     style={{
                         ...overlayStyle,
-                        bottom: useEmbedFallback ? '9rem' : '5.5rem',
+                        bottom: isMobile 
+                            ? (useEmbedFallback ? '5.6rem' : '2.6rem') 
+                            : (useEmbedFallback ? '9rem' : '5.5rem'),
                         left: currentCueSettings?.position ? currentCueSettings.position : '50%',
                         transform: currentCueSettings?.position 
                             ? (currentCueSettings.align === 'right' || currentCueSettings.align === 'end' 
@@ -1553,6 +1672,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         buffered={bufferedAmount}
                         isBuffering={isBuffering}
                         title={title}
+                        playbackSpeed={playbackSpeed}
+                        onPlaybackSpeedChange={handlePlaybackSpeedChange}
                         episodeNumber={mediaType === 'tv' ? currentEpisode : undefined}
                         episodeName={mediaType === 'tv' ? currentEpisodeName : undefined}
                         showAutoplayCountdown={showAutoplayCountdown}
@@ -1573,7 +1694,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 const target = Math.max(0, currentTime + amt);
                                 embedControllerRef.current?.seek(target);
                                 setCurrentTime(target);
+                                currentTimeRef.current = target;
                                 setProgress(duration > 0 ? (target / duration) * 100 : 0);
+                                pendingSeekSaveRef.current = true;
                             } else {
                                 videoRef.current && (videoRef.current.currentTime += amt);
                             }
@@ -1610,7 +1733,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                                 const target = (p / 100) * (duration || estimatedDurationRef.current);
                                 embedControllerRef.current?.seek(target);
                                 setCurrentTime(target);
+                                currentTimeRef.current = target;
                                 setProgress(p);
+                                pendingSeekSaveRef.current = true;
                             } else {
                                 videoRef.current && (videoRef.current.currentTime = (p / 100) * videoRef.current.duration);
                             }
@@ -1630,7 +1755,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         }}
                         showNextEp={!!nextEpisodeInfo}
                         onInteraction={showControls}
-                        onControlsHoverChange={(h) => isControlsHovered.current = h}
+                        onControlsHoverChange={(h) => {
+                            isControlsHovered.current = h;
+                            if (h && inactivityTimerRef.current) {
+                                clearTimeout(inactivityTimerRef.current);
+                            }
+                        }}
                         onSubtitlesClick={() => setActivePanel(p => p === 'audioSubtitles' ? 'none' : 'audioSubtitles')}
                         currentCaption={currentCaption}
                         onEpisodesClick={mediaType === 'tv'

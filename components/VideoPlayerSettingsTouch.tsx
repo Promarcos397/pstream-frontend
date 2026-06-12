@@ -4,7 +4,7 @@ import { ArrowLeftIcon, CheckIcon, CaretRightIcon, XIcon, PlayIcon } from '@phos
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 
-const commonPanelCls = "bg-[#262626] flex flex-col overflow-hidden animate-fadeIn fixed z-[120]";
+const commonPanelCls = "bg-[#3d3d3d] flex flex-col overflow-hidden animate-fadeIn fixed z-[120]";
 
 // ─── Shared: compact panel wrapper ────────────────────────────────────────────
 export const PanelShellTouch: React.FC<{
@@ -21,7 +21,7 @@ export const PanelShellTouch: React.FC<{
         >
             <div
                 id="video-panel-shell-touch"
-                className={`${commonPanelCls} w-[90vw] max-w-[400px] max-h-[80svh] pointer-events-auto rounded-xl shadow-2xl left-1/2 -translate-x-1/2`}
+                className={`${commonPanelCls} w-[90vw] max-w-[400px] max-h-[80svh] pointer-events-auto rounded-md shadow-2xl left-1/2 -translate-x-1/2`}
                 style={{ bottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
@@ -31,9 +31,9 @@ export const PanelShellTouch: React.FC<{
                     <button
                         onClick={(e) => { e.stopPropagation(); onClose(); }}
                         onTouchStart={(e) => e.stopPropagation()}
-                        className="w-10 h-10 flex items-center justify-center text-white/50 active:text-white bg-white/5 rounded-full"
+                        className="w-10 h-10 flex items-center justify-center text-white/60 active:text-white transition-colors"
                     >
-                        <XIcon size={30} weight="bold" />
+                        <XIcon size={26} weight="bold" />
                     </button>
                 </div>
                 <div className="overflow-y-auto flex-1 scrollbar-none">{children}</div>
@@ -121,7 +121,7 @@ export const AudioSubPanelTouch: React.FC<{
                             onClick={(e) => { e.stopPropagation(); onAudioChange(track.id); }}
                         >
                             <div className="w-8 flex-shrink-0 flex justify-center">
-                                {currentAudioTrack === track.id && <CheckIcon size={30} weight="bold" className="text-red-500" />}
+                                {currentAudioTrack === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                             </div>
                             <span className="text-base truncate">{track.name} {track.lang && track.lang.toLowerCase() !== 'unknown' ? `[${track.lang.toUpperCase()}]` : ''}</span>
                         </li>
@@ -135,7 +135,7 @@ export const AudioSubPanelTouch: React.FC<{
                             onClick={(e) => { e.stopPropagation(); onInternalAudioChange?.(track.id); }}
                         >
                             <div className="w-8 flex-shrink-0 flex justify-center">
-                                {selectedAudioTrackId === track.id && <CheckIcon size={30} weight="bold" className="text-red-500" />}
+                                {selectedAudioTrackId === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                             </div>
                             <div className="flex flex-col overflow-hidden">
                                 <span className="text-base truncate font-bold">{track.name || `Audio Track ${track.id}`}</span>
@@ -150,23 +150,23 @@ export const AudioSubPanelTouch: React.FC<{
             ) : (
                 <div className="flex flex-col flex-1 overflow-hidden">
                     {onSubtitleOffsetChange && (
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-white/5 shrink-0">
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 shrink-0">
                             <div className="flex flex-col">
                                 <span className="text-sm font-bold text-white">Sync Subtitles</span>
                                 <span className="text-xs text-white/50">{subtitleOffset === 0 ? 'Default timing' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s delay`}</span>
                             </div>
-                            <div className="flex items-center gap-2 bg-black/40 rounded-full p-1">
+                            <div className="flex items-center gap-2">
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset - 0.5).toFixed(1))); }}
-                                    className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 rounded-full transition font-bold text-xl"
+                                    className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/20 active:scale-95 rounded transition font-bold text-lg"
                                     title="Show Earlier"
                                 >−</button>
-                                <span className="text-sm text-white font-mono w-12 text-center select-none font-bold">
+                                <span className="text-sm text-white font-mono w-10 text-center select-none font-bold">
                                     {subtitleOffset === 0 ? '0.0s' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s`}
                                 </span>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset + 0.5).toFixed(1))); }}
-                                    className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 rounded-full transition font-bold text-xl"
+                                    className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/20 active:scale-95 rounded transition font-bold text-lg"
                                     title="Show Later"
                                 >+</button>
                             </div>
@@ -178,7 +178,7 @@ export const AudioSubPanelTouch: React.FC<{
                             onClick={(e) => { e.stopPropagation(); onSubtitleChange(null); onClose(); }}
                         >
                             <div className="w-8 flex-shrink-0 flex justify-center">
-                                {currentCaption === null && <CheckIcon size={30} weight="bold" className="text-red-500" />}
+                                {currentCaption === null && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                             </div>
                             <span className="text-base font-semibold">{t('player.off')}</span>
                         </li>
@@ -194,7 +194,7 @@ export const AudioSubPanelTouch: React.FC<{
                                         onClick={(e) => { e.stopPropagation(); onSubtitleChange(cap.url); onClose(); }}
                                     >
                                         <div className="w-8 flex-shrink-0 flex justify-center">
-                                            {isSelected && <CheckIcon size={30} weight="bold" className="text-red-500" />}
+                                            {isSelected && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                                         </div>
                                         <span className="text-base font-semibold truncate">{getSubtitleDisplayLabel(cap, displayLabel)}</span>
                                     </li>
@@ -210,7 +210,7 @@ export const AudioSubPanelTouch: React.FC<{
                                 onClick={(e) => { e.stopPropagation(); onInternalSubtitleChange?.(track.id); }}
                             >
                                 <div className="w-8 flex-shrink-0 flex justify-center">
-                                    {selectedSubtitleTrackId === track.id && <CheckIcon size={30} weight="bold" className="text-red-500" />}
+                                    {selectedSubtitleTrackId === track.id && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                                 </div>
                                 <div className="flex flex-col overflow-hidden">
                                     <span className="text-base truncate font-bold">{track.name || `Internal Subtitle ${track.id}`}</span>
@@ -273,7 +273,7 @@ export const PlaybackPanelTouch: React.FC<{
     const rowCls = "flex items-center justify-between px-6 py-5 cursor-pointer active:bg-white/10 transition-colors duration-150 select-none group border-b border-white/5";
 
     return (
-        <div className="flex flex-col h-full bg-[#262626]">
+        <div className="flex flex-col h-full bg-[#3d3d3d]">
             {/* Autoplay Video */}
             <div 
                 className={rowCls}
@@ -423,7 +423,7 @@ export const EpisodeExplorerTouch: React.FC<{
     };
 
     const innerContent = (
-        <div className="flex flex-col h-full bg-[#262626] font-sans text-white">
+        <div className="flex flex-col h-full bg-[#3d3d3d] font-sans text-white">
             {activePanel === 'seasons' && (
                 <div className="overflow-y-auto flex-1">
                     {seasonList.map(s => (
@@ -438,7 +438,7 @@ export const EpisodeExplorerTouch: React.FC<{
                             className={`flex items-center px-6 py-4 text-lg font-bold transition-colors active:bg-white/10 border-b border-white/5 ${selectedSeason === s ? 'bg-white/5' : ''}`}
                         >
                             <div className="w-8 flex-shrink-0">
-                                {selectedSeason === s && <CheckIcon size={30} weight="bold" className="text-red-500" />}
+                                {selectedSeason === s && <CheckIcon size={20} weight="bold" className="text-red-500" />}
                             </div>
                             Season {s}
                         </div>
@@ -448,7 +448,7 @@ export const EpisodeExplorerTouch: React.FC<{
             {activePanel === 'episodes' && (
                 <div className="flex flex-col h-full">
                     <div
-                        className="flex items-center gap-3 px-5 py-4 border-b border-white/10 bg-[#262626] flex-shrink-0 active:bg-white/5 transition-colors"
+                        className="flex items-center gap-3 px-5 py-4 border-b border-white/10 bg-[#3d3d3d] flex-shrink-0 active:bg-white/5 transition-colors"
                         onClick={(e) => { e.stopPropagation(); setActivePanel('seasons'); }}
                     >
                         <ArrowLeftIcon size={28} weight="bold" className="text-white" />

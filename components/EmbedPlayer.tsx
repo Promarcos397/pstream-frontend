@@ -10,6 +10,8 @@ export interface EmbedController {
     setMuted: (muted: boolean, vol?: number) => void;
     /** Set volume level (0.0 – 1.0) without touching the mute flag */
     setVolume: (level: number) => void;
+    /** Set playback speed/rate */
+    setSpeed: (rate: number) => void;
     /** Get the current iframe element */
     getIframe: () => HTMLIFrameElement | null;
 }
@@ -35,6 +37,7 @@ interface EmbedPlayerProps {
     startProviderIndex?: number;
     providerIndex?: number;
     onProviderIndexChange?: (index: number) => void;
+    playbackSpeed?: number;
     /** Mutable ref object that receives control functions */
     controllerRef?: React.MutableRefObject<EmbedController | null>;
 }
@@ -59,6 +62,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     startProviderIndex = 0,
     providerIndex,
     onProviderIndexChange,
+    playbackSpeed = 1.0,
     controllerRef
 }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -79,6 +83,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     const seekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingSeekTimeRef = useRef<number | null>(null);
     const seekVerifiedRef = useRef<boolean>(false);
+    const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
 
     // ── Elapsed timer (fallback when provider sends no postMessage) ────────────
     const elapsedRef = useRef(startTime);
@@ -91,10 +96,12 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             setLockedStartTime(elapsedRef.current);
         }
         seekVerifiedRef.current = false;
+        setHasPlayedOnce(false);
     }, [activeProviderIndex]);
 
     useEffect(() => {
         setLockedStartTime(startTime);
+        setHasPlayedOnce(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tmdbId, season, episode]);
 
@@ -106,6 +113,50 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
     const currentProvider = ALL_EMBED_PROVIDERS[activeProviderIndex];
     const supportsInbound = currentProvider?.supportsInboundControl === true;
+
+    const embedUrl = currentProvider
+        ? currentProvider.buildUrl({
+            tmdbId,
+            imdbId,
+            mediaType,
+            season,
+            episode,
+            startTime: lockedStartTime,
+            subtitleLang: undefined
+        })
+        : '';
+
+    // ── Preconnect and DNS Prefetch to speed up domain resolution and handshakes ──
+    useEffect(() => {
+        if (!currentProvider || !embedUrl) return;
+        try {
+            const parsed = new URL(embedUrl);
+            const origin = parsed.origin;
+
+            const links: HTMLLinkElement[] = [];
+
+            const preconnect = document.createElement('link');
+            preconnect.rel = 'preconnect';
+            preconnect.href = origin;
+            preconnect.crossOrigin = 'anonymous';
+            document.head.appendChild(preconnect);
+            links.push(preconnect);
+
+            const dnsPrefetch = document.createElement('link');
+            dnsPrefetch.rel = 'dns-prefetch';
+            dnsPrefetch.href = origin;
+            document.head.appendChild(dnsPrefetch);
+            links.push(dnsPrefetch);
+
+            return () => {
+                links.forEach(l => {
+                    try { document.head.removeChild(l); } catch (e) { }
+                });
+            };
+        } catch (e) {
+            console.warn(`[EmbedPlayer] Failed to preconnect:`, e);
+        }
+    }, [embedUrl, currentProvider]);
 
     const stopTimer = useCallback(() => {
         if (timerRef.current) {
@@ -151,12 +202,13 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         elapsedRef.current = lockedStartTime;
         hasRealTimeUpdateRef.current = false;
 
-        // VidFast sends postMessage events so give it a generous window; for dumb iframes fall back sooner
-        const timeoutDuration = currentProvider?.supportsPostMessage ? 12000 : 7000;
+        // Shorter timeout (3.5s) to avoid UI lockups if autoplay fails or loading is slow
+        const timeoutDuration = 3500;
 
         autoStartRef.current = setTimeout(() => {
             if (!hasRealTimeUpdateRef.current) {
                 console.log(`[EmbedPlayer] Fallback autoplay timer fired after ${timeoutDuration}ms for provider: ${currentProvider?.name}`);
+                setHasPlayedOnce(true);
                 startTimer();
                 onPlay?.();
             }
@@ -185,6 +237,31 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         // VidFast documented format: { command: 'play' | 'pause' }
         win.postMessage({ command: play ? 'play' : 'pause' }, '*');
     }, []);
+
+    const broadcastSpeed = useCallback((rate: number) => {
+        const win = iframeRef.current?.contentWindow;
+        if (!win) return;
+        // Broadcast all common message formats for speed:
+        win.postMessage({ command: 'speed', rate }, '*');
+        win.postMessage({ command: 'speed', value: rate }, '*');
+        win.postMessage({ command: 'playbackRate', rate }, '*');
+        win.postMessage({ command: 'playbackRate', value: rate }, '*');
+        win.postMessage({ command: 'setSpeed', rate }, '*');
+        win.postMessage({ command: 'setPlaybackRate', rate }, '*');
+        console.log(`[EmbedPlayer] Playback Rate / Speed → ${rate}x`);
+    }, []);
+
+    const handleIframeLoad = useCallback(() => {
+        console.log(`[EmbedPlayer] Iframe onLoad event fired. Sending initial play state and speed.`);
+        if (playbackSpeed !== undefined) {
+            broadcastSpeed(playbackSpeed);
+            setTimeout(() => broadcastSpeed(playbackSpeed), 200);
+        }
+        if (isPlaying) {
+            broadcastPlayPause(true);
+            setTimeout(() => broadcastPlayPause(true), 200);
+        }
+    }, [isPlaying, playbackSpeed, broadcastPlayPause, broadcastSpeed]);
 
     const broadcastSeek = useCallback((time: number) => {
         const win = iframeRef.current?.contentWindow;
@@ -221,53 +298,43 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             seek: (time: number) => {
                 broadcastSeek(time);
 
-                // Clear any pending watchdog
+                // Clear any pending watchdog/reload timer
                 if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
 
-                if (currentProvider?.supportsPostMessage && currentProvider?.supportsInboundControl !== false) {
-                    // ── Category 1: postMessage-capable provider (VidFast) ─────────────
-                    // Once we've confirmed postMessage seeking works this session, skip the watchdog entirely.
-                    if (seekVerifiedRef.current) {
-                        console.log(`[EmbedPlayer] 🚀 Seek verified for session — no watchdog needed.`);
-                        pendingSeekTimeRef.current = null;
-                        return;
-                    }
-
-                    // First seek: arm a watchdog in case the iframe ignores the command
-                    pendingSeekTimeRef.current = time;
-                    console.log(`[EmbedPlayer] 🕒 Watchdog armed for first seek to ${time}s.`);
-
-                    seekTimeoutRef.current = setTimeout(() => {
-                        if (pendingSeekTimeRef.current !== null) {
-                            console.log(`[EmbedPlayer] ⚠️ Seek not confirmed in 1500ms — falling back to iframe reload at ${time}s.`);
-                            setLockedStartTime(time);
-                            pendingSeekTimeRef.current = null;
-                        }
-                        seekTimeoutRef.current = null;
-                    }, 1500);
-                } else {
+                if (!currentProvider?.supportsPostMessage || currentProvider?.supportsInboundControl === false) {
                     // ── Category 2: dumb iframe — debounced reload ─────────────────────
                     console.log(`[EmbedPlayer] ⚙️ No inbound postMessage — reload at ${time}s.`);
                     seekTimeoutRef.current = setTimeout(() => {
                         setLockedStartTime(time);
                         seekTimeoutRef.current = null;
                     }, 400);
+                } else {
+                    // ── Category 1: postMessage-capable provider (VidFast) ─────────────
+                    console.log(`[EmbedPlayer] 🚀 Seek sent via postMessage to ${time}s.`);
                 }
             },
             setMuted: broadcastMute,
             setVolume: broadcastVolume,
+            setSpeed: broadcastSpeed,
             getIframe: () => iframeRef.current,
         };
         return () => {
             controllerRef.current = null;
             if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
         };
-    }, [controllerRef, broadcastSeek, broadcastMute, broadcastVolume, currentProvider]);
+    }, [controllerRef, broadcastSeek, broadcastMute, broadcastVolume, broadcastSpeed, currentProvider]);
 
     // React to parent's isPlaying state
     useEffect(() => {
         broadcastPlayPause(isPlaying);
     }, [isPlaying, broadcastPlayPause]);
+
+    // React to parent's playbackSpeed state
+    useEffect(() => {
+        if (playbackSpeed !== undefined) {
+            broadcastSpeed(playbackSpeed);
+        }
+    }, [playbackSpeed, broadcastSpeed]);
 
     // ── postMessage listener — VidFast event format only ──────────────────────
     // VidFast event shape:
@@ -291,6 +358,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             // ── play / playing ─────────────────────────────────────────────────
             if (event === 'play' || event === 'playing') {
                 hasRealTimeUpdateRef.current = true;
+                setHasPlayedOnce(true);
                 if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
                 stopTimer();
                 onPlay?.();
@@ -316,6 +384,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             // ── timeupdate ────────────────────────────────────────────────────
             if (event === 'timeupdate' && time !== null) {
                 hasRealTimeUpdateRef.current = true;
+                setHasPlayedOnce(true);
                 if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
                 stopTimer();
                 elapsedRef.current = time;
@@ -334,6 +403,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             // VidFast fires this right when the seek completes — best event to verify on
             if (event === 'seeked' && time !== null) {
                 hasRealTimeUpdateRef.current = true;
+                setHasPlayedOnce(true);
                 if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
                 elapsedRef.current = time;
                 onTimeUpdate?.(time, dur);
@@ -356,17 +426,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         return () => window.removeEventListener('message', handler);
     }, [onTimeUpdate, onPlay, onPause, onEnded, stopTimer, handleProviderError, estimatedDuration]);
 
-    if (!currentProvider || activeProviderIndex >= ALL_EMBED_PROVIDERS.length) return null;
-
-    const embedUrl = currentProvider.buildUrl({
-        tmdbId,
-        imdbId,
-        mediaType,
-        season,
-        episode,
-        startTime: lockedStartTime,
-        subtitleLang: undefined
-    });
+    if (!currentProvider || activeProviderIndex >= ALL_EMBED_PROVIDERS.length || !embedUrl) return null;
 
     // Smart high-res scaling factor: renders the iframe at a higher resolution
     // to make its internal UI elements (controls, menus, buttons) microscopic and sharp.
@@ -380,8 +440,8 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     const tempPauseScaling = true;
 
     const getHighResFactor = () => {
-        if (tempPauseScaling) return 2;
-        return isIOSOrMac ? 2 : 2;
+        if (tempPauseScaling) return 2.5;
+        return isIOSOrMac ? 2.5 : 2.5;
     };
     const highResFactor = getHighResFactor();
 
@@ -401,23 +461,25 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                     height: `${100 / totalScale}%`,
                     left: `${(100 - 100 / totalScale) / 2}%`,
                     top: `${(100 - 100 / totalScale) / 2}%`,
-                    clipPath: 'inset(6% 0% 11% 0%)',
+                    clipPath: 'inset(7% 0% 12.5% 0%)',
                 }}
             >
                 <iframe
                     ref={iframeRef}
                     src={embedUrl}
+                    onLoad={handleIframeLoad}
                     style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                     allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                     allowFullScreen={true}
                     referrerPolicy="no-referrer-when-downgrade"
                     onError={handleProviderError}
+                    loading="eager"
                 />
             </div>
 
             {/* Invisible Shield: blocks ad clicks and passes play/pause taps up to VideoPlayer */}
             <div
-                className={`absolute inset-0 z-20 cursor-pointer embed-shield ${!supportsInbound ? 'pointer-events-none' : ''}`}
+                className={`absolute inset-0 z-20 cursor-pointer embed-shield ${(!supportsInbound || !hasPlayedOnce) ? 'pointer-events-none' : ''}`}
                 onClick={() => {
                     if (!supportsInbound) return;
                     if (activePanel && activePanel !== 'none') return;

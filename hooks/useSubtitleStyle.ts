@@ -40,7 +40,9 @@ export function useSubtitleStyle(customSettings?: AppSettings): {
     const fontStack = SUBTITLE_FONTS.find(f => f.id === subtitleFontFamily)?.value || subtitleFontFamily || 'sans-serif';
     
     // Size logic
-    const fontSize = SUBTITLE_SIZES.find(s => s.id === subtitleSize)?.value || '18px';
+    const rawFontSize = SUBTITLE_SIZES.find(s => s.id === subtitleSize)?.value || '18px';
+    const isSmallOrTiny = subtitleSize === 'small' || subtitleSize === 'tiny';
+    const fontSize = isSmallOrTiny ? rawFontSize : `calc(${rawFontSize} * 0.88)`;
     // Small scaling for compact views (clamped)
     const fontSizeCompact = `calc(${fontSize} * 0.7)`;
 

@@ -16,7 +16,7 @@ const ISO3_TO_LANG: Record<string, string> = {
     eng: 'en',
     fre: 'fr', fra: 'fr',
     ger: 'de', deu: 'de',
-    spa: 'es',
+    spa: 'es', esp: 'es', // Added 'esp' variation
     ita: 'it',
     por: 'pt',
     rus: 'ru',
@@ -91,40 +91,46 @@ function labelToLangCode(label: string): string {
         return trimmed;
     }
     
-    // Clean label for iso-639-1 (strip parentheticals, HI indicator, numbers)
+    // Clean label for iso-639-1 (strip parentheticals, brackets, classification terms, and punctuation)
     const cleanForISO = trimmed
         .replace(/\(.*\)/g, '')
-        .replace(/\bhi\b/i, '')
-        .replace(/\b\d+\b/g, '')
+        .replace(/\[.*\]/g, '')
+        .replace(/\b(forced|sdh|cc|hi|hearing impaired|impaired|hearing|full|default|subtitles|subtitle|lyrics|commentary)\b/gi, '')
+        .replace(/[^a-z\s]/gi, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
         
+    if (!cleanForISO) return 'en';
+
+    // Try direct lookup with cleaned string via ISO-639-1
     const isoCode = ISO6391.getCode(cleanForISO);
     if (isoCode) {
         return isoCode;
     }
     
     // Extract first word/token for matching
-    const cleanWord = trimmed.split(/[\s(_,-]/)[0];
-    if (NATIVE_NAMES_TO_LANG[cleanWord]) {
+    const tokens = cleanForISO.split(/\s+/);
+    const cleanWord = tokens[0] || '';
+    
+    // Try matching tokens or whole string in NATIVE_NAMES_TO_LANG
+    if (cleanWord && NATIVE_NAMES_TO_LANG[cleanWord]) {
         return NATIVE_NAMES_TO_LANG[cleanWord];
     }
-    
-    // Try matching the whole trimmed string against native names
-    if (NATIVE_NAMES_TO_LANG[trimmed]) {
-        return NATIVE_NAMES_TO_LANG[trimmed];
+    if (NATIVE_NAMES_TO_LANG[cleanForISO]) {
+        return NATIVE_NAMES_TO_LANG[cleanForISO];
     }
     
     // 2. Try match in 3-letter ISO/OS maps
-    if (ISO3_TO_LANG[cleanWord]) {
+    if (cleanWord && ISO3_TO_LANG[cleanWord]) {
         return ISO3_TO_LANG[cleanWord];
     }
-    if (ISO3_TO_LANG[trimmed]) {
-        return ISO3_TO_LANG[trimmed];
+    if (ISO3_TO_LANG[cleanForISO]) {
+        return ISO3_TO_LANG[cleanForISO];
     }
 
     // 3. Try matching standard LANG_LABELS values (English name)
     const entry = Object.entries(LANG_LABELS).find(([code, name]) =>
-        name.toLowerCase() === trimmed || name.toLowerCase() === cleanWord
+        name.toLowerCase() === cleanForISO || (cleanWord && name.toLowerCase() === cleanWord)
     );
     if (entry) {
         return entry[0];
@@ -132,17 +138,28 @@ function labelToLangCode(label: string): string {
 
     // 4. Fallback: check if the string contains a language name as a substring
     for (const [name, code] of Object.entries(NATIVE_NAMES_TO_LANG)) {
-        if (trimmed.includes(name)) {
+        if (cleanForISO.includes(name) || (cleanWord && cleanWord.includes(name))) {
             return code;
         }
     }
     for (const [code, name] of Object.entries(LANG_LABELS)) {
-        if (trimmed.includes(name.toLowerCase())) {
+        if (cleanForISO.includes(name.toLowerCase()) || (cleanWord && cleanWord.includes(name.toLowerCase()))) {
             return code;
         }
     }
 
-    return 'en'; // Default fallback
+    // 5. Unrecognized alphabetic fallback:
+    // If the label is not in our maps but has valid letters, DO NOT fall back to 'en' (English)
+    // because that would incorrectly render "English" in the UI. Instead, return the code itself.
+    const alphabeticOnly = cleanForISO.replace(/[^a-z]/g, '');
+    if (alphabeticOnly.length >= 2) {
+        if (alphabeticOnly.length === 2 || alphabeticOnly.length === 3) {
+            return alphabeticOnly;
+        }
+        return alphabeticOnly.substring(0, 3);
+    }
+
+    return 'en'; // Hard fallback if completely non-alphabetic/empty
 }
 
 /** Detect the user's preferred language code from the browser */

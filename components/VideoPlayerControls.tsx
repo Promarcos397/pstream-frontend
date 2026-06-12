@@ -15,10 +15,13 @@ import {
     ArrowLeftIcon,
     CropIcon,
     GearIcon,
+    Gauge,
+    SpeedometerIcon,
 } from '@phosphor-icons/react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { Episode } from '../types';
 import { SkipSegment } from '../hooks/useSkipTimestamps';
+import { AutoplayCountdown } from './AutoplayCountdown';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VideoPlayerControlsProps {
@@ -79,6 +82,8 @@ interface VideoPlayerControlsProps {
     skipSegments?: SkipSegment[];
     onSkipSegment?: (segment: SkipSegment) => void;
     isEmbedFallback?: boolean;
+    playbackSpeed?: number;
+    onPlaybackSpeedChange?: (speed: number) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -268,6 +273,65 @@ const VolumePopup: React.FC<{
     );
 };
 
+// ─── Playback Speed Popup ───────────────────────────────────────────────────
+const SpeedPopup: React.FC<{
+    playbackSpeed: number;
+    onPlaybackSpeedChange: (speed: number) => void;
+    onClose: () => void;
+    isMobile: boolean;
+}> = ({ playbackSpeed, onPlaybackSpeedChange, onClose, isMobile }) => {
+    const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+
+    return (
+        <div
+            className="absolute z-50 bg-[#262626] select-none animate-fadeIn"
+            style={{
+                bottom: isMobile ? '70px' : '60px',
+                right: 0,
+                borderRadius: isMobile ? 12 : 4,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+                width: isMobile ? 190 : 175,
+                overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+        >
+            {/* Options */}
+            <div className="flex flex-col py-1">
+                {speedOptions.map((speed) => {
+                    const isSelected = playbackSpeed === speed;
+                    return (
+                        <div
+                            key={speed}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onPlaybackSpeedChange(speed);
+                                onClose();
+                            }}
+                            className={`flex items-center justify-between px-4 cursor-pointer transition-colors duration-150 select-none ${
+                                isMobile ? 'py-3.5 active:bg-white/10' : 'py-2.5 hover:bg-white/10'
+                            } ${isSelected ? 'bg-white/5' : ''}`}
+                        >
+                            <span className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-white/70'}`}>
+                                {speed === 1.0 ? 'Normal' : `${speed}x`}
+                            </span>
+                            <div
+                                className={`w-[13px] h-[13px] rounded-full border-[1.5px] flex items-center justify-center transition-colors flex-shrink-0 ${
+                                    isSelected ? 'border-white bg-white' : 'border-white/25 bg-transparent'
+                                }`}
+                            >
+                                {isSelected && (
+                                    <div className="w-[5px] h-[5px] rounded-full bg-[#262626]" />
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
 // ─── Next Episode Popup ───────────────────────────────────────────────────────
 const NextEpisodePopup: React.FC<{
     data: NonNullable<VideoPlayerControlsProps['nextEpisodeData']>;
@@ -440,31 +504,7 @@ const PlayerTitle: React.FC<{
 // ─── Seek Flash Overlay (double-tap) ─────────────────────────────────────────
 const SeekFlash: React.FC<{ side: 'left' | 'right' | null; seconds: number; ts?: number }> = ({ side, seconds, ts }) => {
     const isMobile = useIsMobile();
-    if (!side) return null;
-
-    if (isMobile) {
-        return (
-            <div style={{
-                position: 'absolute', top: 0, bottom: 0,
-                [side]: 0,
-                width: '33%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                zIndex: 28, pointerEvents: 'none',
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                borderRadius: side === 'left' ? '0 80px 80px 0' : '80px 0 0 80px',
-                animation: 'seek-flash 0.4s ease-out forwards',
-            }}>
-                <span style={{
-                    color: 'white',
-                    fontFamily: 'inherit',
-                    fontSize: 24,
-                    fontWeight: 900,
-                    opacity: 0.95,
-                    textShadow: '0 1px 4px rgba(0,0,0,0.8)',
-                }}>{side === 'left' ? '-' : '+'}{seconds}s</span>
-            </div>
-        );
-    }
+    if (!side || isMobile) return null;
 
     const Icon = side === 'left' ? ArrowCounterClockwiseIcon : ArrowClockwiseIcon;
     return (
@@ -520,6 +560,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     seekFlash = null, setSeekFlash,
     skipSegments = [], onSkipSegment,
     isEmbedFallback = false,
+    playbackSpeed = 1.0,
+    onPlaybackSpeedChange,
 }) => {
     const isMobile = useIsMobile();
     const timelineRef = useRef<HTMLDivElement>(null);
@@ -529,16 +571,24 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const [hoverTime, setHoverTime] = useState(0);
     const [showVolume, setShowVolume] = useState(false);
     const [showNextEpPopup, setShowNextEpPopup] = useState(false);
+    const [showSpeedPopup, setShowSpeedPopup] = useState(false);
     const [dragProgress, setDragProgress] = useState(0);
 
     const isTV = mediaType === 'tv';
-    const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup;
+    const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup || showSpeedPopup;
 
     const ICON_SIZE = isMobile ? 40 : 48;
+    const isAnyLocalPopupOpen = showVolume || showNextEpPopup || showSpeedPopup;
 
     useEffect(() => {
-        onControlsHoverChange?.(isHovering || isDragging);
-    }, [isHovering, isDragging, onControlsHoverChange]);
+        onControlsHoverChange?.(isHovering || isDragging || isAnyLocalPopupOpen);
+    }, [isHovering, isDragging, isAnyLocalPopupOpen, onControlsHoverChange]);
+
+    useEffect(() => {
+        if (activePanel !== 'none') {
+            setShowSpeedPopup(false);
+        }
+    }, [activePanel]);
 
     const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
         e.stopPropagation();
@@ -633,28 +683,54 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
     const toggleSubtitles = () => {
         if (activePanel === 'audioSubtitles') setActivePanel?.('none');
-        else { setActivePanel?.('audioSubtitles'); setShowVolume(false); setShowNextEpPopup(false); }
+        else { setActivePanel?.('audioSubtitles'); setShowVolume(false); setShowNextEpPopup(false); setShowSpeedPopup(false); }
         onInteraction?.();
     };
     const toggleEpisodes = () => {
         if (activePanel === 'episodes' || activePanel === 'seasons') setActivePanel?.('none');
-        else { setActivePanel?.('episodes'); setShowVolume(false); setShowNextEpPopup(false); }
+        else { setActivePanel?.('episodes'); setShowVolume(false); setShowNextEpPopup(false); setShowSpeedPopup(false); }
         onInteraction?.();
     };
     const togglePlayback = () => {
         if (activePanel === 'playback') setActivePanel?.('none');
-        else { setActivePanel?.('playback'); setShowVolume(false); setShowNextEpPopup(false); }
+        else { setActivePanel?.('playback'); setShowVolume(false); setShowNextEpPopup(false); setShowSpeedPopup(false); }
         onInteraction?.();
     };
 
     const displayProgress = isDragging ? dragProgress : progress;
 
-    const btn = 'flex items-center justify-center text-white/80 hover:text-white active:text-white/40 transition-all duration-150 active:scale-90 select-none focus:outline-none rounded-sm p-2.5 hover:scale-110';
+    const isEpisodesActive = activePanel === 'episodes' || activePanel === 'seasons';
+    const isSubtitlesActive = activePanel === 'audioSubtitles';
+    const isSpeedActive = showSpeedPopup;
+    const isPlaybackActive = activePanel === 'playback';
+    const isAnyPanelOpen = isEpisodesActive || isSubtitlesActive || isSpeedActive || isPlaybackActive;
+
+    const getMobileIconOpacity = (isActive: boolean) => {
+        if (!isMobile) return '';
+        if (isActive) return 'opacity-100';
+        return isAnyPanelOpen ? 'opacity-30' : 'opacity-90';
+    };
+
+    const btn = 'flex items-center justify-center text-white hover:text-white active:text-white/40 transition-all duration-150 active:scale-95 select-none focus:outline-none rounded-sm p-2.5';
     const btnActive = 'text-white';
+
+    const mobileBtnCls = (isActive: boolean) => {
+        const base = "flex items-center gap-2 px-2 py-1.5 text-white transition-all duration-150 active:scale-95 select-none focus:outline-none text-[11px] font-bold tracking-wide uppercase";
+        const opacity = getMobileIconOpacity(isActive);
+        return `${base} ${opacity}`;
+    };
+
+    const getHoverTimeText = () => {
+        const t = hoverTime;
+        const h = Math.floor(t / 3600);
+        const m = Math.floor((t % 3600) / 60);
+        const s = Math.floor(t % 60);
+        return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
+    };
 
     const isInteracting = isHovering || isDragging;
     const trackH  = isMobile 
-        ? (isDragging ? 'h-[9px]' : 'h-[5px]') 
+        ? (isDragging ? 'h-[7px]' : 'h-[3.2px]') 
         : (isInteracting ? 'h-[7px]' : 'h-[4px]');
     const thumbSz = isMobile ? 'h-[22px] w-[22px]' : 'h-[14px] w-[14px]';
     const thumbScale = isDragging ? 'scale-[1.5]' : (isHovering ? 'scale-[1.3]' : 'scale-100');
@@ -723,7 +799,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     {onToggleFit && !isEmbedFallback && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onToggleFit(); }}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md border border-white/20 rounded-full text-white/90 hover:bg-white/20 transition-all active:scale-95"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md border border-white/20 rounded-full text-white hover:bg-white/20 transition-all active:scale-95"
                             style={{ minHeight: 36 }}
                         >
                             <CropIcon size={18} weight="bold" />
@@ -736,37 +812,65 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             {/* ── CENTER: Mobile Playback Controls ── */}
             {isMobile && (
                 <div
-                    className={`absolute inset-0 z-30 flex items-center justify-center gap-10 transition-opacity duration-300 pointer-events-none ${showUI ? 'opacity-100' : 'opacity-0'}`}
+                    className={`absolute inset-0 z-30 flex items-center justify-center gap-[150px] transition-opacity duration-300 pointer-events-none ${showUI ? 'opacity-100' : 'opacity-0'}`}
                 >
                     <button
                         onClick={(e) => { e.stopPropagation(); onSeek(-10); triggerSeekFlash('left'); }}
                         onTouchStart={handleTouchStart}
                         onTouchEnd={(e) => e.stopPropagation()}
-                        className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
-                        style={{ width: 64, height: 64 }}
+                        className={`pointer-events-auto flex items-center justify-center text-white hover:text-white hover:scale-110 active:scale-90 transition-all`}
+                        style={{ width: 50, height: 50 }}
                         aria-label="Rewind 10s"
                     >
-                        <ArrowCounterClockwiseIcon size={60} weight="bold" />
+                        <div 
+                            key={seekFlash?.side === 'left' ? `mobile-left-${seekFlash.ts}` : 'mobile-left-idle'}
+                            className={`relative flex items-center justify-center ${seekFlash?.side === 'left' ? 'animate-seek-rotate-left' : ''}`}
+                        >
+                            <ArrowCounterClockwiseIcon size={44} weight="regular" />
+                            <span style={{
+                                position: 'absolute',
+                                top: '52%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                fontFamily: 'Inter, sans-serif',
+                            }}>10</span>
+                        </div>
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
                         onTouchStart={handleTouchStart}
                         onTouchEnd={(e) => e.stopPropagation()}
-                        className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
-                        style={{ width: 80, height: 80 }}
+                        className={`pointer-events-auto flex items-center justify-center text-white hover:text-white hover:scale-110 active:scale-90 transition-all`}
+                        style={{ width: 50, height: 50 }}
                         aria-label={isPlaying ? 'Pause' : 'Play'}
                     >
-                        {isPlaying ? <PauseIcon size={90} weight="fill" /> : <PlayIcon size={90} weight="fill" />}
+                        {isPlaying ? <PauseIcon size={44} weight="fill" /> : <PlayIcon size={44} weight="fill" />}
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onSeek(10); triggerSeekFlash('right'); }}
                         onTouchStart={handleTouchStart}
                         onTouchEnd={(e) => e.stopPropagation()}
-                        className={`pointer-events-auto flex items-center justify-center text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all`}
-                        style={{ width: 64, height: 64 }}
+                        className={`pointer-events-auto flex items-center justify-center text-white hover:text-white hover:scale-110 active:scale-90 transition-all`}
+                        style={{ width: 50, height: 50 }}
                         aria-label="Fast-forward 10s"
                     >
-                        <ArrowClockwiseIcon size={60} weight="bold" />
+                        <div 
+                            key={seekFlash?.side === 'right' ? `mobile-right-${seekFlash.ts}` : 'mobile-right-idle'}
+                            className={`relative flex items-center justify-center ${seekFlash?.side === 'right' ? 'animate-seek-rotate-right' : ''}`}
+                        >
+                            <ArrowClockwiseIcon size={44} weight="regular" />
+                            <span style={{
+                                position: 'absolute',
+                                top: '52%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                fontFamily: 'Inter, sans-serif',
+                            }}>10</span>
+                        </div>
                     </button>
                 </div>
             )}
@@ -774,14 +878,14 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             {/* ── TOP: Back button (desktop only, top-left) ── */}
             {!isMobile && (
                 <div className={`absolute top-0 inset-x-0 z-40 px-8 pt-8 flex items-center justify-between transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                    <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white/80 hover:text-white hover:scale-110 transition-all p-1.5" aria-label="Close player">
+                    <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white hover:text-white hover:scale-110 transition-all p-1.5" aria-label="Close player">
                         <ArrowLeftIcon size={42} weight="bold" />
                     </button>
                     
                     {onToggleFit && !isEmbedFallback && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onToggleFit(); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-full text-white/80 hover:text-white hover:bg-zinc-800 transition-all active:scale-95 shadow-xl"
+                            className="flex items-center gap-2 px-4 py-2 bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-full text-white hover:text-white hover:bg-zinc-800 transition-all active:scale-95 shadow-xl"
                         >
                             <CropIcon size={20} weight="bold" />
                             <span className="text-xs font-bold tracking-[0.15em] uppercase">{videoFit === 'cover' ? 'Original' : 'Zoom to Fill'}</span>
@@ -811,27 +915,15 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 >
                     {/* ── PERSISTENT FLOATING BUTTONS (Skip & Manual Autoplay) ── */}
                     {/* These completely ignore the showUI opacity so they stay on screen after controls hide */}
-                    <div className="absolute right-4 md:right-8 bottom-full mb-2 z-40 pointer-events-none flex flex-col items-end gap-2">
+                    <div className="absolute right-4 md:right-8 bottom-full mb-[-8px] md:mb-[-4px] z-40 pointer-events-none flex flex-col items-end gap-2">
                         
                         {/* Manual Autoplay Popup */}
-                        {showAutoplayCountdown && onCancelAutoplay && onPlayNextNow && (
-                            <div className="pointer-events-auto flex items-center gap-3 animate-fadeIn">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onCancelAutoplay(); }}
-                                    className="flex items-center justify-center px-5 sm:px-6 h-[39px] md:h-[50px] bg-black/60 hover:bg-black/80 backdrop-blur-md text-white font-bold text-[15px] md:text-[17px] rounded-[4px] transition-colors shadow-lg active:scale-95 border border-white/10"
-                                >
-                                    Watch credits
-                                </button>
-                                
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onPlayNextNow(); }}
-                                    className="flex items-center justify-center gap-2 px-6 sm:px-8 h-[40px] md:h-[50px] bg-neutral-200 hover:bg-white text-black font-bold text-[16px] md:text-[20px] rounded-[4px] shadow-lg active:scale-95 transition-colors"
-                                >
-                                    <PlayIcon size={25} weight="fill" className="text-black" />
-                                    Next episode
-                                </button>
-                            </div>
-                        )}
+                        <AutoplayCountdown
+                            showAutoplayCountdown={showAutoplayCountdown}
+                            onCancelAutoplay={onCancelAutoplay}
+                            onPlayNextNow={onPlayNextNow}
+                            isMobile={isMobile}
+                        />
 
                         {/* Standard Skip Button */}
                         {activeSkipSegment && onSkipSegment && !showAutoplayCountdown && (
@@ -854,7 +946,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         <div className={`pointer-events-auto flex items-center gap-2 transition-all duration-200 px-3 ${isPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                             style={{
                                 height: isPanelOpen ? 0 : undefined,
-                                marginBottom: isPanelOpen ? 0 : (isMobile ? 12 : 20),
+                                marginBottom: isPanelOpen ? 0 : (isMobile ? -10 : 20),
                                 overflow: isPanelOpen ? 'hidden' : undefined,
                             }}
                         >
@@ -880,13 +972,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 {!isMobile && isHovering && !isDragging && (
                                     <div className="absolute -top-10 -translate-x-1/2 flex flex-col items-center pointer-events-none z-50" style={{ left: `${hoverPosition}%` }}>
                                         <div className="bg-black/95 text-white text-[13px] px-3 py-1.5 font-consolas shadow-xl border border-white/10" style={{ borderRadius: 2 }}>
-                                            {(() => {
-                                                const t = hoverTime;
-                                                const h = Math.floor(t / 3600);
-                                                const m = Math.floor((t % 3600) / 60);
-                                                const s = Math.floor(t % 60);
-                                                return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
-                                            })()}
+                                            {getHoverTimeText()}
                                         </div>
                                     </div>
                                 )}
@@ -906,18 +992,140 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                         {/* Control Buttons Row */}
                         <div className="pointer-events-auto flex items-center justify-between relative">
-                            {/* LEFT GROUP */}
-                            <div className={`flex items-center gap-5 md:gap-8 min-w-0`} style={!isMobile ? { flex: '1 1 0%' } : {}}>
-                                {!isMobile ? (
-                                    <>
+                            {isMobile ? (
+                                <div className="w-full flex items-center justify-around gap-2 px-3 sm:px-6 min-w-0">
+                                    {/* Playback Speed */}
+                                    <div className="relative">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setShowSpeedPopup(prev => !prev); }}
+                                            onMouseDown={() => onInteraction?.()}
+                                            className={mobileBtnCls(isSpeedActive)}
+                                            aria-label="Playback Speed"
+                                            title="Playback Speed"
+                                        >
+                                            <SpeedometerIcon size={24} weight={isSpeedActive ? "fill" : "bold"} className="flex-shrink-0" />
+                                            <span className="font-netflix truncate max-w-[65px] sm:max-w-none">Speed ({playbackSpeed}x)</span>
+                                        </button>
+                                        {showSpeedPopup && (
+                                            <SpeedPopup 
+                                                playbackSpeed={playbackSpeed}
+                                                onPlaybackSpeedChange={onPlaybackSpeedChange ?? (() => {})}
+                                                onClose={() => setShowSpeedPopup(false)}
+                                                isMobile={isMobile}
+                                            />
+                                        )}
+                                    </div>
+
+                                    {/* Episodes explorer */}
+                                    {isTV && onEpisodesClick && (
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
+                                                className={mobileBtnCls(isEpisodesActive)}
+                                                aria-label="Episode Explorer"
+                                            >
+                                                <CardsThreeIcon size={24} weight={isEpisodesActive ? "fill" : "bold"} className="flex-shrink-0" />
+                                                <span className="font-netflix truncate">Episodes</span>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Audio & Subtitles */}
+                                    {onSubtitlesClick && (
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
+                                                className={mobileBtnCls(isSubtitlesActive)}
+                                                aria-label="Subtitles & Audio"
+                                                title="Subtitles (S)"
+                                            >
+                                                <SubtitlesIcon size={24} weight={isSubtitlesActive ? "fill" : "bold"} className="flex-shrink-0" />
+                                                <span className="font-netflix truncate">Audio & Subtitles</span>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Next Episode */}
+                                    {isTV && hasNextEpisode && onNextEpisode && (
+                                        <div className="relative">
+                                            {showNextEpPopup && nextEpisodeData && (
+                                                <NextEpisodePopup
+                                                    data={nextEpisodeData}
+                                                    isMobile={isMobile}
+                                                    onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }}
+                                                    onInteraction={onInteraction}
+                                                />
+                                            )}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); toggleNextEp(); }}
+                                                onMouseDown={() => onInteraction?.()}
+                                                className={mobileBtnCls(showNextEp)}
+                                                aria-label="Next episode"
+                                                title="Next Episode (N)"
+                                            >
+                                                <svg width={24} height={24} viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                                                    <path d="M72,60 V196 L160,128 Z" stroke="currentColor" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    <line x1="208" y1="56" x2="208" y2="200" stroke="currentColor" strokeWidth="24" strokeLinecap="round"/>
+                                                </svg>
+                                                <span className="font-netflix truncate">Next Ep.</span>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Playback Settings */}
+                                    <div className="relative">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); togglePlayback(); }}
+                                            onMouseDown={() => onInteraction?.()}
+                                            className={mobileBtnCls(isPlaybackActive)}
+                                            aria-label="Playback Settings"
+                                            title="Playback Settings"
+                                        >
+                                            <GearIcon size={24} weight={isPlaybackActive ? "fill" : "bold"} className="flex-shrink-0" />
+                                            <span className="font-netflix truncate">Settings</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* LEFT GROUP */}
+                                    <div className="flex items-center min-w-0 gap-5 md:gap-8" style={{ flex: '1 1 0%' }}>
                                         <button onClick={handlePlayPause} onMouseDown={() => onInteraction?.()} className={`${btn} ml-2 md:ml-3`} aria-label={isPlaying ? 'Pause' : 'Play'}>
                                             {isPlaying ? <PauseIcon size={ICON_SIZE} weight="fill" /> : <PlayIcon size={ICON_SIZE} weight="fill" />}
                                         </button>
-                                        <button onClick={() => { onSeek(-10); onInteraction?.(); }} className={`${btn} -ml-4 md:-ml-6`} aria-label="Rewind 10s">
-                                            <ArrowCounterClockwiseIcon size={ICON_SIZE} weight="bold" />
+                                        <button onClick={() => { onSeek(-10); onInteraction?.(); triggerSeekFlash('left'); }} className={`${btn} -ml-4 md:-ml-6`} aria-label="Rewind 10s">
+                                            <div 
+                                                key={seekFlash?.side === 'left' ? `desktop-left-${seekFlash.ts}` : 'desktop-left-idle'}
+                                                className={`relative flex items-center justify-center ${seekFlash?.side === 'left' ? 'animate-seek-rotate-left' : ''}`}
+                                            >
+                                                <ArrowCounterClockwiseIcon size={ICON_SIZE} weight="bold" />
+                                                <span style={{
+                                                    position: 'absolute',
+                                                    top: '52%',
+                                                    left: '50%',
+                                                    transform: 'translate(-50%, -50%)',
+                                                    fontSize: '11px',
+                                                    fontWeight: 800,
+                                                    fontFamily: 'Inter, sans-serif',
+                                                }}>10</span>
+                                            </div>
                                         </button>
-                                        <button onClick={() => { onSeek(10); onInteraction?.(); }} className={btn} aria-label="Fast-forward 10s">
-                                            <ArrowClockwiseIcon size={ICON_SIZE} weight="bold" />
+                                        <button onClick={() => { onSeek(10); onInteraction?.(); triggerSeekFlash('right'); }} className={btn} aria-label="Fast-forward 10s">
+                                            <div 
+                                                key={seekFlash?.side === 'right' ? `desktop-right-${seekFlash.ts}` : 'desktop-right-idle'}
+                                                className={`relative flex items-center justify-center ${seekFlash?.side === 'right' ? 'animate-seek-rotate-right' : ''}`}
+                                            >
+                                                <ArrowClockwiseIcon size={ICON_SIZE} weight="bold" />
+                                                <span style={{
+                                                    position: 'absolute',
+                                                    top: '52%',
+                                                    left: '50%',
+                                                    transform: 'translate(-50%, -50%)',
+                                                    fontSize: '11px',
+                                                    fontWeight: 800,
+                                                    fontFamily: 'Inter, sans-serif',
+                                                }}>10</span>
+                                            </div>
                                         </button>
                                         <div className="relative">
                                             {showVolume && (
@@ -927,123 +1135,110 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                 {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} weight="bold" /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} weight="bold" /> : <SpeakerHighIcon size={ICON_SIZE} weight="bold" />}
                                             </button>
                                         </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        {isTV && onEpisodesClick && (
+                                    </div>
+
+                                    {/* CENTER: Title (desktop only) */}
+                                    <div className="flex justify-center px-4 text-center items-center pointer-events-none min-w-0" style={{ flex: '2 1 0%', maxWidth: '50%', transform: 'translateX(-20px)' }}>
+                                        <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[21px] drop-shadow-lg line-clamp-2" />
+                                    </div>
+
+                                    {/* RIGHT GROUP */}
+                                    <div className="flex items-center min-w-0 gap-5 md:gap-8 justify-end" style={{ flex: '1 1 0%' }}>
+                                        {isTV && hasNextEpisode && onNextEpisode && (
                                             <div className="relative">
+                                                {showNextEpPopup && nextEpisodeData && (
+                                                    <NextEpisodePopup
+                                                        data={nextEpisodeData}
+                                                        isMobile={isMobile}
+                                                        onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }}
+                                                        onInteraction={onInteraction}
+                                                    />
+                                                )}
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
-                                                    className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
-                                                    style={{ minWidth: 44, minHeight: 44 }}
-                                                    aria-label="Episode Explorer"
+                                                    onClick={(e) => { e.stopPropagation(); toggleNextEp(); }}
+                                                    onMouseDown={() => onInteraction?.()}
+                                                    className={`${btn} ${showNextEp ? btnActive : ''}`}
+                                                    aria-label="Next episode"
+                                                    title="Next Episode (N)"
                                                 >
-                                                    <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'bold'} />
+                                                    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <path d="M72,60 V196 L160,128 Z" stroke="currentColor" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round"/>
+                                                        <line x1="208" y1="56" x2="208" y2="200" stroke="currentColor" strokeWidth="24" strokeLinecap="round"/>
+                                                    </svg>
                                                 </button>
                                             </div>
                                         )}
+
                                         {onSubtitlesClick && (
                                             <div className="relative">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
+                                                    onMouseDown={() => onInteraction?.()}
                                                     className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
-                                                    style={{ minWidth: 44, minHeight: 44 }}
                                                     aria-label="Subtitles & Audio"
                                                     title="Subtitles (S)"
                                                 >
-                                                    <SubtitlesIcon size={ICON_SIZE} weight={activePanel === 'audioSubtitles' ? 'fill' : 'bold'} />
+                                                    <SubtitlesIcon size={ICON_SIZE} weight="bold" />
                                                 </button>
                                             </div>
                                         )}
-                                    </>
-                                )}
-                            </div>
 
-                            {/* CENTER: Title (desktop only) */}
-                            {!isMobile && (
-                                <div className="flex justify-center px-4 text-center items-center pointer-events-none min-w-0" style={{ flex: '2 1 0%', maxWidth: '50%', transform: 'translateX(-20px)' }}>
-                                    <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[21px] drop-shadow-lg line-clamp-2" />
-                                </div>
-                            )}
-
-                            {/* RIGHT GROUP */}
-                            <div className={`flex items-center min-w-0 ${isMobile ? 'gap-4' : 'gap-5 md:gap-8 justify-end'}`} style={!isMobile ? { flex: '1 1 0%' } : {}}>
-                                {isTV && hasNextEpisode && onNextEpisode && (
-                                    <div className="relative">
-                                        {showNextEpPopup && nextEpisodeData && (
-                                            <NextEpisodePopup
-                                                data={nextEpisodeData}
-                                                isMobile={isMobile}
-                                                onPlay={() => { onNextEpisode(); setShowNextEpPopup(false); }}
-                                                onInteraction={onInteraction}
-                                            />
+                                        {isTV && onEpisodesClick && (
+                                            <div className="relative">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
+                                                    onMouseDown={() => onInteraction?.()}
+                                                    className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
+                                                    aria-label="Episode Explorer"
+                                                >
+                                                    <CardsThreeIcon size={ICON_SIZE} weight="bold" />
+                                                </button>
+                                            </div>
                                         )}
+
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setShowSpeedPopup(prev => !prev); }}
+                                                onMouseDown={() => onInteraction?.()}
+                                                className={`${btn} ${getMobileIconOpacity(isSpeedActive)}`}
+                                                aria-label="Playback Speed"
+                                                title="Playback Speed"
+                                            >
+                                                <Gauge size={ICON_SIZE} weight="bold" />
+                                            </button>
+                                            {showSpeedPopup && (
+                                                <SpeedPopup 
+                                                    playbackSpeed={playbackSpeed}
+                                                    onPlaybackSpeedChange={onPlaybackSpeedChange ?? (() => {})}
+                                                    onClose={() => setShowSpeedPopup(false)}
+                                                    isMobile={isMobile}
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); togglePlayback(); }}
+                                                onMouseDown={() => onInteraction?.()}
+                                                className={`${btn} ${getMobileIconOpacity(isPlaybackActive)}`}
+                                                aria-label="Playback Settings"
+                                                title="Playback Settings"
+                                            >
+                                                <GearIcon size={ICON_SIZE} weight="bold" />
+                                            </button>
+                                        </div>
+
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); toggleNextEp(); }}
-                                            onMouseDown={() => onInteraction?.()}
-                                            className={`${btn} ${showNextEp ? btnActive : ''}`}
-                                            style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
-                                            aria-label="Next episode"
-                                            title="Next Episode (N)"
+                                            onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); onInteraction?.(); }}
+                                            className={btn}
+                                            aria-label="Toggle fullscreen"
+                                            title="Fullscreen (F)"
                                         >
-                                            <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <path d="M72,60 V196 L160,128 Z" stroke="currentColor" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round"/>
-                                                <line x1="208" y1="56" x2="208" y2="200" stroke="currentColor" strokeWidth="24" strokeLinecap="round"/>
-                                            </svg>
+                                            <CornersOutIcon size={ICON_SIZE} weight="bold" />
                                         </button>
                                     </div>
-                                )}
-
-                                {!isMobile && onSubtitlesClick && (
-                                    <div className="relative">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
-                                            onMouseDown={() => onInteraction?.()}
-                                            className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
-                                            aria-label="Subtitles & Audio"
-                                            title="Subtitles (S)"
-                                        >
-                                            <SubtitlesIcon size={ICON_SIZE} weight={activePanel === 'audioSubtitles' ? 'fill' : 'regular'} />
-                                        </button>
-                                    </div>
-                                )}
-
-                                {!isMobile && isTV && onEpisodesClick && (
-                                    <div className="relative">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
-                                            onMouseDown={() => onInteraction?.()}
-                                            className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
-                                            aria-label="Episode Explorer"
-                                        >
-                                            <CardsThreeIcon size={ICON_SIZE} weight={(activePanel === 'episodes' || activePanel === 'seasons') ? 'fill' : 'bold'} />
-                                        </button>
-                                    </div>
-                                )}
-
-                                <div className="relative">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); togglePlayback(); }}
-                                        onMouseDown={() => onInteraction?.()}
-                                        className={`${btn} ${activePanel === 'playback' ? btnActive : ''}`}
-                                        style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
-                                        aria-label="Playback Settings"
-                                        title="Playback Settings"
-                                    >
-                                        <GearIcon size={ICON_SIZE} weight={activePanel === 'playback' ? 'fill' : 'bold'} />
-                                    </button>
-                                </div>
-
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); onInteraction?.(); }}
-                                    className={btn}
-                                    style={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
-                                    aria-label="Toggle fullscreen"
-                                    title="Fullscreen (F)"
-                                >
-                                    <CornersOutIcon size={ICON_SIZE} weight="bold" />
-                                </button>
-                            </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -20,7 +20,7 @@ interface WatchStore {
   history: Record<string, WatchProgress>;
   
   // Actions
-  updateProgress: (progress: Omit<WatchProgress, 'updatedAt' | 'percentage'>) => void;
+  updateProgress: (progress: Omit<WatchProgress, 'updatedAt' | 'percentage'>, forceSyncImmediate?: boolean) => void;
   getProgress: (tmdbId: string, season?: number, episode?: number) => WatchProgress | undefined;
   getHistoryList: () => WatchProgress[];
   removeHistoryItem: (tmdbId: string, season?: number, episode?: number) => void;
@@ -33,7 +33,7 @@ export const useWatchStore = create<WatchStore>()(
     (set, get) => ({
       history: {},
 
-      updateProgress: (data) => {
+      updateProgress: (data, forceSyncImmediate) => {
         // For embeds with unknown duration (duration=0), use elapsed-based fallback
         // so continue-watching still shows the item. Mark as 5% after 30s of watching.
         const percentage = data.duration > 0
@@ -73,9 +73,7 @@ export const useWatchStore = create<WatchStore>()(
           return { history: nextHistory };
         });
 
-        // Debounce cloud sync slightly to avoid spam
-        if ((window as any)._syncTimer) clearTimeout((window as any)._syncTimer);
-        (window as any)._syncTimer = setTimeout(() => {
+        const syncToCloud = () => {
           supabase.auth.getSession().then(({ data: sessionData }) => {
             if (sessionData.session?.user) {
               const dbPayload = {
@@ -99,7 +97,16 @@ export const useWatchStore = create<WatchStore>()(
                 });
             }
           });
-        }, 3000);
+        };
+
+        // Debounce cloud sync slightly to avoid spam unless forced
+        if ((window as any)._syncTimer) clearTimeout((window as any)._syncTimer);
+        
+        if (forceSyncImmediate) {
+          syncToCloud();
+        } else {
+          (window as any)._syncTimer = setTimeout(syncToCloud, 3000);
+        }
       },
 
       getProgress: (tmdbId, season, episode) => {

@@ -63,3 +63,4 @@ client_secret_*.json
 scratch/
 scraped_docs
 algorithm/
+public/netflix_observation_mockup.html
