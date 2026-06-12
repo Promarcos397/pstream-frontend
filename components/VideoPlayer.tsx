@@ -726,6 +726,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         
         countdownCancelledRef.current = false;
         setShowAutoplayCountdown(false);
+        setIsVideoReady(false); // Prevent ghost popup during next-ep load
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
     useEffect(() => {
@@ -972,7 +973,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 
                 // Safety: Only pass if user watched major chunk of video
                 if (player_duration > 0 && (player_progress / player_duration) > 0.80) {
-                    if (settings.autoplayNextEpisode && !showAutoplayCountdown) {
+                    // Same logic as onEnded: use countdownCancelledRef so a visible
+                    // popup doesn't block the advance when the embed fires 'completed'.
+                    if (settings.autoplayNextEpisode && !countdownCancelledRef.current) {
+                        setShowAutoplayCountdown(false);
                         handleNextEpisode();
                     }
                 }
@@ -981,20 +985,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         window.addEventListener('message', handleEmbedMessage);
         return () => window.removeEventListener('message', handleEmbedMessage);
-    }, [settings.autoplayNextEpisode, showAutoplayCountdown, handleNextEpisode]);
+    }, [settings.autoplayNextEpisode, handleNextEpisode]);
 
     // ——— Manual Autoplay Prompt Effect —————————————————————————————————————
     const TRIGGER_PERCENT = 98.5;
     const currentProgress = duration > 0 ? (currentTime / duration) * 100 : 0;
-    const hasCreditsSegment = skipSegments.some(s => s.type === 'credits');
 
     useEffect(() => {
+        // isVideoReady gates the popup — it is reset to false on every episode change,
+        // so the popup can never appear during the initial embed load / transition period.
+        // hasCreditsSegment intentionally removed: percentage is the only trigger.
         if (
             !settings.autoplayNextEpisode ||
             !nextEpisodeInfo ||
             duration <= 0 ||
             mediaType !== 'tv' ||
-            hasCreditsSegment 
+            !isVideoReady
         ) {
             setShowAutoplayCountdown(false);
             return;
@@ -1008,7 +1014,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         if (currentProgress >= TRIGGER_PERCENT && !countdownCancelledRef.current && !showAutoplayCountdown) {
             setShowAutoplayCountdown(true);
         }
-    }, [currentProgress, duration, nextEpisodeInfo, settings.autoplayNextEpisode, mediaType, hasCreditsSegment]);
+    }, [currentProgress, duration, nextEpisodeInfo, settings.autoplayNextEpisode, mediaType, isVideoReady]);
 
     const handleCancelAutoplay = useCallback(() => {
         countdownCancelledRef.current = true;
@@ -1375,7 +1381,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     const currentProgressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
                     if (currentProgressPct < 80) return; // Ignore instant crashes
 
-                    if (settings.autoplayNextEpisode && !showAutoplayCountdown) {
+                    // Use countdownCancelledRef (not showAutoplayCountdown) so that
+                    // when the popup is visible and the video ends naturally, we still
+                    // advance — instead of freezing forever with the popup showing.
+                    if (settings.autoplayNextEpisode && !countdownCancelledRef.current) {
+                        setShowAutoplayCountdown(false);
                         handleNextEpisode();
                     }
                 }}
@@ -1570,8 +1580,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         }}
                         volume={volume}
                         onVolumeChange={(v) => {
+                            setVolume(v);
                             if (useEmbedFallback) {
-                                setVolume(v);
+                                // Sync mute state with slider (drag to 0 = mute, drag up = unmute)
+                                const shouldMute = v === 0;
+                                if (shouldMute !== isMuted) {
+                                    setIsMuted(shouldMute);
+                                    userMutedRef.current = shouldMute;
+                                }
+                                // ✅ Send volume + mute state to VidFast iframe
+                                embedControllerRef.current?.setMuted(shouldMute, v);
                             } else if (videoRef.current) {
                                 videoRef.current.volume = v;
                                 if (v > 0) videoRef.current.muted = false;

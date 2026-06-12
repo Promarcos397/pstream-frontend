@@ -4,11 +4,13 @@ import { reportStreamError } from '../services/ProviderHealthService';
 
 /** Functions exposed to the parent via a ref object */
 export interface EmbedController {
-    /** Broadcast a seek command to the iframe (best-effort) */
+    /** Seek to an absolute position in seconds */
     seek: (time: number) => void;
-    /** Broadcast mute/unmute to the iframe (best-effort) */
+    /** Mute / unmute, optionally setting volume at the same time */
     setMuted: (muted: boolean, vol?: number) => void;
-    /** Get the current iframe element (for direct postMessage if needed) */
+    /** Set volume level (0.0 – 1.0) without touching the mute flag */
+    setVolume: (level: number) => void;
+    /** Get the current iframe element */
     getIframe: () => HTMLIFrameElement | null;
 }
 
@@ -83,7 +85,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const hasRealTimeUpdateRef = useRef(false);
 
-    // Sync lockedStartTime when provider changes, so the new iframe starts at our current progress!
+    // Sync lockedStartTime when provider changes, so the new iframe starts at current progress
     useEffect(() => {
         if (elapsedRef.current > 5) {
             setLockedStartTime(elapsedRef.current);
@@ -140,7 +142,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
 
     const estimatedDuration = mediaType === 'tv' ? 2700 : 7200;
 
-    // ── Auto-start: assume autoplay after fallback timeout if no real events arrive ──────────
+    // ── Auto-start: assume autoplay after fallback timeout if no real events arrive ──
     const autoStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
@@ -149,6 +151,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         elapsedRef.current = lockedStartTime;
         hasRealTimeUpdateRef.current = false;
 
+        // VidFast sends postMessage events so give it a generous window; for dumb iframes fall back sooner
         const timeoutDuration = currentProvider?.supportsPostMessage ? 12000 : 7000;
 
         autoStartRef.current = setTimeout(() => {
@@ -173,139 +176,102 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         }
     }, [currentProvider, onProviderChange]);
 
-    // ── Command broadcasters ────────────────────────────────────────────────────
+    // ── Command broadcasters — VidFast PostMessage API only ────────────────────
+    // Docs: https://vidfast.net/documentation → PostMessage tab
+
     const broadcastPlayPause = useCallback((play: boolean) => {
         const win = iframeRef.current?.contentWindow;
         if (!win) return;
-        const cmd = play ? 'play' : 'pause';
-        // Shotgun every known format
-        win.postMessage(cmd, '*');
-        win.postMessage(JSON.stringify({ method: cmd }), '*');
-        win.postMessage(JSON.stringify({ event: 'command', func: play ? 'playVideo' : 'pauseVideo' }), '*');
-        win.postMessage({ type: cmd }, '*');
-        win.postMessage({ type: 'COMMAND', event: cmd }, '*');
-        win.postMessage({ action: cmd }, '*');
-        win.postMessage({ event: 'command', command: cmd }, '*');
-        win.postMessage({ type: 'PLAYER_EVENT', player_status: play ? 'playing' : 'paused' }, '*');
-        
-        // VidFast / Vidking specific formats
-        win.postMessage({ command: cmd }, '*');
-        win.postMessage(JSON.stringify({ command: cmd }), '*');
+        // VidFast documented format: { command: 'play' | 'pause' }
+        win.postMessage({ command: play ? 'play' : 'pause' }, '*');
     }, []);
 
     const broadcastSeek = useCallback((time: number) => {
         const win = iframeRef.current?.contentWindow;
         if (!win) return;
         elapsedRef.current = time; // keep our local tracker in sync
-
-        // Shotgun seek commands
-        win.postMessage({ type: 'seek', time }, '*');
-        win.postMessage({ type: 'seek', value: time }, '*');
-        win.postMessage({ type: 'seek', to: time }, '*');
-        win.postMessage({ event: 'seek', value: time }, '*');
-        win.postMessage({ event: 'seek', to: time }, '*');
-        win.postMessage({ type: 'COMMAND', event: 'seek', time }, '*');
-        win.postMessage(JSON.stringify({ method: 'seek', time }), '*');
-        win.postMessage(JSON.stringify({ method: 'seek', value: time }), '*');
-        win.postMessage(JSON.stringify({ method: 'seek', to: time }), '*');
-        win.postMessage(JSON.stringify({ method: 'seekTo', value: time }), '*');
-        win.postMessage({ action: 'seek', currentTime: time }, '*');
-        win.postMessage({ action: 'seek', to: time }, '*');
-        win.postMessage(JSON.stringify({ method: 'seek', params: [time] }), '*');
-        win.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [time, true] }), '*');
-        win.postMessage(JSON.stringify({ event: 'command', func: 'seek', args: [time] }), '*');
-        win.postMessage(JSON.stringify({ event: 'seek', to: time }), '*');
-        win.postMessage(JSON.stringify({ type: 'seek', to: time }), '*');
-        win.postMessage(JSON.stringify({ method: 'setCurrentTime', value: time }), '*');
-        win.postMessage(JSON.stringify({ method: 'setCurrentTime', params: [time] }), '*');
-        win.postMessage({ type: 'PLAYER_EVENT', player_status: 'seeked', player_progress: time }, '*');
-
-        // VidFast / Vidking specific inbound seek command formats
+        // VidFast documented format: { command: 'seek', time: <seconds> }
         win.postMessage({ command: 'seek', time }, '*');
-        win.postMessage(JSON.stringify({ command: 'seek', time }), '*');
-
-        // StreamVault / generic data wrappers
-        win.postMessage({ type: 'seek', data: { time } }, '*');
-
-        console.log(`[EmbedPlayer] Broadcast seek to ${time}s`);
+        console.log(`[EmbedPlayer] Seek → ${time}s`);
     }, []);
 
     const broadcastMute = useCallback((muted: boolean, vol?: number) => {
         const win = iframeRef.current?.contentWindow;
         if (!win) return;
-        win.postMessage(JSON.stringify({ method: muted ? 'mute' : 'unmute' }), '*');
-        win.postMessage(JSON.stringify({ event: 'command', func: muted ? 'mute' : 'unMute' }), '*');
-        win.postMessage({ type: muted ? 'mute' : 'unmute' }, '*');
-        win.postMessage({ action: muted ? 'mute' : 'unmute' }, '*');
-        win.postMessage({ volume: muted ? 0 : (vol ?? 1) }, '*');
-
-        // VidFast / Vidking specific formats
+        // VidFast documented format: { command: 'mute', muted: bool }
         win.postMessage({ command: 'mute', muted }, '*');
-        win.postMessage(JSON.stringify({ command: 'mute', muted }), '*');
-        if (vol !== undefined) {
+        // If a target volume is supplied alongside unmute, also set volume
+        if (!muted && vol !== undefined) {
             win.postMessage({ command: 'volume', level: vol }, '*');
-            win.postMessage(JSON.stringify({ command: 'volume', level: vol }), '*');
         }
     }, []);
 
-    // Populate the controller ref so parent can call these directly
+    const broadcastVolume = useCallback((level: number) => {
+        const win = iframeRef.current?.contentWindow;
+        if (!win) return;
+        // VidFast documented format: { command: 'volume', level: 0.0–1.0 }
+        win.postMessage({ command: 'volume', level }, '*');
+        console.log(`[EmbedPlayer] Volume → ${Math.round(level * 100)}%`);
+    }, []);
+
+    // ── Controller ref — exposes seek / mute / volume to VideoPlayer ───────────
     useEffect(() => {
         if (!controllerRef) return;
         controllerRef.current = {
             seek: (time: number) => {
                 broadcastSeek(time);
 
-                // Clear any pending seek timer
-                if (seekTimeoutRef.current) {
-                    clearTimeout(seekTimeoutRef.current);
-                }
+                // Clear any pending watchdog
+                if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
 
-                // Special Treatment based on provider capabilities:
                 if (currentProvider?.supportsPostMessage && currentProvider?.supportsInboundControl !== false) {
-                    // Category 1: Programmatic Seeker (Tier 1).
-                    // If we have already verified that postMessage works in this session,
-                    // we NEVER reload the iframe — the player is perfectly functional.
+                    // ── Category 1: postMessage-capable provider (VidFast) ─────────────
+                    // Once we've confirmed postMessage seeking works this session, skip the watchdog entirely.
                     if (seekVerifiedRef.current) {
-                        console.log(`[EmbedPlayer] 🚀 postMessage seek already verified for this session. Skipping watchdog reload fallback.`);
+                        console.log(`[EmbedPlayer] 🚀 Seek verified for session — no watchdog needed.`);
                         pendingSeekTimeRef.current = null;
                         return;
                     }
 
+                    // First seek: arm a watchdog in case the iframe ignores the command
                     pendingSeekTimeRef.current = time;
-                    console.log(`[EmbedPlayer] 🕒 Scheduling smart watchdog for programmatic seek verification at ${time}s.`);
+                    console.log(`[EmbedPlayer] 🕒 Watchdog armed for first seek to ${time}s.`);
 
                     seekTimeoutRef.current = setTimeout(() => {
                         if (pendingSeekTimeRef.current !== null) {
-                            console.log(`[EmbedPlayer] ⚠️ postMessage seek verification timed out for ${time}s. Falling back to iframe reload.`);
+                            console.log(`[EmbedPlayer] ⚠️ Seek not confirmed in 1500ms — falling back to iframe reload at ${time}s.`);
                             setLockedStartTime(time);
                             pendingSeekTimeRef.current = null;
                         }
                         seekTimeoutRef.current = null;
-                    }, 1500); // Generous 1500ms watchdog for the very first seek
+                    }, 1500);
                 } else {
-                    // Category 2: Hard Fallback (Tier 2). Trigger debounced reload immediately for skips.
-                    console.log(`[EmbedPlayer] ⚙️ Provider does not support postMessage. Triggering debounced iframe reload at ${time}s.`);
+                    // ── Category 2: dumb iframe — debounced reload ─────────────────────
+                    console.log(`[EmbedPlayer] ⚙️ No inbound postMessage — reload at ${time}s.`);
                     seekTimeoutRef.current = setTimeout(() => {
                         setLockedStartTime(time);
                         seekTimeoutRef.current = null;
-                    }, 400); // 400ms rapid skip debounce for hard reloads
+                    }, 400);
                 }
             },
             setMuted: broadcastMute,
-            getIframe: () => iframeRef.current
+            setVolume: broadcastVolume,
+            getIframe: () => iframeRef.current,
         };
         return () => {
             controllerRef.current = null;
             if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
         };
-    }, [controllerRef, broadcastSeek, broadcastMute, currentProvider]);
+    }, [controllerRef, broadcastSeek, broadcastMute, broadcastVolume, currentProvider]);
 
     // React to parent's isPlaying state
     useEffect(() => {
         broadcastPlayPause(isPlaying);
     }, [isPlaying, broadcastPlayPause]);
 
-    // ── postMessage listener ────────────────────────────────────────────────────
+    // ── postMessage listener — VidFast event format only ──────────────────────
+    // VidFast event shape:
+    // { type: 'PLAYER_EVENT', data: { event, currentTime, duration, playing, muted, volume } }
     useEffect(() => {
         const handler = (e: MessageEvent) => {
             let data = e.data;
@@ -314,118 +280,76 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             }
             if (!data || typeof data !== 'object') return;
 
-            // ── Collision-Free Vidsync Telemetry ──────────────────────────────
-            if (data.type === 'VIDSYNC_PLAYER_EVENT' && data.data) {
-                const d = data.data;
-                const type = d.event;
-                const time = d.currentTime;
-                const dur = d.duration;
+            // Only handle VidFast's documented event envelope
+            if (data.type !== 'PLAYER_EVENT' || !data.data) return;
 
-                if (type === 'play' || type === 'playing') {
-                    hasRealTimeUpdateRef.current = true;
-                    if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
-                    stopTimer();
-                    onPlay?.();
-                }
-                if (type === 'pause' || type === 'paused') { stopTimer(); onPause?.(); }
-                if (type === 'ended' || type === 'complete') onEnded?.();
-                if (type === 'timeupdate' && typeof time === 'number') {
-                    hasRealTimeUpdateRef.current = true;
-                    if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
-                    stopTimer();
-                    elapsedRef.current = time;
-                    onTimeUpdate?.(time, dur || estimatedDuration);
-                }
+            const d = data.data;
+            const event = d.event as string;
+            const time = typeof d.currentTime === 'number' ? d.currentTime : null;
+            const dur = typeof d.duration === 'number' && d.duration > 0 ? d.duration : estimatedDuration;
 
-                // Watchdog verification for Vidsync
-                if (pendingSeekTimeRef.current !== null && typeof time === 'number') {
-                    if (Math.abs(time - pendingSeekTimeRef.current) < 3.5) {
-                        console.log(`[EmbedPlayer] 🎉 Programmatic postMessage seek verified for Vidsync at ${time}s! Skipping iframe reload.`);
-                        seekVerifiedRef.current = true;
-                        pendingSeekTimeRef.current = null;
-                        if (seekTimeoutRef.current) {
-                            clearTimeout(seekTimeoutRef.current);
-                            seekTimeoutRef.current = null;
-                        }
-                    }
-                }
-                return;
-            }
-
-            // VidAPI.ru format
-            if (data.type === 'PLAYER_EVENT' && data.player_status != null) {
-                const status = data.player_status as string;
-                const time = typeof data.player_progress === 'number' ? data.player_progress : null;
-                const dur = typeof data.player_duration === 'number' ? data.player_duration : 0;
-
-                if (status === 'playing') {
-                    hasRealTimeUpdateRef.current = true;
-                    if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
-                    stopTimer();
-                    onPlay?.();
-                    if (time !== null) {
-                        elapsedRef.current = time;
-                        onTimeUpdate?.(time, dur || estimatedDuration);
-                    }
-                }
-                if (status === 'paused') { stopTimer(); onPause?.(); }
-                if (status === 'completed') onEnded?.();
-                if (status === 'seeked' && time !== null) {
-                    elapsedRef.current = time;
-                    onTimeUpdate?.(time, dur || estimatedDuration);
-                }
-                return;
-            }
-
-            // VidLink / VixSrc / CinemaOS PLAYER_EVENT format
-            const d = (data.type === 'PLAYER_EVENT' && data.data) ? data.data : data;
-            const type = d.type || d.event;
-            const time = d.currentTime ?? d.time ?? d.player_progress;
-
-            if (type === 'timeupdate') {
-                hasRealTimeUpdateRef.current = true;
-                if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
-                stopTimer();
-                const dur = d.duration ?? d.player_duration ?? 0;
-                if (typeof time === 'number') {
-                    elapsedRef.current = time;
-                    onTimeUpdate?.(time, dur || estimatedDuration);
-
-                    // Verify programmatic postMessage seek
-                    if (pendingSeekTimeRef.current !== null) {
-                        if (Math.abs(time - pendingSeekTimeRef.current) < 3.5) {
-                            console.log(`[EmbedPlayer] 🎉 Programmatic postMessage seek verified at ${time}s! Skipping iframe reload.`);
-                            seekVerifiedRef.current = true;
-                            pendingSeekTimeRef.current = null;
-                            if (seekTimeoutRef.current) {
-                                clearTimeout(seekTimeoutRef.current);
-                                seekTimeoutRef.current = null;
-                            }
-                        }
-                    }
-                }
-            }
-            if (type === 'play' || type === 'playing') {
+            // ── play / playing ─────────────────────────────────────────────────
+            if (event === 'play' || event === 'playing') {
                 hasRealTimeUpdateRef.current = true;
                 if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
                 stopTimer();
                 onPlay?.();
             }
-            if (type === 'pause' || type === 'paused') { stopTimer(); onPause?.(); }
-            const typeStr = String(type || '').toLowerCase();
-            const isNextClick = [
-                'next',
-                'nextepisode',
-                'vixsrc_next',
-                'vidlink_next',
-                'next_episode',
-                'next_click'
-            ].includes(typeStr);
-            if (type === 'ended' || type === 'complete' || type === 'completed' || isNextClick) {
-                console.log(`[EmbedPlayer] ⏩ Captured 'next' navigation event from iframe: "${type}"`);
+
+            // ── pause ──────────────────────────────────────────────────────────
+            if (event === 'pause' || event === 'paused') {
+                stopTimer();
+                onPause?.();
+            }
+
+            // ── ended ──────────────────────────────────────────────────────────
+            if (event === 'ended' || event === 'complete' || event === 'completed') {
                 onEnded?.();
             }
-            if (type === 'error') handleProviderError();
+
+            // ── next episode button clicked (VidFast nextButton param) ─────────
+            if (['next', 'nextepisode', 'next_episode'].includes(event.toLowerCase())) {
+                console.log(`[EmbedPlayer] ⏩ Next episode event from iframe: "${event}"`);
+                onEnded?.();
+            }
+
+            // ── timeupdate ────────────────────────────────────────────────────
+            if (event === 'timeupdate' && time !== null) {
+                hasRealTimeUpdateRef.current = true;
+                if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
+                stopTimer();
+                elapsedRef.current = time;
+                onTimeUpdate?.(time, dur);
+
+                // Verify that our programmatic seek landed correctly
+                if (pendingSeekTimeRef.current !== null && Math.abs(time - pendingSeekTimeRef.current) < 3.5) {
+                    console.log(`[EmbedPlayer] ✅ Seek verified via timeupdate at ${time}s`);
+                    seekVerifiedRef.current = true;
+                    pendingSeekTimeRef.current = null;
+                    if (seekTimeoutRef.current) { clearTimeout(seekTimeoutRef.current); seekTimeoutRef.current = null; }
+                }
+            }
+
+            // ── seeked ────────────────────────────────────────────────────────
+            // VidFast fires this right when the seek completes — best event to verify on
+            if (event === 'seeked' && time !== null) {
+                hasRealTimeUpdateRef.current = true;
+                if (autoStartRef.current) { clearTimeout(autoStartRef.current); autoStartRef.current = null; }
+                elapsedRef.current = time;
+                onTimeUpdate?.(time, dur);
+
+                if (pendingSeekTimeRef.current !== null && Math.abs(time - pendingSeekTimeRef.current) < 3.5) {
+                    console.log(`[EmbedPlayer] ✅ Seek verified via 'seeked' event at ${time}s`);
+                    seekVerifiedRef.current = true;
+                    pendingSeekTimeRef.current = null;
+                    if (seekTimeoutRef.current) { clearTimeout(seekTimeoutRef.current); seekTimeoutRef.current = null; }
+                }
+            }
+
+            // ── error ─────────────────────────────────────────────────────────
+            if (event === 'error') {
+                handleProviderError();
+            }
         };
 
         window.addEventListener('message', handler);
@@ -444,12 +368,8 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         subtitleLang: undefined
     });
 
-    const hideNative = currentProvider.supportsControlsHide;
-
     // Smart high-res scaling factor: renders the iframe at a higher resolution
     // to make its internal UI elements (controls, menus, buttons) microscopic and sharp.
-    // We use a safe scaling factor (2.2 for WebKit/Safari, 2.5 for others) to stay well
-    // under GPU texture limits and prevent process crashes on iOS.
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const isIOS = /iPad|iPhone|iPod/.test(ua) ||
         (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
@@ -460,22 +380,14 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     const tempPauseScaling = true;
 
     const getHighResFactor = () => {
-        if (tempPauseScaling) return 1;
-        // Apply scaling factor to all providers to ensure any branding, logos, or unhidden controls are scaled down
+        if (tempPauseScaling) return 2;
         return isIOSOrMac ? 2 : 2;
     };
     const highResFactor = getHighResFactor();
 
-    // Zoom factor: crops out the outer edges to hide native player controls and branding.
-    // On non-Apple platforms, the high scale (4.5) already renders controls microscopic, 
-    // allowing a gentler crop (1.25) to preserve the video frame.
     const defaultZoom = isIOSOrMac ? 1 : 1;
-    const zoomFactor = tempPauseScaling ? 1 : (videoFit === 'cover'
-        ? 1
-        : defaultZoom);
+    const zoomFactor = tempPauseScaling ? 1 : (videoFit === 'cover' ? 1 : defaultZoom);
 
-
-    // Calculate the final scale to bring the high-res iframe back to the screen fit
     const totalScale = zoomFactor / highResFactor;
 
     return (
@@ -489,7 +401,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                     height: `${100 / totalScale}%`,
                     left: `${(100 - 100 / totalScale) / 2}%`,
                     top: `${(100 - 100 / totalScale) / 2}%`,
-                    clipPath: 'inset(0% 0% 0% 0%)', // Hides the bottom 8% of the iframe to remove native controls
+                    clipPath: 'inset(6% 0% 11% 0%)',
                 }}
             >
                 <iframe
@@ -503,16 +415,13 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 />
             </div>
 
-            {/* The Invisible Shield: captures all clicks to block ads and toggles play/pause */}
+            {/* Invisible Shield: blocks ad clicks and passes play/pause taps up to VideoPlayer */}
             <div
                 className={`absolute inset-0 z-20 cursor-pointer embed-shield ${!supportsInbound ? 'pointer-events-none' : ''}`}
-                onClick={(e) => {
+                onClick={() => {
                     if (!supportsInbound) return;
-                    if (activePanel && activePanel !== 'none') {
-                        // Let the click bubble up to the parent container to close the active settings panel!
-                        return;
-                    }
-                    // Let the click bubble up to the parent VideoPlayer container to determine play/pause and UI visibility!
+                    if (activePanel && activePanel !== 'none') return;
+                    // Bubble up to VideoPlayer container for play/pause toggle
                 }}
             />
 

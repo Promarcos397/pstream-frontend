@@ -100,8 +100,7 @@ const formatRemaining = (currentTime: number, duration: number): string => {
     if (duration >= 3600) return `-${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     return `-${m}:${s.toString().padStart(2, '0')}`;
 };
-
-const disableAutoNextButton = false; // Enabled to allow Next Episode and Watch Credits buttons to work
+const disableAutoNextButton = true;    // temporly hide and disable the next and watch credits buttons
 
 // ─── Volume Popup ─────────────────────────────────────────────────────────────
 const VolumePopup: React.FC<{
@@ -269,7 +268,7 @@ const VolumePopup: React.FC<{
     );
 };
 
-// ─── Next Episode Popup ─────────────────────────────────────────────────────────
+// ─── Next Episode Popup ───────────────────────────────────────────────────────
 const NextEpisodePopup: React.FC<{
     data: NonNullable<VideoPlayerControlsProps['nextEpisodeData']>;
     isMobile: boolean;
@@ -819,16 +818,16 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             <div className="pointer-events-auto flex items-center gap-3 animate-fadeIn">
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onCancelAutoplay(); }}
-                                    className="flex items-center justify-center px-4 sm:px-6 h-[34px] md:h-[45px] bg-black/60 hover:bg-black/80 backdrop-blur-md text-white font-bold text-[14px] md:text-[16px] rounded-[4px] transition-colors shadow-lg active:scale-95 border border-white/10"
+                                    className="flex items-center justify-center px-5 sm:px-6 h-[39px] md:h-[50px] bg-black/60 hover:bg-black/80 backdrop-blur-md text-white font-bold text-[15px] md:text-[17px] rounded-[4px] transition-colors shadow-lg active:scale-95 border border-white/10"
                                 >
                                     Watch credits
                                 </button>
                                 
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onPlayNextNow(); }}
-                                    className="flex items-center justify-center gap-2 px-5 sm:px-8 h-[35px] md:h-[45px] bg-neutral-200 hover:bg-white text-black font-bold text-[15px] md:text-[18px] rounded-[4px] shadow-lg active:scale-95 transition-colors"
+                                    className="flex items-center justify-center gap-2 px-6 sm:px-8 h-[40px] md:h-[50px] bg-neutral-200 hover:bg-white text-black font-bold text-[16px] md:text-[20px] rounded-[4px] shadow-lg active:scale-95 transition-colors"
                                 >
-                                    <PlayIcon size={22} weight="fill" className="text-black" />
+                                    <PlayIcon size={25} weight="fill" className="text-black" />
                                     Next episode
                                 </button>
                             </div>
@@ -969,7 +968,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
                             {/* RIGHT GROUP */}
                             <div className={`flex items-center min-w-0 ${isMobile ? 'gap-4' : 'gap-5 md:gap-8 justify-end'}`} style={!isMobile ? { flex: '1 1 0%' } : {}}>
-                                {isTV && hasNextEpisode && onNextEpisode && !disableAutoNextButton && (
+                                {isTV && hasNextEpisode && onNextEpisode && (
                                     <div className="relative">
                                         {showNextEpPopup && nextEpisodeData && (
                                             <NextEpisodePopup
