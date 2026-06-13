@@ -170,12 +170,13 @@ const TopTenCardTouch: React.FC<TopTenCardTouchProps> = ({ movie, index, onSelec
         <BadgeOverlay badge={badge} isBook={isBook} />
       </div>
 
-      {/* Progress indicator */}
+      {/* Progress indicator hidden per user request
       <ProgressIndicator
         movie={movie}
         getLastWatchedEpisode={getLastWatchedEpisode}
         getVideoState={getVideoState}
       />
+      */}
     </div>
   );
 };

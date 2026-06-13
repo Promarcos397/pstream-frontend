@@ -55,7 +55,8 @@ export const BLACKLIST = {
       1076935, // Money Shot: The Pornhub Story
       315486,  // Hot Girls Wanted
       234190,  // X-Rated: The Greatest Adult Movies of All Time
-      20       // Bowling for Columbine
+      20,      // Bowling for Columbine
+      302696   // Shadow banned by user
     ]),
     keywords: [
       'pornhub',
@@ -96,7 +97,8 @@ export const BLACKLIST = {
       95897,   // Overflow
       78501,   // Sweet Punishment: I'm the Guard's Personal Pet
       241002,  // Adam's Sweet Agony
-      1057265  // Peddi
+      1057265, // Peddi
+      259872   // Shadow banned by user
     ]),
     keywords: [
       'overflow',

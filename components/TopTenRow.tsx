@@ -676,12 +676,13 @@ const TopTenCard: React.FC<{
         <BadgeOverlay badge={badge} isBook={isBook} />
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar hidden per user request
       <ProgressIndicator
         movie={movie}
         getLastWatchedEpisode={getLastWatchedEpisode}
         getVideoState={getVideoState}
       />
+      */}
 
       {/* ─── Hover Popup (portal) ─────────────────────────────────────────── */}
       {createPortal(

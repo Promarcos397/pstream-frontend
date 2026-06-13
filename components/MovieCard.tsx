@@ -778,7 +778,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                 transformOrigin: hoverPosition === 'left' ? 'top left' : hoverPosition === 'right' ? 'top right' : 'top center',
               }}
             >
-              <div className="relative w-[400px] h-[200px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+              <div className="relative w-full h-[200px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
 
                 {(!isBook && settings.autoplayPreviews) ? (
                   <>
