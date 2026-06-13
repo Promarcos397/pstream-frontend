@@ -114,8 +114,8 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
           let currentPage = 1;
           let keepFetching = true;
 
-          // Loop up to 3 pages to compile at least 5 unique, valid movies
-          while (keepFetching && gatheredMovies.length < 5 && currentPage <= 3) {
+          // Loop up to 4 pages to compile a rich, deep set of movies for the row
+          while (keepFetching && gatheredMovies.length < 60 && currentPage <= 4) {
             let targetUrl = fetchUrl;
             if (currentPage > 1) {
               if (targetUrl.includes('page=')) {
@@ -138,10 +138,11 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
             const filtered = results.filter((m: Movie) => {
               const hasImage = m.backdrop_path || m.poster_path;
-              // Bypass global pageSeenIds check ONLY for category/genre rows
-              const notSeen = isGenreRow ? true : !pageSeenIds.includes(Number(m.id));
               const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
-              return hasImage && notSeen && hasMinVotes;
+              // Dynamic No-Repetition Rule
+              const isNotDuplicate = isGenreRow ? true : !pageSeenIds.includes(Number(m.id));
+              
+              return hasImage && hasMinVotes && isNotDuplicate;
             });
 
             filtered.forEach((item: Movie) => {
@@ -155,11 +156,26 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
           if (!isMounted) return;
 
+          // Strided Tier Shuffle Algorithm with high tier size K
+          const stridedTierShuffle = (array: Movie[], tierSize: number = 15): Movie[] => {
+            const result: Movie[] = [];
+            for (let i = 0; i < array.length; i += tierSize) {
+              const tier = array.slice(i, i + tierSize);
+              for (let j = tier.length - 1; j > 0; j--) {
+                const k = Math.floor(Math.random() * (j + 1));
+                [tier[j], tier[k]] = [tier[k], tier[j]];
+              }
+              result.push(...tier);
+            }
+            return result;
+          };
+
           if (gatheredMovies.length < 3) {
             setIsHidden(true); // Don't show sparse, awkward rows
           } else {
-            setMovies(gatheredMovies);
-            registerSeenIds(gatheredMovies.map((m: Movie) => Number(m.id)));
+            const finalMovies = stridedTierShuffle(gatheredMovies);
+            setMovies(finalMovies);
+            registerSeenIds(finalMovies.map((m: Movie) => Number(m.id)));
           }
         } catch (error) {
           console.error("Error loading row data:", error);

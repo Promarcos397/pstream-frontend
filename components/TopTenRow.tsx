@@ -805,12 +805,12 @@ const TopTenCard: React.FC<{
               <div className="px-4 pt-6 pb-5 space-y-4 bg-[#181818]">
                 {/* Action Buttons */}
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2.5">
                     {isBook ? (
                       <Link
                         to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-white text-black rounded-full w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-neutral-200 transition shadow-md duration-200"
+                        className="bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-200 transition shadow-md duration-200"
                         title="Read Now"
                       >
                         <BookOpenIcon size={24} weight="fill" />

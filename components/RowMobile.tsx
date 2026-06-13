@@ -122,11 +122,26 @@ const RowMobile: React.FC<RowMobileProps> = ({
 
           if (!isMounted) return;
 
+          // Strided Tier Shuffle Algorithm with high tier size K
+          const stridedTierShuffle = (array: Movie[], tierSize: number = 15): Movie[] => {
+            const result: Movie[] = [];
+            for (let i = 0; i < array.length; i += tierSize) {
+              const tier = array.slice(i, i + tierSize);
+              for (let j = tier.length - 1; j > 0; j--) {
+                const k = Math.floor(Math.random() * (j + 1));
+                [tier[j], tier[k]] = [tier[k], tier[j]];
+              }
+              result.push(...tier);
+            }
+            return result;
+          };
+
           if (gatheredMovies.length < 3) {
             setIsHidden(true);
           } else {
-            setMovies(gatheredMovies);
-            registerSeenIds(gatheredMovies.map((m: Movie) => Number(m.id)));
+            const finalMovies = stridedTierShuffle(gatheredMovies);
+            setMovies(finalMovies);
+            registerSeenIds(finalMovies.map((m: Movie) => Number(m.id)));
           }
         } catch (error) {
           console.error("Error loading mobile row data:", error);

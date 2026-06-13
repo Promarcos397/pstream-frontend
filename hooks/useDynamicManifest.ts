@@ -26,9 +26,12 @@ export interface SmartRow {
 // ─── Deterministic Helpers ────────────────────────────────────────────────────
 
 const getDailyHash = (): number => {
-  const day = new Date().toDateString();
+  const now = new Date();
+  const dateStr = now.toDateString();
+  const segment = Math.floor(now.getHours() / 4); // Shuffles every 4 hours
+  const key = `${dateStr}_segment_${segment}`;
   let h = 0;
-  for (let i = 0; i < day.length; i++) h = (h * 31 + day.charCodeAt(i)) | 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
   return Math.abs(h);
 };
 

@@ -25,10 +25,24 @@ export const REQUESTS = {
     if (extra) {
       const extraClean = extra.startsWith('&') ? extra.slice(1) : extra;
       const extraParams = new URLSearchParams(extraClean);
-      extraParams.forEach((v, k) => url.searchParams.set(k, v));
+      extraParams.forEach((v, k) => {
+        if (['with_genres', 'without_genres', 'with_keywords', 'without_keywords'].includes(k)) {
+          if (url.searchParams.has(k)) {
+            const existing = url.searchParams.get(k);
+            if (existing && existing !== v) {
+              url.searchParams.set(k, `${existing},${v}`); // TMDB uses comma for AND logic
+            }
+          } else {
+            url.searchParams.set(k, v);
+          }
+        } else {
+          // For with_origin_country and all other params, we simply override (or set) the value
+          url.searchParams.set(k, v);
+        }
+      });
     }
     
-    return url.toString();
+    return decodeURIComponent(url.toString());
   },
 
   fetchByGenre(type: 'movie' | 'tv', genreId: number, sortBy = 'popularity.desc', extra = '') {
@@ -170,6 +184,105 @@ export const REQUESTS = {
       with_origin_country: country,
       sort_by: 'popularity.desc',
       'vote_count.gte': 25
+    });
+  },
+
+  // ─── Niche / Hidden-gem endpoints (HeroEngine v4) ────────────────────────
+
+  /** High-rated films most people haven't seen — avoids mainstream blockbusters */
+  get fetchHiddenGems() {
+    return this._build(`${BASE_URL}/discover/movie`, {
+      sort_by: 'vote_average.desc',
+      'vote_average.gte': 7.2,
+      'vote_count.gte': 100,
+      'vote_count.lte': 3000,
+    });
+  },
+
+  /** Critically acclaimed non-English films */
+  get fetchWorldCinema() {
+    return this._build(`${BASE_URL}/discover/movie`, {
+      sort_by: 'vote_average.desc',
+      without_original_language: 'en',
+      'vote_count.gte': 200,
+      'vote_average.gte': 7.0,
+    });
+  },
+
+  /** Slow-burn prestige dramas — quality bar, not mega-popular */
+  get fetchPrestigeDrama() {
+    return this._build(`${BASE_URL}/discover/movie`, {
+      with_genres: '18',
+      sort_by: 'vote_average.desc',
+      'vote_count.gte': 300,
+      'vote_count.lte': 5000,
+    });
+  },
+
+  /** Underrated thrillers beneath the mainstream radar */
+  get fetchUnderratedThrillers() {
+    return this._build(`${BASE_URL}/discover/movie`, {
+      with_genres: '53',
+      sort_by: 'vote_average.desc',
+      'vote_count.gte': 100,
+      'vote_count.lte': 4000,
+    });
+  },
+
+  /** High-concept sci-fi — not the typical blockbuster picks */
+  get fetchConceptualSciFi() {
+    return this._build(`${BASE_URL}/discover/movie`, {
+      with_genres: '878',
+      sort_by: 'vote_average.desc',
+      'vote_count.gte': 150,
+      'vote_count.lte': 5000,
+    });
+  },
+
+  /** Classic cinema pre-2000 — avoids mega-famous picks via vote cap */
+  get fetchClassicCinema() {
+    return this._build(`${BASE_URL}/discover/movie`, {
+      sort_by: 'vote_average.desc',
+      'primary_release_date.lte': '2000-01-01',
+      'vote_count.gte': 500,
+      'vote_count.lte': 6000,
+    });
+  },
+
+  /** Cult midnight films via keyword tagging */
+  get fetchCultFilms() {
+    return this._build(`${BASE_URL}/discover/movie`, {
+      with_keywords: '10084|12339|156026',
+      sort_by: 'vote_average.desc',
+      'vote_count.gte': 80,
+    });
+  },
+
+  /** Hidden TV gems — highly rated but not yet mainstream */
+  get fetchHiddenTVGems() {
+    return this._build(`${BASE_URL}/discover/tv`, {
+      sort_by: 'vote_average.desc',
+      'vote_average.gte': 7.5,
+      'vote_count.gte': 100,
+      'vote_count.lte': 2000,
+    });
+  },
+
+  /** Non-English international series — K-drama, Spanish noir, French thriller etc. */
+  get fetchInternationalSeries() {
+    return this._build(`${BASE_URL}/discover/tv`, {
+      sort_by: 'vote_average.desc',
+      without_original_language: 'en',
+      'vote_count.gte': 150,
+    });
+  },
+
+  /** Mystery & thriller series — puzzle-box, whodunit, psychological */
+  get fetchMysteryThrillerSeries() {
+    return this._build(`${BASE_URL}/discover/tv`, {
+      with_genres: '9648,53',
+      sort_by: 'vote_average.desc',
+      'vote_count.gte': 100,
     });
   },
 };

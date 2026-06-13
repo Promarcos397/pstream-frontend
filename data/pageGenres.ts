@@ -24,7 +24,6 @@ export const MOVIE_GENRES: PageGenre[] = [
   { id: 10011, name: 'Independent' },
   { id: 10012, name: 'International' },
   { id: 10751, name: 'Kids & Family' },
-  { id: 10001, name: 'LGBTQ' },
   { id: 10007, name: 'Moods' },
   { id: 10402, name: 'Music & Musicals' },
   { id: 10001, name: 'Pride' },
@@ -73,9 +72,15 @@ export const HOME_GENRE_ID_MAP: Record<number, { movie: number; tv: number }> = 
   878: { movie: 878, tv: 10765 },
   10765: { movie: 878, tv: 10765 },
   14: { movie: 14, tv: 10765 },
+  10751: { movie: 10751, tv: 10762 },
+  10762: { movie: 10751, tv: 10762 },
+  12: { movie: 12, tv: 10759 },
+  53: { movie: 53, tv: 9648 },
+  9648: { movie: 53, tv: 9648 },
 };
 
-const TV_ONLY_GENRE_IDS = new Set([10759, 10762, 10764, 10765, 10767, 10015, 9648]);
+const TV_ONLY_GENRE_IDS = new Set([10759, 10762, 10763, 10764, 10765, 10766, 10767, 10768, 10015, 9648]);
+const MOVIE_ONLY_GENRE_IDS = new Set([12, 36, 53, 10402, 10751, 10013]);
 
 export const resolveGenreId = (
   mediaType: 'movie' | 'tv',
@@ -87,6 +92,7 @@ export const resolveGenreId = (
 };
 
 export const isTvOnlyGenreId = (genreId: number): boolean => TV_ONLY_GENRE_IDS.has(genreId);
+export const isMovieOnlyGenreId = (genreId: number): boolean => MOVIE_ONLY_GENRE_IDS.has(genreId);
 
 // ─── Merged mobile Home genre picker (movie-forward + TV-only / distinct variants) ──
 const movieNamesById = new Map<number, string>();
@@ -107,7 +113,6 @@ MOVIE_GENRES.forEach(pushHomeGenre);
 
 // TV entries: new ids or intentionally distinct labels for duplicate ids
 const TV_APPEND: PageGenre[] = [
-  { id: 10759, name: 'Action' },
   { id: 10762, name: 'Kids' },
   { id: 10764, name: 'Reality' },
   { id: 10765, name: 'Sci-Fi & Fantasy' },

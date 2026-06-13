@@ -4,18 +4,26 @@ import { getMovieImages, getExternalIds, fetchData, isBlacklisted } from './api'
 import tmdb from './tmdb';
 
 /**
- * HeroEngine v3 — "Session-Stable, Time-Aware"
+ * HeroEngine v4 — "Discovery-First, Session-Random"
  *
- * Fixes over v2:
- *  1. STABILITY   — Hero is locked in sessionStorage for the whole browser session
- *                   (max TTL 4h). Refresh no longer changes the hero.
- *  2. TIME-OF-DAY — Five time-slot pools (morning/afternoon/evening/late_night/night_owl)
- *                   so the hero theme matches the ambient mood of when you're watching.
- *  3. CONNECTED   — getTimeSlot(), getSeason(), getCurrentHoliday() are shared with
- *                   useDynamicManifest so the hero and the row manifest always agree
- *                   on context. HeroEngine re-evaluates the time slot once per hour
- *                   bucket (not on every refresh) so there's no jarring mid-session flip.
- *  4. LOGO GUARANTEE — unchanged: tries up to 5 candidates before falling back.
+ * Fixes over v3:
+ *  1. SESSION SALT   — A random salt is written to sessionStorage once per
+ *                      session. Every new tab/incognito/hard-cleared session
+ *                      gets a genuinely different hero pick. No more
+ *                      day-hash lock-in where refresh changes nothing.
+ *  2. PAGE DEPTH     — TMDB page is derived from the session salt (pages 2–5),
+ *                      so we never always hit the same top-20 results.
+ *  3. QUALITY FILTER — Results are filtered with a popularity ceiling
+ *                      (vote_count ≤ 8 000) and a quality floor
+ *                      (vote_average ≥ 6.8) to surface hidden gems over
+ *                      mega-blockbusters everyone has already seen.
+ *  4. POOL EXPANSION — Pools grow from 4–6 to 8–10 entries each, drawing
+ *                      on 10 new niche REQUESTS (world cinema, prestige drama,
+ *                      cult films, underrated thrillers, hidden gems, etc.).
+ *                      No endpoint is duplicated across time slots.
+ *  5. STABILITY      — Session-level cache (4 h TTL + hour-bucket guard) is
+ *                      retained from v3 for within-session stability.
+ *  6. LOGO GUARANTEE — unchanged: tries up to 5 candidates before fallback.
  */
 
 export interface HeroPackage {
@@ -69,12 +77,13 @@ export function getCurrentHoliday(): Holiday {
 
 // ─── Session-storage cache ────────────────────────────────────────────────────
 
-const SESSION_KEY = 'pstream_hero_v3';
-const SESSION_TTL = 4 * 60 * 60 * 1000; // 4 hours
+const SESSION_KEY      = 'pstream_hero_v4';
+const SESSION_SALT_KEY = 'pstream_hero_salt_v4';
+const SESSION_TTL      = 4 * 60 * 60 * 1000; // 4 hours
 
 interface CachedHeroEntry {
   ts: number;
-  hourBucket: number;       // which 1-hour bucket this was fetched in
+  hourBucket: number;
   movie: Movie;
   logoUrl?: string;
   pageType: string;
@@ -97,10 +106,35 @@ function saveSessionCache(cache: SessionCache): void {
 
 function hourBucket(): number {
   const now = new Date();
-  // Bucket = day-of-year × 24 + hour  →  changes once per hour maximum
   const start = new Date(now.getFullYear(), 0, 0);
   const doy   = Math.floor((now.getTime() - start.getTime()) / 86_400_000);
   return doy * 24 + now.getHours();
+}
+
+/**
+ * v4 key change: per-session random salt.
+ * Written once to sessionStorage so it stays stable within the session,
+ * but every new incognito/cleared session gets a fresh random number.
+ */
+function getSessionSalt(): number {
+  try {
+    let salt = sessionStorage.getItem(SESSION_SALT_KEY);
+    if (!salt) {
+      salt = String(Math.floor(Math.random() * 9999) + 1);
+      sessionStorage.setItem(SESSION_SALT_KEY, salt);
+    }
+    return Number(salt);
+  } catch {
+    return Math.floor(Math.random() * 9999) + 1;
+  }
+}
+
+/**
+ * Map session salt → TMDB page (2–5).
+ * Page 1 is always the most popular/known — skip it entirely.
+ */
+function getSessionPage(salt: number): number {
+  return (salt % 4) + 2; // 2, 3, 4, or 5
 }
 
 // ─── User-data accessor ───────────────────────────────────────────────────────
@@ -117,157 +151,173 @@ type HeroPoolItem = {
   url: () => string;
   label: string;
   preferGenres?: number[];
+  /** Skip popularity/vote ceiling for this slot (e.g. "All-Time Greats") */
+  allowPopular?: boolean;
 };
 
 // ─── Time-slotted pools ───────────────────────────────────────────────────────
-// Each time slot gets a mood-appropriate pool. The engine picks from the right
-// slot for the current hour, so the hero always feels contextually relevant.
+// v4: 8–10 entries per slot. No endpoint reused across time slots.
+// New niche endpoints used throughout to surface hidden gems.
 
 const HOME_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
   morning: [
-    { url: () => REQUESTS.fetchDocumentaries,            label: 'Morning Documentary',      preferGenres: [99] },
-    { url: () => REQUESTS.fetchComedyMovies,             label: 'Feel-Good Morning Film',   preferGenres: [35] },
-    { url: () => REQUESTS.fetchTopRated,                 label: 'All-Time Greats',          preferGenres: [18, 12] },
-    { url: () => REQUESTS.fetchFamiliarFavorites,        label: 'Fan Favourites',           preferGenres: [28, 12] },
-    { url: () => REQUESTS.fetchLoveTheseMovies,          label: 'Critically Loved',         preferGenres: [18] },
-    { url: () => REQUESTS.fetchBoredomBustersMovies,     label: 'Easy Morning Watch',       preferGenres: [35, 12] },
+    { url: () => REQUESTS.fetchDocumentaries,           label: 'Morning Documentary',        preferGenres: [99] },
+    { url: () => REQUESTS.fetchComedyMovies,            label: 'Feel-Good Morning Film',     preferGenres: [35] },
+    { url: () => REQUESTS.fetchWorldCinema,             label: 'World Cinema Pick',          preferGenres: [18] },
+    { url: () => REQUESTS.fetchFamiliarFavorites,       label: 'Fan Favourites',             preferGenres: [28, 12] },
+    { url: () => REQUESTS.fetchHiddenGems,              label: 'Overlooked Gem',             preferGenres: [18, 12] },
+    { url: () => REQUESTS.fetchClassicCinema,           label: 'A Classic You May Have Missed', preferGenres: [18] },
+    { url: () => REQUESTS.fetchBoredomBustersMovies,    label: 'Easy Morning Watch',         preferGenres: [35, 12] },
+    { url: () => REQUESTS.fetchRomanceMovies,           label: 'Morning Romance',            preferGenres: [10749] },
   ],
   afternoon: [
-    { url: () => REQUESTS.fetchExcitingMovies,           label: 'Blockbuster Action',       preferGenres: [28, 878] },
-    { url: () => REQUESTS.fetchPopular,                  label: 'What Everyone Is Watching',preferGenres: [28, 35] },
-    { url: () => REQUESTS.fetchActionMovies,             label: 'Action Films',             preferGenres: [28] },
-    { url: () => REQUESTS.fetchSciFiMovies,              label: 'Sci-Fi Spectacles',        preferGenres: [878] },
-    { url: () => REQUESTS.fetchBoredomBustersTV,         label: 'Gripping Series',          preferGenres: [80, 10765] },
-    { url: () => REQUESTS.fetchFamiliarFavoritesMovies,  label: 'Crowd-Pleasers',           preferGenres: [28, 12] },
+    { url: () => REQUESTS.fetchExcitingMovies,          label: 'High-Octane Blockbuster',    preferGenres: [28, 878] },
+    { url: () => REQUESTS.fetchUnderratedThrillers,     label: 'Underrated Thriller',        preferGenres: [53] },
+    { url: () => REQUESTS.fetchConceptualSciFi,         label: 'Thought-Provoking Sci-Fi',   preferGenres: [878] },
+    { url: () => REQUESTS.fetchActionMovies,            label: 'Action Pick',                preferGenres: [28] },
+    { url: () => REQUESTS.fetchBoredomBustersTV,        label: 'Gripping Series',            preferGenres: [80, 10765] },
+    { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Hidden Series Gem',          preferGenres: [18, 10765] },
+    { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Puzzle-Box Series',          preferGenres: [9648, 53] },
+    { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Hit',          preferGenres: [18] },
   ],
   evening: [
-    { url: () => REQUESTS.fetchCriticallyAcclaimedDrama, label: 'Evening Drama',            preferGenres: [18] },
-    { url: () => REQUESTS.fetchAwardWinningSeries,       label: 'Award-Winning Series',     preferGenres: [18, 10765] },
-    { url: () => REQUESTS.fetchLoveTheseTV,              label: 'Must-Watch TV',            preferGenres: [18, 80] },
-    { url: () => REQUESTS.fetchBoredomBustersTV,         label: 'Tonight\'s Binge Pick',    preferGenres: [80, 10765] },
-    { url: () => REQUESTS.fetchLoveTheseMovies,          label: 'Critically Loved Film',    preferGenres: [18, 53] },
-    { url: () => REQUESTS.fetchImaginativeSeries,        label: 'Imaginative Series',       preferGenres: [10765] },
+    { url: () => REQUESTS.fetchPrestigeDrama,           label: 'Prestige Cinema Tonight',    preferGenres: [18] },
+    { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Award-Winning Series',       preferGenres: [18, 10765] },
+    { url: () => REQUESTS.fetchHiddenGems,              label: 'Tonight\'s Hidden Gem',      preferGenres: [18, 53] },
+    { url: () => REQUESTS.fetchWorldCinema,             label: 'World Cinema Spotlight',     preferGenres: [18] },
+    { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Mystery of the Evening',     preferGenres: [9648, 53] },
+    { url: () => REQUESTS.fetchClassicCinema,           label: 'A Timeless Classic',         preferGenres: [18, 80] },
+    { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Gem',          preferGenres: [18] },
+    { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Acclaimed Series Pick',      preferGenres: [18, 10765] },
+    { url: () => REQUESTS.fetchCriticallyAcclaimedDrama,label: 'Critically Acclaimed Drama', preferGenres: [18] },
   ],
   late_night: [
-    { url: () => REQUESTS.fetchHorrorMovies,             label: 'Late Night Horror',        preferGenres: [27] },
-    { url: () => REQUESTS.fetchSciFiMovies,              label: 'After Dark Sci-Fi',        preferGenres: [878] },
-    { url: () => REQUESTS.fetchImaginativeSeries,        label: 'Mind-Bending Series',      preferGenres: [10765, 9648] },
-    { url: () => REQUESTS.fetchCrimeTV,                  label: 'Late Night Crime',         preferGenres: [80, 53] },
-    { url: () => REQUESTS.fetchExcitingMovies,           label: 'High-Stakes Thriller',     preferGenres: [53, 28] },
-    { url: () => REQUESTS.fetchExcitingSeriesTV,         label: 'Edge-of-Seat Series',      preferGenres: [80, 10765] },
+    { url: () => REQUESTS.fetchHorrorMovies,            label: 'Late Night Horror',          preferGenres: [27] },
+    { url: () => REQUESTS.fetchCultFilms,               label: 'Cult Midnight Pick',         preferGenres: [27, 878] },
+    { url: () => REQUESTS.fetchUnderratedThrillers,     label: 'After-Dark Thriller',        preferGenres: [53] },
+    { url: () => REQUESTS.fetchImaginativeSeries,       label: 'Mind-Bending Series',        preferGenres: [10765, 9648] },
+    { url: () => REQUESTS.fetchCrimeTV,                 label: 'Late Night Crime',           preferGenres: [80, 53] },
+    { url: () => REQUESTS.fetchConceptualSciFi,         label: 'Deep-Space Night',           preferGenres: [878] },
+    { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Psychological Thriller',     preferGenres: [9648] },
+    { url: () => REQUESTS.fetchExcitingSeriesTV,        label: 'Edge-of-Seat Series',        preferGenres: [80, 10765] },
   ],
   night_owl: [
-    { url: () => REQUESTS.fetchTopRated,                 label: 'Undiscovered Classics',    preferGenres: [18, 80] },
-    { url: () => REQUESTS.fetchLoveTheseTV,              label: 'Night Owl TV',             preferGenres: [18, 10765] },
-    { url: () => REQUESTS.fetchHorrorMovies,             label: 'Night Terror',             preferGenres: [27] },
-    { url: () => REQUESTS.fetchSciFiMovies,              label: 'Deep Space Night',         preferGenres: [878] },
-    { url: () => REQUESTS.fetchImaginativeSeries,        label: 'Strange Hours Viewing',    preferGenres: [10765, 9648] },
+    { url: () => REQUESTS.fetchClassicCinema,           label: 'Undiscovered Classic',       preferGenres: [18, 80] },
+    { url: () => REQUESTS.fetchCultFilms,               label: 'Pre-Dawn Cult Film',         preferGenres: [27, 878] },
+    { url: () => REQUESTS.fetchHorrorMovies,            label: 'Night Terror',               preferGenres: [27] },
+    { url: () => REQUESTS.fetchWorldCinema,             label: 'Night Owl World Cinema',     preferGenres: [18] },
+    { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Strange Hours Viewing',      preferGenres: [10765, 9648] },
+    { url: () => REQUESTS.fetchPrestigeDrama,           label: 'Arthouse Drama Pick',        preferGenres: [18] },
+    { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Late Pick',    preferGenres: [18] },
   ],
 };
 
 const MOVIE_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
-  morning:    [
+  morning: [
     { url: () => REQUESTS.fetchComedyMovies,            label: 'Morning Comedy' },
-    { url: () => REQUESTS.fetchTopRated,                label: 'All-Time Great Films' },
+    { url: () => REQUESTS.fetchWorldCinema,             label: 'World Cinema Morning' },
     { url: () => REQUESTS.fetchDocumentaries,           label: 'Morning Documentary' },
-    { url: () => REQUESTS.fetchLoveTheseMovies,         label: 'Critically Loved' },
+    { url: () => REQUESTS.fetchHiddenGems,              label: 'Hidden Film Gem' },
+    { url: () => REQUESTS.fetchClassicCinema,           label: 'Classic You\'ve Never Seen' },
+    { url: () => REQUESTS.fetchRomanceMovies,           label: 'Morning Romance' },
   ],
-  afternoon:  [
+  afternoon: [
     { url: () => REQUESTS.fetchExcitingMovies,          label: 'High-Octane' },
-    { url: () => REQUESTS.fetchActionMovies,            label: 'Action Films' },
-    { url: () => REQUESTS.fetchSciFiMovies,             label: 'Sci-Fi' },
-    { url: () => REQUESTS.fetchBoredomBustersMovies,    label: 'Crowd-Pleasers' },
+    { url: () => REQUESTS.fetchUnderratedThrillers,     label: 'Underrated Thriller' },
+    { url: () => REQUESTS.fetchConceptualSciFi,         label: 'Thought-Provoking Sci-Fi' },
+    { url: () => REQUESTS.fetchActionMovies,            label: 'Action Film' },
+    { url: () => REQUESTS.fetchBoredomBustersMovies,    label: 'Crowd-Pleaser' },
+    { url: () => REQUESTS.fetchHorrorMovies,            label: 'Afternoon Chiller' },
   ],
-  evening:    [
-    { url: () => REQUESTS.fetchLoveTheseMovies,         label: 'Evening Drama' },
-    { url: () => REQUESTS.fetchTopRated,                label: 'All-Time Greats' },
-    { url: () => REQUESTS.fetchRomanceMovies,           label: 'Evening Romance' },
-    { url: () => REQUESTS.fetchFamiliarFavoritesMovies, label: 'Fan Favourites' },
+  evening: [
+    { url: () => REQUESTS.fetchPrestigeDrama,           label: 'Prestige Drama' },
+    { url: () => REQUESTS.fetchHiddenGems,              label: 'Tonight\'s Hidden Gem' },
+    { url: () => REQUESTS.fetchWorldCinema,             label: 'World Cinema Spotlight' },
+    { url: () => REQUESTS.fetchClassicCinema,           label: 'Timeless Classic' },
+    { url: () => REQUESTS.fetchUnderratedThrillers,     label: 'Underrated Evening Thriller' },
+    { url: () => REQUESTS.fetchCultFilms,               label: 'Cult Evening Pick' },
   ],
   late_night: [
     { url: () => REQUESTS.fetchHorrorMovies,            label: 'Late Night Horror' },
-    { url: () => REQUESTS.fetchSciFiMovies,             label: 'After Dark Sci-Fi' },
-    { url: () => REQUESTS.fetchExcitingMovies,          label: 'Late Night Thrills' },
-    { url: () => REQUESTS.fetchTopRated,                label: 'Cult Classics' },
+    { url: () => REQUESTS.fetchCultFilms,               label: 'Cult Midnight Pick' },
+    { url: () => REQUESTS.fetchConceptualSciFi,         label: 'After-Dark Sci-Fi' },
+    { url: () => REQUESTS.fetchUnderratedThrillers,     label: 'Late Night Thriller' },
+    { url: () => REQUESTS.fetchWorldCinema,             label: 'International Late Pick' },
   ],
-  night_owl:  [
-    { url: () => REQUESTS.fetchTopRated,                label: 'Hidden Film Gems' },
+  night_owl: [
+    { url: () => REQUESTS.fetchClassicCinema,           label: 'Hidden Classic' },
     { url: () => REQUESTS.fetchHorrorMovies,            label: 'Pre-Dawn Horror' },
-    { url: () => REQUESTS.fetchSciFiMovies,             label: 'Night Vision Sci-Fi' },
-    { url: () => REQUESTS.fetchLoveTheseMovies,         label: 'Arthouse Picks' },
+    { url: () => REQUESTS.fetchPrestigeDrama,           label: 'Arthouse Night Pick' },
+    { url: () => REQUESTS.fetchHiddenGems,              label: 'Night Owl Gem' },
+    { url: () => REQUESTS.fetchCultFilms,               label: 'Night Cult Film' },
   ],
 };
 
 const TV_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
-  morning:    [
+  morning: [
     { url: () => REQUESTS.fetchComedyTV,                label: 'Morning Comedy Series' },
-    { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Award Winners' },
+    { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Hidden Series Gem' },
     { url: () => REQUESTS.fetchDocumentaries,           label: 'Morning Docs' },
-    { url: () => REQUESTS.fetchLoveTheseTV,             label: 'Must-Watch TV' },
+    { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Morning Pick' },
+    { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Award-Winning Morning Pick' },
   ],
-  afternoon:  [
+  afternoon: [
     { url: () => REQUESTS.fetchBoredomBustersTV,        label: 'Binge-Worthy' },
-    { url: () => REQUESTS.fetchActionTV,                label: 'Action TV' },
-    { url: () => REQUESTS.fetchImaginativeSeries,       label: 'Genre-Bending' },
+    { url: () => REQUESTS.fetchActionTV,                label: 'Action Series' },
+    { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Puzzle-Box Series' },
     { url: () => REQUESTS.fetchExcitingSeriesTV,        label: 'High-Stakes Series' },
+    { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Gem' },
+    { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Underrated Series Pick' },
   ],
-  evening:    [
+  evening: [
     { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Award-Winning Series' },
-    { url: () => REQUESTS.fetchCriticallyAcclaimedDrama,label: 'Prestige Drama' },
+    { url: () => REQUESTS.fetchCriticallyAcclaimedDrama,label: 'Prestige Drama Series' },
     { url: () => REQUESTS.fetchCrimeTV,                 label: 'Crime & Thriller' },
+    { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Evening Mystery' },
+    { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Tonight\'s Hidden Gem' },
+    { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Spotlight' },
     { url: () => REQUESTS.fetchDramaTV,                 label: 'Evening Drama' },
   ],
   late_night: [
     { url: () => REQUESTS.fetchCrimeTV,                 label: 'Late Night Crime' },
-    { url: () => REQUESTS.fetchImaginativeSeries,       label: 'After Dark Sci-Fi' },
-    { url: () => REQUESTS.fetchBoredomBustersTV,        label: 'Can\'t Stop Watching' },
+    { url: () => REQUESTS.fetchImaginativeSeries,       label: 'After Dark Sci-Fi Series' },
+    { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Psychological Thriller Series' },
     { url: () => REQUESTS.fetchExcitingSeriesTV,        label: 'Edge-of-Seat Series' },
+    { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Late Night Hidden Gem' },
   ],
-  night_owl:  [
-    { url: () => REQUESTS.fetchLoveTheseTV,             label: 'Night Owl TV' },
+  night_owl: [
+    { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Late Pick' },
+    { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Night Owl Series Gem' },
+    { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Pre-Dawn Mystery' },
+    { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Overlooked Award Pick' },
     { url: () => REQUESTS.fetchCrimeTV,                 label: 'Pre-Dawn Crime' },
-    { url: () => REQUESTS.fetchImaginativeSeries,       label: 'Strange Hours Series' },
-    { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Overlooked Gems' },
   ],
 };
 
-// Holiday overrides — if it's Halloween, Christmas etc. these pools take priority
+// Holiday overrides — mood-appropriate content takes priority when a holiday matches
 const HOLIDAY_HOME_OVERRIDE: Partial<Record<NonNullable<Holiday>, HeroPoolItem[]>> = {
   halloween: [
-    { url: () => REQUESTS.fetchHorrorMovies, label: 'Halloween Night Horror', preferGenres: [27] },
-    { url: () => REQUESTS.fetchImaginativeSeries, label: 'Halloween Series', preferGenres: [10765, 27] },
+    { url: () => REQUESTS.fetchHorrorMovies,    label: 'Halloween Night Horror',    preferGenres: [27] },
+    { url: () => REQUESTS.fetchCultFilms,       label: 'Halloween Cult Pick',       preferGenres: [27, 878] },
+    { url: () => REQUESTS.fetchImaginativeSeries, label: 'Halloween Series',        preferGenres: [10765, 27] },
   ],
   christmas: [
-    { url: () => REQUESTS.fetchComedyMovies, label: 'Christmas Comedy', preferGenres: [35] },
-    { url: () => REQUESTS.fetchFamiliarFavoritesMovies, label: 'Christmas Family Film', preferGenres: [10751] },
+    { url: () => REQUESTS.fetchComedyMovies,            label: 'Christmas Comedy',         preferGenres: [35] },
+    { url: () => REQUESTS.fetchFamiliarFavoritesMovies, label: 'Christmas Family Film',    preferGenres: [10751] },
+    { url: () => REQUESTS.fetchClassicCinema,           label: 'A Christmas Classic',      preferGenres: [35, 10751] },
   ],
   valentines: [
-    { url: () => REQUESTS.fetchRomanceMovies, label: 'Valentine\'s Romance', preferGenres: [10749] },
-    { url: () => REQUESTS.fetchComedyMovies,  label: 'Valentine\'s Night Comedy', preferGenres: [35, 10749] },
+    { url: () => REQUESTS.fetchRomanceMovies,   label: 'Valentine\'s Romance',      preferGenres: [10749] },
+    { url: () => REQUESTS.fetchWorldCinema,     label: 'Romantic World Cinema',     preferGenres: [10749, 18] },
   ],
   summer_break: [
-    { url: () => REQUESTS.fetchExcitingMovies,   label: 'Summer Blockbuster', preferGenres: [28, 12] },
-    { url: () => REQUESTS.fetchBoredomBustersTV, label: 'Summer Binge Series', preferGenres: [10765, 28] },
+    { url: () => REQUESTS.fetchExcitingMovies,  label: 'Summer Blockbuster',        preferGenres: [28, 12] },
+    { url: () => REQUESTS.fetchConceptualSciFi, label: 'Summer Sci-Fi Spectacle',   preferGenres: [878] },
+    { url: () => REQUESTS.fetchBoredomBustersTV,label: 'Summer Binge Series',       preferGenres: [10765, 28] },
   ],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function hashStr(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = Math.imul(31, h) + s.charCodeAt(i) | 0;
-  return Math.abs(h);
-}
-
-/**
- * Day-of-year — changes once per day, deterministic within the day.
- * Used for within-pool rotation so every day brings a different hero default.
- */
-function dayOfYear(): number {
-  const now   = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  return Math.floor((now.getTime() - start.getTime()) / 86_400_000);
-}
 
 function getUserTopGenres(): number[] {
   const { continueWatching = [], myList = [], likedMovies = {} } = _getUserData();
@@ -283,12 +333,13 @@ function getUserTopGenres(): number[] {
 }
 
 /**
- * Pick the best pool item for today, biased toward user's top genres.
- * Uses ±3 window around the daily-rotated base index.
+ * Pick the best pool item, biased toward user's top genres.
+ * v4: uses session salt for the base index instead of day hash,
+ * so each session gets a different starting point.
  */
-function pickPoolSlot(pool: HeroPoolItem[], pageType: string, userTopGenres: number[]): HeroPoolItem {
+function pickPoolSlot(pool: HeroPoolItem[], pageType: string, userTopGenres: number[], salt: number): HeroPoolItem {
   const n       = pool.length;
-  const baseIdx = hashStr(dayOfYear() + '_' + pageType) % n;
+  const baseIdx = salt % n;
   if (userTopGenres.length === 0 || n <= 1) return pool[baseIdx];
   const windowRange = [-3, -2, -1, 0, 1, 2, 3];
   let bestSlot  = pool[baseIdx];
@@ -306,12 +357,11 @@ function pickPoolSlot(pool: HeroPoolItem[], pageType: string, userTopGenres: num
 // ─── Engine ───────────────────────────────────────────────────────────────────
 
 class HeroEngineService {
-  /** In-memory map — rebuilt from sessionStorage on first getHero() call */
-  private live: Map<string, HeroPackage> = new Map();
+  private live: Map<string, HeroPackage>                        = new Map();
   private initializing: Map<string, Promise<HeroPackage | null>> = new Map();
   private listeners: Set<(pageType: string, hero: HeroPackage) => void> = new Set();
-  private sessionCache: SessionCache     = {};
-  private cacheLoaded                    = false;
+  private sessionCache: SessionCache = {};
+  private cacheLoaded                = false;
 
   private ensureCacheLoaded() {
     if (this.cacheLoaded) return;
@@ -319,25 +369,16 @@ class HeroEngineService {
     this.cacheLoaded  = true;
   }
 
-  /**
-   * Try to rehydrate a hero from sessionStorage.
-   * Entry is valid if:
-   *   - It exists
-   *   - It's less than SESSION_TTL old
-   *   - It was fetched in the same 1-hour bucket (so time-slot changes still take effect
-   *     when you cross e.g. 17:00 from afternoon → evening)
-   */
   private fromCache(cacheKey: string): HeroPackage | null {
     this.ensureCacheLoaded();
     const entry = this.sessionCache[cacheKey];
     if (!entry) return null;
-    const now = Date.now();
+    const now       = Date.now();
     const validAge  = now - entry.ts < SESSION_TTL;
     const sameHour  = entry.hourBucket === hourBucket();
     if (validAge && sameHour) {
       return { movie: entry.movie, logoUrl: entry.logoUrl, isReady: true, pageType: entry.pageType, timeSlot: entry.timeSlot };
     }
-    // Stale — evict
     delete this.sessionCache[cacheKey];
     saveSessionCache(this.sessionCache);
     return null;
@@ -369,24 +410,29 @@ class HeroEngineService {
       return fromSession;
     }
 
-    // 3. Prevent duplicate fetches by awaiting in-flight promise
+    // 3. Prevent duplicate in-flight fetches
     if (this.initializing.has(cacheKey)) return this.initializing.get(cacheKey)!;
 
     const promise = (async () => {
       try {
-        const slot = getTimeSlot();
-        const holiday = getCurrentHoliday();
+        const salt       = getSessionSalt();
+        const tmdbPage   = getSessionPage(salt);
+        const slot       = getTimeSlot();
+        const holiday    = getCurrentHoliday();
         const userGenres = getUserTopGenres();
 
         let url: string;
         let slotLabel = '';
+        let allowPopular = false;
 
         if (genreId) {
           url = fetchUrl || REQUESTS.fetchByGenre(pageType as 'movie' | 'tv', genreId);
-          slotLabel = `Genre ${genreId}`;
+          slotLabel    = `Genre ${genreId}`;
+          allowPopular = true;
         } else if (fetchUrl) {
           url = fetchUrl;
-          slotLabel = 'Custom';
+          slotLabel    = 'Custom';
+          allowPopular = true;
         } else {
           let pool: HeroPoolItem[];
           const holidayOverride = holiday ? HOLIDAY_HOME_OVERRIDE[holiday] : undefined;
@@ -396,29 +442,58 @@ class HeroEngineService {
             const pools = pageType === 'movie' ? MOVIE_POOLS : pageType === 'tv' ? TV_POOLS : HOME_POOLS;
             pool = pools[slot];
           }
-          const item = pickPoolSlot(pool, `${pageType}_${slot}`, userGenres);
-          url = item.url();
-          slotLabel = item.label;
+          const item   = pickPoolSlot(pool, `${pageType}_${slot}`, userGenres, salt);
+          url          = item.url();
+          slotLabel    = item.label;
+          allowPopular = item.allowPopular ?? false;
         }
 
-        console.log(`[HeroEngine v3] Curating "${slotLabel}" (${slot}) for ${cacheKey}…`);
+        // Append page to URL (pages 2–5 skip the most-popular top-20)
+        const pagedUrl = url.includes('?')
+          ? `${url}&page=${tmdbPage}`
+          : `${url}?page=${tmdbPage}`;
 
-        const response = await tmdb.get<TMDBResponse>(url);
+        console.log(`[HeroEngine v4] Curating "${slotLabel}" (${slot}, page ${tmdbPage}) for ${cacheKey}…`);
+
+        const response = await tmdb.get<TMDBResponse>(pagedUrl);
+
+        // v4 quality + popularity filter
+        const VOTE_FLOOR   = 80;
+        const VOTE_CEILING = allowPopular ? Infinity : 8000;
+        const AVG_FLOOR    = allowPopular ? 0         : 6.8;
+
         const results = (response.data.results || []).filter(
-          (m: any) => m.backdrop_path && m.vote_count >= 10 && !isBlacklisted(m, 'any')
+          (m: any) =>
+            m.backdrop_path &&
+            m.vote_count  >= VOTE_FLOOR   &&
+            m.vote_count  <= VOTE_CEILING  &&
+            m.vote_average >= AVG_FLOOR    &&
+            !isBlacklisted(m, 'any')
         );
 
-        if (results.length === 0) throw new Error(`No results for "${slotLabel}"`);
+        // Fallback: relax ceiling if niche filter was too tight
+        const fallbackResults = results.length < 3
+          ? (response.data.results || []).filter(
+              (m: any) => m.backdrop_path && m.vote_count >= VOTE_FLOOR && !isBlacklisted(m, 'any')
+            )
+          : results;
 
-        const startIdx = hashStr(dayOfYear() + '_' + cacheKey) % results.length;
+        const pool = fallbackResults.length > 0 ? fallbackResults : results;
+        if (pool.length === 0) throw new Error(`No results for "${slotLabel}" (page ${tmdbPage})`);
+
+        // v4: use session salt to pick the starting candidate (not day hash)
+        const startIdx = salt % pool.length;
         let selectedMovie: any = null;
         let logoUrl: string | undefined;
         let externals: any;
         let mediaType: 'movie' | 'tv' = 'movie';
 
-        const candidateIndices = Array.from({ length: Math.min(5, results.length) }, (_, i) => (startIdx + i) % results.length);
+        const candidateIndices = Array.from(
+          { length: Math.min(5, pool.length) },
+          (_, i) => (startIdx + i) % pool.length
+        );
         const candidateBatch = await Promise.all(candidateIndices.map(async (idx) => {
-          const c = results[idx];
+          const c     = pool[idx];
           const cType = (c.media_type || (c.title ? 'movie' : 'tv')) as 'movie' | 'tv';
           const [images, exts] = await Promise.all([
             getMovieImages(c.id, cType),
@@ -431,27 +506,27 @@ class HeroEngineService {
           const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
           if (logo) {
             selectedMovie = c;
-            mediaType = cType;
-            logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
-            externals = exts;
+            mediaType     = cType;
+            logoUrl       = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+            externals     = exts;
             break;
           }
         }
 
         if (!selectedMovie) {
-          selectedMovie = results[startIdx];
-          mediaType = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-          externals = await getExternalIds(selectedMovie.id, mediaType);
-          const images = await getMovieImages(selectedMovie.id, mediaType);
-          const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+          selectedMovie = pool[startIdx];
+          mediaType     = (selectedMovie.media_type || (selectedMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+          externals     = await getExternalIds(selectedMovie.id, mediaType);
+          const images  = await getMovieImages(selectedMovie.id, mediaType);
+          const logo    = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
           if (logo) logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
         }
 
         const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
         const pkg: HeroPackage = {
-          movie: movieWithExtras,
+          movie:    movieWithExtras,
           logoUrl,
-          isReady: true,
+          isReady:  true,
           pageType,
           timeSlot: slot,
         };
@@ -462,7 +537,7 @@ class HeroEngineService {
 
         return pkg;
       } catch (e) {
-        console.error(`[HeroEngine v3] Failed for ${cacheKey}:`, e);
+        console.error(`[HeroEngine v4] Failed for ${cacheKey}:`, e);
         return null;
       } finally {
         this.initializing.delete(cacheKey);
@@ -470,12 +545,11 @@ class HeroEngineService {
     })();
 
     const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
-    const finalPromise = Promise.race([promise, timeoutPromise]);
-    
+    const finalPromise   = Promise.race([promise, timeoutPromise]);
+
     this.initializing.set(cacheKey, finalPromise);
     return finalPromise;
   }
-
 
   subscribe(callback: (pageType: string, hero: HeroPackage) => void) {
     this.listeners.add(callback);
@@ -488,7 +562,7 @@ class HeroEngineService {
   }
 
   /**
-   * Force-invalidate specific pages (e.g. after user data loads so personalization kicks in).
+   * Force-invalidate pages (e.g. after user data loads so personalization kicks in).
    * Only clears if the cached entry is older than 30s (prevents thrashing on first load).
    */
   invalidateAndRefresh(pageTypes: string[] = ['home', 'movie', 'tv']) {

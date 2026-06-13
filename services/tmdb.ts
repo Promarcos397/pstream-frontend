@@ -159,6 +159,35 @@ tmdb.interceptors.request.use((config) => {
     include_adult: false,
     ...config.params,  // caller params WIN — they can override language per-call
   };
+
+  // Merge duplicates in the URL since TMDB 400s if multiple identical keys exist
+  if (config.url && config.url.includes('?')) {
+    try {
+      const [base, qs] = config.url.split('?');
+      const params = new URLSearchParams(qs);
+      
+      const genres = params.getAll('with_genres');
+      if (genres.length > 1) {
+        params.delete('with_genres');
+        params.set('with_genres', genres.join(','));
+      }
+      const keywords = params.getAll('with_keywords');
+      if (keywords.length > 1) {
+        params.delete('with_keywords');
+        params.set('with_keywords', keywords.join(','));
+      }
+      const countries = params.getAll('with_origin_country');
+      if (countries.length > 1) {
+        params.delete('with_origin_country');
+        params.set('with_origin_country', countries.join(','));
+      }
+      
+      config.url = `${base}?${params.toString()}`;
+    } catch (e) {
+      console.warn('[TMDB] URLSearchParams parse error', e);
+    }
+  }
+
   return config;
 });
 

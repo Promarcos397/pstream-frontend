@@ -11,7 +11,7 @@ import ManifestSkeleton from '../components/ManifestSkeleton';
 import HeroSkeleton from '../components/HeroSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
-import { HOME_MOBILE_GENRES, resolveGenreId } from '../data/pageGenres';
+import { HOME_MOBILE_GENRES, resolveGenreId, isTvOnlyGenreId, isMovieOnlyGenreId } from '../data/pageGenres';
 import { HeroEngine } from '../services/HeroEngine';
 
 interface PageProps {
@@ -22,9 +22,12 @@ interface PageProps {
 }
 
 const getDailyHash = (): number => {
-  const day = new Date().toDateString();
+  const now = new Date();
+  const dateStr = now.toDateString();
+  const segment = Math.floor(now.getHours() / 4); // Shuffles every 4 hours
+  const key = `${dateStr}_segment_${segment}`;
   let h = 0;
-  for (let i = 0; i < day.length; i++) h = (h * 31 + day.charCodeAt(i)) | 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
   return Math.abs(h);
 };
 
@@ -44,9 +47,11 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
   }, [selectedGenre?.id]);
 
   const heroFetchUrl = selectedGenre
-    ? (getDailyHash() % 2 === 0
-        ? REQUESTS.fetchByGenre('tv', resolveGenreId('tv', selectedGenre.id), 'popularity.desc')
-        : REQUESTS.fetchByGenre('movie', resolveGenreId('movie', selectedGenre.id), 'popularity.desc'))
+    ? (isTvOnlyGenreId(selectedGenre.id) ? REQUESTS.fetchByGenre('tv', resolveGenreId('tv', selectedGenre.id), 'popularity.desc')
+        : isMovieOnlyGenreId(selectedGenre.id) ? REQUESTS.fetchByGenre('movie', resolveGenreId('movie', selectedGenre.id), 'popularity.desc')
+        : (getDailyHash() % 2 === 0
+            ? REQUESTS.fetchByGenre('tv', resolveGenreId('tv', selectedGenre.id), 'popularity.desc')
+            : REQUESTS.fetchByGenre('movie', resolveGenreId('movie', selectedGenre.id), 'popularity.desc')))
     : REQUESTS.fetchPopular;
 
   const showSkeleton = !isAppReady || isLoading;
