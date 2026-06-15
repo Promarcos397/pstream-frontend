@@ -109,12 +109,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     startChromecast
   } = useCastStore();
 
-  // --- DEVICE DETECTION ---
-  const [isIOS, setIsIOS] = useState(false);
-  useEffect(() => {
-    const ua = window.navigator.userAgent.toLowerCase();
-    setIsIOS(/iphone|ipad|ipod/.test(ua) || (ua.includes('mac') && 'ontouchend' in document));
-  }, []);
+
 
   // --- LIQUID BUBBLE STATE ---
   const containerRef = useRef<HTMLDivElement>(null);
@@ -161,26 +156,18 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       const xPos = elRect.left - contRect.left - paddingX;
       const yPos = elRect.top  - contRect.top  - paddingY;
 
-      // Cache the expensive SVG map by dimensions
-      const cacheKey = `${Math.round(bubbleWidth)}x${Math.round(bubbleHeight)}`;
-      let url = mapCache.current.get(cacheKey);
-      if (isIOS && !url) {
-        url = generatePillMap(bubbleWidth, bubbleHeight);
-        mapCache.current.set(cacheKey, url);
-      }
-
       activeX.set(xPos);
       activeY.set(yPos);
       activeWidth.set(bubbleWidth);
       activeHeight.set(bubbleHeight);
 
-      setBubbleState({ opacity: 1, width: bubbleWidth, height: bubbleHeight, mapUrl: url || '' });
+      setBubbleState({ opacity: 1, width: bubbleWidth, height: bubbleHeight, mapUrl: '' });
     };
 
     const timer = setTimeout(updateBubble, 50);
     window.addEventListener('resize', updateBubble);
     return () => { clearTimeout(timer); window.removeEventListener('resize', updateBubble); };
-  }, [activeIndex, isIOS]);
+  }, [activeIndex]);
 
   // Progressive scroll fade for top header background
   useEffect(() => {
@@ -229,32 +216,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
   return (
     <>
-      {/* iOS Liquid Filter Definition — hidden SVG, only rendered when needed */}
-      {isIOS && bubbleState.mapUrl && (
-        <svg className="absolute w-0 h-0 pointer-events-none" style={{ position: 'fixed', top: 0, left: 0 }}>
-          <defs>
-            <filter id="liquid-bubble-nav" colorInterpolationFilters="sRGB" x="-50%" y="-50%" width="200%" height="200%">
-              <feImage
-                href={bubbleState.mapUrl}
-                result="disp_map"
-                width={bubbleState.width || 64}
-                height={bubbleState.height || 64}
-                preserveAspectRatio="none"
-              />
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="disp_map"
-                scale={bubbleState.height ? bubbleState.height * 1.2 : 50}
-                xChannelSelector="R"
-                yChannelSelector="G"
-                result="refracted"
-              />
-              <feGaussianBlur in="refracted" stdDeviation="0.4" result="blurred" />
-              <feMerge><feMergeNode in="blurred" /></feMerge>
-            </filter>
-          </defs>
-        </svg>
-      )}
+
 
       {/* ── Mobile Top Header ──────────────────────────────────────────────── */}
       {!isSearchActive ? (
@@ -393,33 +355,18 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                 height: springHeight,
                 scaleX,
                 scaleY,
-                // iOS: SVG liquid displacement. Non-iOS: standard frosted glass.
-                backdropFilter: isIOS
-                  ? `url(#liquid-bubble-nav) blur(2px)`
-                  : 'blur(12px)',
-                WebkitBackdropFilter: isIOS
-                  ? `url(#liquid-bubble-nav) blur(2px)`
-                  : 'blur(12px)',
-                backgroundColor: isIOS ? 'transparent' : 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(14px) saturate(160%)',
+                WebkitBackdropFilter: 'blur(14px) saturate(160%)',
+                backgroundColor: 'rgba(255, 255, 255, 0.13)',
                 borderRadius: '9999px',
                 clipPath: 'inset(0px round 9999px)',
                 transformOrigin: 'center center',
               }}
             >
-              {isIOS ? (
-                <>
-                  {/* Liquid specular highlights */}
-                  <div className="absolute inset-0 rounded-[9999px] bg-white/5 border border-white/10 mix-blend-overlay" />
-                  <div className="absolute inset-0 rounded-[9999px] shadow-[inset_0_2px_10px_rgba(255,255,255,0.2)]" />
-                  <div className="absolute inset-x-2 top-0 h-[2px] bg-white/20 blur-[2px] rounded-full" />
-                </>
-              ) : (
-                <>
-                  {/* Standard frosted glass border */}
-                  <div className="absolute inset-0 rounded-[9999px] border border-white/10 mix-blend-overlay" />
-                  <div className="absolute inset-x-2 top-0 h-[1.5px] bg-white/15 blur-[1px] rounded-full" />
-                </>
-              )}
+              {/* Specular highlights — visible on all platforms */}
+              <div className="absolute inset-0 rounded-[9999px] bg-white/5 border border-white/10 mix-blend-overlay" />
+              <div className="absolute inset-0 rounded-[9999px] shadow-[inset_0_2px_10px_rgba(255,255,255,0.18)]" />
+              <div className="absolute inset-x-2 top-0 h-[2px] bg-white/20 blur-[2px] rounded-full" />
             </motion.div>
           )}
         </AnimatePresence>
