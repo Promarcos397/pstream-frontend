@@ -1,134 +1,284 @@
-# 🏴‍☠️ The Ultimate P-Stream Developer Index
+// ... existing code ...
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useMotionValue, useSpring, useVelocity, useTransform } from 'framer-motion';
+import { House, Bookmark } from '@phosphor-icons/react';
+// ... existing code ...
+import pLogoSymbol from '../assets/logos/p-pstream-logo.svg';
+import { useCastStore } from '../store/useCastStore';
 
-This document is a comprehensive, decoded, and categorized version of the Megathread you provided. It has been optimized to highlight resources specifically useful for **P-Stream** (Streaming, Metadata, Subtitles, and UI/UX).
+const generatePillMap = (width: number, height: number) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  const imgData = ctx.createImageData(width, height);
+  
+  const r = height / 2;
+  const cx1 = r; 
+  const cx2 = width - r; 
+  const cy = r; 
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let dx = 0;
+      let dy = y - cy;
+      let dist = 0;
+      
+      if (x < cx1) {
+        dx = x - cx1;
+        dist = Math.sqrt(dx * dx + dy * dy);
+      } else if (x > cx2) {
+        dx = x - cx2;
+        dist = Math.sqrt(dx * dx + dy * dy);
+      } else {
+        dx = 0;
+        dist = Math.abs(dy);
+      }
+      
+      let rCol = 128;
+      let gCol = 128;
+      
+      if (dist < r) {
+        const normalizedDist = dist / r;
+        let magnitude = 0;
+        const edgeStart = 0.4; 
 
----
+        if (normalizedDist > edgeStart) {
+          const t = (normalizedDist - edgeStart) / (1 - edgeStart);
+          magnitude = Math.pow(t, 3) * 1.8; 
+        } else {
+          magnitude = -0.05 * Math.sin(normalizedDist * Math.PI);
+        }
 
-## 📺 Streaming & Media APIs (High Value)
-These are the core engines you can use to fetch video streams for your app.
+        magnitude = Math.max(-1.2, Math.min(1.2, magnitude));
 
-- **Streaming APIs Directory:** [https://rentry.co/onbksdgu](https://rentry.co/onbksdgu) (Decoded)
-  - *Contains: VidSrc, AutoEmbed, Rive API, sudo-flix, etc.*
-- **IPTV Playlists:** [https://rentry.co/IPTV-Playlists](https://rentry.co/IPTV-Playlists) (Decoded)
-- **TheIntroDB (Skip Intro/Credits):** [https://theintrodb.org/](https://theintrodb.org/)
-- **Wyzie Subs (Subtitle Scraper):** [https://sub.wyzie.ru/](https://sub.wyzie.ru/)
-- **Libre Subs:** [https://libre-subs.fifthwit.net/](https://libre-subs.fifthwit.net/)
+        const dirX = dist === 0 ? 0 : dx / dist;
+        const dirY = dist === 0 ? 0 : dy / dist;
 
----
+        const dispX = dirX * magnitude;
+        const dispY = dirY * magnitude;
 
-## 🔍 Tracking & Metadata
-Essential for building your UI, search, and "Continue Watching" features.
+        rCol = Math.min(255, Math.max(0, 128 + dispX * 100));
+        gCol = Math.min(255, Math.max(0, 128 + dispY * 100));
+      }
 
-- **TMDb (Industry Standard API):** [https://www.themoviedb.org/](https://www.themoviedb.org/)
-- **Simkl (Media Tracker API):** [https://simkl.com/](https://simkl.com/)
-- **Trakt.tv (User Progress Sync):** [https://trakt.tv/](https://trakt.tv/)
-- **IMDb (The Original):** [https://www.imdb.com/](https://www.imdb.com/)
-- **Letterboxd:** [https://letterboxd.com/](https://letterboxd.com/)
-- **Kinorium:** [https://kinorium.com/](https://kinorium.com/)
+      const index = (y * width + x) * 4;
+      imgData.data[index] = rCol;
+      imgData.data[index + 1] = gCol;
+      imgData.data[index + 2] = 128;
+      imgData.data[index + 3] = 255;
+    }
+  }
+  
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL('image/png');
+};
 
----
+interface NavbarMobileProps {
+// ... existing code ...
+  const {
+    isChromecastAvailable,
+    isChromecastConnected,
+    isChromecastConnecting,
+    isAirPlayAvailable,
+    isAirPlayActive,
+    startAirPlay,
+    startChromecast
+  } = useCastStore();
 
-## 💬 Subtitle Tools & Databases
-To fix those "No Subtitles Found" issues.
+  // --- LIQUID NAV STATE ---
+  const containerRef = useRef<HTMLDivElement>(null);
+  const navRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const mapCache = useRef(new Map<string, string>());
+  
+  const activeIndex = isSearchActive ? 2 : activeTab === 'list' ? 1 : activeTab === 'settings' ? 3 : 0;
+  
+  const [bubbleState, setBubbleState] = useState({ opacity: 0, width: 0, height: 48, mapUrl: '' });
+  const activeX = useMotionValue(0);
+  const activeY = useMotionValue(0);
+  const activeWidth = useMotionValue(0);
+  const activeHeight = useMotionValue(0);
+  
+  const springX = useSpring(activeX, { stiffness: 200, damping: 20, mass: 1 });
+  const springY = useSpring(activeY, { stiffness: 200, damping: 20, mass: 1 });
+  const springWidth = useSpring(activeWidth, { stiffness: 250, damping: 22, mass: 0.8 });
+  const springHeight = useSpring(activeHeight, { stiffness: 250, damping: 22, mass: 0.8 });
+  
+  const xVel = useVelocity(springX);
+  const scaleY = useTransform(xVel, [-800, 0, 800], [0.5, 1, 0.5], { clamp: true });
+  const scaleX = useTransform(xVel, [-800, 0, 800], [1.3, 1, 1.3], { clamp: true });
 
-- **OpenSubtitles (Best API):** [https://www.opensubtitles.com/](https://www.opensubtitles.com/)
-- **Subscene:** [https://subscene.com/](https://subscene.com/)
-- **SubDL:** [https://subdl.com/](https://subdl.com/)
-- **Bazarr (Automation Tool):** [https://www.bazarr.media/](https://www.bazarr.media/)
-- **ffsubsync (Sync Tool):** [https://github.com/smacke/ffsubsync](https://github.com/smacke/ffsubsync)
+  useEffect(() => {
+    const updateBubble = () => {
+      if (!navRefs.current[activeIndex] || !containerRef.current) return;
 
----
+      const el = navRefs.current[activeIndex];
+      const container = containerRef.current;
+      const elRect = el.getBoundingClientRect();
+      const contRect = container.getBoundingClientRect();
+      
+      const isDesktop = window.innerWidth >= 640;
+      const paddingX = isDesktop ? 8 : 16;
+      const paddingY = isDesktop ? 8 : 8;
+      
+      const bubbleWidth = elRect.width + paddingX * 2;
+      const bubbleHeight = elRect.height + paddingY * 2;
+      const xPos = elRect.left - contRect.left - paddingX;
+      const yPos = elRect.top - contRect.top - paddingY;
 
-## 🎨 Design & UI Resources
-Useful for your **ITVX "Midnight & Acid"** overhaul.
+      const cacheKey = `${Math.round(bubbleWidth)}x${Math.round(bubbleHeight)}`;
+      let url = mapCache.current.get(cacheKey);
+      
+      if (!url) {
+        url = generatePillMap(bubbleWidth, bubbleHeight);
+        mapCache.current.set(cacheKey, url);
+      }
 
-- **Design Resources (Decoded):** [https://pastebin.com/ivUgXADj](https://pastebin.com/ivUgXADj)
-- **Canva (Decoded):** [https://pastebin.com/MtwvnMLW](https://pastebin.com/MtwvnMLW)
-- **Affinity Suite (Decoded):** [https://rentry.co/affinitynologin](https://rentry.co/affinitynologin)
+      activeX.set(xPos);
+      activeY.set(yPos);
+      activeWidth.set(bubbleWidth);
+      activeHeight.set(bubbleHeight);
 
----
+      setBubbleState({ opacity: 1, width: bubbleWidth, height: bubbleHeight, mapUrl: url });
+    };
 
-## 🛠️ Developer & System Tools
-- **Cursor Reset (Trial Bypass):** 
-  - `https://github.com/ultrasev/cursor-reset`
-  - `https://github.com/yuautian/go-cursor-help`
-  - `https://github.com/kingparks/cursor-vip`
-- **MAS (Windows/Office Scripts):** [https://massgrave.dev/](https://massgrave.dev/)
-- **Winrar (Decoded):** [https://pastebin.com/pvMaZp6W](https://pastebin.com/pvMaZp6W)
-- **VMware Workstation (Decoded):** [https://pastebin.com/1E5sHPDP](https://pastebin.com/1E5sHPDP)
+    const timer = setTimeout(updateBubble, 50);
+    window.addEventListener('resize', updateBubble);
+    return () => { clearTimeout(timer); window.removeEventListener('resize', updateBubble); };
+  }, [activeIndex]);
+  
+  const avatarUrl = settings.avatarUrl || DEFAULT_AVATAR;
+// ... existing code ...
+  // Refactored helper functions to avoid class duplication and make customization easy
+  const getTabClass = (isActive: boolean) => {
+    return `relative z-10 flex flex-col items-center justify-center cursor-pointer select-none py-0.5 sm:py-5 sm:w-full
+      active:scale-95 sm:hover:bg-white/[0.03] group
+      ${isActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`;
+  };
+  const getPillClass = (isActive: boolean) => {
+    return `relative z-10 flex flex-col items-center justify-center transition-all duration-300 px-6 py-1.5 rounded-full
+      sm:w-full sm:h-auto sm:bg-transparent sm:rounded-none sm:px-0 sm:py-0
+      ${isActive 
+        ? 'text-white sm:bg-transparent' 
+        : 'text-white/45 hover:text-white/80'}`;
+  };
+  return (
+    <>
+      {/* --- LIQUID DISPLACEMENT MAP FILTER --- */}
+      <svg className="absolute w-0 h-0 pointer-events-none">
+        <defs>
+          <filter id="liquid-bubble-nav" colorInterpolationFilters="sRGB" x="-50%" y="-50%" width="200%" height="200%">
+            <feImage href={bubbleState.mapUrl} result="disp_map" width={bubbleState.width || 64} height={bubbleState.height || 64} preserveAspectRatio="none" />
+            <feDisplacementMap in="SourceGraphic" in2="disp_map" scale={bubbleState.height ? bubbleState.height * 1.2 : 50} xChannelSelector="R" yChannelSelector="G" result="refracted"/>
+            <feGaussianBlur in="refracted" stdDeviation="0.5" result="blurred" />
+            <feMerge><feMergeNode in="blurred" /></feMerge>
+          </filter>
+        </defs>
+      </svg>
 
----
+      {/* Mobile Top Header (Netflix style) */}
+// ... existing code ...
+      {/* Mobile Bottom Navigation Bar → Left Sidebar on sm: (foldable/tablet) */}
+      <div 
+        ref={containerRef}
+        className="
+        fixed bottom-[calc(16px+env(safe-area-inset-bottom))] left-8 right-8 z-[10020] mx-auto max-w-[310px] w-auto bg-[#1d1d1d] border border-white/10 rounded-full py-1 px-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.65)]
+        sm:bottom-0 sm:top-0 sm:left-0 sm:right-auto sm:w-[72px] sm:h-full sm:rounded-none sm:border-0 sm:border-r sm:border-white/[0.08]
+        sm:bg-[#121212] sm:shadow-2xl sm:flex sm:flex-col sm:items-center sm:justify-start sm:py-0 sm:px-0 sm:pb-0 sm:pt-0 sm:mx-0 sm:max-w-none
+      ">
+        {/* Brand Logo/Icon at the very top of the Sidebar (Tablet only) */}
+        <div className="hidden sm:flex items-center justify-center w-full pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6 shrink-0">
+// ... existing code ...
+          <img
+            src={pLogoSymbol}
+            alt="Pstream Emblem Logo"
+            onClick={() => handleMobileTabClick('home')}
+            className="h-[46px] w-auto cursor-pointer select-none transition-all active:scale-95 hover:scale-105 duration-200"
+          />
+        </div>
 
-## 🧩 Helpful Scraping & Automation
-- **AnimeFillerList:** [https://www.animefillerlist.com/](https://www.animefillerlist.com/)
-- **trace.moe (Anime Search by Image):** [https://trace.moe/](https://trace.moe/)
-- **MCU Order (Viewing Guides):** [https://docs.google.com/spreadsheets/d/13B823ukxdVMocowo1s5XnT3tzciOfruhUVePENKc01o/](https://docs.google.com/spreadsheets/d/13B823ukxdVMocowo1s5XnT3tzciOfruhUVePENKc01o/)
-- **WheresTheJump? (Jump Scares):** [https://wheresthejump.com/](https://wheresthejump.com/)
+        <div className="grid grid-cols-4 items-center justify-around w-full sm:flex sm:flex-col sm:items-center sm:justify-start sm:h-full sm:gap-2 sm:pt-0 sm:w-full relative">
+          
+          {/* THE LIQUID BUBBLE */}
+          <AnimatePresence>
+            {bubbleState.opacity > 0 && (
+              <motion.div
+                className="absolute pointer-events-none z-0"
+                initial={false}
+                animate={{ opacity: 1 }}
+                style={{
+                  x: springX,
+                  y: springY,
+                  width: springWidth,
+                  height: springHeight,
+                  scaleX: scaleX,
+                  scaleY: scaleY,
+                  backdropFilter: `url(#liquid-bubble-nav) blur(2px)`,
+                  WebkitBackdropFilter: `url(#liquid-bubble-nav) blur(2px)`,
+                  borderRadius: '9999px',
+                  clipPath: 'inset(0px round 9999px)',
+                  transformOrigin: 'center center'
+                }}
+              >
+                <div className="absolute inset-0 rounded-[9999px] bg-white/5 border border-white/10 mix-blend-overlay" />
+                <div className="absolute inset-0 rounded-[9999px] shadow-[inset_0_2px_10px_rgba(255,255,255,0.2)]" />
+                <div className="absolute inset-x-2 bottom-0 h-[2px] bg-white/20 blur-[2px] rounded-full" />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
----
+          {/* Home */}
+          <div
+            onClick={() => {
+// ... existing code ...
+            {activeTab === 'home' && !isSearchActive && (
+              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
+            )}
+            <div className={getPillClass(activeTab === 'home' && !isSearchActive)} ref={el => navRefs.current[0] = el}>
+              <House size={22} weight="regular" className="transition-transform group-hover:scale-105 duration-200" />
+              <span className="text-[8px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.home', { defaultValue: 'Home' })}</span>
+            </div>
+          </div>
 
-## 📂 Full Decoded Link List (Base64 Section)
+          {/* My List */}
+          <div
+            onClick={() => {
+// ... existing code ...
+            {activeTab === 'list' && !isSearchActive && (
+              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
+            )}
+            <div className={getPillClass(activeTab === 'list' && !isSearchActive)} ref={el => navRefs.current[1] = el}>
+              <Bookmark size={22} weight="regular" className="transition-transform group-hover:scale-105 duration-200" />
+              <span className="text-[8px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.myList', { defaultValue: 'My List' })}</span>
+            </div>
+          </div>
 
-| Name | Decoded Link |
-| :--- | :--- |
-| Setlists | [Google Sheets](https://docs.google.com/spreadsheets/d/13B823ukxdVMocowo1s5XnT3tzciOfruhUVePENKc01o/) |
-| FinalBurn Neo | [Archive.org](https://archive.org/details/@chadmaster?sort=-downloads&and[]=subject:%22fbn%22) |
-| TOSEC | [Archive.org](https://archive.org/details/TOSEC_V2017-04-23) |
-| IDM | [Pastebin](https://pastebin.com/y36P8uHQ) |
-| lib2life | [Pastebin](https://pastebin.com/KGKhvZZT) |
-| GameProgramBooks | [GitHub](https://github.com/kurong00/GameProgramBooks) |
-| HCS Forum | [Pastebin](https://pastebin.com/p47Tf9cz) |
-| Jailbreak Kindle | [KindleModding](https://kindlemodding.org/) |
-| RA DAT | [Archive.org](https://archive.org/search?query=Full+Retroachievements+collection+%2C+Updated+Jul+3+%2C+2024) |
-| Madokami | [Pastebin](https://pastebin.com/d9MhD1wf) |
-| BLI | [Pastebin](https://pastebin.com/hxV87rbu) |
-| MBAACC | [Pastebin](https://pastebin.com/u7BHjqxd) |
-| SinFlix | [Pastebin](https://pastebin.com/NCQa4ZV3) |
-| StartXBack | [Pastebin](https://pastebin.com/AcdknyDY) |
-| JBrains | [Pastebin](https://pastebin.com/d7GRyuTK) |
-| KPop Torrent | [Pastebin](https://pastebin.com/rFKrq9GW) |
-| LCQ | [Pastebin](https://pastebin.com/fM3S71Z8) |
-| gotohp | [GitHub](https://github.com/xob0t/gotohp) |
-| Xbox SS | [Google Docs](https://docs.google.com/document/d/e/2PACX-1vTUxUYjiTFb3kGusjMFlEajpAc2bTLD9eqspppq_heirfMKlueiRBC4s8woRfaO_KpS-vwS25j04Dk4J/pub) |
-| DKL | [Pastebin](https://pastebin.com/VFmqQThq) |
-| TNT | [Pastebin](https://pastebin.com/bVjviQqb) |
-| MC Legacy | [Pastebin](https://pastebin.com/CtxNNC0v) |
-| WeMod | [Pastebin](https://pastebin.com/AjsARy2d) |
-| Fightcade | [Pastebin](https://pastebin.com/xW9g8LPx) |
-| Rohan Kar | [Pastebin](https://pastebin.com/Zu2DAKXZ) |
-| Hayase | [Pastebin](https://pastebin.com/9YcaSTn6) |
-| wosu | [Pastebin](https://pastebin.com/wpTCC4Xa) |
-| LightDL | [Pastebin](https://pastebin.com/KSngnede) |
-| anadius | [Pastebin](https://pastebin.com/Zjd7mu00) |
-| Vadapav | [Pastebin](https://pastebin.com/e1cF8z3h) |
-| HTML games | [Pastebin](https://pastebin.com/2EkWGmjX) |
-| MB Online | [Pastebin](https://pastebin.com/eqREFc8X) |
-| Jumpinto | [Pastebin](https://pastebin.com/nA3w6VSU) |
-| scene cat | [Pastebin](https://pastebin.com/a1RgSZUZ) |
-| ET DL | [Pastebin](https://pastebin.com/ZeiLTMes) |
-| Satvrn | [Pastebin](https://pastebin.com/MD7gM6de) |
-| ROM Collections | [Pastebin](https://pastebin.com/xHVu1EH8) |
-| Quick Guide | [Pastebin](https://pastebin.com/sHLCuKE9) |
-| GenP | [Pastebin](https://pastebin.com/An84Uj4D) |
-| firehawk | [Pastebin](https://pastebin.com/Pnw9rE2D) |
-| a-dove-is-dumb | [Pastebin](https://pastebin.com/4FR8eryr) |
-| Myrient Backup | [Pastebin](https://pastebin.com/GDFqrzRD) |
-| Dyren | [Pastebin](https://pastebin.com/8wcym3pW) |
-| 3dsM | [Pastebin](https://pastebin.com/z12UjxnY) |
-| PSBBN-Definitive | [Pastebin](https://pastebin.com/8GQBChkA) |
+          {/* Search */}
+          <div
+            onClick={() => {
+// ... existing code ...
+            {isSearchActive && (
+              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
+            )}
+            <div className={getPillClass(isSearchActive)} ref={el => navRefs.current[2] = el}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px] shrink-0 transition-transform group-hover:scale-105 duration-200">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <span className="text-[8px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.search', { defaultValue: 'Search' })}</span>
+            </div>
+          </div>
 
----
-
-## 🧲 Torrent Clients & Infrastructure
-- **qBittorrent (Standard):** [https://www.qbittorrent.org/](https://www.qbittorrent.org/)
-- **Deluge:** [https://deluge-torrent.org/](https://deluge-torrent.org/)
-- **Transmission:** [https://transmissionbt.com/](https://transmissionbt.com/)
-- **Seedbox Guide:** [https://www.reddit.com/r/seedboxes/](https://www.reddit.com/r/seedboxes/)
-- **Port Forwarding Guide:** [https://portforward.com/](https://portforward.com/)
-
----
-
-## 🎭 Community & Discussion
-- **r/Piracy:** [https://www.reddit.com/r/Piracy/](https://www.reddit.com/r/Piracy/)
-- **r/FREEMEDIAHECKYEAH:** [https://www.reddit.com/r/FREEMEDIAHECKYEAH/](https://www.reddit.com/r/FREEMEDIAHECKYEAH/)
-- **Scene Release Trackers:** [https://pre-db.net/](https://pre-db.net/)
+          {/* Profile (Settings) */}
+          <div
+            onClick={() => {
+// ... existing code ...
+            {activeTab === 'settings' && !isSearchActive && (
+              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
+            )}
+            <div className={getPillClass(activeTab === 'settings' && !isSearchActive)} ref={el => navRefs.current[3] = el}>
+              <div
+                className={`w-[22px] h-[22px] rounded overflow-hidden flex items-center justify-center bg-[#E50914] text-white font-bold text-[10px] ring-[1.5px] transition-all duration-300 shrink-0 group-hover:scale-105 mb-0.5
+                  ${activeTab === 'settings' && !isSearchActive ? 'ring-white sm:ring-2' : 'ring-transparent'}`}
+// ... existing code ...
