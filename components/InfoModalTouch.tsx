@@ -17,6 +17,7 @@ import { MaturityBadge } from './MovieCardBadges';
 import { dimensionsAsMovies, get404Episodes } from '../data/notFoundDimensions';
 import { _modalTrailerCache } from './InfoModal';
 import { DoubleThumbsUpIcon } from './MovieCard';
+// removing tablet and ipad styles and sidebar
 
 interface InfoModalTouchProps {
     movie: Movie | null;
@@ -358,9 +359,9 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     const ageRating = activeMovie.adult ? '18' : (activeMovie.vote_average ?? 0) >= 7.5 ? '16' : '13';
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-black sm:bg-black/80 overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pt-[calc(68px+env(safe-area-inset-top))] pb-[calc(96px+env(safe-area-inset-bottom))] sm:items-center sm:justify-start sm:pt-6 sm:pl-[72px]">
+        <div className="fixed inset-0 z-[10000] bg-black overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pt-[calc(68px+env(safe-area-inset-top))] pb-[calc(96px+env(safe-area-inset-bottom))]">
             {/* Top Navigation Bar — solid background, Netflix style back arrow */}
-            <div className="fixed top-0 left-0 right-0 sm:left-[72px] h-[calc(68px+env(safe-area-inset-top))] bg-black border-b border-white/[0.04] flex items-center px-3 pt-[env(safe-area-inset-top)] z-[10010] shadow-md">
+            <div className="fixed top-0 left-0 right-0 h-[calc(68px+env(safe-area-inset-top))] bg-black border-b border-white/[0.04] flex items-center px-3 pt-[env(safe-area-inset-top)] z-[10010] shadow-md">
                 <button
                     type="button"
                     onClick={(e) => {
@@ -516,7 +517,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
             </div>
 
             {/* Details Content Container — margins/padding aligned consistently */}
-            <div className="px-3 sm:px-8 pt-[10px] pb-8 flex flex-col gap-y-[16px] bg-black w-full sm:max-w-[90vw]">
+            <div className="px-3 sm:px-6 pt-[10px] pb-8 flex flex-col gap-y-[16px] bg-black w-full sm:max-w-[640px] sm:mx-auto">
                 {/* Text Title */}
                 <h2 className="text-[25px] font-black font-netflix text-white tracking-wide leading-tight pt-0.5">
                     {activeMovie.title || activeMovie.name}

@@ -5,6 +5,7 @@ import { Movie } from '../types';
 import { fetchData } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
 import MovieCardTouch from './MovieCardTouch';
+// removing tablet and ipad styles and sidebar
 
 interface RowMobileProps {
   title: string;
@@ -168,9 +169,9 @@ const RowMobile: React.FC<RowMobileProps> = ({
         delay: Math.min(index * 0.08, 0.3),
         ease: [0.16, 1, 0.3, 1] 
       }}
-      className="group relative my-5 md:my-6 space-y-1.5 z-10"
+      className="group relative my-5 sm:my-6 space-y-1.5 z-10"
     >
-      <div className="flex items-center justify-between px-6 md:px-14 lg:px-16">
+      <div className="flex items-center justify-between px-6 sm:px-10">
         <h2 className="text-[20px] sm:text-[22px] font-bold text-[#e5e5e5] tracking-wide">
           {title}
         </h2>
@@ -186,13 +187,13 @@ const RowMobile: React.FC<RowMobileProps> = ({
             touchAction: 'pan-x pan-y',
           }}
         >
-          <div className="flex-none w-6 md:w-14 lg:w-16 h-full pointer-events-none" />
+          <div className="flex-none w-6 sm:w-10 h-full pointer-events-none" />
 
           {initialLoad
             ? Array.from({ length: 8 }).map((_, i) => (
                 <div 
                   key={i} 
-                  className="flex-none w-[calc((100vw-3rem)/3.2)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden border border-white/[0.04] mr-2 relative"
+                  className="flex-none w-[calc((100vw-3rem)/3.2)] sm:w-[calc((100vw-5rem)/3.8)] aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden border border-white/[0.04] mr-2 relative"
                 >
                   <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" style={{ animationDelay: `${i * 0.08}s` }} />
                   <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
@@ -205,7 +206,7 @@ const RowMobile: React.FC<RowMobileProps> = ({
               ))
           }
 
-          <div className="flex-none w-6 md:w-14 lg:w-16 h-full pointer-events-none" />
+          <div className="flex-none w-6 sm:w-10 h-full pointer-events-none" />
         </div>
       </div>
     </motion.div>

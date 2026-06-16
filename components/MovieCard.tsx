@@ -24,20 +24,29 @@ import { getOptimizedImageUrl } from '../utils/deviceHelper';
 const _logoCache = new Map<string, string>();
 
 // ─── Runtime pointer-type tracker ────────────────────────────────────────────
+// Tracks the LAST actual pointer device used (mouse vs touch/pen).
+// IMPORTANT: We only flip to touch-mode if we're also on a small screen.
+// A touch laptop at 1440px wide should always stay in hover/desktop mode.
 type _PHListener = (v: boolean) => void;
 const _phSubs = new Set<_PHListener>();
-let _prefersHover = typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : false;
+let _prefersHover = typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : true;
 
 if (typeof window !== 'undefined') {
+  // Only switch to touch mode when a touch pointer moves AND the screen is narrow
   window.addEventListener('pointermove', (e: PointerEvent) => {
-    const next = e.pointerType === 'mouse';
+    const isTouchInput = e.pointerType === 'touch' || e.pointerType === 'pen';
+    const isNarrowScreen = window.innerWidth < 768;
+    const next = !(isTouchInput && isNarrowScreen);
     if (next !== _prefersHover) { _prefersHover = next; _phSubs.forEach(f => f(next)); }
   }, { passive: true });
+  // A real mouse click always means hover-capable
   window.addEventListener('mousedown', () => {
     if (!_prefersHover) { _prefersHover = true; _phSubs.forEach(f => f(true)); }
   }, { passive: true });
-  window.addEventListener('touchstart', () => {
-    if (_prefersHover) { _prefersHover = false; _phSubs.forEach(f => f(false)); }
+  // Resize: re-evaluate when screen width changes (e.g. window resize on a laptop)
+  window.addEventListener('resize', () => {
+    const next = window.innerWidth >= 768 ? true : window.matchMedia('(hover: hover)').matches;
+    if (next !== _prefersHover) { _prefersHover = next; _phSubs.forEach(f => f(next)); }
   }, { passive: true });
 }
 
@@ -476,7 +485,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     }
   }, [imageSrc]);
 
-  if (isMobile || !prefersHover) {
+  // On mobile-width screens always use the touch card.
+  // On wider screens (tablet+, desktop) always use the desktop card with hover popup — 
+  // even on touch laptops. prefersHover only controls the popup, not the card variant.
+  if (isMobile) {
     return <MovieCardTouch movie={movie} onSelect={onSelect} onPlay={onPlay} isGrid={isGrid} />;
   }
 

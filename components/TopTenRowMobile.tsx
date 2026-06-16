@@ -4,6 +4,7 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { Movie } from '../types';
 import { fetchData } from '../services/api';
 import { BadgeOverlay, ProgressIndicator } from './MovieCardBadges';
+// removing tablet and ipad styles and sidebar
 
 // ─── Rank Number ────────────────────────────────────────────────────────────
 const RankNumber: React.FC<{ index: number }> = ({ index }) => {
@@ -254,9 +255,9 @@ const TopTenRowMobile: React.FC<TopTenRowMobileProps> = ({
         delay: Math.min(index * 0.08, 0.3),
         ease: [0.16, 1, 0.3, 1]
       }}
-      className="group relative my-5 md:my-6 space-y-2.5 z-10"
+      className="group relative my-5 sm:my-6 space-y-2.5 z-10"
     >
-      <div className="flex items-center justify-between px-6 md:px-14 lg:px-16">
+      <div className="flex items-center justify-between px-6 sm:px-10">
         <h2 className="text-[20px] sm:text-[22px] font-bold text-[#e5e5e5] tracking-wide">
           {title}
         </h2>
@@ -273,7 +274,7 @@ const TopTenRowMobile: React.FC<TopTenRowMobileProps> = ({
           }}
         >
           {/* Initial Spacer */}
-          <div className="flex-none w-3 md:w-14 lg:w-16 h-full pointer-events-none" />
+          <div className="flex-none w-3 sm:w-6 h-full pointer-events-none" />
 
           {loading
             ? Array.from({ length: 6 }).map((_, i) => (
@@ -294,7 +295,7 @@ const TopTenRowMobile: React.FC<TopTenRowMobileProps> = ({
           }
 
           {/* End Spacer */}
-          <div className="flex-none w-6 md:w-14 lg:w-16 h-full pointer-events-none" />
+          <div className="flex-none w-6 sm:w-10 h-full pointer-events-none" />
         </div>
       </div>
     </motion.div>

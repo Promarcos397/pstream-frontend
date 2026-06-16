@@ -3,6 +3,7 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { Movie } from '../types';
 import { BadgeOverlay, ProgressIndicator } from './MovieCardBadges';
 import { getOptimizedImageUrl } from '../utils/deviceHelper';
+// removing tablet and ipad styles and sidebar
 
 interface MovieCardTouchProps {
   movie: Movie;
@@ -86,7 +87,7 @@ const MovieCardTouch: React.FC<MovieCardTouchProps> = ({ movie, onSelect, onPlay
       className={`relative select-none bg-zinc-900 shadow-md transition-transform duration-200 active:scale-95 overflow-hidden rounded-lg
         ${isGrid
           ? 'w-full aspect-[2/3] cursor-pointer'
-          : 'flex-none w-[calc((100vw-3rem)/3.2)] sm:w-[calc((100vw-3rem)/4.3)] md:w-[calc((100vw-3.5rem)/5.3)] lg:w-[calc((100vw-4rem)/6.7)] aspect-[2/3] cursor-pointer'
+          : 'flex-none w-[calc((100vw-3rem)/3.2)] sm:w-[calc((100vw-5rem)/3.8)] aspect-[2/3] cursor-pointer'
         }`}
       onTouchStart={(e) => {
         touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };

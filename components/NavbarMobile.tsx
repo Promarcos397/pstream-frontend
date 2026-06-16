@@ -8,7 +8,7 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { DEFAULT_AVATAR } from '../constants';
 import pLogoSymbol from '../assets/logos/p-pstream-logo.svg';
 import { useCastStore } from '../store/useCastStore';
-
+// removing red pulsing underline from Nav
 // ─── Liquid Displacement Map Generator ────────────────────────────────────────
 // Generates a pill-shaped SVG displacement map for the liquid glass refraction effect.
 // Only called on iOS/iPadOS where backdrop-filter supports SVG filter references.
@@ -109,12 +109,12 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     startChromecast
   } = useCastStore();
 
-
-
   // --- LIQUID BUBBLE STATE ---
   const containerRef = useRef<HTMLDivElement>(null);
   const navRefs = useRef<(HTMLDivElement | null)[]>([]);
   const mapCache = useRef(new Map<string, string>());
+  // Tracks the very first render so we teleport the bubble instead of animating it in
+  const isFirstRender = useRef(true);
   const [bubbleState, setBubbleState] = useState({ opacity: 0, width: 0, height: 0, mapUrl: '' });
 
   // Tab order: Home=0, List=1, Search=2, Settings=3
@@ -147,26 +147,62 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       const elRect   = el.getBoundingClientRect();
       const contRect = container.getBoundingClientRect();
 
+      // If the element hasn't painted yet (dimensions are 0), bail out.
+      // The staggered timers below will catch it once it has.
+      if (elRect.width === 0 || elRect.height === 0) return;
+
       const isDesktop = window.innerWidth >= 640;
-      const paddingX  = isDesktop ? 8 : 14;
-      const paddingY  = isDesktop ? 6 : 6;
 
-      const bubbleWidth  = elRect.width  + paddingX * 2;
-      const bubbleHeight = elRect.height + paddingY * 2;
-      const xPos = elRect.left - contRect.left - paddingX;
-      const yPos = elRect.top  - contRect.top  - paddingY;
+      // Tight explicit padding — keeps the bubble small and snug around the icon
+      const addedWidth  = isDesktop ? 8 : 16;
+      const addedHeight = isDesktop ? 5  : 10;
 
-      activeX.set(xPos);
-      activeY.set(yPos);
-      activeWidth.set(bubbleWidth);
-      activeHeight.set(bubbleHeight);
+      const bubbleWidth  = elRect.width  + addedWidth;
+      const bubbleHeight = elRect.height + addedHeight;
+
+      // Derive exact centre of the nav item relative to the container
+      const centerX = (elRect.left - contRect.left) + (elRect.width  );
+      const centerY = (elRect.top  - contRect.top)  + (elRect.height );
+
+      // Subtract half the bubble's own size to place it centred over the icon
+      const xPos = centerX - (bubbleWidth / 1.01);
+      const yPos = centerY - (bubbleHeight / 0.9);
+
+      if (isFirstRender.current) {
+        // On the very first render: jump all spring values instantly so the
+        // bubble appears in place with no fly-in from the corner.
+        activeX.jump(xPos);
+        activeY.jump(yPos);
+        activeWidth.jump(bubbleWidth);
+        activeHeight.jump(bubbleHeight);
+        springX.jump(xPos);
+        springY.jump(yPos);
+        springWidth.jump(bubbleWidth);
+        springHeight.jump(bubbleHeight);
+        isFirstRender.current = false;
+      } else {
+        // Every subsequent tab change: animate smoothly via the springs.
+        activeX.set(xPos);
+        activeY.set(yPos);
+        activeWidth.set(bubbleWidth);
+        activeHeight.set(bubbleHeight);
+      }
 
       setBubbleState({ opacity: 1, width: bubbleWidth, height: bubbleHeight, mapUrl: '' });
     };
 
-    const timer = setTimeout(updateBubble, 50);
+    // Fire immediately, then at 50 ms and 250 ms as fallbacks.
+    // This guarantees we measure correctly even if fonts or SVG icons are slow to paint.
+    updateBubble();
+    const timer1 = setTimeout(updateBubble, 50);
+    const timer2 = setTimeout(updateBubble, 250);
+
     window.addEventListener('resize', updateBubble);
-    return () => { clearTimeout(timer); window.removeEventListener('resize', updateBubble); };
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      window.removeEventListener('resize', updateBubble);
+    };
   }, [activeIndex]);
 
   // Progressive scroll fade for top header background
@@ -202,27 +238,25 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
   // Tab wrapper class (handles text color + active state)
   const getTabClass = (isActive: boolean) =>
-    `relative flex flex-col items-center justify-center cursor-pointer select-none py-0.5 sm:py-5 sm:w-full
-     active:scale-95 sm:hover:bg-white/[0.03] group
+    `relative flex flex-col items-center justify-center cursor-pointer select-none py-0.5
+     active:scale-95 group
      ${isActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`;
 
   // Inner pill content — no static background, the animated bubble handles it
   const getPillClass = (isActive: boolean) =>
     `relative z-10 flex flex-col items-center justify-center transition-all duration-300 px-6 py-1.5 rounded-full
-     sm:w-full sm:h-auto sm:bg-transparent sm:rounded-none sm:px-0 sm:py-0
-     ${isActive ? 'text-white sm:bg-transparent' : 'text-white/45 hover:text-white/80'}`;
+     ${isActive ? 'text-white' : 'text-white/45 hover:text-white/80'}`;
 
   if (location.pathname === '/login') return null;
 
   return (
     <>
 
-
       {/* ── Mobile Top Header ──────────────────────────────────────────────── */}
       {!isSearchActive ? (
         <header
           style={{ backgroundColor: `rgba(0, 0, 0, ${opacity})` }}
-          className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0 sm:hidden"
+          className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0"
         >
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center justify-start gap-2.5">
@@ -291,7 +325,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
           </div>
         </header>
       ) : (
-        <header className="fixed top-0 left-0 right-0 sm:left-[72px] z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none bg-black/95 backdrop-blur-md">
+        <header className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none bg-black/95 backdrop-blur-md">
           <div className="flex items-center w-full px-1 animate-in fade-in duration-200">
             <div className="flex-1 flex items-center bg-[#222222] rounded-[4px] px-3.5 py-2.5 border border-white/[0.04]">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.0" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#8c8c8c] mr-3 shrink-0">
@@ -320,26 +354,16 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
         </header>
       )}
 
-      {/* ── Bottom Nav / sm: Sidebar ───────────────────────────────────────── */}
+      {/* ── Bottom Nav / sm: Sidebar ───────────────────────────────────────── removing sm style and tablet style */}
       <div
         ref={containerRef}
         className="
-          fixed bottom-[calc(16px+env(safe-area-inset-bottom))] left-8 right-8 z-[10020] mx-auto max-w-[310px] w-auto
-          bg-[#1d1d1d] border border-white/10 rounded-full py-1 px-1.5
+          fixed bottom-[calc(10px+env(safe-area-inset-bottom))] left-8 right-8 z-[10020] mx-auto max-w-[340px] sm:max-w-[400px] w-auto
+          bg-[#1d1d1d]/60 backdrop-blur-lg border border-white/10 rounded-[100px] py-3 sm:py-4 px-2 sm:px-3
           shadow-[0_12px_40px_rgba(0,0,0,0.65)]
-          sm:bottom-0 sm:top-0 sm:left-0 sm:right-auto sm:w-[72px] sm:h-full sm:rounded-none sm:border-0 sm:border-r sm:border-white/[0.08]
-          sm:bg-[#121212] sm:shadow-2xl sm:flex sm:flex-col sm:items-center sm:justify-start sm:py-0 sm:px-0 sm:pb-0 sm:pt-0 sm:mx-0 sm:max-w-none
         "
       >
-        {/* Brand Logo at top of Sidebar (tablet only) */}
-        <div className="hidden sm:flex items-center justify-center w-full pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6 shrink-0">
-          <img
-            src={pLogoSymbol}
-            alt="Pstream Emblem Logo"
-            onClick={() => handleMobileTabClick('home')}
-            className="h-[46px] w-auto cursor-pointer select-none transition-all active:scale-95 hover:scale-105 duration-200"
-          />
-        </div>
+
 
         {/* ── THE LIQUID BUBBLE ──────────────────────────────────────────── */}
         <AnimatePresence>
@@ -372,7 +396,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
         </AnimatePresence>
 
         {/* ── Nav Items ─────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-4 items-center justify-around w-full sm:flex sm:flex-col sm:items-center sm:justify-start sm:h-full sm:gap-2 sm:pt-0 sm:w-full">
+        <div className="grid grid-cols-4 items-center justify-around w-full">
 
           {/* Home */}
           <div
@@ -387,12 +411,10 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
             }}
             className={getTabClass(activeTab === 'home' && !isSearchActive)}
           >
-            {activeTab === 'home' && !isSearchActive && (
-              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
-            )}
+
             <div className={getPillClass(activeTab === 'home' && !isSearchActive)}>
-              <House size={22} weight="regular" className="transition-transform group-hover:scale-105 duration-200" />
-              <span className="text-[8px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.home', { defaultValue: 'Home' })}</span>
+              <House size={22} weight="regular" className="sm:w-[26px] sm:h-[26px] transition-transform group-hover:scale-105 duration-200" />
+              <span className="text-[8px] sm:text-[9px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.home', { defaultValue: 'Home' })}</span>
             </div>
           </div>
 
@@ -409,12 +431,10 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
             }}
             className={getTabClass(activeTab === 'list' && !isSearchActive)}
           >
-            {activeTab === 'list' && !isSearchActive && (
-              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
-            )}
+
             <div className={getPillClass(activeTab === 'list' && !isSearchActive)}>
-              <Bookmark size={22} weight="regular" className="transition-transform group-hover:scale-105 duration-200" />
-              <span className="text-[8px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.myList', { defaultValue: 'My List' })}</span>
+              <Bookmark size={22} weight="regular" className="sm:w-[26px] sm:h-[26px] transition-transform group-hover:scale-105 duration-200" />
+              <span className="text-[8px] sm:text-[9px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.myList', { defaultValue: 'My List' })}</span>
             </div>
           </div>
 
@@ -429,15 +449,13 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
             }}
             className={getTabClass(isSearchActive)}
           >
-            {isSearchActive && (
-              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
-            )}
+
             <div className={getPillClass(isSearchActive)}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px] shrink-0 transition-transform group-hover:scale-105 duration-200">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] shrink-0 transition-transform group-hover:scale-105 duration-200">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              <span className="text-[8px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.search', { defaultValue: 'Search' })}</span>
+              <span className="text-[8px] sm:text-[9px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.search', { defaultValue: 'Search' })}</span>
             </div>
           </div>
 
@@ -454,13 +472,11 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
             }}
             className={getTabClass(activeTab === 'settings' && !isSearchActive)}
           >
-            {activeTab === 'settings' && !isSearchActive && (
-              <div className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#E50914] rounded-r-md shadow-[0_0_12px_rgba(229,9,20,0.85)] animate-pulse" />
-            )}
+
             <div className={getPillClass(activeTab === 'settings' && !isSearchActive)}>
               <div
-                className={`w-[22px] h-[22px] rounded overflow-hidden flex items-center justify-center bg-[#E50914] text-white font-bold text-[10px] ring-[1.5px] transition-all duration-300 shrink-0 group-hover:scale-105 mb-0.5
-                  ${activeTab === 'settings' && !isSearchActive ? 'ring-white sm:ring-2' : 'ring-transparent'}`}
+                className={`w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded overflow-hidden flex items-center justify-center bg-[#E50914] text-white font-bold text-[10px] ring-[1.5px] transition-all duration-300 shrink-0 group-hover:scale-105 mb-0.5
+                  ${activeTab === 'settings' && !isSearchActive ? 'ring-white' : 'ring-transparent'}`}
               >
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
@@ -468,7 +484,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                   <span>{avatarInitial}</span>
                 )}
               </div>
-              <span className="text-[8px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.profile', { defaultValue: 'Profile' })}</span>
+              <span className="text-[8px] sm:text-[9px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.profile', { defaultValue: 'Profile' })}</span>
             </div>
           </div>
 
