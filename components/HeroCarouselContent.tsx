@@ -111,9 +111,9 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                 </div>
 
                 {/* Description - Hides after 7 seconds of video play */}
-                <div className={`transition-all duration-700 overflow-hidden ${!showDescription && isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-4 md:mb-6'}`}>
+                <div className={`transition-all duration-600 overflow-hidden ${!showDescription && isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-4 md:mb-6'}`}>
                     <p
-                        className={`text-[12px] sm:text-[13px] md:text-[15px] font-medium text-white/90 line-clamp-2 md:line-clamp-3 leading-relaxed max-w-[90%] sm:max-w-lg transition-all duration-700 ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
+                        className={`text-[12px] sm:text-[13px] md:text-[15px] font-medium text-white/90 line-clamp-2 md:line-clamp-3 leading-relaxed max-w-[90%] sm:max-w-lg transition-all duration-600 ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
                     >
                         {movie?.overview}
                     </p>

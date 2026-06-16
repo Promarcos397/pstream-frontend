@@ -24,21 +24,26 @@ import {
 import { useIsMobile } from '../hooks/useIsMobile';
 import TopTenRowMobile from './TopTenRowMobile';
 
-// ─── Shared pointer-type hook (same logic as MovieCard) ─────────────────────
+// ─── Shared pointer-type hook (same logic as MovieCard) ────────────────────────
+// IMPORTANT: Only flip to touch-mode when a touch pointer is used AND screen is narrow.
+// A touch laptop at 1440px wide must stay in hover/desktop mode.
 type _PHListener = (v: boolean) => void;
 const _phSubs = new Set<_PHListener>();
-let _prefersHover = typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : false;
+let _prefersHover = typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : true;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', (e: PointerEvent) => {
-    const next = e.pointerType === 'mouse';
+    const isTouchInput = e.pointerType === 'touch' || e.pointerType === 'pen';
+    const isNarrowScreen = window.innerWidth < 768;
+    const next = !(isTouchInput && isNarrowScreen);
     if (next !== _prefersHover) { _prefersHover = next; _phSubs.forEach(f => f(next)); }
   }, { passive: true });
   window.addEventListener('mousedown', () => {
     if (!_prefersHover) { _prefersHover = true; _phSubs.forEach(f => f(true)); }
   }, { passive: true });
-  window.addEventListener('touchstart', () => {
-    if (_prefersHover) { _prefersHover = false; _phSubs.forEach(f => f(false)); }
+  window.addEventListener('resize', () => {
+    const next = window.innerWidth >= 768 ? true : window.matchMedia('(hover: hover)').matches;
+    if (next !== _prefersHover) { _prefersHover = next; _phSubs.forEach(f => f(next)); }
   }, { passive: true });
 }
 

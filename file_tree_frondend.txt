@@ -1,5 +1,5 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-09 00:06:32
+# Generated: 2026-06-16 08:32:31
 # Root: D:\coding-projects\streaming-app\pstream-frontend
 
 pstream-frontend/
@@ -47,6 +47,7 @@ pstream-frontend/
 │   │   └── pstream-logo.svg
 │   └── landing-bg.png
 ├── components
+│   ├── AutoplayCountdown.tsx
 │   ├── BookHero.tsx
 │   ├── CategorySubNav.tsx
 │   ├── CategorySubNavMobile.tsx
@@ -151,6 +152,24 @@ pstream-frontend/
 ├── playwright-report
 │   └── index.html
 ├── public
+│   ├── fonts
+│   │   ├── Harmonia Sans Mono W01 Bold.otf
+│   │   ├── Harmonia Sans Mono W01 Bold.ttf
+│   │   ├── Harmonia Sans W01 Bold.otf
+│   │   ├── Harmonia Sans W01 Bold.ttf
+│   │   ├── Harmonia Sans W01 Regular.otf
+│   │   ├── Harmonia Sans W01 Regular.ttf
+│   │   ├── Harmonia Sans W06 Black Italic.otf
+│   │   ├── Harmonia Sans W06 Black Italic.ttf
+│   │   ├── Harmonia Sans W06 Condensed.otf
+│   │   ├── Harmonia Sans W06 Condensed.ttf
+│   │   ├── LeanerBold.otf
+│   │   ├── Morandi-W01-Regular.otf
+│   │   ├── netflix-sans-core-variable-full.woff2
+│   │   ├── netflix-sans.woff2
+│   │   ├── Niva-Bold _.ttf
+│   │   ├── ns-bd.woff2
+│   │   └── ns-md.woff2
 │   ├── icons
 │   │   ├── icon-192.png
 │   │   ├── icon-512-maskable.png
@@ -159,20 +178,79 @@ pstream-frontend/
 │   ├── apple-touch-icon.png
 │   ├── favicon.svg
 │   ├── manifest.json
+│   ├── netflix_observation_mockup.html
 │   ├── p-icon.svg
 │   ├── pstream-wordmark.svg
 │   ├── StandardGalacticAlphabet-Regular.ttf
 │   └── sw.js
+├── scraped_docs
+│   ├── 111movies_com.md
+│   ├── 1embed_cc.md
+│   ├── 2embed_skin.md
+│   ├── api_xyra_stream_docs_streamhub.md
+│   ├── cinemaos_tech_embed.md
+│   ├── cinesrc_st.md
+│   ├── cinezo_live.md
+│   ├── embed_icefy_top.md
+│   ├── fmovies4u_com.md
+│   ├── goatapi_imreallydagoatt_workers_dev.md
+│   ├── mappletv_uk.md
+│   ├── primesrc_me.md
+│   ├── spencerdevs_xyz.md
+│   ├── streamvaultsrc_click.md
+│   ├── vidapi_xyz.md
+│   ├── vidcore_net.md
+│   ├── vidfast_in.md
+│   ├── vidfast_io.md
+│   ├── vidfast_me.md
+│   ├── vidfast_net.md
+│   ├── vidfast_pm.md
+│   ├── vidfast_pro.md
+│   ├── vidfast_xyz.md
+│   ├── vidflix_club.md
+│   ├── vidify_top.md
+│   ├── vidlink_pro.md
+│   ├── vidnest_fun.md
+│   ├── vidrock_net.md
+│   ├── vidsrc-me_su.md
+│   ├── vidsrc_su.md
+│   ├── vidsrc_to.md
+│   ├── vidsrcme_ru.md
+│   ├── vidup_to.md
+│   ├── vidzee_wtf.md
+│   ├── vixsrc_to.md
+│   ├── web_nxsha_app_embed.md
+│   ├── www_2embed_cc.md
+│   ├── www_videasy_to.md
+│   └── www_vidking_net.md
 ├── scratch
+│   ├── analyze_curation.cjs
+│   ├── analyze_tmdb_results.cjs
 │   ├── audit_docs.py
 │   ├── check_subs.js
+│   ├── embed_sandbox.html
+│   ├── find_renegade_immortal.js
+│   ├── generate_custom_cases.cjs
+│   ├── generate_fixed_rows.cjs
+│   ├── hero_algo_check.cjs
 │   ├── inject_translations.js
 │   ├── launch_webkit.py
+│   ├── netflix_observation_mockup.html
+│   ├── player.min.js
+│   ├── player_fetched.html
+│   ├── populate_curation_data.cjs
 │   ├── provider_notes.md
+│   ├── read_watch_history.js
 │   ├── scrape_docs.py
+│   ├── test_curation_algorithm.cjs
 │   ├── test_direct_apis.py
+│   ├── test_keywords.cjs
 │   ├── test_player.html
-│   └── test_search.js
+│   ├── test_search.js
+│   ├── test_shuffling.cjs
+│   ├── test_upsert.js
+│   ├── vidapi_test.html
+│   └── vidfast_test.html
 ├── services
 │   ├── api.ts
 │   ├── EmbedProviders.ts
@@ -244,14 +322,17 @@ pstream-frontend/
 ├── index.html
 ├── index.tsx
 ├── package.json
+├── patch_builder.cjs
 ├── piracy_megathread_decoded.md
 ├── playwright.config.ts
 ├── postcss.config.js
 ├── tailwind.config.js
+├── test_all_genres.js
+├── test_custom_genres.js
 ├── tsconfig.json
 ├── types.ts
 ├── update_file_tree.py
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 24 directories, 226 files
+# 26 directories, 305 files

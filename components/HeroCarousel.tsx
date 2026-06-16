@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeakerSlashIcon, SpeakerHighIcon, ArrowCounterClockwise } from '@phosphor-icons/react';
 import MobileHero from './MobileHero';
-
+import SkeletonManifest, { ManifestSkeleton } from '../components/ManifestSkeleton';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -237,6 +237,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       prevActiveIdRef.current = activeVideoId;
       return;
     }
+    // investigate where is the code responible for viewpoint and height of hero carousel and change it to video aspect ratio
 
     // If the modal was open for this movie, we treat it as an interruption.
     // The user has transitioned to a deeper detail view, so we don't need to auto-resume the hero trailer.
@@ -295,9 +296,19 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
   }, [activeVideoId, movie]);
 
   if (!movie) {
-    if (!loading) return null; // Don't block the rest of the page if Hero fails
-    return <HeroSkeleton />;
+    if (!loading) return null; // Don't block the rest of the page if Hero fails make it stay skeleton 
+    return <> <HeroSkeleton /> <ManifestSkeleton /> </>
   }
+  // if rows of movies are ready to show , hold them untill , i dont know how to code but i will visit this later in sha Allah 
+  // const [rowsReady, setRowsReady] = useState(false);
+  // const [rows, setRows] = useState([]);
+
+  // useEffect(() => {
+  //   if (rowsReady) return;
+  //   if (rows.length > 0 && movie) {
+  //     setRowsReady(true);
+  //   }
+  // }, [rows, movie]);
 
   if (isMobile) {
     return <MobileHero movie={movie} logoUrl={logoUrl} onSelect={onSelect} onPlay={onPlay} />;
@@ -307,7 +318,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     <div
       id="hero-container"
       ref={containerRef}
-      className="relative h-[50vh] sm:h-[66vh] md:h-[77vh] lg:h-[80vh] w-full overflow-hidden group bg-black"
+      className="relative w-full aspect-[16/7.5] overflow-hidden group bg-black"
     >
       {/* Global Skeleton Overlay (Unified Blink) */}
       {loading && (

@@ -422,7 +422,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
       {/* Poster/Backdrop Card (Floating, centered card layout for both mobile and tablet) */}
       <div 
         onClick={() => onSelect(movie)}
-        className="w-full max-w-[440px] min-[500px]:w-full min-[500px]:max-w-[680px] aspect-[2/2.75] min-[500px]:aspect-[4/3] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] min-[500px]:translate-x-0 transition-all duration-200"
+        className="w-[92%] max-w-[400px] min-[500px]:w-full min-[500px]:max-w-[740px] aspect-[2/2.75] min-[500px]:aspect-[4/3] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] transition-all duration-200"
       >
         {/* High-Resolution Resolved Image */}
         <img 

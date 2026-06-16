@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie } from '../types';
-import { IMG_PATH } from '../constants';
 import { TrailerPlayer } from './TrailerPlayer';
 
 interface HeroCarouselBackgroundProps {
