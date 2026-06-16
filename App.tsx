@@ -177,6 +177,38 @@ const App: React.FC = () => {
       setPageTitle('');
     }
   }, [backgroundLocation.pathname, query, setPageTitle, t]);
+  // === NEW CHAMELEON STATUS BAR EFFECT FOR ANDROID ===
+  useEffect(() => {
+    const updateThemeColor = () => {
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (!metaThemeColor) return;
+
+      // 1. If watching a video or if the InfoModal is open, force pure black
+      if (location.pathname.startsWith('/watch') || selectedMovie) {
+        metaThemeColor.setAttribute('content', '#000000');
+        return;
+      }
+
+      // 2. The scroll effect: Change color based on scroll depth
+      if (window.scrollY < 50) {
+        // Top of the page: Matches your top header background
+        metaThemeColor.setAttribute('content', '#111111'); 
+      } else {
+        // Scrolled down: Matches your main app background
+        metaThemeColor.setAttribute('content', '#000000'); 
+      }
+    };
+
+    // Run immediately to set the correct color when a page loads
+    updateThemeColor();
+
+    // Listen for scroll events to change color dynamically
+    window.addEventListener('scroll', updateThemeColor, { passive: true });
+    
+    // Cleanup listener when the component unmounts
+    return () => window.removeEventListener('scroll', updateThemeColor);
+  }, [location.pathname, selectedMovie]);
+  // ===================================================
 
   const [heroSeekTime, setHeroSeekTime] = useState(0);
   const [infoInitialTime, setInfoInitialTime] = useState(0);
