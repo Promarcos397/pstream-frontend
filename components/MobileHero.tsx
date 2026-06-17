@@ -274,6 +274,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   useEffect(() => {
     if (!bgImageSrc) {
       setAccentRGB(null);
+      delete document.documentElement.dataset.heroRgb;
       return;
     }
 
@@ -343,6 +344,8 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           avgB = Math.min(255, Math.round(avgB * (avgB === maxCh ? boostFactor : 1)));
 
           setAccentRGB({ r: avgR, g: avgG, b: avgB });
+          document.documentElement.dataset.heroRgb = `${avgR},${avgG},${avgB}`;
+          window.dispatchEvent(new Event('pstream:theme-update'));
         } else {
           let fallbackR = 0, fallbackG = 0, fallbackB = 0;
           const total = imgData.length / 4;
@@ -351,22 +354,30 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
             fallbackG += imgData[i + 1] ?? 0;
             fallbackB += imgData[i + 2] ?? 0;
           }
-          setAccentRGB({
-            r: Math.round(fallbackR / total),
-            g: Math.round(fallbackG / total),
-            b: Math.round(fallbackB / total),
-          });
+          const fr = Math.round(fallbackR / total);
+          const fg = Math.round(fallbackG / total);
+          const fb = Math.round(fallbackB / total);
+          setAccentRGB({ r: fr, g: fg, b: fb });
+          document.documentElement.dataset.heroRgb = `${fr},${fg},${fb}`;
+          window.dispatchEvent(new Event('pstream:theme-update'));
         }
       } catch (err) {
         setAccentRGB({ r: 80, g: 80, b: 120 });
+        document.documentElement.dataset.heroRgb = '80,80,120';
+        window.dispatchEvent(new Event('pstream:theme-update'));
       }
     };
     img.onerror = () => {
-      if (isMounted) setAccentRGB({ r: 80, g: 80, b: 120 });
+      if (isMounted) {
+        setAccentRGB({ r: 80, g: 80, b: 120 });
+        document.documentElement.dataset.heroRgb = '80,80,120';
+        window.dispatchEvent(new Event('pstream:theme-update'));
+      }
     };
 
     return () => {
       isMounted = false;
+      delete document.documentElement.dataset.heroRgb;
     };
   }, [bgImageSrc]);
 

@@ -14,8 +14,8 @@
         "searchTitle": "Arama: {{query}}",
         "manageProfiles": "Profil Yönetimi",
         "accountSettings": "Hesap / Ayarlar",
-        "signOut": "P-Stream Oturumunu Kapat",
-        "signIn": "Oturum Aç"
+        "logOut": "Oturumunu Kapat",
+        "logIn": "Oturum Aç"
     },
     "hero": {
         "play": "Oynat",

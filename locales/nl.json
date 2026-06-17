@@ -14,8 +14,8 @@
         "searchTitle": "Zoeken: {{query}}",
         "manageProfiles": "Profielen beheren",
         "accountSettings": "Account / Instellingen",
-        "signOut": "Uitloggen bij P-Stream",
-        "signIn": "Inloggen"
+        "logOut": "Uitloggen",
+        "logIn": "Inloggen"
     },
     "hero": {
         "play": "Afspelen",

@@ -17,6 +17,7 @@ import { preloadTrailer } from '../hooks/useTrailer';
 import MovieCardTouch from './MovieCardTouch';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { getOptimizedImageUrl } from '../utils/deviceHelper';
+import { useIsScrolling } from '../utils/scrollState';
 
 // ─── Module-level logo cache ─────────────────────────────────────────────────
 // Persists across component mounts/unmounts within a page session so logos are
@@ -262,8 +263,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
     activePopupId, setActivePopupId,
-    globalMute, setGlobalMute, clearVideoState, isScrolling, settings
+    globalMute, setGlobalMute, clearVideoState, settings
   } = useGlobalContext();
+  const isScrolling = useIsScrolling();
   const [isHovered, setIsHovered] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);

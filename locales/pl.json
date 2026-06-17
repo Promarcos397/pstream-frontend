@@ -14,8 +14,8 @@
         "searchTitle": "Wyszukiwanie: {{query}}",
         "manageProfiles": "Zarządzaj profilami",
         "accountSettings": "Konto / Ustawienia",
-        "signOut": "Wyloguj się z P-Stream",
-        "signIn": "Zaloguj się"
+        "logOut": "Wyloguj się",
+        "logIn": "Zaloguj się"
     },
     "hero": {
         "play": "Odtwórz",

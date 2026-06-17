@@ -14,8 +14,8 @@
         "searchTitle": "搜索: {{query}}",
         "manageProfiles": "个人资料管理",
         "accountSettings": "账户 / 设置",
-        "signOut": "登出 Pstream",
-        "signIn": "登录"
+        "logOut": "登出",
+        "logIn": "登录"
     },
     "hero": {
         "play": "播放",

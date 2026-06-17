@@ -14,8 +14,8 @@
         "searchTitle": "Search: {{query}}",
         "manageProfiles": "Manage Profiles",
         "accountSettings": "Account / Settings",
-        "signOut": "Sign out of Pstream",
-        "signIn": "Sign In"
+        "logOut": "Log out",
+        "logIn": "Log In"
     },
     "hero": {
         "play": "Play",

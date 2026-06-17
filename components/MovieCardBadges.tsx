@@ -25,7 +25,7 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({ adult, voteAverage
     : '#F97316'; // orange for 13+
 
   // Tweak 'dim' sizes here to make the circle bigger/smaller
-  const dim = size === 'md' ? 'w-10 h-10 text-[18px]' : size === 'xs' ? 'w-6 h-6 text-[10px]' : 'w-9 h-9 text-[14px]';
+  const dim = size === 'md' ? 'w-8 h-8 text-[16px]' : size === 'xs' ? 'w-6 h-6 text-[10px]' : 'w-9 h-9 text-[14px]';
 
   return (
     <span

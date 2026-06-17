@@ -51,7 +51,6 @@ interface GlobalContextType {
   isKidsMode: boolean;
   pageSeenIds: number[];
   registerSeenIds: (ids: number[]) => void;
-  isScrolling: boolean;
   isAppReady: boolean;
   setIsAppReady: (ready: boolean) => void;
   clearSeenIds: () => void;
@@ -81,22 +80,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const user = useAuthStore(s => s.user);
   const signOut = useAuthStore(s => s.signOut);
 
-  const [isScrolling, setIsScrolling] = useState(false);
   const [isAppReady, setIsAppReady] = useState(false);
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const handleScroll = () => {
-      if (!isScrolling) setIsScrolling(true);
-      clearTimeout(timer);
-      timer = setTimeout(() => setIsScrolling(false), 60);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      clearTimeout(timer);
-    };
-  }, [isScrolling]);
 
   const setGlobalMute = useCallback((mute: boolean) => {
     setGlobalMuteState(mute);
@@ -279,7 +263,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       heroVideoState, setHeroVideoState, activeVideoId, setActiveVideoId,
       activePopupId, setActivePopupId,
       globalMute, setGlobalMute, isKidsMode: false, pageSeenIds, registerSeenIds, clearSeenIds,
-      isScrolling, isAppReady, setIsAppReady
+      isAppReady, setIsAppReady
     }}>
       {children}
     </GlobalContext.Provider>

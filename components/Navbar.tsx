@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, startTransition } from 'react';
 import { useTranslation } from 'react-i18next';
 import SearchBar from './SearchBar';
 import pstreamWordmark from '../assets/logos/pstream-logo.svg';
@@ -34,18 +34,39 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
     { id: 'list', label: t('nav.myList', { defaultValue: 'My List' }) },
   ];
 
+  useEffect(() => {
+    if (!isMobile) {
+      const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+      if (meta) meta.content = '#141414';
+      return () => {
+        const m = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+        if (m) m.content = '#000000';
+      };
+    }
+  }, [isMobile]);
+
+  const preloadPage = (tabId: string) => {
+    switch (tabId) {
+      case 'home':     void import('../pages/HomePage'); break;
+      case 'tv':       void import('../pages/ShowsPage'); break;
+      case 'movies':   void import('../pages/MoviesPage'); break;
+      case 'new':      void import('../pages/NewPopularPage'); break;
+      case 'list':     void import('../pages/MyListPage'); break;
+      case 'settings': void import('../pages/SettingsPage'); break;
+    }
+  };
+
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    setSearchQuery('');
-    
-    if (tabId === 'settings') {
-      navigate('/settings');
-    } else if (tabId === 'home') {
-      navigate('/');
-    } else {
-      navigate(`/${tabId}`);
-    }
+    startTransition(() => {
+      if (tabId === 'settings') {
+        navigate('/settings');
+      } else if (tabId === 'home') {
+        navigate('/');
+      } else {
+        navigate(`/${tabId}`);
+      }
+    });
   };
 
   if (location.pathname === '/login') return null;
@@ -86,6 +107,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
                 <li
                   key={item.id}
                   onClick={() => handleTabClick(item.id)}
+                  onMouseEnter={() => preloadPage(item.id)}
                   className={`cursor-pointer transition-colors whitespace-nowrap ${activeTab === item.id ? 'text-white font-bold' : 'hover:text-[#8c8c8c]'}`}
                 >
                   {item.label}
@@ -160,13 +182,13 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
                       onClick={() => handleTabClick('settings')}
                       className="w-full text-left px-3 py-2 hover:bg-white/10 rounded transition-colors text-xs font-semibold mt-1 flex items-center justify-between"
                     >
-                      <span>Account Settings</span>
+                      <span>{t('accountSettings')}</span>
                     </button>
                     <button 
                       onClick={() => handleTabClick('list')}
                       className="w-full text-left px-3 py-2 hover:bg-white/10 rounded transition-colors text-xs font-semibold flex items-center justify-between"
                     >
-                      <span>My List</span>
+                      <span>{t('nav.list')}</span>
                     </button>
 
                     <div className="h-px bg-white/10 my-1" />
@@ -176,7 +198,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
                       onClick={() => { logout(); navigate('/'); }}
                       className="w-full text-left px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors text-xs font-bold"
                     >
-                      Sign Out of Pstream
+                      {t('nav.logOut')}
                     </button>
                   </div>
                 </div>

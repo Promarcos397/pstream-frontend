@@ -14,8 +14,8 @@
         "searchTitle": "Sök: {{query}}",
         "manageProfiles": "Hantera profiler",
         "accountSettings": "Konto / Inställningar",
-        "signOut": "Logga ut från P-Stream",
-        "signIn": "Logga in"
+        "logOut": "Logga ut",
+        "logIn": "Logga in"
     },
     "hero": {
         "play": "Spela upp",

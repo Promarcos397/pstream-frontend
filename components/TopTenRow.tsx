@@ -23,6 +23,7 @@ import {
 } from './MovieCardBadges';
 import { useIsMobile } from '../hooks/useIsMobile';
 import TopTenRowMobile from './TopTenRowMobile';
+import { useIsScrolling } from '../utils/scrollState';
 
 // ─── Shared pointer-type hook (same logic as MovieCard) ────────────────────────
 // IMPORTANT: Only flip to touch-mode when a touch pointer is used AND screen is narrow.
@@ -323,8 +324,9 @@ const TopTenCard: React.FC<{
     updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies, activeVideoId, setActiveVideoId,
     activePopupId, setActivePopupId,
-    globalMute, setGlobalMute, clearVideoState, isScrolling, settings
+    globalMute, setGlobalMute, clearVideoState, settings
   } = useGlobalContext();
+  const isScrolling = useIsScrolling();
 
   const [isHovered, setIsHovered] = useState(false);
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);

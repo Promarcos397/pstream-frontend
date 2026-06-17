@@ -14,8 +14,8 @@
         "searchTitle": "검색: {{query}}",
         "manageProfiles": "프로필 관리",
         "accountSettings": "계정 / 설정",
-        "signOut": "P-Stream에서 로그아웃",
-        "signIn": "로그인"
+        "logOut": "로그아웃",
+        "logIn": "로그인"
     },
     "hero": {
         "play": "재생",

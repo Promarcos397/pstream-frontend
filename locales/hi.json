@@ -14,8 +14,8 @@
         "searchTitle": "खोज: {{query}}",
         "manageProfiles": "प्रोफाइल मैनेज करें",
         "accountSettings": "खाता / सेटिंग",
-        "signOut": "P-Stream से साइन आउट करें",
-        "signIn": "साइन इन करें"
+        "logOut": "लॉग आउट",
+        "logIn": "लॉग इन"
     },
     "hero": {
         "play": "देखें",

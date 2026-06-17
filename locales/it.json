@@ -14,8 +14,8 @@
         "searchTitle": "Ricerca: {{query}}",
         "manageProfiles": "Gestisci profili",
         "accountSettings": "Account / Impostazioni",
-        "signOut": "Esci da Pstream",
-        "signIn": "Accedi"
+        "logOut": "Esci",
+        "logIn": "Accedi"
     },
     "hero": {
         "play": "Riproduci",

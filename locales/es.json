@@ -14,8 +14,8 @@
         "searchTitle": "Búsqueda: {{query}}",
         "manageProfiles": "Gestionar perfiles",
         "accountSettings": "Cuenta / Configuración",
-        "signOut": "Cerrar sesión de P-Stream",
-        "signIn": "Iniciar sesión"
+        "logOut": "Cerrar sesión",
+        "logIn": "Iniciar sesión"
     },
     "hero": {
         "play": "Reproducir",

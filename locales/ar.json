@@ -14,8 +14,8 @@
         "searchTitle": "بحث: {{query}}",
         "manageProfiles": "إدارة الملفات الشخصية",
         "accountSettings": "الحساب / الإعدادات",
-        "signOut": "تسجيل الخروج من P-Stream",
-        "signIn": "تسجيل الدخول"
+        "logOut": "تسجيل الخروج",
+        "logIn": "تسجيل الدخول"
     },
     "hero": {
         "play": "تشغيل",

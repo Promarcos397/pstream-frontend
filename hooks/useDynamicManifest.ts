@@ -221,7 +221,7 @@ export const useDynamicManifest = (
       const timer = setTimeout(() => {
         visitedCache.add(cacheKey);
         setIsLoading(false);
-      }, 480);
+      }, 80);
       return () => clearTimeout(timer);
     } else {
       visitedCache.add(cacheKey);

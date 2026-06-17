@@ -14,8 +14,8 @@
         "searchTitle": "Поиск: {{query}}",
         "manageProfiles": "Управление профилями",
         "accountSettings": "Аккаунт / Настройки",
-        "signOut": "Выйти из P-Stream",
-        "signIn": "Войти"
+        "logOut": "Выйти",
+        "logIn": "Войти"
     },
     "hero": {
         "play": "Смотреть",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, startTransition } from 'react';
 import { House, Bookmark } from '@phosphor-icons/react';
 import { MdCast, MdAirplay } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
@@ -205,12 +205,66 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     };
   }, [activeIndex]);
 
-  // Progressive scroll fade for top header background
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
+    const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+
+    const update = () => {
+      const scroll = window.scrollY;
+      setScrollY(scroll);
+
+      if (!meta) return;
+
+      if ((window as any).__modal_active) {
+        meta.content = '#000000';
+        return;
+      }
+
+      if (searchParams.get('search') === 'true' || !!searchParams.get('q')) {
+        meta.content = '#000000';
+        return;
+      }
+
+      const heroRgb = document.documentElement.dataset.heroRgb;
+      if (heroRgb && location.pathname === '/') {
+        const [r, g, b] = heroRgb.split(',').map(Number);
+        // Mirror the header's rgba(0,0,0,opacity) fade: opacity goes 0→1 over 0→20px of scroll.
+        // At scroll=0 the header is transparent, so status bar shows the accent color at 0.92 opacity.
+        // At scroll≥20 the header is opaque black, so status bar is #000000.
+        const factor = 0.92 * (1 - Math.min(1, scroll / 20));
+        meta.content = `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
+      } else {
+        meta.content = '#000000';
+      }
+    };
+
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('pstream:theme-update', update);
+    update();
+
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('pstream:theme-update', update);
+      if (meta) meta.content = '#000000';
+    };
+  }, [location.pathname, searchParams.get('search'), searchParams.get('q')]);
+
+  // Speculatively preload all page chunks once the app is idle so every tab
+  // switch thereafter skips the lazy-load network round-trip entirely.
+  useEffect(() => {
+    const preload = () => {
+      void import('../pages/HomePage');
+      void import('../pages/ShowsPage');
+      void import('../pages/MoviesPage');
+      void import('../pages/NewPopularPage');
+      void import('../pages/MyListPage');
+      void import('../pages/SettingsPage');
+    };
+    if ('requestIdleCallback' in window) {
+      const id = (window as any).requestIdleCallback(preload, { timeout: 3000 });
+      return () => (window as any).cancelIdleCallback(id);
+    }
+    const id = setTimeout(preload, 1500);
+    return () => clearTimeout(id);
   }, []);
 
   const opacity = Math.min(1, scrollY / 20);
@@ -223,14 +277,15 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
   const handleMobileTabClick = (tabId: string) => {
     setActiveTab(tabId);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (tabId === 'settings') {
-      navigate('/settings');
-    } else if (tabId === 'home') {
-      navigate('/');
-    } else {
-      navigate(`/${tabId}`);
-    }
+    startTransition(() => {
+      if (tabId === 'settings') {
+        navigate('/settings');
+      } else if (tabId === 'home') {
+        navigate('/');
+      } else {
+        navigate(`/${tabId}`);
+      }
+    });
   };
 
   const avatarUrl     = settings.avatarUrl || DEFAULT_AVATAR;

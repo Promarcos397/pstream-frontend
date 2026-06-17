@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { Routes, Route, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
 import { Movie } from './types';
 import useSearch from './hooks/useSearch';
 import { useTitle } from './context/TitleContext';
@@ -34,40 +34,47 @@ const pageVariants = {
 
 const pageTransition = {
   type: 'tween' as const,
-  ease: [0.16, 1, 0.3, 1] as const, // premium Apple style easeOut
-  duration: 0.42,
+  ease: [0.16, 1, 0.3, 1] as const,
+  duration: 0.28,
 };
 
-
-
-// Components
+// Components (always needed — eager)
 import Layout from './components/Layout';
 import InfoModal from './components/InfoModal';
-import WatchPage from './pages/CinemaPage';
-// Pages
-import HomePage from './pages/HomePage';
-import ShowsPage from './pages/ShowsPage';
-import MoviesPage from './pages/MoviesPage';
-import NewPopularPage from './pages/NewPopularPage';
-import MyListPage from './pages/MyListPage';
-import SearchResultsPage from './pages/SearchResultsPage';
-import SettingsPage from './pages/SettingsPage';
-import BrowseGridPage from './pages/BrowseGridPage';
 import LoginPage from './pages/LoginPage';
-import GhostPage from './pages/GhostPage';
-import NotFoundPage from './pages/NotFoundPage';
-import { Navigate } from 'react-router-dom';
 import { dimensionsAsMovies } from './data/notFoundDimensions';
+
+// Pages (lazy — each becomes its own split chunk)
+const WatchPage        = lazy(() => import('./pages/CinemaPage'));
+const HomePage         = lazy(() => import('./pages/HomePage'));
+const ShowsPage        = lazy(() => import('./pages/ShowsPage'));
+const MoviesPage       = lazy(() => import('./pages/MoviesPage'));
+const NewPopularPage   = lazy(() => import('./pages/NewPopularPage'));
+const MyListPage       = lazy(() => import('./pages/MyListPage'));
+const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage'));
+const SettingsPage     = lazy(() => import('./pages/SettingsPage'));
+const BrowseGridPage   = lazy(() => import('./pages/BrowseGridPage'));
+const GhostPage        = lazy(() => import('./pages/GhostPage'));
+const NotFoundPage     = lazy(() => import('./pages/NotFoundPage'));
+
+const PageFallback = <div className="h-screen w-screen bg-black" />;
 
 const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+      }, 150); // Debounced to prevent render thrashing
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
@@ -87,12 +94,10 @@ const App: React.FC = () => {
     initializeCast();
   }, [initializeAuth, initializeCast]);
 
-  // Inject navigate into window for non-React context access
   useEffect(() => {
     (window as any).reactNavigate = navigate;
   }, [navigate]);
 
-  // Sync search query from URL — reactive on location change
   useEffect(() => {
     const urlQuery = searchParams.get('q');
     if (urlQuery) {
@@ -100,10 +105,8 @@ const App: React.FC = () => {
     } else {
       setQuery('');
     }
-  }, [location.search]);
+  }, [location.search, setQuery, searchParams]);
 
-  // Global search event — fired by cast/genre clicks in InfoModal & MovieCard
-  // Avoids prop-drilling setQuery all the way down the tree
   useEffect(() => {
     const handler = (e: Event) => {
       const { query: q } = (e as CustomEvent<{ query: string }>).detail;
@@ -118,22 +121,17 @@ const App: React.FC = () => {
     return () => window.removeEventListener('pstream:search', handler);
   }, [setQuery, setSearchParams]);
 
-
-  // Detect if modal is active in pathname
   const modalMatch = location.pathname.match(/^\/title\/(movie|tv)\/([a-zA-Z0-9_-]+)/);
   const isModalActive = !!modalMatch;
   const modalType = modalMatch ? modalMatch[1] : null;
   const modalIdRaw = modalMatch ? modalMatch[2] : null;
   const modalId = modalIdRaw ? (isNaN(Number(modalIdRaw)) ? modalIdRaw : Number(modalIdRaw)) : null;
 
-  // Determine background location for routing
   const backgroundLocation = location.state?.backgroundLocation || (isModalActive ? { pathname: '/' } : location);
 
-  // Sync modal state from URL pathname
   useEffect(() => {
     if (modalType && modalId !== null) {
       if (!selectedMovie || selectedMovie.id !== modalId || selectedMovie.media_type !== modalType) {
-        // Find existing movie from our custom 404 dimensions database if id starts with 'dim'
         const isDim = typeof modalId === 'string' && modalId.startsWith('dim');
         let mappedMovie: Movie | null = null;
         if (isDim) {
@@ -147,14 +145,10 @@ const App: React.FC = () => {
     }
   }, [location.pathname, modalType, modalId, selectedMovie]);
 
-
-  // React Router Scroll Restoration — single scroll-to-top on route change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [backgroundLocation.pathname]);
 
-
-  // Update page title based on route
   useEffect(() => {
     const path = backgroundLocation.pathname;
     if (path.startsWith('/watch')) return;
@@ -177,45 +171,12 @@ const App: React.FC = () => {
       setPageTitle('');
     }
   }, [backgroundLocation.pathname, query, setPageTitle, t]);
-  // === NEW CHAMELEON STATUS BAR EFFECT FOR ANDROID ===
-  useEffect(() => {
-    const updateThemeColor = () => {
-      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-      if (!metaThemeColor) return;
-
-      // 1. If watching a video or if the InfoModal is open, force pure black
-      if (location.pathname.startsWith('/watch') || selectedMovie) {
-        metaThemeColor.setAttribute('content', '#000000');
-        return;
-      }
-
-      // 2. The scroll effect: Change color based on scroll depth
-      if (window.scrollY < 50) {
-        // Top of the page: Matches your top header background
-        metaThemeColor.setAttribute('content', '#111111'); 
-      } else {
-        // Scrolled down: Matches your main app background
-        metaThemeColor.setAttribute('content', '#000000'); 
-      }
-    };
-
-    // Run immediately to set the correct color when a page loads
-    updateThemeColor();
-
-    // Listen for scroll events to change color dynamically
-    window.addEventListener('scroll', updateThemeColor, { passive: true });
-    
-    // Cleanup listener when the component unmounts
-    return () => window.removeEventListener('scroll', updateThemeColor);
-  }, [location.pathname, selectedMovie]);
-  // ===================================================
 
   const [heroSeekTime, setHeroSeekTime] = useState(0);
   const [infoInitialTime, setInfoInitialTime] = useState(0);
   const [infoVideoId, setInfoVideoId] = useState<string | undefined>(undefined);
 
-
-  const handleSelectMovie = (movie: Movie, time?: number, videoId?: string) => {
+  const handleSelectMovie = useCallback((movie: Movie, time?: number, videoId?: string) => {
     setInfoInitialTime(time || 0);
     setInfoVideoId(videoId);
     setSelectedMovie(movie);
@@ -225,9 +186,9 @@ const App: React.FC = () => {
     navigate(`/title/${type}/${movie.id}${searchStr}`, {
       state: { backgroundLocation: location }
     });
-  };
+  }, [location, navigate]);
 
-  const handleCloseModal = (finalTime?: number) => {
+  const handleCloseModal = useCallback((finalTime?: number) => {
     setSelectedMovie(null);
     setInfoVideoId(undefined);
     if (finalTime && finalTime > 0) {
@@ -248,12 +209,11 @@ const App: React.FC = () => {
       const searchStr = location.search;
       navigate(`/${searchStr}`, { replace: true });
     }
-  };
+  }, [location, navigate, selectedMovie, updateProgress]);
 
-  const handlePlay = (movie: Movie, season?: number, episode?: number) => {
+  const handlePlay = useCallback((movie: Movie, season?: number, episode?: number) => {
     let finalSeason = season;
     let finalEpisode = episode;
-
     const type = movie.media_type || (movie.title ? 'movie' : 'tv');
 
     if (type === 'tv' && !finalSeason && !finalEpisode) {
@@ -262,7 +222,6 @@ const App: React.FC = () => {
         finalSeason = lastWatched.season;
         finalEpisode = lastWatched.episode;
       } else {
-        // Default to S1E1
         finalSeason = 1;
         finalEpisode = 1;
       }
@@ -289,7 +248,7 @@ const App: React.FC = () => {
     Cookies.set('pstream-last-played', JSON.stringify(cookieData), { expires: 7 });
     navigate(url);
     setSelectedMovie(null);
-  };
+  }, [getProgress, navigate]);
 
   const getActiveTab = () => {
     const path = backgroundLocation.pathname;
@@ -334,6 +293,7 @@ const App: React.FC = () => {
       dir: nextDir
     });
   }
+
   const isWatching = location.pathname.startsWith('/watch');
   const isSettings = location.pathname.startsWith('/settings');
 
@@ -344,14 +304,14 @@ const App: React.FC = () => {
     && !backgroundLocation.pathname.startsWith('/watch')
     && !backgroundLocation.pathname.startsWith('/title');
 
-  const handleTabChange = (tab: string) => {
-    setQuery(''); //fixed "Double History Push" bug
+  const handleTabChange = useCallback((tab: string) => {
+    setQuery('');
     const newParams = new URLSearchParams(window.location.search);
     newParams.delete('q');
     setSearchParams(newParams, { replace: true });
-  };
+  }, [setQuery, setSearchParams]);
 
-  const handleSearchChange = (newQuery: string) => {
+  const handleSearchChange = useCallback((newQuery: string) => {
     setQuery(newQuery);
     const newParams = new URLSearchParams(window.location.search);
     if (newQuery.trim().length > 0) {
@@ -360,30 +320,32 @@ const App: React.FC = () => {
       newParams.delete('q');
     }
     setSearchParams(newParams, { replace: true });
-  };
+  }, [setQuery, setSearchParams]);
 
-  // View All: row title click → /browse/:rowKey?url=...&title=...
-  const handleViewAll = (rowKey: string, fetchUrl: string, title: string) => {
+  const handleViewAll = useCallback((rowKey: string, fetchUrl: string, title: string) => {
     const params = new URLSearchParams({ url: fetchUrl, title });
     navigate(`/browse/${rowKey}?${params.toString()}`);
-  };
+  }, [navigate]);
 
   if (isWatching) {
     return (
-      <Routes>
-        <Route path="/watch/:type/:id" element={<WatchPage />} />
-        <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-      </Routes>
+      <Suspense fallback={PageFallback}>
+        <Routes>
+          <Route path="/watch/:type/:id" element={<WatchPage />} />
+          <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        </Routes>
+      </Suspense>
     );
   }
 
-  // Ghost admin panel — standalone, no nav, no footer
   if (location.pathname === '/ghost' || location.pathname === '/matrix') {
     return (
-      <Routes>
-        <Route path="/ghost"  element={<GhostPage />} />
-        <Route path="/matrix" element={<Navigate to="/ghost" replace />} />
-      </Routes>
+      <Suspense fallback={PageFallback}>
+        <Routes>
+          <Route path="/ghost"  element={<GhostPage />} />
+          <Route path="/matrix" element={<Navigate to="/ghost" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -395,19 +357,20 @@ const App: React.FC = () => {
     return <LoginPage />;
   }
 
-
   const innerRoutes = (
-    <Routes location={backgroundLocation}>
-      <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
-      <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-      <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
-      <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-      <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-      <Route path="/settings/*" element={<SettingsPage />} />
-      <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-    </Routes>
+    <Suspense fallback={PageFallback}>
+      <Routes location={backgroundLocation}>
+        <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
+        <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
+        <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/settings/*" element={<SettingsPage />} />
+        <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+      </Routes>
+    </Suspense>
   );
 
   const mainContent = isMobile ? (
