@@ -1,27 +1,3 @@
-/* Apply to the very root of your app */
-html, body {
-  /* 1. Kills the "Rubber-band" bounce effect when scrolling past the top/bottom */
-  overscroll-behavior-y: none;
-  
-  /* 2. Stops the whole screen from being highlightable/selectable text */
-  -webkit-user-select: none;
-  user-select: none;
-
-  /* 3. Disables the long-press popup context menu (like "Save Image") */
-  -webkit-touch-callout: none;
-
-  /* 4. Removes the annoying grey box that flashes when you tap a link/button */
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* IMPORTANT: Re-enable text selection ONLY for your search bar! 
-   If you don't add this, users won't be able to type in your inputs. */
-input, textarea {
-  -webkit-user-select: auto;
-  user-select: auto;
-}
-
-
 @import url('https://fonts.googleapis.com/css2?family=Carter+One&display=swap');
 
 @font-face {
@@ -95,13 +71,17 @@ body {
   background-color: #000000;
   color: white;
   overflow-x: hidden;
-  overscroll-behavior-y: none;
-  /* Prevent elastic bouncing on mobile */
   user-select: none;
-  /* Prevent accidental text selection while navigating */
   -webkit-user-select: none;
-  /* Support for iOS safe areas */
+  -webkit-touch-callout: none;
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Lock overscroll only when running as an installed PWA — browser tabs keep pull-to-refresh */
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior-y: none;
+  }
 }
 
 @media (min-width: 768px) {

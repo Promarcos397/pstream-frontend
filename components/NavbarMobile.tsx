@@ -227,10 +227,8 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       const heroRgb = document.documentElement.dataset.heroRgb;
       if (heroRgb && location.pathname === '/') {
         const [r, g, b] = heroRgb.split(',').map(Number);
-        // Mirror the header's rgba(0,0,0,opacity) fade: opacity goes 0→1 over 0→20px of scroll.
-        // At scroll=0 the header is transparent, so status bar shows the accent color at 0.92 opacity.
-        // At scroll≥20 the header is opaque black, so status bar is #000000.
-        const factor = 0.92 * (1 - Math.min(1, scroll / 20));
+        // Full accent color at scroll=0, fades to black over 30px as the navbar solidifies.
+        const factor = 1 - Math.min(1, scroll / 30);
         meta.content = `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
       } else {
         meta.content = '#000000';

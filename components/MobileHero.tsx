@@ -343,6 +343,16 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           avgG = Math.min(255, Math.round(avgG * (avgG === maxCh ? boostFactor : 1)));
           avgB = Math.min(255, Math.round(avgB * (avgB === maxCh ? boostFactor : 1)));
 
+          // Luminance floor: AMOLED screens render anything below ~50 as indistinguishable
+          // from pure black, so we scale the color up while preserving its hue.
+          const lum = (avgR * 299 + avgG * 587 + avgB * 114) / 1000;
+          if (lum < 55) {
+            const scale = 55 / Math.max(lum, 1);
+            avgR = Math.min(255, Math.round(avgR * scale));
+            avgG = Math.min(255, Math.round(avgG * scale));
+            avgB = Math.min(255, Math.round(avgB * scale));
+          }
+
           setAccentRGB({ r: avgR, g: avgG, b: avgB });
           document.documentElement.dataset.heroRgb = `${avgR},${avgG},${avgB}`;
           window.dispatchEvent(new Event('pstream:theme-update'));
@@ -433,7 +443,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
       {/* Poster/Backdrop Card (Floating, centered card layout for both mobile and tablet) */}
       <div 
         onClick={() => onSelect(movie)}
-        className="w-[92%] max-w-[400px] min-[500px]:w-full min-[500px]:max-w-[740px] aspect-[2/2.75] min-[500px]:aspect-[4/3] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] transition-all duration-200"
+        className="w-[94%] max-w-[400px] min-[500px]:w-full min-[500px]:max-w-[740px] aspect-[2/3] min-[500px]:aspect-[4/3] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] transition-all duration-200"
       >
         {/* High-Resolution Resolved Image */}
         <img 
@@ -516,7 +526,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
                 e.stopPropagation();
                 onPlay(movie);
               }}
-              className="flex-1 flex items-center justify-center h-[58px] sm:h-[64px] rounded-[4px] bg-white hover:bg-neutral-200 text-black font-bold text-[21px] sm:text-[22px] gap-2 transition-all active:scale-95 shadow-md font-sans"
+              className="flex-1 flex items-center justify-center h-[50px] sm:h-[56px] rounded-[4px] bg-white hover:bg-neutral-200 text-black font-bold text-[21px] sm:text-[22px] gap-2 transition-all active:scale-95 shadow-md font-sans"
             >
               {is404 ? (
                 <House size={30} weight="fill" />
@@ -532,7 +542,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
                 e.stopPropagation();
                 toggleList(movie);
               }}
-              className="flex-1 flex items-center justify-center h-[58px] sm:h-[64px] rounded-[4px] bg-[#6d6d6e]/40 hover:bg-[#6d6d6e]/25 text-white font-bold text-[21px] sm:text-[22px] gap-2 transition-all active:scale-95 shadow-md font-sans"
+              className="flex-1 flex items-center justify-center h-[50px] sm:h-[56px] rounded-[4px] bg-[#6d6d6e]/40 hover:bg-[#6d6d6e]/25 text-white font-bold text-[21px] sm:text-[22px] gap-2 transition-all active:scale-95 shadow-md font-sans"
             >
               {isAdded ? <Check size={30} weight="bold" /> : <Plus size={30} weight="bold" />}
               <span>{t('nav.myList', { defaultValue: 'My List' })}</span>
