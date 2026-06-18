@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { CaretDownIcon, SquaresFourIcon, RowsIcon } from '@phosphor-icons/react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import CategorySubNavMobile from './CategorySubNavMobile';
@@ -31,6 +32,7 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     hideGenresOnDesktop = false,
     dropdownLabel,
 }) => {
+    const { t } = useTranslation();
     const isMobile = useIsMobile();
     const [genreMenuOpen, setGenreMenuOpen] = useState(false);
     const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -173,14 +175,14 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                     <button
                         onClick={() => onViewModeChange('row')}
                         className={`p-1.5 rounded-full transition-all duration-200 ${viewMode === 'row' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'}`}
-                        title="Row view"
+                        title={t('common.rowView', { defaultValue: 'Row view' })}
                     >
                         <RowsIcon size={16} weight="bold" />
                     </button>
                     <button
                         onClick={() => onViewModeChange('grid')}
                         className={`p-1.5 rounded-full transition-all duration-200 ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'}`}
-                        title="Grid view"
+                        title={t('common.gridView', { defaultValue: 'Grid view' })}
                     >
                         <SquaresFourIcon size={16} weight="bold" />
                     </button>

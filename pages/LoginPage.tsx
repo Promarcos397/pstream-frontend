@@ -68,6 +68,7 @@ const SIGNUP_AVATARS = [
 ];
 
 const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClose }) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<'signin' | 'signup'>(initialView);
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -108,12 +109,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
           }
         });
         if (err) throw err;
-        setSuccessMsg('Account created! Check your email to confirm, then sign in.');
+        setSuccessMsg(t('auth.accountCreated'));
         setView('signin');
       } else {
         const { error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
-        navigate('/');
+        navigate('/browse');
       }
     } catch (err: any) {
       const errMsg = err.message || '';
@@ -123,9 +124,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
         err.code === 'user_already_exists'
       ) {
         setView('signin');
-        setError('An account with this email already exists. Please enter your password to sign in.');
+        setError(t('auth.emailExistsError'));
       } else {
-        setError(errMsg || 'Something went wrong. Please try again.');
+        setError(errMsg || t('common.error'));
       }
     } finally {
       setLoading(false);
@@ -148,10 +149,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
         onClick={e => e.stopPropagation()}
       >
         <h2 className="text-2xl font-bold text-white mb-1">
-          {view === 'signin' ? 'Sign In' : 'Create Account'}
+          {view === 'signin' ? t('auth.signIn') : t('auth.createAccount')}
         </h2>
         <p className="text-white/40 text-sm mb-6">
-          {view === 'signin' ? 'Welcome back!' : 'Start watching in seconds.'}
+          {view === 'signin' ? t('auth.welcome') : t('auth.signInSubtitle')}
         </p>
 
         {/* Google */}
@@ -161,12 +162,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
           className="w-full h-12 mb-5 bg-white text-black rounded-lg font-bold flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-[0.98] disabled:opacity-60"
         >
           <GoogleLogoIcon size={20} weight="bold" />
-          {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+          {googleLoading ? t('auth.redirecting') : t('auth.continueWithGoogle')}
         </button>
 
         <div className="flex items-center gap-3 mb-5">
           <div className="flex-1 h-px bg-white/10" />
-          <span className="text-white/30 text-xs uppercase tracking-widest">or</span>
+          <span className="text-white/30 text-xs uppercase tracking-widest">{t('auth.or')}</span>
           <div className="flex-1 h-px bg-white/10" />
         </div>
 
@@ -180,7 +181,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
               <UserIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
                 type="text" required value={displayName} onChange={e => setDisplayName(e.target.value)}
-                placeholder="Display name"
+                placeholder={t('auth.displayNamePlaceholder')}
                 className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
               />
             </div>
@@ -189,7 +190,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
             <EnvelopeIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
             <input
               type="email" required value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="Email address" autoComplete="email"
+              placeholder={t('auth.emailPlaceholder')} autoComplete="email"
               className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
             />
           </div>
@@ -198,7 +199,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
             <input
               type={showPassword ? 'text' : 'password'} required minLength={6}
               value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="Password" autoComplete={view === 'signup' ? 'new-password' : 'current-password'}
+              placeholder={t('auth.passwordPlaceholder')} autoComplete={view === 'signup' ? 'new-password' : 'current-password'}
               className="w-full h-13 bg-[#2a2a2a] border border-white/10 text-white rounded-lg pl-10 pr-10 py-3.5 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-white/30"
             />
             <button type="button" onClick={() => setShowPassword(!showPassword)}
@@ -209,7 +210,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
           
           {view === 'signup' && (
             <div className="space-y-2 pt-1 pb-1">
-              <span className="text-white/40 text-xs font-semibold block">Choose Profile Icon</span>
+              <span className="text-white/40 text-xs font-semibold block">{t('auth.chooseProfileIcon')}</span>
               <div className="flex gap-3 justify-center pb-2">
                 {SIGNUP_AVATARS.map((url) => {
                   const isSelected = selectedAvatar === url;
@@ -232,17 +233,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
           <button type="submit" disabled={loading}
             className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50 mt-1">
             {loading
-              ? (view === 'signup' ? 'Creating…' : 'Signing in…')
-              : (view === 'signup' ? 'Create Account' : 'Sign In')}
+              ? (view === 'signup' ? t('auth.creating') : t('auth.signingIn'))
+              : (view === 'signup' ? t('auth.createAccount') : t('auth.signIn'))}
           </button>
         </form>
 
         <p className="mt-5 text-center text-white/40 text-sm">
-          {view === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+          {view === 'signin' ? t('auth.dontHaveAccount') + ' ' : t('auth.alreadyHaveAccount') + ' '}
           <button
             onClick={() => { setView(view === 'signin' ? 'signup' : 'signin'); setError(''); setSuccessMsg(''); }}
             className="text-white hover:underline font-medium">
-            {view === 'signin' ? 'Sign up' : 'Sign in'}
+            {view === 'signin' ? t('auth.signUpLink') : t('auth.signInLink')}
           </button>
         </p>
       </div>
@@ -546,7 +547,7 @@ const LoginPage: React.FC = () => {
   const [authView, setAuthView] = useState<AuthView>('none');
   const [heroEmail, setHeroEmail] = useState('');
 
-  useEffect(() => { if (user) navigate('/'); }, [user, navigate]);
+  useEffect(() => { if (user) navigate('/browse'); }, [user, navigate]);
 
   const handleGetStarted = (e: React.FormEvent) => {
     e.preventDefault();
@@ -563,7 +564,7 @@ const LoginPage: React.FC = () => {
           onClick={() => setAuthView('signin')}
           className="px-5 py-2 bg-[#e50914] text-white text-sm font-bold rounded hover:bg-[#f40612] transition-all active:scale-95"
         >
-          Sign In
+          {t('auth.signIn')}
         </button>
       </nav>
 
@@ -591,14 +592,14 @@ const LoginPage: React.FC = () => {
               type="email"
               value={heroEmail}
               onChange={e => setHeroEmail(e.target.value)}
-              placeholder="Email address"
+              placeholder={t('auth.emailPlaceholder')}
               className="w-full sm:w-[65%] h-14 bg-black/50 border border-white/30 text-white rounded px-4 text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/40 backdrop-blur-md"
             />
             <button
               type="submit"
               className="w-full sm:w-[35%] h-14 bg-[#e50914] hover:bg-[#f40612] text-white font-bold text-lg rounded flex items-center justify-center gap-2 whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95 shadow-xl"
             >
-              Get Started
+              {t('auth.getStarted')}
               <CaretRightIcon size={22} weight="bold" />
             </button>
           </form>
@@ -608,7 +609,7 @@ const LoginPage: React.FC = () => {
       {/* ── Top 10 Trending Row ──────────────────────────────────────────── */}
       <section className="pt-12 pb-6 bg-black">
         <LandingTopTenRow
-          title="Trending now"
+          title={t('auth.trendingNow')}
           fetchUrl={REQUESTS.fetchTrending}
         />
       </section>
@@ -617,7 +618,7 @@ const LoginPage: React.FC = () => {
 
       {/* ── More Reasons to Join ─────────────────────────────────────────── */}
       <section className="py-12 md:py-20 px-6 md:px-20 lg:px-32 xl:px-44 2xl:px-56 bg-black">
-        <h2 className="text-white text-2xl md:text-4xl font-black mb-8 md:mb-12">More reasons to join</h2>
+        <h2 className="text-white text-2xl md:text-4xl font-black mb-8 md:mb-12">{t('auth.moreReasonsToJoin')}</h2>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
           {FEATURES.map(f => <FeatureCard key={f.title} {...f} />)}
         </div>
@@ -638,14 +639,14 @@ const LoginPage: React.FC = () => {
             type="email"
             value={heroEmail}
             onChange={e => setHeroEmail(e.target.value)}
-            placeholder="Email address"
+            placeholder={t('auth.emailPlaceholder')}
             className="w-full sm:w-[65%] h-14 bg-black/50 border border-white/30 text-white rounded px-4 text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/40 backdrop-blur-md"
           />
           <button
             type="submit"
             className="w-full sm:w-[35%] h-14 bg-[#e50914] hover:bg-[#f40612] text-white font-bold text-lg rounded flex items-center justify-center gap-2 whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95 shadow-xl"
           >
-            Get Started <CaretRightIcon size={22} weight="bold" />
+            {t('auth.getStarted')} <CaretRightIcon size={22} weight="bold" />
           </button>
         </form>
       </section>

@@ -104,7 +104,7 @@ const CinemaPage: React.FC = () => {
 
     // Back button: go home with replace so watch URL is removed from history
     // This prevents the "back = old episode" pollution bug.
-    const handleClose = () => navigate('/', { replace: true });
+    const handleClose = () => navigate('/browse', { replace: true });
 
     if (loading) {
         return (

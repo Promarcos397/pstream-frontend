@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     PlayIcon,
     PauseIcon,
@@ -563,6 +564,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     playbackSpeed = 1.0,
     onPlaybackSpeedChange,
 }) => {
+    const { t } = useTranslation();
     const isMobile = useIsMobile();
     const timelineRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -784,7 +786,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         onClick={(e) => { e.stopPropagation(); onClose(); }}
                         className="flex items-center justify-center text-white transition-all flex-shrink-0"
                         style={{ minWidth: 44, minHeight: 44 }}
-                        aria-label="Close player"
+                        aria-label={t('player.closePlayer')}
                     >
                         <ArrowLeftIcon size={40} weight="bold" />
                     </button>
@@ -803,7 +805,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             style={{ minHeight: 36 }}
                         >
                             <CropIcon size={18} weight="bold" />
-                            <span className="text-[11px] font-bold tracking-widest uppercase">{videoFit === 'cover' ? 'Fill' : 'Fit'}</span>
+                            <span className="text-[11px] font-bold tracking-widest uppercase">{videoFit === 'cover' ? t('player.fill') : t('player.fit')}</span>
                         </button>
                     )}
                 </div>
@@ -820,7 +822,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 50, height: 50 }}
-                        aria-label="Rewind 10s"
+                        aria-label={t('player.rewind10s')}
                     >
                         <div 
                             key={seekFlash?.side === 'left' ? `mobile-left-${seekFlash.ts}` : 'mobile-left-idle'}
@@ -854,7 +856,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 50, height: 50 }}
-                        aria-label="Fast-forward 10s"
+                        aria-label={t('player.fastForward10s')}
                     >
                         <div 
                             key={seekFlash?.side === 'right' ? `mobile-right-${seekFlash.ts}` : 'mobile-right-idle'}
@@ -878,7 +880,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             {/* ── TOP: Back button (desktop only, top-left) ── */}
             {!isMobile && (
                 <div className={`absolute top-0 inset-x-0 z-40 px-8 pt-8 flex items-center justify-between transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                    <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white hover:text-white hover:scale-110 transition-all p-1.5" aria-label="Close player">
+                    <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white hover:text-white hover:scale-110 transition-all p-1.5" aria-label={t('player.closePlayer')}>
                         <ArrowLeftIcon size={42} weight="bold" />
                     </button>
                     
@@ -888,7 +890,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                             className="flex items-center gap-2 px-4 py-2 bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-full text-white hover:text-white hover:bg-zinc-800 transition-all active:scale-95 shadow-xl"
                         >
                             <CropIcon size={20} weight="bold" />
-                            <span className="text-xs font-bold tracking-[0.15em] uppercase">{videoFit === 'cover' ? 'Original' : 'Zoom to Fill'}</span>
+                            <span className="text-xs font-bold tracking-[0.15em] uppercase">{videoFit === 'cover' ? t('player.fill') : t('player.fit')}</span>
                         </button>
                     )}
                 </div>
@@ -959,7 +961,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                 onMouseLeave={() => setIsHovering(false)}
                                 onTouchStart={handleTimelineStart}
                                 role="slider"
-                                aria-label="Video progress"
+                                aria-label={t('player.videoProgress', { defaultValue: 'Video progress' })}
                                 aria-valuemin={0}
                                 aria-valuemax={100}
                                 aria-valuenow={Math.round(displayProgress)}
@@ -1000,11 +1002,11 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                             onClick={(e) => { e.stopPropagation(); setShowSpeedPopup(prev => !prev); }}
                                             onMouseDown={() => onInteraction?.()}
                                             className={mobileBtnCls(isSpeedActive)}
-                                            aria-label="Playback Speed"
-                                            title="Playback Speed"
+                                            aria-label={t('player.playbackSpeed')}
+                                            title={t('player.playbackSpeed')}
                                         >
                                             <SpeedometerIcon size={24} weight={isSpeedActive ? "fill" : "bold"} className="flex-shrink-0" />
-                                            <span className="font-netflix truncate max-w-[65px] sm:max-w-none">Speed ({playbackSpeed}x)</span>
+                                            <span className="font-netflix truncate max-w-[65px] sm:max-w-none">{t('player.speedLabel', { speed: playbackSpeed })}</span>
                                         </button>
                                         {showSpeedPopup && (
                                             <SpeedPopup 
@@ -1022,10 +1024,10 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
                                                 className={mobileBtnCls(isEpisodesActive)}
-                                                aria-label="Episode Explorer"
+                                                aria-label={t('player.episodesBtn')}
                                             >
                                                 <CardsThreeIcon size={24} weight={isEpisodesActive ? "fill" : "bold"} className="flex-shrink-0" />
-                                                <span className="font-netflix truncate">Episodes</span>
+                                                <span className="font-netflix truncate">{t('player.episodesBtn')}</span>
                                             </button>
                                         </div>
                                     )}
@@ -1036,11 +1038,11 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
                                                 className={mobileBtnCls(isSubtitlesActive)}
-                                                aria-label="Subtitles & Audio"
-                                                title="Subtitles (S)"
+                                                aria-label={t('player.subtitleBtn')}
+                                                title={t('player.subtitleTitle')}
                                             >
                                                 <SubtitlesIcon size={24} weight={isSubtitlesActive ? "fill" : "bold"} className="flex-shrink-0" />
-                                                <span className="font-netflix truncate">Audio & Subtitles</span>
+                                                <span className="font-netflix truncate">{t('player.subtitleBtn')}</span>
                                             </button>
                                         </div>
                                     )}
@@ -1060,14 +1062,14 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                 onClick={(e) => { e.stopPropagation(); toggleNextEp(); }}
                                                 onMouseDown={() => onInteraction?.()}
                                                 className={mobileBtnCls(showNextEp)}
-                                                aria-label="Next episode"
-                                                title="Next Episode (N)"
+                                                aria-label={t('player.nextEpisodeTitle')}
+                                                title={t('player.nextEpisodeTitle')}
                                             >
                                                 <svg width={24} height={24} viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                                                     <path d="M72,60 V196 L160,128 Z" stroke="currentColor" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round"/>
                                                     <line x1="208" y1="56" x2="208" y2="200" stroke="currentColor" strokeWidth="24" strokeLinecap="round"/>
                                                 </svg>
-                                                <span className="font-netflix truncate">Next Ep.</span>
+                                                <span className="font-netflix truncate">{t('player.nextEpisodeTitle')}</span>
                                             </button>
                                         </div>
                                     )}
@@ -1078,11 +1080,11 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                             onClick={(e) => { e.stopPropagation(); togglePlayback(); }}
                                             onMouseDown={() => onInteraction?.()}
                                             className={mobileBtnCls(isPlaybackActive)}
-                                            aria-label="Playback Settings"
-                                            title="Playback Settings"
+                                            aria-label={t('player.playbackSettingsBtn')}
+                                            title={t('player.playbackSettingsTitle')}
                                         >
                                             <GearIcon size={24} weight={isPlaybackActive ? "fill" : "bold"} className="flex-shrink-0" />
-                                            <span className="font-netflix truncate">Settings</span>
+                                            <span className="font-netflix truncate">{t('player.playbackSettingsBtn')}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -1093,7 +1095,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         <button onClick={handlePlayPause} onMouseDown={() => onInteraction?.()} className={`${btn} ml-2 md:ml-3`} aria-label={isPlaying ? 'Pause' : 'Play'}>
                                             {isPlaying ? <PauseIcon size={ICON_SIZE} weight="fill" /> : <PlayIcon size={ICON_SIZE} weight="fill" />}
                                         </button>
-                                        <button onClick={() => { onSeek(-10); onInteraction?.(); triggerSeekFlash('left'); }} className={`${btn} -ml-4 md:-ml-6`} aria-label="Rewind 10s">
+                                        <button onClick={() => { onSeek(-10); onInteraction?.(); triggerSeekFlash('left'); }} className={`${btn} -ml-4 md:-ml-6`} aria-label={t('player.rewind10s')}>
                                             <div 
                                                 key={seekFlash?.side === 'left' ? `desktop-left-${seekFlash.ts}` : 'desktop-left-idle'}
                                                 className={`relative flex items-center justify-center ${seekFlash?.side === 'left' ? 'animate-seek-rotate-left' : ''}`}
@@ -1110,7 +1112,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                 }}>10</span>
                                             </div>
                                         </button>
-                                        <button onClick={() => { onSeek(10); onInteraction?.(); triggerSeekFlash('right'); }} className={btn} aria-label="Fast-forward 10s">
+                                        <button onClick={() => { onSeek(10); onInteraction?.(); triggerSeekFlash('right'); }} className={btn} aria-label={t('player.fastForward10s')}>
                                             <div 
                                                 key={seekFlash?.side === 'right' ? `desktop-right-${seekFlash.ts}` : 'desktop-right-idle'}
                                                 className={`relative flex items-center justify-center ${seekFlash?.side === 'right' ? 'animate-seek-rotate-right' : ''}`}
@@ -1131,7 +1133,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                             {showVolume && (
                                                 <VolumePopup volume={volume} isMuted={isMuted} isMobile={false} onVolumeChange={onVolumeChange} onInteraction={onInteraction} />
                                             )}
-                                            <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} onMouseDown={() => onInteraction?.()} className={btn} aria-label={isMuted ? 'Unmute' : 'Mute'} title="Volume (M)">
+                                            <button onClick={(e) => { e.stopPropagation(); toggleVolume(); }} onMouseDown={() => onInteraction?.()} className={btn} aria-label={isMuted ? t('player.unmute') : t('player.mute')} title={t('player.volume')}>
                                                 {isMuted || volume === 0 ? <SpeakerXIcon size={ICON_SIZE} weight="bold" /> : volume < 0.5 ? <SpeakerLowIcon size={ICON_SIZE} weight="bold" /> : <SpeakerHighIcon size={ICON_SIZE} weight="bold" />}
                                             </button>
                                         </div>
@@ -1158,8 +1160,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                     onClick={(e) => { e.stopPropagation(); toggleNextEp(); }}
                                                     onMouseDown={() => onInteraction?.()}
                                                     className={`${btn} ${showNextEp ? btnActive : ''}`}
-                                                    aria-label="Next episode"
-                                                    title="Next Episode (N)"
+                                                    aria-label={t('player.nextEpisodeTitle')}
+                                                    title={t('player.nextEpisodeTitle')}
                                                 >
                                                     <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                         <path d="M72,60 V196 L160,128 Z" stroke="currentColor" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1175,8 +1177,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                     onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
                                                     onMouseDown={() => onInteraction?.()}
                                                     className={`${btn} ${activePanel === 'audioSubtitles' ? btnActive : ''}`}
-                                                    aria-label="Subtitles & Audio"
-                                                    title="Subtitles (S)"
+                                                    aria-label={t('player.subtitleBtn')}
+                                                    title={t('player.subtitleTitle')}
                                                 >
                                                     <SubtitlesIcon size={ICON_SIZE} weight="bold" />
                                                 </button>
@@ -1189,7 +1191,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                     onClick={(e) => { e.stopPropagation(); toggleEpisodes(); }}
                                                     onMouseDown={() => onInteraction?.()}
                                                     className={`${btn} ${(activePanel === 'episodes' || activePanel === 'seasons') ? btnActive : ''}`}
-                                                    aria-label="Episode Explorer"
+                                                    aria-label={t('player.episodesBtn')}
                                                 >
                                                     <CardsThreeIcon size={ICON_SIZE} weight="bold" />
                                                 </button>
@@ -1201,8 +1203,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                 onClick={(e) => { e.stopPropagation(); setShowSpeedPopup(prev => !prev); }}
                                                 onMouseDown={() => onInteraction?.()}
                                                 className={`${btn} ${getMobileIconOpacity(isSpeedActive)}`}
-                                                aria-label="Playback Speed"
-                                                title="Playback Speed"
+                                                aria-label={t('player.playbackSpeed')}
+                                                title={t('player.playbackSpeed')}
                                             >
                                                 <Gauge size={ICON_SIZE} weight="bold" />
                                             </button>
@@ -1221,8 +1223,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                 onClick={(e) => { e.stopPropagation(); togglePlayback(); }}
                                                 onMouseDown={() => onInteraction?.()}
                                                 className={`${btn} ${getMobileIconOpacity(isPlaybackActive)}`}
-                                                aria-label="Playback Settings"
-                                                title="Playback Settings"
+                                                aria-label={t('player.playbackSettingsBtn')}
+                                                title={t('player.playbackSettingsTitle')}
                                             >
                                                 <GearIcon size={ICON_SIZE} weight="bold" />
                                             </button>
@@ -1231,8 +1233,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                         <button
                                             onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); onInteraction?.(); }}
                                             className={btn}
-                                            aria-label="Toggle fullscreen"
-                                            title="Fullscreen (F)"
+                                            aria-label={t('player.fullscreenTitle')}
+                                            title={t('player.fullscreenTitle')}
                                         >
                                             <CornersOutIcon size={ICON_SIZE} weight="bold" />
                                         </button>

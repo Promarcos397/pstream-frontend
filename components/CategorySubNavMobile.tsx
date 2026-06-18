@@ -116,7 +116,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
             }`}>
                 <button
                     onClick={() => handlePillClick('/tv', isTvActive)}
-                    className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-l-[23px] rounded-r-[12px] text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
+                    className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-l-[23px] rounded-r-[12px] text-[15px] sm:text-[16px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                         ${isTvActive 
                             ? 'bg-white/[0.18] backdrop-blur-md text-white border-[1.6px] border-white/40' 
                             : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border-[1.6px] border-white/15'}`}
@@ -125,7 +125,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                 </button>
                 <button
                     onClick={() => handlePillClick('/movies', isMovieActive)}
-                    className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-[12px] text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
+                    className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-[12px] text-[15px] sm:text-[16px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                         ${isMovieActive 
                             ? 'bg-white/[0.18] backdrop-blur-md text-white border-[1.6px] border-white/40' 
                             : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border-[1.6px] border-white/15'}`}
@@ -134,7 +134,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                 </button>
                 <button
                     onClick={() => handlePillClick('/new', isNewActive)}
-                    className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-[12px] text-[14px] sm:text-[15px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
+                    className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-[12px] text-[15px] sm:text-[16px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                         ${isNewActive 
                             ? 'bg-white/[0.18] backdrop-blur-md text-white border-[1.6px] border-white/40' 
                             : 'bg-white/[0.06] backdrop-blur-md text-[#e5e5e5] border-[1.6px] border-white/15'}`}
@@ -238,7 +238,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                                     }}
                                     role="option"
                                     aria-selected={false}
-                                    className="text-left text-[18px] font-semibold py-2 transition-colors hover:text-white text-white active:scale-95 whitespace-nowrap"
+                                    className="text-left text-[20px] font-semibold py-2 transition-colors hover:text-white text-white active:scale-95 whitespace-nowrap"
                                 >
                                     {genre.name}
                                 </button>

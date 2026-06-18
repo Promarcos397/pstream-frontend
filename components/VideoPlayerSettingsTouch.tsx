@@ -101,13 +101,13 @@ export const AudioSubPanelTouch: React.FC<{
                         className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'audio' ? 'text-white border-b-2 border-red-500' : 'text-white/50'}`}
                         onClick={() => setActiveTab('audio')}
                     >
-                        Audio
+                        {t('player.audio')}
                     </button>
-                    <button 
+                    <button
                         className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'subtitles' ? 'text-white border-b-2 border-red-500' : 'text-white/50'}`}
                         onClick={() => setActiveTab('subtitles')}
                     >
-                        Subtitles
+                        {t('player.subtitlesSection')}
                     </button>
                 </div>
             )}
@@ -152,14 +152,14 @@ export const AudioSubPanelTouch: React.FC<{
                     {onSubtitleOffsetChange && (
                         <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 shrink-0">
                             <div className="flex flex-col">
-                                <span className="text-sm font-bold text-white">Sync Subtitles</span>
+                                <span className="text-sm font-bold text-white">{t('player.syncSubtitles')}</span>
                                 <span className="text-xs text-white/50">{subtitleOffset === 0 ? 'Default timing' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s delay`}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset - 0.5).toFixed(1))); }}
                                     className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/20 active:scale-95 rounded transition font-bold text-lg"
-                                    title="Show Earlier"
+                                    title={t('player.showEarlier')}
                                 >−</button>
                                 <span className="text-sm text-white font-mono w-10 text-center select-none font-bold">
                                     {subtitleOffset === 0 ? '0.0s' : `${subtitleOffset > 0 ? '+' : ''}${subtitleOffset.toFixed(1)}s`}
@@ -167,7 +167,7 @@ export const AudioSubPanelTouch: React.FC<{
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset + 0.5).toFixed(1))); }}
                                     className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/20 active:scale-95 rounded transition font-bold text-lg"
-                                    title="Show Later"
+                                    title={t('player.showLater')}
                                 >+</button>
                             </div>
                         </div>
@@ -268,6 +268,7 @@ export const ServerPanelTouch: React.FC<{
 export const PlaybackPanelTouch: React.FC<{
     onClose: () => void;
 }> = ({ onClose }) => {
+    const { t } = useTranslation();
     const { settings, updateSettings } = useGlobalContext();
 
     const rowCls = "flex items-center justify-between px-6 py-5 cursor-pointer active:bg-white/10 transition-colors duration-150 select-none group border-b border-white/5";
@@ -280,8 +281,8 @@ export const PlaybackPanelTouch: React.FC<{
                 onClick={() => updateSettings({ autoplayVideo: !settings.autoplayVideo })}
             >
                 <div className="flex flex-col">
-                    <span className="text-white text-base font-bold">Autoplay Video</span>
-                    <span className="text-white/40 text-xs">Start video immediately when content loads</span>
+                    <span className="text-white text-base font-bold">{t('player.autoplayVideo')}</span>
+                    <span className="text-white/40 text-xs">{t('player.autoplayVideoDesc')}</span>
                 </div>
                 <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${settings.autoplayVideo ? 'bg-red-600' : 'bg-zinc-700'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${settings.autoplayVideo ? 'left-7' : 'left-1'}`} />
@@ -294,8 +295,8 @@ export const PlaybackPanelTouch: React.FC<{
                 onClick={() => updateSettings({ autoplayNextEpisode: !settings.autoplayNextEpisode })}
             >
                 <div className="flex flex-col">
-                    <span className="text-white text-base font-bold">Autoplay Next Episode</span>
-                    <span className="text-white/40 text-xs">Automatically transition to the next episode</span>
+                    <span className="text-white text-base font-bold">{t('playback.autoplayNext')}</span>
+                    <span className="text-white/40 text-xs">{t('player.autoplayNextDesc')}</span>
                 </div>
                 <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${settings.autoplayNextEpisode ? 'bg-red-600' : 'bg-zinc-700'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${settings.autoplayNextEpisode ? 'left-7' : 'left-1'}`} />
@@ -600,18 +601,19 @@ interface VideoPlayerSettingsTouchProps {
 }
 
 const VideoPlayerSettingsTouch: React.FC<VideoPlayerSettingsTouchProps> = (props) => {
+    const { t } = useTranslation();
     if (props.activePanel === 'none') return null;
     const close = () => props.setActivePanel('none');
 
     return (
         <>
             {props.activePanel === 'audioSubtitles' && (
-                <PanelShellTouch title="Audio & Subtitles" onClose={close}>
+                <PanelShellTouch title={t('player.audioSubtitlesTab')} onClose={close}>
                     <AudioSubPanelTouch {...props} onClose={close} />
                 </PanelShellTouch>
             )}
             {props.activePanel === 'quality' && (
-                <PanelShellTouch title="Video Quality" onClose={close}>
+                <PanelShellTouch title={t('player.videoQualityTab')} onClose={close}>
                     <QualityMenuTouch {...props} onClose={close} />
                 </PanelShellTouch>
             )}
@@ -619,12 +621,12 @@ const VideoPlayerSettingsTouch: React.FC<VideoPlayerSettingsTouchProps> = (props
                 <EpisodeExplorerTouch {...props} onClose={close} />
             )}
             {props.activePanel === 'servers' && (
-                <PanelShellTouch title="Servers" onClose={close}>
+                <PanelShellTouch title={t('player.serversTab')} onClose={close}>
                     <ServerPanelTouch {...props} onClose={close} />
                 </PanelShellTouch>
             )}
             {props.activePanel === 'playback' && (
-                <PanelShellTouch title="Playback Settings" onClose={close}>
+                <PanelShellTouch title={t('player.playbackTab')} onClose={close}>
                     <PlaybackPanelTouch onClose={close} />
                 </PanelShellTouch>
             )}

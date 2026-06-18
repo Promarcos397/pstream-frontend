@@ -141,7 +141,7 @@ export const AudioSubPanel: React.FC<{
     const renderAudioColumn = () => (
         <div className="flex flex-col border-r border-white/10 min-w-[180px] h-full py-3" style={{ flex: 1 }}>
             <div className="text-white font-bold mb-3 px-4 pt-2 text-sm uppercase tracking-wider text-white/60">
-                Audio
+                {t('player.audio')}
             </div>
             <ul className="overflow-y-auto flex-1 menu-list list-none p-0 m-0">
                 {/* External/HLS Tracks */}
@@ -185,19 +185,19 @@ export const AudioSubPanel: React.FC<{
         <div className="flex flex-col min-w-[220px] h-full py-3" style={{ flex: 1.4 }}>
             {/* Header + offset adjuster */}
             <div className="flex items-center justify-between px-4 pt-2 mb-1 flex-shrink-0">
-                <span className="text-sm uppercase tracking-wider text-white/60 font-bold">Subtitles</span>
+                <span className="text-sm uppercase tracking-wider text-white/60 font-bold">{t('player.subtitlesSection')}</span>
                 {onSubtitleOffsetChange && (
                     <div className="flex items-center gap-1">
                         <button
                             onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset - STEP).toFixed(1))); }}
                             className="w-6 h-6 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded transition text-base font-bold leading-none"
-                            title="Earlier (-0.5s)"
+                            title={t('player.earlier')}
                         >−</button>
                         <span className="text-xs text-white/60 w-10 text-center font-mono select-none">{offsetLabel}</span>
                         <button
                             onClick={(e) => { e.stopPropagation(); onSubtitleOffsetChange(parseFloat((subtitleOffset + STEP).toFixed(1))); }}
                             className="w-6 h-6 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded transition text-base font-bold leading-none"
-                            title="Later (+0.5s)"
+                            title={t('player.later')}
                         >+</button>
                     </div>
                 )}
@@ -310,6 +310,7 @@ export const ServerPanel: React.FC<{
     onSourceChange: (index: number) => void;
     onClose: () => void;
 }> = ({ allSources, currentSourceIndex, onSourceChange, onClose }) => {
+    const { t } = useTranslation();
     const isMobile = useIsMobile();
     const rowCls = `flex items-center justify-between px-4 ${isMobile ? 'py-4' : 'py-3'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition rounded select-none`;
 
@@ -317,7 +318,7 @@ export const ServerPanel: React.FC<{
         <div className="flex flex-col h-full bg-[#262626]">
             {!isMobile && (
                 <div className="px-8 py-6 border-b border-white/10 flex-shrink-0">
-                    <span className="text-white text-2xl font-bold">Select Streaming Server</span>
+                    <span className="text-white text-2xl font-bold">{t('player.selectServer')}</span>
                     <p className="text-sm text-white/40 mt-1">Switch servers if you experience buffering or if the current one is offline.</p>
                 </div>
             )}
@@ -358,6 +359,7 @@ export const QualityMenu: React.FC<{
     currentSourceIndex?: number;
     onSourceChange?: (index: number) => void;
 }> = ({ qualities, currentQuality, onQualityChange, onClose, allSources, currentSourceIndex, onSourceChange }) => {
+    const { t } = useTranslation();
     const isMobile = useIsMobile();
     const rowCls = `flex items-center justify-between px-4 ${isMobile ? 'py-4' : 'py-2.5'} cursor-pointer hover:bg-white/5 active:bg-white/10 transition rounded select-none`;
 
@@ -377,7 +379,7 @@ export const QualityMenu: React.FC<{
             <div className="flex flex-col h-full bg-[#262626]">
                 {!isMobile && (
                     <div className="px-8 py-6 border-b border-white/10 flex-shrink-0">
-                        <span className="text-white text-2xl font-bold">Video Quality</span>
+                        <span className="text-white text-2xl font-bold">{t('player.videoQuality')}</span>
                         <p className="text-sm text-white/40 mt-1">Select your preferred resolution for this stream.</p>
                     </div>
                 )}
@@ -414,7 +416,7 @@ export const QualityMenu: React.FC<{
                         />
                     )}
                     <div className="flex flex-col gap-0.5">
-                        <span className={`text-sm font-bold ${currentQuality === -1 ? 'text-white' : 'text-white/60'}`}>Auto</span>
+                        <span className={`text-sm font-bold ${currentQuality === -1 ? 'text-white' : 'text-white/60'}`}>{t('player.auto')}</span>
                         {!isMobile && <div className="text-xs text-white/50">Adjusts automatically</div>}
                     </div>
                 </div>
@@ -465,6 +467,7 @@ export const EpisodeExplorer: React.FC<{
     onPanelHover?: () => void;
     onClose?: () => void;
 }> = ({ seasonList, currentSeasonEpisodes, selectedSeason, currentEpisode, playingSeason, showId, onSeasonSelect, onEpisodeSelect, onEpisodeExpand, activePanel, setActivePanel, showTitle, onPanelHover, onClose }) => {
+    const { t } = useTranslation();
     const isMobile = useIsMobile();
     const { getEpisodeProgress } = useGlobalContext();
     const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
@@ -526,7 +529,7 @@ export const EpisodeExplorer: React.FC<{
                     <div
                         className="flex items-center gap-2 px-7 py-4 border-b-2 border-white bg-[#262626] flex-shrink-0 cursor-pointer text-white transition-colors hover:bg-white/5"
                         onClick={(e) => { e.stopPropagation(); setActivePanel('seasons'); }}
-                        title="Switch season"
+                        title={t('player.switchSeason')}
                     >
                         <ArrowLeftIcon size={26} weight="bold" className="text-white/70 flex-shrink-0" />
                         <span className="text-[22px] font-bold">Season {selectedSeason}</span>
@@ -661,6 +664,7 @@ export const EpisodeExplorer: React.FC<{
 export const PlaybackPanel: React.FC<{
     onClose: () => void;
 }> = ({ onClose }) => {
+    const { t } = useTranslation();
     const { settings, updateSettings } = useGlobalContext();
 
     const rowCls = "flex items-center justify-between px-8 py-5 cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors duration-150 select-none group border-b border-white/5";
@@ -674,8 +678,8 @@ export const PlaybackPanel: React.FC<{
                     onClick={() => updateSettings({ autoplayVideo: !settings.autoplayVideo })}
                 >
                     <div className="flex flex-col">
-                        <span className="text-white text-lg font-bold">Autoplay Video</span>
-                        <span className="text-white/40 text-sm">Start video immediately when content loads</span>
+                        <span className="text-white text-lg font-bold">{t('player.autoplayVideo')}</span>
+                        <span className="text-white/40 text-sm">{t('player.autoplayVideoDesc')}</span>
                     </div>
                     <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${settings.autoplayVideo ? 'bg-red-600' : 'bg-zinc-700'}`}>
                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${settings.autoplayVideo ? 'left-7' : 'left-1'}`} />
@@ -688,8 +692,8 @@ export const PlaybackPanel: React.FC<{
                     onClick={() => updateSettings({ autoplayNextEpisode: !settings.autoplayNextEpisode })}
                 >
                     <div className="flex flex-col">
-                        <span className="text-white text-lg font-bold">Autoplay Next Episode</span>
-                        <span className="text-white/40 text-sm">Automatically transition to the next episode</span>
+                        <span className="text-white text-lg font-bold">{t('playback.autoplayNext')}</span>
+                        <span className="text-white/40 text-sm">{t('player.autoplayNextDesc')}</span>
                     </div>
                     <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${settings.autoplayNextEpisode ? 'bg-red-600' : 'bg-zinc-700'}`}>
                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${settings.autoplayNextEpisode ? 'left-7' : 'left-1'}`} />
@@ -739,6 +743,7 @@ interface VideoPlayerSettingsProps {
 }
 
 const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
+    const { t } = useTranslation();
     if (props.activePanel === 'none') return null;
     const close = () => props.setActivePanel('none');
 
@@ -746,7 +751,7 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
         <>
             {props.activePanel === 'audioSubtitles' && (
                 <PanelShell
-                    title="Audio & Subtitles"
+                    title={t('player.audioSubtitlesTab')}
                     onClose={close}
                     onHover={() => { /* keep panel open */ }}
                     onLeave={() => { /* handled via hover timeout in controls */ }}
@@ -756,7 +761,7 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
                 </PanelShell>
             )}
             {props.activePanel === 'quality' && (
-                <PanelShell title="Video Quality" onClose={close} desktopClass="bottom-16 right-0 w-[320px] lg:w-[500px] max-h-[70vh]">
+                <PanelShell title={t('player.videoQualityTab')} onClose={close} desktopClass="bottom-16 right-0 w-[320px] lg:w-[500px] max-h-[70vh]">
                     <QualityMenu {...props} onClose={close} />
                 </PanelShell>
             )}
@@ -764,12 +769,12 @@ const VideoPlayerSettings: React.FC<VideoPlayerSettingsProps> = (props) => {
                 <EpisodeExplorer {...props} onClose={close} />
             )}
             {props.activePanel === 'servers' && (
-                <PanelShell title="Servers" onClose={close} desktopClass="bottom-16 right-0 w-[340px] lg:w-[450px] max-h-[60vh] h-auto">
+                <PanelShell title={t('player.serversTab')} onClose={close} desktopClass="bottom-16 right-0 w-[340px] lg:w-[450px] max-h-[60vh] h-auto">
                     <ServerPanel {...props} onClose={close} />
                 </PanelShell>
             )}
             {props.activePanel === 'playback' && (
-                <PanelShell title="Playback Settings" onClose={close} desktopClass="bottom-16 right-0 w-[400px] h-auto">
+                <PanelShell title={t('player.playbackTab')} onClose={close} desktopClass="bottom-16 right-0 w-[400px] h-auto">
                     <PlaybackPanel onClose={close} />
                 </PanelShell>
             )}

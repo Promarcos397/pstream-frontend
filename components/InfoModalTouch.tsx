@@ -691,7 +691,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                             className="h-[54px] flex flex-col items-center justify-center gap-y-1.5 text-[11px] font-bold text-white/60 active:scale-95 transition-all cursor-pointer hover:text-white"
                         >
                             <XIcon size={24} weight="bold" className="text-white hover:text-white" />
-                            <span className="mt-1">Remove Progress</span>
+                            <span className="mt-1">{t('common.removeProgress')}</span>
                         </button>
                     )}
 
@@ -701,7 +701,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                             <button
                                 onClick={() => setShowRatePopup(false)}
                                 className="flex items-center justify-center w-9 h-9 rounded-full bg-[#2f2f2f] text-white active:scale-95 transition-all cursor-pointer shadow-md"
-                                title="Close rating"
+                                title={t('common.closeRating')}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -714,7 +714,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                             <button
                                 onClick={() => setShowRatePopup(true)}
                                 className="flex items-center justify-center w-[24px] h-[24px] active:scale-95 transition-all cursor-pointer"
-                                title="Rate title"
+                                title={t('common.rateTitle')}
                             >
                                 {(() => {
                                      const rating = getMovieRating(movie.id);

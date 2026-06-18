@@ -1938,7 +1938,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             else window.history.back();
                         }}
                         className="flex items-center justify-center text-white/80 hover:text-white hover:scale-110 transition-all p-2 bg-zinc-950/60 backdrop-blur-md rounded-full shadow-2xl border border-white/10"
-                        aria-label="Close player"
+                        aria-label={t('player.closePlayer')}
                         style={{ width: 50, height: 50 }}
                     >
                         <ArrowLeftIcon size={32} weight="bold" />

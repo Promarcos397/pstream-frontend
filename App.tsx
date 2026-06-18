@@ -11,7 +11,7 @@ import { LoginWall } from './components/LoginWall';
 import { useCastStore } from './store/useCastStore';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const TAB_ORDER = ['home', 'tv', 'movies', 'new', 'list', 'settings'];
+const TAB_ORDER = ['home', 'tv', 'movies', 'new', 'list', 'language', 'settings'];
 
 const pageVariants = {
   initial: (dir: 'left' | 'right') => ({
@@ -53,8 +53,9 @@ const NewPopularPage   = lazy(() => import('./pages/NewPopularPage'));
 const MyListPage       = lazy(() => import('./pages/MyListPage'));
 const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage'));
 const SettingsPage     = lazy(() => import('./pages/SettingsPage'));
-const BrowseGridPage   = lazy(() => import('./pages/BrowseGridPage'));
-const GhostPage        = lazy(() => import('./pages/GhostPage'));
+const BrowseGridPage      = lazy(() => import('./pages/BrowseGridPage'));
+const BrowseLanguagePage  = lazy(() => import('./pages/BrowseLanguagePage'));
+const GhostPage           = lazy(() => import('./pages/GhostPage'));
 const NotFoundPage     = lazy(() => import('./pages/NotFoundPage'));
 
 const PageFallback = <div className="h-screen w-screen bg-black" />;
@@ -127,7 +128,7 @@ const App: React.FC = () => {
   const modalIdRaw = modalMatch ? modalMatch[2] : null;
   const modalId = modalIdRaw ? (isNaN(Number(modalIdRaw)) ? modalIdRaw : Number(modalIdRaw)) : null;
 
-  const backgroundLocation = location.state?.backgroundLocation || (isModalActive ? { pathname: '/' } : location);
+  const backgroundLocation = location.state?.backgroundLocation || (isModalActive ? { pathname: '/browse' } : location);
 
   useEffect(() => {
     if (modalType && modalId !== null) {
@@ -155,16 +156,18 @@ const App: React.FC = () => {
 
     if (query) {
       setPageTitle(t('nav.searchTitle', { query: query }));
-    } else if (path === '/') {
+    } else if (path === '/' || path === '/browse') {
       setPageTitle(t('nav.homeTitle'));
-    } else if (path === '/tv') {
+    } else if (path === '/browse/series') {
       setPageTitle(t('nav.showsTitle'));
-    } else if (path === '/movies') {
+    } else if (path === '/browse/films') {
       setPageTitle(t('nav.moviesTitle'));
-    } else if (path === '/new') {
+    } else if (path === '/latest') {
       setPageTitle(t('nav.newTitle'));
-    } else if (path === '/list') {
+    } else if (path === '/browse/my-list') {
       setPageTitle(t('nav.listTitle'));
+    } else if (path === '/browse/language') {
+      setPageTitle('Browse by Language');
     } else if (path.startsWith('/settings')) {
       setPageTitle(t('nav.settingsTitle'));
     } else {
@@ -252,11 +255,12 @@ const App: React.FC = () => {
 
   const getActiveTab = () => {
     const path = backgroundLocation.pathname;
-    if (path === '/') return 'home';
-    if (path === '/tv') return 'tv';
-    if (path === '/movies') return 'movies';
-    if (path === '/new') return 'new';
-    if (path === '/list') return 'list';
+    if (path === '/' || path === '/browse') return 'home';
+    if (path === '/browse/series') return 'tv';
+    if (path === '/browse/films') return 'movies';
+    if (path === '/latest') return 'new';
+    if (path === '/browse/my-list') return 'list';
+    if (path === '/browse/language') return 'language';
     if (path.startsWith('/settings')) return 'settings';
     return 'home';
   };
@@ -297,7 +301,7 @@ const App: React.FC = () => {
   const isWatching = location.pathname.startsWith('/watch');
   const isSettings = location.pathname.startsWith('/settings');
 
-  const knownRoutes = ['/', '/tv', '/movies', '/new', '/list', '/login', '/ghost', '/matrix'];
+  const knownRoutes = ['/', '/browse', '/browse/series', '/browse/films', '/latest', '/browse/my-list', '/browse/language', '/login', '/ghost', '/matrix'];
   const is404Route = !knownRoutes.includes(backgroundLocation.pathname)
     && !backgroundLocation.pathname.startsWith('/settings')
     && !backgroundLocation.pathname.startsWith('/browse')
@@ -360,11 +364,13 @@ const App: React.FC = () => {
   const innerRoutes = (
     <Suspense fallback={PageFallback}>
       <Routes location={backgroundLocation}>
-        <Route path="/" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
-        <Route path="/tv" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/movies" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
-        <Route path="/new" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/" element={<Navigate to="/browse" replace />} />
+        <Route path="/browse" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
+        <Route path="/browse/series" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/browse/films" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
+        <Route path="/latest" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/browse/my-list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/browse/language" element={<BrowseLanguagePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/settings/*" element={<SettingsPage />} />
         <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/login" element={<LoginPage />} />

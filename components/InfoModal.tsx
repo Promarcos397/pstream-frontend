@@ -19,6 +19,7 @@ import { TrailerPlayer } from './TrailerPlayer';
 import { useTasteEngine } from '../hooks/useTasteEngine';
 import { useIsMobile } from '../hooks/useIsMobile';
 import InfoModalTouch from './InfoModalTouch';
+import TooltipWrapper from './TooltipWrapper';
 import { dimensionsAsMovies, get404Episodes } from '../data/notFoundDimensions';
 
 // Module-level cache: saves each movie's InfoModal trailer position across opens.
@@ -36,57 +37,41 @@ interface InfoModalProps {
 
 type MovieRating = 'like' | 'dislike' | 'love';
 
-const DoubleThumbsUpIcon: React.FC<{ size?: number; weight?: 'fill' | 'bold'; className?: string; maskColor?: string }> = ({ 
-  size = 22, 
-  weight = 'bold', 
+const DoubleThumbsUpIcon: React.FC<{ size?: number; weight?: 'fill' | 'bold'; className?: string; maskColor?: string }> = ({
+  size = 22,
+  weight = 'bold',
   className = '',
   maskColor = '#2f2f2f'
 }) => {
-  const offset = size * 0.35;
-  const maskId = React.useId ? React.useId() : `love-mask-${Math.random().toString(36).substr(2, 9)}`;
-  const safeMaskId = maskId.replace(/:/g, '_');
+  const offsetX = Math.round(size * 0.38);
+  const offsetY = Math.round(size * 0.32);
+  const biteR   = Math.round(size * 0.44);
 
   return (
-    <div 
-      className={`relative inline-flex items-center justify-center ${className}`}
-      style={{ width: size + offset, height: size + offset }}
+    <div
+      className={`relative inline-flex ${className}`}
+      style={{ width: size + offsetX, height: size + offsetY }}
     >
-      <svg 
-        width={size + offset} 
-        height={size + offset} 
-        viewBox={`0 0 ${size + offset} ${size + offset}`}
-        className="absolute inset-0 w-full h-full pointer-events-none"
-      >
-        <defs>
-          <mask id={safeMaskId}>
-            {/* White background: keeps back icon visible */}
-            <rect x="0" y="0" width="100%" height="100%" fill="white" />
-            
-            {/* Black silhouette of front icon to cut it out */}
-            <g transform={`translate(0, ${offset})`} fill="black" stroke="black" strokeWidth={3} strokeLinejoin="round" strokeLinecap="round">
-              <ThumbsUpIcon size={size} weight="fill" />
-            </g>
-          </mask>
-        </defs>
+      {/* Bottom thumb — lower right, sits behind everything (z=1) */}
+      <div className="absolute" style={{ left: offsetX, top: offsetY, zIndex: 1 }}>
+        <ThumbsUpIcon size={size} weight={weight} />
+      </div>
 
-        {/* Draw the back icon, masked by the front icon's cutout */}
-        <g mask={`url(#${safeMaskId})`}>
-          <g transform={`translate(${offset}, 0)`}>
-            <ThumbsUpIcon size={size} weight={weight} />
-          </g>
-        </g>
-      </svg>
-
-      {/* Front icon sits on top of the SVG, aligned with the mask cutout */}
-      <div 
-        className="absolute"
+      {/* Separator circle in button background color — bites into bottom thumb (z=2) */}
+      <div
+        className="absolute rounded-full"
         style={{
-          left: 0,
-          top: offset,
-          width: size,
-          height: size,
+          width:  biteR * 2,
+          height: biteR * 2,
+          left:   offsetX - biteR + 4,
+          top:    offsetY - biteR + 5,
+          background: maskColor,
+          zIndex: 2,
         }}
-      >
+      />
+
+      {/* Top thumb — upper left, in front of everything (z=3) */}
+      <div className="absolute" style={{ left: 0, top: 0, zIndex: 3 }}>
         <ThumbsUpIcon size={size} weight={weight} />
       </div>
     </div>
@@ -150,7 +135,7 @@ const RatingPillOption: React.FC<{
           ${isActive ? 'bg-white/15' : ''}`}
         title={tooltipText}
       >
-        <RatingIcon rating={option} size={20} weight={isActive ? 'fill' : 'bold'} maskColor={maskColor} />
+        <RatingIcon rating={option} size={20} weight={isActive ? 'fill' : 'bold'} maskColor={isHovered ? '#414141' : maskColor} />
       </button>
     </div>
   );
@@ -164,13 +149,9 @@ const InfoModalRatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (
         <div className="relative flex items-center" onMouseEnter={() => setExpanded(true)} onMouseLeave={() => setExpanded(false)}>
             <button
                 type="button"
-                className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white
-                    ${rating
-                        ? 'border-white bg-white/15 hover:bg-white/25'
-                        : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
-                    }`}
+                className="border border-white/40 rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white"
             >
-                <RatingIcon rating={rating} size={22} weight={rating ? 'fill' : 'bold'} className="text-white" maskColor="#2a2a2a" />
+                <RatingIcon rating={rating} size={22} weight={rating ? 'fill' : 'bold'} className="text-white" maskColor="#444444" />
             </button>
 
             <AnimatePresence>
@@ -572,27 +553,30 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                     />
                                 );
                             })()}
-                            <button 
-                                onClick={() => toggleList(activeMovie)} 
-                                className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
-                                    ${isAdded 
-                                        ? 'border-white bg-white/15 hover:bg-white/25' 
-                                        : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
-                                    }`}
-                            >
-                                {isAdded ? <CheckIcon size={24} /> : <PlusIcon size={24} />}
-                            </button>
+                            <TooltipWrapper label={isAdded ? t('modal.removeFromList') : t('modal.addToList')}>
+                                <button
+                                    onClick={() => toggleList(activeMovie)}
+                                    className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
+                                        ${isAdded
+                                            ? 'border-white bg-white/15'
+                                            : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
+                                        }`}
+                                >
+                                    {isAdded ? <CheckIcon size={24} /> : <PlusIcon size={24} />}
+                                </button>
+                            </TooltipWrapper>
                             <InfoModalRatingPill rating={getMovieRating(movie.id)} onRate={(r) => rateMovie(activeMovie, r)} />
                             {(hasResumeMovie || hasResumeTV) && (
-                                <button 
-                                    onClick={() => {
-                                        clearVideoState(activeMovie.id);
-                                    }} 
-                                    className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
-                                    title="Remove from Continue Watching"
-                                >
-                                    <XIcon size={22} weight="bold" />
-                                </button>
+                                <TooltipWrapper label={t('common.removeContinue')}>
+                                    <button
+                                        onClick={() => {
+                                            clearVideoState(activeMovie.id);
+                                        }}
+                                        className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
+                                    >
+                                        <XIcon size={22} weight="bold" />
+                                    </button>
+                                </TooltipWrapper>
                             )}
                         </div>
                     </div>

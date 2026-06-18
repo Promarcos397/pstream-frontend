@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabaseClient';
 
 export const LoginWall: React.FC = () => {
+  const { t } = useTranslation();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,13 +45,13 @@ export const LoginWall: React.FC = () => {
       <div className="relative z-10 bg-white/5 border border-white/10 backdrop-blur-xl p-8 rounded-2xl w-full max-w-md shadow-2xl">
         <div className="text-center mb-8">
           <img src="/assets/logos/pstream-logo.svg" alt="P-Stream" className="h-8 mx-auto mb-6" />
-          <h2 className="text-3xl font-black tracking-tight">{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
-          <p className="text-white/50 mt-2 text-sm">You must be logged in to access the library.</p>
+          <h2 className="text-3xl font-black tracking-tight">{isLogin ? t('auth.welcome') : t('auth.createAccount')}</h2>
+          <p className="text-white/50 mt-2 text-sm">{t('auth.loginRequired', { defaultValue: 'You must be logged in to access the library.' })}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-2">Email</label>
+            <label className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-2">{t('auth.emailPlaceholder', { defaultValue: 'Email' })}</label>
             <input 
               type="email" 
               required
@@ -60,7 +62,7 @@ export const LoginWall: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-2">Password</label>
+            <label className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-2">{t('auth.passwordPlaceholder', { defaultValue: 'Password' })}</label>
             <input 
               type="password" 
               required
@@ -83,7 +85,7 @@ export const LoginWall: React.FC = () => {
             disabled={loading}
             className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-colors mt-6"
           >
-            {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
+            {loading ? t('auth.redirecting') : (isLogin ? t('auth.signIn') : t('auth.createAccount'))}
           </button>
         </form>
 
@@ -92,7 +94,7 @@ export const LoginWall: React.FC = () => {
             onClick={() => setIsLogin(!isLogin)}
             className="text-white/60 hover:text-white text-sm transition-colors"
           >
-            {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            {isLogin ? `${t('auth.dontHaveAccount')} ${t('auth.signUpLink')}` : `${t('auth.alreadyHaveAccount')} ${t('auth.signInLink')}`}
           </button>
         </div>
       </div>

@@ -24,6 +24,7 @@ import {
 import { useIsMobile } from '../hooks/useIsMobile';
 import TopTenRowMobile from './TopTenRowMobile';
 import { useIsScrolling } from '../utils/scrollState';
+import TooltipWrapper from './TooltipWrapper';
 
 // ─── Shared pointer-type hook (same logic as MovieCard) ────────────────────────
 // IMPORTANT: Only flip to touch-mode when a touch pointer is used AND screen is narrow.
@@ -195,12 +196,12 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
         type="button"
         className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white
           ${rating
-            ? 'border-white bg-white/15 hover:bg-white/25'
+            ? 'border-white bg-white/15'
             : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
           }`}
-        title="Rate"
+        title={t('common.rateTitle')}
       >
-        <RatingIcon rating={rating} size={20} weight={rating ? 'fill' : 'bold'} className="text-white" maskColor="#2a2a2a" />
+        <RatingIcon rating={rating} size={20} weight={rating ? 'fill' : 'bold'} className="text-white" maskColor={expanded ? '#414141' : '#2a2a2a'} />
       </button>
 
       <AnimatePresence>
@@ -815,14 +816,15 @@ const TopTenCard: React.FC<{
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2.5">
                     {isBook ? (
-                      <Link
-                        to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-200 transition shadow-md duration-200"
-                        title="Read Now"
-                      >
-                        <BookOpenIcon size={24} weight="fill" />
-                      </Link>
+                      <TooltipWrapper label={t('common.readNow')}>
+                        <Link
+                          to={`/watch/${movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'}/${movie.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-200 transition shadow-md duration-200"
+                        >
+                          <BookOpenIcon size={24} weight="fill" />
+                        </Link>
+                      </TooltipWrapper>
                     ) : (
                       <CinemaPlayButton
                         movie={movie}
@@ -831,17 +833,18 @@ const TopTenCard: React.FC<{
                       />
                     )}
 
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
-                      className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
-                        ${isAdded 
-                          ? 'border-white bg-white/15 hover:bg-white/25' 
-                          : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
-                        }`}
-                      title={isAdded ? 'Remove from My List' : 'Add to My List'}
-                    >
-                      {isAdded ? <CheckIcon size={24} weight="bold" /> : <PlusIcon size={24} weight="bold" />}
-                    </button>
+                    <TooltipWrapper label={isAdded ? t('modal.removeFromList') : t('modal.addToList')}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
+                        className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
+                          ${isAdded
+                            ? 'border-white bg-white/15'
+                            : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
+                          }`}
+                      >
+                        {isAdded ? <CheckIcon size={24} weight="bold" /> : <PlusIcon size={24} weight="bold" />}
+                      </button>
+                    </TooltipWrapper>
 
                     <RatingPill
                       rating={getMovieRating(movie.id)}
@@ -849,27 +852,29 @@ const TopTenCard: React.FC<{
                     />
 
                     {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          clearVideoState(movie.id);
-                          handlePointerLeave();
-                        }}
-                        className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
-                        title="Remove from Continue Watching"
-                      >
-                        <XIcon size={20} weight="bold" />
-                      </button>
+                      <TooltipWrapper label={t('common.removeContinue')}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            clearVideoState(movie.id);
+                            handlePointerLeave();
+                          }}
+                          className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
+                        >
+                          <XIcon size={20} weight="bold" />
+                        </button>
+                      </TooltipWrapper>
                     )}
                   </div>
 
-                  <button
-                    onClick={handleOpenModal}
-                    className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
-                    title="More Info"
-                  >
-                    <CaretDownIcon size={22} weight="bold" />
-                  </button>
+                  <TooltipWrapper label={t('hero.moreInfo')}>
+                    <button
+                      onClick={handleOpenModal}
+                      className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
+                    >
+                      <CaretDownIcon size={22} weight="bold" />
+                    </button>
+                  </TooltipWrapper>
                 </div>
 
                 {/* Metadata */}

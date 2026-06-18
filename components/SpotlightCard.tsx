@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PlayIcon, PauseIcon, PlusIcon, CheckIcon, SpeakerHighIcon, SpeakerSlashIcon } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
 import { MaturityBadge } from './MovieCardBadges';
 import { Movie } from '../types';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -73,6 +74,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
     hidePlay = false,
     nextMovie,
 }) => {
+    const { t } = useTranslation();
     const { myList, toggleList, activeVideoId, setActiveVideoId, globalMute, setGlobalMute, settings } = useGlobalContext();
     const isAdded = myList.some(m => String(m.id) === String(movie.id));
 
@@ -535,7 +537,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                                 className="flex items-center justify-center h-[56px] px-8 rounded-[4px] bg-[#6d6d6e]/40 hover:bg-[#6d6d6e]/25 text-white font-bold text-[18px] gap-2.5 transition-all active:scale-95 font-sans"
                             >
                                 {isAdded ? <CheckIcon size={24} weight="bold" className="text-white" /> : <PlusIcon size={24} weight="bold" className="text-white" />}
-                                <span>My List</span>
+                                <span>{t('nav.myList')}</span>
                             </button>
                         </div>
                     ) : hidePlay ? (
@@ -553,14 +555,14 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
                                 className="flex-1 flex items-center justify-center h-[56px] rounded-[4px] bg-white hover:bg-neutral-200 text-black font-bold text-[18px] gap-2.5 transition-all active:scale-95 font-sans"
                             >
                                 <PlayIcon size={24} weight="fill" className="text-black" />
-                                <span>Play</span>
+                                <span>{t('hero.play')}</span>
                             </button>
                             <button
                                 onClick={e => { e.stopPropagation(); toggleList(movie); }}
                                 className="flex-1 flex items-center justify-center h-[56px] rounded-[4px] bg-[#6d6d6e]/40 hover:bg-[#6d6d6e]/25 text-white font-bold text-[18px] gap-2.5 transition-all active:scale-95 font-sans"
                             >
                                 {isAdded ? <CheckIcon size={24} weight="bold" className="text-white" /> : <PlusIcon size={24} weight="bold" className="text-white" />}
-                                <span>My List</span>
+                                <span>{t('nav.myList')}</span>
                             </button>
                         </div>
                     )}

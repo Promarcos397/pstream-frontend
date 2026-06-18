@@ -225,7 +225,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       }
 
       const heroRgb = document.documentElement.dataset.heroRgb;
-      if (heroRgb && location.pathname === '/') {
+      if (heroRgb && (location.pathname === '/browse' || location.pathname === '/')) {
         const [r, g, b] = heroRgb.split(',').map(Number);
         // Full accent color at scroll=0, fades to black over 30px as the navbar solidifies.
         const factor = 1 - Math.min(1, scroll / 30);
@@ -278,13 +278,13 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   const handleMobileTabClick = (tabId: string) => {
     setActiveTab(tabId);
     startTransition(() => {
-      if (tabId === 'settings') {
-        navigate('/settings');
-      } else if (tabId === 'home') {
-        navigate('/');
-      } else {
-        navigate(`/${tabId}`);
-      }
+      if (tabId === 'settings')  navigate('/settings');
+      else if (tabId === 'home') navigate('/browse');
+      else if (tabId === 'tv')   navigate('/browse/series');
+      else if (tabId === 'movies') navigate('/browse/films');
+      else if (tabId === 'new')  navigate('/latest');
+      else if (tabId === 'list') navigate('/browse/my-list');
+      else if (tabId === 'language') navigate('/browse/language');
     });
   };
 
@@ -315,14 +315,14 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
         >
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center justify-start gap-2.5">
-              {location.pathname !== '/' ? (
+              {location.pathname !== '/browse' ? (
                 <button
                   onClick={() => {
                     setActiveTab('home');
-                    navigate('/', { state: { direction: 'left' } });
+                    navigate('/browse', { state: { direction: 'left' } });
                   }}
                   className="p-1 -ml-1 text-white hover:text-white/85 active:scale-95 transition-all duration-200 shrink-0 flex items-center justify-center rounded-full active:bg-white/10"
-                  title="Go Back"
+                  title={t('nav.goBack')}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-[22px] h-[22px]">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -339,11 +339,11 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               <span className="text-[21px] font-[350] tracking-wide text-white select-none font-sans">
                 {(() => {
                   const path = location.pathname;
-                  if (path === '/') return t('nav.home', { defaultValue: 'Home' });
-                  if (path === '/list') return t('nav.myList', { defaultValue: 'My List' });
-                  if (path === '/tv' || path === '/series') return t('nav.shows', { defaultValue: 'Series' });
-                  if (path === '/movies' || path === '/films') return t('nav.movies', { defaultValue: 'Films' });
-                  if (path === '/new') return 'New & Hot';
+                  if (path === '/' || path === '/browse') return t('nav.home', { defaultValue: 'Home' });
+                  if (path === '/browse/my-list') return t('nav.myList', { defaultValue: 'My List' });
+                  if (path === '/browse/series') return t('nav.shows', { defaultValue: 'Series' });
+                  if (path === '/browse/films') return t('nav.movies', { defaultValue: 'Films' });
+                  if (path === '/latest') return t('nav.newPopular', { defaultValue: 'New & Hot' });
                   if (path.startsWith('/settings')) return t('nav.profile', { defaultValue: 'Profile' });
                   if (activeTab === 'home') return t('nav.home', { defaultValue: 'Home' });
                   if (activeTab === 'list') return t('nav.myList', { defaultValue: 'My List' });
@@ -361,7 +361,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                   onClick={startAirPlay}
                   className={`p-1.5 flex items-center justify-center rounded-full active:bg-white/10 transition-colors active:scale-95
                     ${isAirPlayActive ? 'text-[#3b82f6]' : 'text-white/80 hover:text-white'}`}
-                  title="AirPlay to TV"
+                  title={t('nav.airplay')}
                 >
                   <MdAirplay size={22} />
                 </button>
@@ -371,7 +371,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                   onClick={startChromecast}
                   className={`p-1.5 flex items-center justify-center rounded-full active:bg-white/10 transition-colors active:scale-95
                     ${isChromecastConnected ? 'text-[#3b82f6]' : (isChromecastConnecting ? 'text-[#3b82f6] animate-pulse' : 'text-white/80 hover:text-white')}`}
-                  title="Chromecast to TV"
+                  title={t('nav.chromecast')}
                 >
                   <MdCast size={22} />
                 </button>
@@ -389,7 +389,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               </svg>
               <input
                 type="text"
-                placeholder="Search movies, shows..."
+                placeholder={t('nav.searchPlaceholder')}
                 className="bg-transparent border-none outline-none text-white text-[15px] w-full font-netflix placeholder-[#8c8c8c] focus:ring-0 focus:outline-none py-0.5"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -398,7 +398,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               <button
                 onClick={() => setSearchQuery('')}
                 className="text-[#8c8c8c] hover:text-white shrink-0 ml-2 p-0.5 active:scale-95 transition-transform"
-                title="Clear Search"
+                title={t('common.cancel')}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.0" stroke="currentColor" className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

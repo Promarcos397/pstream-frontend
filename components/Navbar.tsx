@@ -27,6 +27,14 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
 
   const [navScrollY, setNavScrollY] = useState(0);
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  useEffect(() => {
+    setAvatarLoaded(false);
+    if (!avatarUrl) return;
+    const img = new Image();
+    img.onload = () => setAvatarLoaded(true);
+    img.src = avatarUrl;
+  }, [avatarUrl]);
   useEffect(() => {
     if (isMobile) return;
     const onScroll = () => setNavScrollY(window.scrollY);
@@ -43,6 +51,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
     { id: 'movies', label: t('nav.movies', { defaultValue: 'Films' }) },
     { id: 'new', label: t('nav.newPopular', { defaultValue: 'New & Popular' }) },
     { id: 'list', label: t('nav.myList', { defaultValue: 'My List' }) },
+    { id: 'language', label: t('nav.browseByLanguage', { defaultValue: 'Browse by Language' }) },
   ];
 
   useEffect(() => {
@@ -63,6 +72,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
       case 'movies':   void import('../pages/MoviesPage'); break;
       case 'new':      void import('../pages/NewPopularPage'); break;
       case 'list':     void import('../pages/MyListPage'); break;
+      case 'language': void import('../pages/BrowseLanguagePage'); break;
       case 'settings': void import('../pages/SettingsPage'); break;
     }
   };
@@ -70,13 +80,13 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);
     startTransition(() => {
-      if (tabId === 'settings') {
-        navigate('/settings');
-      } else if (tabId === 'home') {
-        navigate('/');
-      } else {
-        navigate(`/${tabId}`);
-      }
+      if (tabId === 'settings')  navigate('/settings');
+      else if (tabId === 'home') navigate('/browse');
+      else if (tabId === 'tv')   navigate('/browse/series');
+      else if (tabId === 'movies') navigate('/browse/films');
+      else if (tabId === 'new')  navigate('/latest');
+      else if (tabId === 'list') navigate('/browse/my-list');
+      else if (tabId === 'language') navigate('/browse/language');
     });
   };
 
@@ -151,13 +161,12 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
                 <div className="relative group/profile py-2 flex items-center">
                   <div className="flex items-center cursor-pointer">
                     <div
-                      className="w-8 h-8 rounded overflow-hidden shadow-md group-hover/profile:ring-2 ring-white/60 transition-all flex items-center justify-center"
-                      style={{ background: avatarUrl ? undefined : '#E50914' }}
+                      className="w-8 h-8 rounded overflow-hidden shadow-md group-hover/profile:ring-2 ring-white/60 transition-all flex items-center justify-center relative"
+                      style={{ background: '#E50914' }}
                     >
-                      {avatarUrl ? (
-                        <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-white font-bold text-sm">{avatarInitial}</span>
+                      <span className="text-white font-bold text-sm absolute">{avatarInitial}</span>
+                      {avatarUrl && (
+                        <img src={avatarUrl} alt="Profile" decoding="async" className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-300 ${avatarLoaded ? 'opacity-100' : 'opacity-0'}`} />
                       )}
                     </div>
                     {/* Small Caret Down Icon (CSS border caret) */}
@@ -171,14 +180,13 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
                     
                     {/* User Details */}
                     <div className="px-3 py-2 flex items-center gap-2.5 border-b border-white/10">
-                      <div 
-                        className="w-6 h-6 rounded overflow-hidden flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white" 
-                        style={{ background: avatarUrl ? undefined : '#E50914' }}
+                      <div
+                        className="w-6 h-6 rounded overflow-hidden flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white relative"
+                        style={{ background: '#E50914' }}
                       >
-                        {avatarUrl ? (
-                          <img src={avatarUrl} className="w-full h-full object-cover" alt="" />
-                        ) : (
-                          avatarInitial
+                        <span className="absolute">{avatarInitial}</span>
+                        {avatarUrl && (
+                          <img src={avatarUrl} decoding="async" className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-300 ${avatarLoaded ? 'opacity-100' : 'opacity-0'}`} alt="" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -194,13 +202,13 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
                       onClick={() => handleTabClick('settings')}
                       className="w-full text-left px-3 py-2 hover:bg-white/10 rounded transition-colors text-xs font-semibold mt-1 flex items-center justify-between"
                     >
-                      <span>{t('accountSettings')}</span>
+                      <span>{t('nav.accountSettings')}</span>
                     </button>
                     <button 
                       onClick={() => handleTabClick('list')}
                       className="w-full text-left px-3 py-2 hover:bg-white/10 rounded transition-colors text-xs font-semibold flex items-center justify-between"
                     >
-                      <span>{t('nav.list')}</span>
+                      <span>{t('nav.myList')}</span>
                     </button>
 
                     <div className="h-px bg-white/10 my-1" />

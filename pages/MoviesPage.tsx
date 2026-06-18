@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { REQUESTS } from '../constants';
 import { Movie } from '../types';
@@ -25,8 +25,20 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
   const { t } = useTranslation();
   const { isAppReady } = useGlobalContext();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const stateGenre = location.state?.genre as Genre | null;
-  const [selectedGenre, setSelectedGenre] = useState<Genre | null>(stateGenre || null);
+  const [selectedGenre, setSelectedGenre] = useState<Genre | null>(() => {
+    const id = searchParams.get('genre');
+    const name = searchParams.get('gname');
+    if (id && name) return { id: Number(id), name };
+    return stateGenre || null;
+  });
+
+  const handleGenreSelect = (genre: Genre | null) => {
+    setSelectedGenre(genre);
+    if (genre) setSearchParams({ genre: String(genre.id), gname: genre.name }, { replace: true });
+    else setSearchParams({}, { replace: true });
+  };
   const { rows, isLoading } = useDynamicManifest('movie', selectedGenre?.id, selectedGenre?.name);
 
   return (
@@ -35,7 +47,7 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
           title={t('nav.movies', { defaultValue: 'Movies' })}
           genres={MOVIE_GENRES}
           selectedGenre={selectedGenre}
-          onGenreSelect={setSelectedGenre}
+          onGenreSelect={handleGenreSelect}
         />
 
       <AnimatePresence initial={false}>

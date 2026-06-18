@@ -165,7 +165,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
         <button
           onClick={toggleSearch}
           className="focus:outline-none flex items-center justify-center z-10 shrink-0"
-          aria-label="Toggle Search"
+          aria-label={t('common.search')}
           id="searchbar-toggle"
         >
           <MagnifyingGlassIcon
@@ -183,7 +183,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') closeSearch(); }}
-          aria-label="Search movies and shows"
+          aria-label={t('nav.searchPlaceholder')}
           id="search-input"
         />
 

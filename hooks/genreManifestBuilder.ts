@@ -2184,17 +2184,27 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Curated anchor first — strong cold start before any personalized rows
+  const primaryCuratedUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('movie', selectedGenreId, 'vote_count.desc')
+    : REQUESTS.fetchTrendingMovies;
+  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
+  if (!usedUrls.has(primaryCuratedSig)) {
+    addRow({
+      key: `movie-primary-curated-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Most Loved ${baseGenreName} Films` : 'Trending Films Right Now',
+      fetchUrl: primaryCuratedUrl,
+    });
+  }
+
   let CW_at_top = false;
   let ML_at_top = false;
 
-  if (filteredContinueWatchingRow && filteredContinueWatchingRow.data && filteredContinueWatchingRow.data.length >= 4) {
+  if (filteredContinueWatchingRow && filteredContinueWatchingRow.data && filteredContinueWatchingRow.data.length >= 6) {
     addRow(filteredContinueWatchingRow);
     CW_at_top = true;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // 2. PERSONALIZED RECOMMENDATIONS (Row 1-2)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let watchRowsCount = 0;
   continueWatching.forEach((m) => {
     if (watchRowsCount >= 1) return;
@@ -2214,36 +2224,19 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     }
   });
 
-  if (myListRow && myListRow.data && myListRow.data.length >= 4) {
+  if (myListRow && myListRow.data && myListRow.data.length >= 6) {
     addRow(myListRow);
     ML_at_top = true;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // 3. DEMOTED COMFORT ROWS (Index 2-3 if < 4 items)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (filteredContinueWatchingRow && !CW_at_top) {
     addRow(filteredContinueWatchingRow);
-  }
-
-  // Primary Curated Row — vote_count sort surfaces fan-favourites, not just this week's trending
-  const primaryCuratedUrl = selectedGenreId
-    ? REQUESTS.fetchByGenre('movie', selectedGenreId, 'vote_count.desc')
-    : REQUESTS.fetchTrendingMovies;
-  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
-  if (!usedUrls.has(primaryCuratedSig)) {
-    addRow({
-      key: `movie-primary-curated-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Most Loved ${baseGenreName} Films` : 'Trending Films Right Now',
-      fetchUrl: primaryCuratedUrl,
-    });
   }
 
   if (myListRow && !ML_at_top) {
     addRow(myListRow);
   }
 
-  // Liked personalization
   let likedRowsCount = 0;
   likedEntries.forEach((entry) => {
     if (likedRowsCount >= 1) return;
@@ -2335,7 +2328,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     });
   }
 
-  // Special Bespoke Curation for Crime Films (Genre ID 80)
+  // Crime (80) movie bespoke
   if (selectedGenreId === 80) {
     const vintageUrl = buildScopedQuery('movie', {
       sort_by: 'popularity.desc',
@@ -2344,18 +2337,333 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     });
     pool.push({
       key: `${moviePrefix}-theme-vintage-crime`,
-      title: 'Vintage Crime',
+      title: 'Vintage Crime Films',
       fetchUrl: vintageUrl,
     });
 
     const trueCrimeUrl = buildScopedQuery('movie', {
       sort_by: 'popularity.desc',
-      with_keywords: '818', // based on real life sagas
+      with_keywords: '818',
     });
     pool.push({
       key: `${moviePrefix}-theme-true-crime-sagas`,
       title: 'True Crime & Real-Life Sagas',
       fetchUrl: trueCrimeUrl,
+    });
+
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-crime-prestige`,
+      title: 'Critically Acclaimed Crime Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '80', 'vote_count.gte': 400 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-crime-heist`,
+      title: 'Heist & Con Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '80,28' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-nordic-crime`,
+      title: 'Nordic Crime Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '80', with_origin_country: 'SE|DK|NO|FI' }),
+    });
+  }
+
+  // Action (28) movie bespoke
+  if (selectedGenreId === 28) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-blockbusters`,
+      title: 'Hollywood Action Blockbusters',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_count.desc', with_genres: '28', 'vote_average.gte': 6.5 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-action-prestige`,
+      title: 'Critically Acclaimed Action Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '28', 'vote_count.gte': 300 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-action-franchise`,
+      title: 'Action Franchise Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '28,12' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-spy-thriller`,
+      title: 'Spy & Espionage Thrillers',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '28,53' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-action-new`,
+      title: 'New Action Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '28', 'primary_release_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+  }
+
+  // Horror (27) movie bespoke
+  if (selectedGenreId === 27) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-horror-prestige`,
+      title: 'Critically Acclaimed Horror',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '27', 'vote_count.gte': 300 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-psychological-horror`,
+      title: 'Psychological Horror Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '27,53' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-horror-supernatural`,
+      title: 'Supernatural Horror Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '27,14' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-horror-new`,
+      title: 'New Horror Releases',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '27', 'primary_release_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-horror-cult`,
+      title: 'Cult Horror Classics',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_count.desc', with_genres: '27', 'primary_release_date.lte': '2005-01-01', 'vote_average.gte': 7.0 }),
+    });
+  }
+
+  // Sci-Fi (878) / Fantasy (14) movie bespoke
+  if (selectedGenreId === 878 || selectedGenreId === 14) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    const sfGenre = selectedGenreId === 878 ? '878' : '14';
+    pool.push({
+      key: `${moviePrefix}-theme-scifi-prestige`,
+      title: selectedGenreId === 878 ? 'Prestige Sci-Fi Films' : 'Epic Fantasy Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: sfGenre, 'vote_count.gte': 500 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-scifi-blockbuster`,
+      title: selectedGenreId === 878 ? 'Sci-Fi Blockbusters' : 'Fantasy Adventures',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: `${sfGenre},28` }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-scifi-new`,
+      title: selectedGenreId === 878 ? 'New Sci-Fi Films' : 'New Fantasy Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: sfGenre, 'primary_release_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-scifi-classic`,
+      title: selectedGenreId === 878 ? 'Classic Sci-Fi Films' : 'Classic Fantasy Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_count.desc', with_genres: sfGenre, 'primary_release_date.lte': '2000-01-01', 'vote_average.gte': 7.0 }),
+    });
+    if (selectedGenreId === 878) {
+      pool.push({
+        key: `${moviePrefix}-theme-dystopian`,
+        title: 'Dystopian Futures',
+        fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '878', with_keywords: '4344' }),
+      });
+    }
+  }
+
+  // Thriller (53) movie bespoke
+  if (selectedGenreId === 53) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-thriller-prestige`,
+      title: 'Critically Acclaimed Thrillers',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '53', 'vote_count.gte': 400 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-thriller-psychological`,
+      title: 'Psychological Thrillers',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '53,18' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-thriller-heist`,
+      title: 'Heist & Con Thrillers',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '53,80' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-thriller-new`,
+      title: 'New Thrillers',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '53', 'primary_release_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-thriller-spy`,
+      title: 'Spy & Conspiracy Thrillers',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '53,28' }),
+    });
+  }
+
+  // Drama (18) movie bespoke
+  if (selectedGenreId === 18) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-drama-prestige`,
+      title: 'Prestige Drama Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '18', 'vote_count.gte': 500 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-drama-british`,
+      title: 'British Drama Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '18', with_origin_country: 'GB' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-drama-european`,
+      title: 'European Art-House Drama',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '18', with_origin_country: 'FR|IT|ES|DE' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-drama-biopic`,
+      title: 'True Story & Biographical Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '18', with_keywords: '818' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-drama-award`,
+      title: 'Oscar-Calibre Dramas',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_count.desc', with_genres: '18', 'vote_average.gte': 7.5 }),
+    });
+  }
+
+  // Documentary (99) movie bespoke
+  if (selectedGenreId === 99) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-doc-truecrime`,
+      title: 'True Crime Documentaries',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '99,80' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-doc-nature`,
+      title: 'Nature & Wildlife Documentaries',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '99', with_keywords: '299|241741' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-doc-acclaimed`,
+      title: 'Award-Winning Documentaries',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '99', 'vote_count.gte': 100 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-doc-history`,
+      title: 'History & Society Documentaries',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '99,36' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-doc-music`,
+      title: 'Music & Cultural Documentaries',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '99,10402' }),
+    });
+  }
+
+  // Comedy (35) movie bespoke
+  if (selectedGenreId === 35) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-comedy-prestige`,
+      title: 'Critically Acclaimed Comedy Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '35', 'vote_count.gte': 500 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-comedy-romantic`,
+      title: 'Romantic Comedy Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '35,10749' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-comedy-crime`,
+      title: 'Crime Comedy Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '35,80' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-comedy-new`,
+      title: 'New Comedy Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '35', 'primary_release_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-comedy-classic`,
+      title: 'Comedy Classics',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_count.desc', with_genres: '35', 'primary_release_date.lte': '2005-01-01', 'vote_average.gte': 7.0 }),
+    });
+  }
+
+  // Romance (10749) movie bespoke
+  if (selectedGenreId === 10749) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-romance-prestige`,
+      title: 'Critically Acclaimed Romance Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '10749', 'vote_count.gte': 400 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-romance-comedy`,
+      title: 'Romantic Comedy Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '10749,35' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-romance-drama`,
+      title: 'Sweeping Romance Drama Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '10749,18' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-romance-new`,
+      title: 'New Romance Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '10749', 'primary_release_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-romance-classics`,
+      title: 'Romance Film Classics',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_count.desc', with_genres: '10749', 'primary_release_date.lte': '2005-01-01', 'vote_average.gte': 7.0 }),
+    });
+  }
+
+  // Anime & Animation (16) movie bespoke
+  if (selectedGenreId === 16) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-anime-ghibli`,
+      title: 'Studio Ghibli Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '16', with_keywords: '12883' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-anime-prestige`,
+      title: 'Critically Acclaimed Anime Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '16', with_original_language: 'ja', 'vote_count.gte': 200 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-anime-action`,
+      title: 'Action & Adventure Anime Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '16,28', with_original_language: 'ja' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-animation-family`,
+      title: 'Family Animation Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '16,10751' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-anime-classic`,
+      title: 'Classic Anime Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_count.desc', with_genres: '16', 'primary_release_date.lte': '2010-01-01', 'vote_average.gte': 7.5 }),
+    });
+  }
+
+  // Music & Musicals (10402) movie bespoke
+  if (selectedGenreId === 10402) {
+    const dm = `${REQUESTS.fetchTrendingMovies.split('/trending')[0]}/discover/movie`;
+    pool.push({
+      key: `${moviePrefix}-theme-musicals-broadway`,
+      title: 'Broadway & Stage Musicals',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'vote_average.desc', with_genres: '10402', 'vote_count.gte': 200 }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-music-biopic`,
+      title: 'Musician Biographical Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '10402,18', with_keywords: '818' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-music-concert`,
+      title: 'Concert Films & Performances',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '10402', with_keywords: '7917|4344' }),
+    });
+    pool.push({
+      key: `${moviePrefix}-theme-music-drama`,
+      title: 'Music Drama Films',
+      fetchUrl: REQUESTS._build(dm, { sort_by: 'popularity.desc', with_genres: '10402,18' }),
     });
   }
 
@@ -2536,17 +2844,28 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Curated anchor first — strong cold start before any personalized rows
+  const primaryCuratedExtra = selectedGenreId === 10749 ? '&without_original_language=ko,ja,zh' : '';
+  const primaryCuratedUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc', primaryCuratedExtra)
+    : REQUESTS.fetchTrendingTV;
+  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
+  if (!usedUrls.has(primaryCuratedSig)) {
+    addRow({
+      key: `tv-primary-curated-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Popular ${baseGenreName} Series` : 'Trending Series Right Now',
+      fetchUrl: primaryCuratedUrl,
+    });
+  }
+
   let CW_at_top = false;
   let ML_at_top = false;
 
-  if (filteredContinueWatchingRow && filteredContinueWatchingRow.data && filteredContinueWatchingRow.data.length >= 4) {
+  if (filteredContinueWatchingRow && filteredContinueWatchingRow.data && filteredContinueWatchingRow.data.length >= 6) {
     addRow(filteredContinueWatchingRow);
     CW_at_top = true;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // 2. PERSONALIZED RECOMMENDATIONS (Row 1-2)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let watchRowsCount = 0;
   continueWatching.forEach((m) => {
     if (watchRowsCount >= 1) return;
@@ -2566,38 +2885,19 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   });
 
-  if (myListRow && myListRow.data && myListRow.data.length >= 4) {
+  if (myListRow && myListRow.data && myListRow.data.length >= 6) {
     addRow(myListRow);
     ML_at_top = true;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // 3. DEMOTED COMFORT ROWS (Index 2-3 if < 4 items)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (filteredContinueWatchingRow && !CW_at_top) {
     addRow(filteredContinueWatchingRow);
-  }
-
-  // Primary Curated Row — popularity sort shows what audiences are watching now
-  // For Romance: filter non-English-language to avoid K-drama/anime domination
-  const primaryCuratedExtra = selectedGenreId === 10749 ? '&without_original_language=ko,ja,zh' : '';
-  const primaryCuratedUrl = selectedGenreId
-    ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc', primaryCuratedExtra)
-    : REQUESTS.fetchTrendingTV;
-  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
-  if (!usedUrls.has(primaryCuratedSig)) {
-    addRow({
-      key: `tv-primary-curated-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Popular ${baseGenreName} Series` : 'Trending Series Right Now',
-      fetchUrl: primaryCuratedUrl,
-    });
   }
 
   if (myListRow && !ML_at_top) {
     addRow(myListRow);
   }
 
-  // Liked personalization
   let likedRowsCount = 0;
   likedEntries.forEach((entry) => {
     if (likedRowsCount >= 1) return;
@@ -2754,8 +3054,339 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     });
     pool.push({
       key: `${tvPrefix}-theme-us-dramas`,
-      title: 'US Drama Series',
+      title: 'US Action & Adventure Series',
       fetchUrl: usDramaUrl,
+    });
+
+    const actionNewUrl = buildScopedQuery('tv', {
+      sort_by: 'popularity.desc',
+      'first_air_date.gte': `${new Date().getFullYear() - 2}-01-01`,
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-action-new`,
+      title: 'New Action & Adventure Series',
+      fetchUrl: actionNewUrl,
+    });
+
+    pool.push({
+      key: `${tvPrefix}-theme-action-prestige`,
+      title: 'Critically Acclaimed Action Series',
+      fetchUrl: buildScopedQuery('tv', { sort_by: 'vote_average.desc', 'vote_count.gte': 300 }),
+    });
+  }
+
+  // Drama (18)
+  if (selectedGenreId === 18) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-prestige-drama`,
+      title: 'Prestige Drama Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '18', 'vote_count.gte': 500 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-british-drama`,
+      title: 'British Drama Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '18', with_origin_country: 'GB' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-us-drama`,
+      title: 'Award-Winning US Drama',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '18', with_origin_country: 'US', 'vote_count.gte': 300 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-limited-drama`,
+      title: 'Acclaimed Limited Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '18', with_type: '2', 'vote_count.gte': 100 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-drama-new`,
+      title: 'New Dramas With Something to Say',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '18', 'first_air_date.gte': `${new Date().getFullYear() - 1}-01-01` }),
+    });
+  }
+
+  // Crime (80)
+  if (selectedGenreId === 80) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-british-crime`,
+      title: 'British Crime Dramas',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '80', with_origin_country: 'GB' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-crime-prestige`,
+      title: 'Critically Acclaimed Crime Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '80', 'vote_count.gte': 300 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-crime-us`,
+      title: 'US Crime & Procedural Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '80', with_origin_country: 'US' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-nordic-noir`,
+      title: 'Nordic Noir Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '80', with_origin_country: 'SE|DK|NO|FI' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-crime-new`,
+      title: 'New Crime Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '80', 'first_air_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+  }
+
+  // Mysteries & Thrillers (9648 / 53)
+  if (selectedGenreId === 9648 || selectedGenreId === 53) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-mystery-prestige`,
+      title: 'Critically Acclaimed Mysteries',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '9648', 'vote_count.gte': 200 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-mystery-british`,
+      title: 'British Mysteries & Whodunits',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '9648', with_origin_country: 'GB' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-mystery-true-crime`,
+      title: 'True Crime & Investigation Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '9648,80' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-mystery-supernatural`,
+      title: 'Supernatural Mysteries',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '9648,10765' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-mystery-new`,
+      title: 'New Mystery & Thriller Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '9648', 'first_air_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+  }
+
+  // Horror (27) — TMDB TV has no genre 27, use Mystery (9648) + dark themes
+  if (selectedGenreId === 27) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-horror-dark`,
+      title: 'Dark & Terrifying Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '9648', 'vote_count.gte': 50 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-horror-supernatural`,
+      title: 'Supernatural Horror Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '9648,10765' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-horror-british`,
+      title: 'British Horror & Thriller Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '9648', with_origin_country: 'GB' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-horror-prestige`,
+      title: 'Critically Acclaimed Dark Drama',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '18', 'vote_count.gte': 400 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-horror-true-crime`,
+      title: 'True Crime & Dark Investigation',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '9648,80' }),
+    });
+  }
+
+  // Sci-Fi & Fantasy (10765 / 878 / 14)
+  if (selectedGenreId === 10765 || selectedGenreId === 878 || selectedGenreId === 14) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-scifi-prestige`,
+      title: 'Prestige Sci-Fi Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '10765', 'vote_count.gte': 300 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-scifi-new`,
+      title: 'New Sci-Fi & Fantasy Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10765', 'first_air_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-fantasy-epic`,
+      title: 'Epic Fantasy & Sword-and-Sorcery',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10765,18', 'vote_count.gte': 100 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-superhero`,
+      title: 'Superhero & Comic Book Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10765,10759' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-scifi-classic`,
+      title: 'Classic Sci-Fi Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_count.desc', with_genres: '10765', 'first_air_date.lte': '2010-01-01', 'vote_average.gte': 7.0 }),
+    });
+  }
+
+  // Documentary Series (99)
+  if (selectedGenreId === 99) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-truecrime-doc`,
+      title: 'True Crime Documentaries',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '99,80' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-nature-doc`,
+      title: 'Nature & Wildlife Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '99', with_keywords: '299|241741' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-history-doc`,
+      title: 'History & Society Documentaries',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '99,36' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-doc-acclaimed`,
+      title: 'Award-Winning Documentaries',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '99', 'vote_count.gte': 100 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-doc-sport`,
+      title: 'Sports Documentaries & Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '99', with_keywords: '6075|1701' }),
+    });
+  }
+
+  // Anime & Animation (16)
+  if (selectedGenreId === 16) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-anime-shonen`,
+      title: 'Shonen & Action Anime',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '16,10759', with_original_language: 'ja' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-anime-classic`,
+      title: 'Classic Anime Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_count.desc', with_genres: '16', with_original_language: 'ja', 'first_air_date.lte': '2010-01-01', 'vote_average.gte': 7.5 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-anime-drama`,
+      title: 'Anime Drama & Slice of Life',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '16,18', with_original_language: 'ja', 'vote_count.gte': 100 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-anime-film-series`,
+      title: 'Anime Films & OVA Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '16', without_original_language: 'en,ko,zh' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-anime-new`,
+      title: 'New Anime This Season',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '16', 'first_air_date.gte': `${new Date().getFullYear() - 1}-01-01` }),
+    });
+  }
+
+  // Western (37) — film-focused since most westerns are movies; TV uses drama/adventure themes
+  if (selectedGenreId === 37) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-western-prestige`,
+      title: 'Prestige Western Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '37', 'vote_count.gte': 100 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-western-neo`,
+      title: 'Neo-Western Crime Drama',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '37,80' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-western-action`,
+      title: 'Western Action & Adventure',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '37,10759' }),
+    });
+  }
+
+  // War & Politics (10768) / War (10752)
+  if (selectedGenreId === 10768 || selectedGenreId === 10752) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-war-prestige`,
+      title: 'Critically Acclaimed War Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '10768', 'vote_count.gte': 200 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-war-political`,
+      title: 'Political Drama Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10768,18' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-war-historical`,
+      title: 'Historical War Drama',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10768', 'first_air_date.lte': '2010-01-01', 'vote_count.gte': 50 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-war-new`,
+      title: 'New War & Political Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10768', 'first_air_date.gte': `${new Date().getFullYear() - 2}-01-01` }),
+    });
+  }
+
+  // History (36) — remapped to Drama (18) on TV, so use drama with historical keywords
+  if (selectedGenreId === 36) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-history-prestige`,
+      title: 'Critically Acclaimed Period Drama',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '18', 'vote_count.gte': 400 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-history-british`,
+      title: 'British Historical Drama',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '18', with_origin_country: 'GB' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-history-epic`,
+      title: 'Epic Historical Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_count.desc', with_genres: '18', 'first_air_date.lte': '2015-01-01', 'vote_average.gte': 7.5 }),
+    });
+  }
+
+  // Reality (10764)
+  if (selectedGenreId === 10764) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-reality-competition`,
+      title: 'Competition Shows',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10764', 'vote_count.gte': 50 }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-reality-us`,
+      title: 'US Reality Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10764', with_origin_country: 'US' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-reality-acclaimed`,
+      title: 'Fan-Favourite Reality Shows',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '10764', 'vote_count.gte': 200 }),
+    });
+  }
+
+  // Kids (10762)
+  if (selectedGenreId === 10762) {
+    const d = `${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`;
+    pool.push({
+      key: `${tvPrefix}-theme-kids-animated`,
+      title: 'Kids Animation Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10762,16' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-kids-adventure`,
+      title: 'Kids Adventure & Action',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'popularity.desc', with_genres: '10762,10759' }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-kids-family`,
+      title: 'Wholesome Family Series',
+      fetchUrl: REQUESTS._build(d, { sort_by: 'vote_average.desc', with_genres: '10762', 'vote_count.gte': 100 }),
     });
   }
 

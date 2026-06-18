@@ -89,7 +89,7 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ onSelectMovie, onPlay }) =>
               onSelectMovie(movie);
             }
           }}
-          onPlay={() => navigate('/')}
+          onPlay={() => navigate('/browse')}
         />
 
         {/* ─── NATIVE INTERACTIVE ROW CAROUSEL ─── */}
@@ -98,7 +98,7 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ onSelectMovie, onPlay }) =>
             title={t('notFound.alternativeDimensions', { defaultValue: 'Alternate Dimensions: More Like This' })}
             data={dimensionsAsMovies}
             onSelect={onSelectMovie || handleSelectMovie}
-            onPlay={() => navigate('/')}
+            onPlay={() => navigate('/browse')}
             rowKey="404-dimensions"
           />
         </main>
@@ -195,7 +195,7 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ onSelectMovie, onPlay }) =>
             {/* Action CTAs (Play & More Info) */}
             <div className="flex items-center flex-wrap gap-2 md:gap-3 pt-2">
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/browse')}
                 className="flex items-center justify-center bg-white text-black px-6 sm:px-8 h-[36px] md:h-[42px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[14px] md:text-[17px] gap-2 active:scale-95 shadow-lg duration-200"
               >
                 <HouseIcon size={24} weight="fill" className="fill-black" />
@@ -220,7 +220,7 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ onSelectMovie, onPlay }) =>
           title={t('notFound.alternativeDimensions', { defaultValue: 'More Like This: Alternate Dimensions' })}
           data={dimensionsAsMovies}
           onSelect={handleSelectMovie}
-          onPlay={() => navigate('/')}
+          onPlay={() => navigate('/browse')}
           rowKey="404-dimensions"
         />
       </main>
@@ -286,7 +286,7 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ onSelectMovie, onPlay }) =>
               <button
                 onClick={() => {
                   setIsDrawerOpen(false);
-                  navigate('/');
+                  navigate('/browse');
                 }}
                 className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded flex items-center justify-center gap-2 transition-colors duration-200 active:scale-[0.98] shadow-lg font-sans text-sm sm:text-base mt-8"
               >

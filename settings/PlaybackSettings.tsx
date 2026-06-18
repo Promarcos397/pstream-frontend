@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { AppSettings } from '../types';
 import { SettingsToggle } from '../ui/SettingsUI';
 
@@ -8,32 +9,33 @@ interface PlaybackSettingsProps {
 }
 
 const PlaybackSettings: React.FC<PlaybackSettingsProps> = ({ settings, updateSettings }) => {
+    const { t } = useTranslation();
     return (
         <div className="space-y-6">
             <div className="border-b border-white/5 pb-2 mb-4">
-                <h2 className="text-lg font-bold text-white">Playback Controls</h2>
-                <p className="text-xs text-gray-500">Manage how video content behaves.</p>
+                <h2 className="text-lg font-bold text-white">{t('settings.playbackSettings')}</h2>
+                <p className="text-xs text-gray-500">{t('settings.playbackSettingsSub')}</p>
             </div>
-            
+
             <div className="grid grid-cols-1 gap-4">
-                <SettingsToggle 
-                    label="Autoplay Video" 
-                    subLabel="Start video content immediately upon loading."
-                    checked={settings.autoplayVideo} 
+                <SettingsToggle
+                    label={t('player.autoplayVideo')}
+                    subLabel={t('player.autoplayVideoDesc')}
+                    checked={settings.autoplayVideo}
                     onChange={() => updateSettings({ autoplayVideo: !settings.autoplayVideo })}
                     icon="play_arrow"
                 />
-                <SettingsToggle 
-                    label="Autoplay Previews" 
-                    subLabel="Play trailers while browsing content."
-                    checked={settings.autoplayPreviews} 
+                <SettingsToggle
+                    label={t('playback.autoplayPreviews')}
+                    subLabel={t('playback.autoplayPreviewsDesc')}
+                    checked={settings.autoplayPreviews}
                     onChange={() => updateSettings({ autoplayPreviews: !settings.autoplayPreviews })}
                     icon="play_circle_filled"
                 />
-                <SettingsToggle 
-                    label="Autoplay Next Episode" 
-                    subLabel="Start the next episode automatically."
-                    checked={settings.autoplayNextEpisode} 
+                <SettingsToggle
+                    label={t('playback.autoplayNext')}
+                    subLabel={t('playback.autoplayNextDesc')}
+                    checked={settings.autoplayNextEpisode}
                     onChange={() => updateSettings({ autoplayNextEpisode: !settings.autoplayNextEpisode })}
                     icon="queue_play_next"
                 />

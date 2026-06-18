@@ -42,7 +42,7 @@ const SettingsPage: React.FC = () => {
                             <CaretRightIcon size={20} weight="bold" className="group-hover:translate-x-1 transition-transform" />
                         </button>
                         <button
-                            onClick={() => navigate('/')}
+                            onClick={() => navigate('/browse')}
                             className="w-full h-10 text-white/40 hover:text-white text-sm transition-colors"
                         >
                             {t('common.back', { defaultValue: 'Back' })}
