@@ -67,7 +67,7 @@ const PinGate: React.FC<{ onAuth: () => void }> = ({ onAuth }) => {
   return (
     <div className="min-h-screen bg-white flex flex-col font-inter">
       <header className="h-16 border-b border-gray-100 flex items-center px-6 md:px-10 lg:px-16 bg-white sticky top-0 z-[100] pt-safe">
-        <div onClick={() => navigate('/')} className="cursor-pointer h-8 flex items-center">
+        <div onClick={() => navigate('/browse')} className="cursor-pointer h-8 flex items-center">
             <img src={pstreamLogo} alt="Pstream" className="h-6 md:h-8 w-auto" />
         </div>
       </header>
@@ -242,7 +242,7 @@ const GhostDashboard: React.FC<{ onSignOut: () => void }> = ({ onSignOut }) => {
     <div className="min-h-screen bg-white flex flex-col font-inter">
       <header className="h-20 border-b border-gray-100 flex items-center justify-between px-6 md:px-10 lg:px-16 bg-white sticky top-0 z-[100] pt-safe">
         <div className="flex items-center gap-6">
-          <div onClick={() => navigate('/')} className="cursor-pointer h-8 flex items-center">
+          <div onClick={() => navigate('/browse')} className="cursor-pointer h-8 flex items-center">
             <img src={pstreamLogo} alt="Pstream" className="h-7 md:h-9 w-auto" />
           </div>
           <div className="h-8 w-px bg-gray-100 hidden sm:block" />
