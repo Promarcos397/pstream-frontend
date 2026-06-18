@@ -556,11 +556,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             <TooltipWrapper label={isAdded ? t('modal.removeFromList') : t('modal.addToList')}>
                                 <button
                                     onClick={() => toggleList(activeMovie)}
-                                    className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
-                                        ${isAdded
-                                            ? 'border-white bg-white/15'
-                                            : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
-                                        }`}
+                                    className="border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white"
                                 >
                                     {isAdded ? <CheckIcon size={24} /> : <PlusIcon size={24} />}
                                 </button>

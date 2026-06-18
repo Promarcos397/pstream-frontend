@@ -897,11 +897,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     <TooltipWrapper label={isAdded ? t('modal.removeFromList') : t('modal.addToList')}>
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
-                        className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
-                          ${isAdded
-                            ? 'border-white bg-white/15'
-                            : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
-                          }`}
+                        className="border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white"
                       >
                         {isAdded ? <CheckIcon size={24} weight="bold" /> : <PlusIcon size={24} weight="bold" />}
                       </button>
