@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { CaretDownIcon, SquaresFourIcon, RowsIcon } from '@phosphor-icons/react';
-import useScroll from '../hooks/useScroll';
 import { useIsMobile } from '../hooks/useIsMobile';
 import CategorySubNavMobile from './CategorySubNavMobile';
 
@@ -34,8 +33,6 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
 }) => {
     const isMobile = useIsMobile();
     const [genreMenuOpen, setGenreMenuOpen] = useState(false);
-    const isScrolled = useScroll(0);
-
     const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 

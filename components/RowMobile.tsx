@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Movie } from '../types';
 import { fetchData } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
+import { SHADOW_BANNED_IDS } from '../constants';
 import MovieCardTouch from './MovieCardTouch';
 // removing tablet and ipad styles and sidebar
 
@@ -58,6 +58,10 @@ const RowMobile: React.FC<RowMobileProps> = ({
     return isTV ? 10 : 30;
   }, [isTV]);
 
+  const isPersonalizedRow = useMemo(() =>
+    !!(rowKey?.includes('personal') || rowKey?.includes('watched') || rowKey?.includes('liked')),
+  [rowKey]);
+
   // Initial Data Load
   useEffect(() => {
     if (data) {
@@ -102,15 +106,22 @@ const RowMobile: React.FC<RowMobileProps> = ({
               break;
             }
 
-            const isGenreRow = rowKey?.startsWith('home-genre-');
-
-            const filtered = results.filter((m: Movie) => {
+            let filtered = results.filter((m: Movie) => {
               const hasImage = m.poster_path || m.backdrop_path;
-              // Bypass global pageSeenIds check ONLY for category/genre rows
-              const notSeen = isGenreRow ? true : !pageSeenIds.includes(Number(m.id));
+              const isNotDuplicate = !pageSeenIds.includes(Number(m.id));
               const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
-              return hasImage && notSeen && hasMinVotes;
+              const isNotBanned = !SHADOW_BANNED_IDS.has(Number(m.id));
+              return hasImage && isNotDuplicate && hasMinVotes && isNotBanned;
             });
+
+            if (isPersonalizedRow && filtered.length > 4) {
+              const scores = filtered.map((m: Movie) =>
+                (m.vote_average || 0) * Math.log10((m.vote_count || 0) + 10)
+              );
+              const sorted = [...scores].sort((a, b) => a - b);
+              const cutoff = sorted[Math.floor(sorted.length * 0.3)];
+              filtered = filtered.filter((_: Movie, i: number) => scores[i] >= cutoff);
+            }
 
             filtered.forEach((item: Movie) => {
               if (!gatheredMovies.some(g => g.id === item.id)) {
@@ -162,12 +173,12 @@ const RowMobile: React.FC<RowMobileProps> = ({
   return (
     <motion.div
       ref={viewRef}
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 5 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ 
-        duration: 0.6, 
-        delay: Math.min(index * 0.08, 0.3),
-        ease: [0.16, 1, 0.3, 1] 
+      transition={{
+        duration: 0.35,
+        delay: Math.min(index * 0.05, 0.2),
+        ease: [0.16, 1, 0.3, 1]
       }}
       className="group relative my-5 sm:my-6 space-y-1.5 z-10"
     >

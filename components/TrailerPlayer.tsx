@@ -50,7 +50,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     // under GPU texture limits and prevent process crashes on iOS.
     const isWebKit = typeof window !== 'undefined' && 
         (/iPad|iPhone|iPod/.test(navigator.userAgent) || /^((?!chrome|android).)*safari/i.test(navigator.userAgent));
-    const artificialScale = isWebKit ? 2.2 : 2.5;
+    const artificialScale = isWebKit ? 2.2 : 5;
 
     // Unified scaling logic for all variants
     const getSizingStyle = (): React.CSSProperties => {

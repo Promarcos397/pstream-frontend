@@ -1,8 +1,10 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-16 08:32:31
+# Generated: 2026-06-18 10:51:21
 # Root: D:\coding-projects\streaming-app\pstream-frontend
 
 pstream-frontend/
+├── .claude
+│   └── settings.local.json
 ├── assets
 │   ├── 404_assets
 │   │   ├── dim1-backdrop.jpeg
@@ -178,7 +180,6 @@ pstream-frontend/
 │   ├── apple-touch-icon.png
 │   ├── favicon.svg
 │   ├── manifest.json
-│   ├── netflix_observation_mockup.html
 │   ├── p-icon.svg
 │   ├── pstream-wordmark.svg
 │   ├── StandardGalacticAlphabet-Regular.ttf
@@ -251,6 +252,13 @@ pstream-frontend/
 │   ├── test_upsert.js
 │   ├── vidapi_test.html
 │   └── vidfast_test.html
+├── scripts
+│   ├── audit-genre-rows.mjs
+│   ├── check-content.mjs
+│   ├── discover-astrology.mjs
+│   ├── discover-black-stories-2.mjs
+│   ├── discover-black-stories-3.mjs
+│   └── discover-black-stories.mjs
 ├── services
 │   ├── api.ts
 │   ├── EmbedProviders.ts
@@ -300,6 +308,7 @@ pstream-frontend/
 │   ├── ebml.ts
 │   ├── mediaProbe.ts
 │   ├── mkvAudioExtractor.ts
+│   ├── scrollState.ts
 │   ├── search.ts
 │   └── streamCache.ts
 ├── workers
@@ -335,4 +344,4 @@ pstream-frontend/
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 26 directories, 305 files
+# 27 directories, 313 files

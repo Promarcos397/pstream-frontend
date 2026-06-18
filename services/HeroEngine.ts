@@ -220,6 +220,9 @@ const MOVIE_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchHiddenGems,              label: 'Hidden Film Gem' },
     { url: () => REQUESTS.fetchClassicCinema,           label: 'Classic You\'ve Never Seen' },
     { url: () => REQUESTS.fetchRomanceMovies,           label: 'Morning Romance' },
+    { url: () => REQUESTS.fetchSciFiMovies,             label: 'Morning Sci-Fi' },
+    { url: () => REQUESTS.fetchFamiliarFavoritesMovies, label: 'Crowd-Pleaser Film' },
+    { url: () => REQUESTS.fetchPrestigeDrama,           label: 'Morning Prestige Pick' },
   ],
   afternoon: [
     { url: () => REQUESTS.fetchExcitingMovies,          label: 'High-Octane' },
@@ -228,6 +231,8 @@ const MOVIE_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchActionMovies,            label: 'Action Film' },
     { url: () => REQUESTS.fetchBoredomBustersMovies,    label: 'Crowd-Pleaser' },
     { url: () => REQUESTS.fetchHorrorMovies,            label: 'Afternoon Chiller' },
+    { url: () => REQUESTS.fetchLoveTheseMovies,         label: 'Critically Loved Film',   allowPopular: true },
+    { url: () => REQUESTS.fetchFamiliarFavoritesMovies, label: 'Afternoon Blockbuster',   allowPopular: true },
   ],
   evening: [
     { url: () => REQUESTS.fetchPrestigeDrama,           label: 'Prestige Drama' },
@@ -236,6 +241,9 @@ const MOVIE_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchClassicCinema,           label: 'Timeless Classic' },
     { url: () => REQUESTS.fetchUnderratedThrillers,     label: 'Underrated Evening Thriller' },
     { url: () => REQUESTS.fetchCultFilms,               label: 'Cult Evening Pick' },
+    { url: () => REQUESTS.fetchActionMovies,            label: 'Evening Blockbuster' },
+    { url: () => REQUESTS.fetchRomanceMovies,           label: 'Evening Romance' },
+    { url: () => REQUESTS.fetchSciFiMovies,             label: 'Evening Sci-Fi' },
   ],
   late_night: [
     { url: () => REQUESTS.fetchHorrorMovies,            label: 'Late Night Horror' },
@@ -243,6 +251,9 @@ const MOVIE_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchConceptualSciFi,         label: 'After-Dark Sci-Fi' },
     { url: () => REQUESTS.fetchUnderratedThrillers,     label: 'Late Night Thriller' },
     { url: () => REQUESTS.fetchWorldCinema,             label: 'International Late Pick' },
+    { url: () => REQUESTS.fetchClassicCinema,           label: 'Night Classic' },
+    { url: () => REQUESTS.fetchPrestigeDrama,           label: 'Late Night Drama' },
+    { url: () => REQUESTS.fetchHiddenGems,              label: 'Night Hidden Gem' },
   ],
   night_owl: [
     { url: () => REQUESTS.fetchClassicCinema,           label: 'Hidden Classic' },
@@ -250,6 +261,9 @@ const MOVIE_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchPrestigeDrama,           label: 'Arthouse Night Pick' },
     { url: () => REQUESTS.fetchHiddenGems,              label: 'Night Owl Gem' },
     { url: () => REQUESTS.fetchCultFilms,               label: 'Night Cult Film' },
+    { url: () => REQUESTS.fetchWorldCinema,             label: 'Pre-Dawn World Cinema' },
+    { url: () => REQUESTS.fetchConceptualSciFi,         label: 'Pre-Dawn Sci-Fi' },
+    { url: () => REQUESTS.fetchUnderratedThrillers,     label: 'Pre-Dawn Thriller' },
   ],
 };
 
@@ -260,6 +274,8 @@ const TV_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchDocumentaries,           label: 'Morning Docs' },
     { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Morning Pick' },
     { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Award-Winning Morning Pick' },
+    { url: () => REQUESTS.fetchDramaTV,                 label: 'Morning Drama' },
+    { url: () => REQUESTS.fetchLoveTheseTV,             label: 'Top-Rated Morning Pick',   allowPopular: true },
   ],
   afternoon: [
     { url: () => REQUESTS.fetchBoredomBustersTV,        label: 'Binge-Worthy' },
@@ -268,6 +284,8 @@ const TV_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchExcitingSeriesTV,        label: 'High-Stakes Series' },
     { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Gem' },
     { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Underrated Series Pick' },
+    { url: () => REQUESTS.fetchDramaTV,                 label: 'Afternoon Drama' },
+    { url: () => REQUESTS.fetchLoveTheseTV,             label: 'Top-Rated Series',         allowPopular: true },
   ],
   evening: [
     { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Award-Winning Series' },
@@ -277,6 +295,8 @@ const TV_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Tonight\'s Hidden Gem' },
     { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Spotlight' },
     { url: () => REQUESTS.fetchDramaTV,                 label: 'Evening Drama' },
+    { url: () => REQUESTS.fetchImaginativeSeries,       label: 'Sci-Fi & Fantasy Evening' },
+    { url: () => REQUESTS.fetchUSSeries,                label: 'US Hit Series' },
   ],
   late_night: [
     { url: () => REQUESTS.fetchCrimeTV,                 label: 'Late Night Crime' },
@@ -284,6 +304,9 @@ const TV_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Psychological Thriller Series' },
     { url: () => REQUESTS.fetchExcitingSeriesTV,        label: 'Edge-of-Seat Series' },
     { url: () => REQUESTS.fetchHiddenTVGems,            label: 'Late Night Hidden Gem' },
+    { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Night Pick' },
+    { url: () => REQUESTS.fetchDramaTV,                 label: 'Late Night Drama' },
+    { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Award Binge Pick' },
   ],
   night_owl: [
     { url: () => REQUESTS.fetchInternationalSeries,     label: 'International Late Pick' },
@@ -291,6 +314,8 @@ const TV_POOLS: Record<TimeSlot, HeroPoolItem[]> = {
     { url: () => REQUESTS.fetchMysteryThrillerSeries,   label: 'Pre-Dawn Mystery' },
     { url: () => REQUESTS.fetchAwardWinningSeries,      label: 'Overlooked Award Pick' },
     { url: () => REQUESTS.fetchCrimeTV,                 label: 'Pre-Dawn Crime' },
+    { url: () => REQUESTS.fetchImaginativeSeries,       label: 'Night Owl Sci-Fi' },
+    { url: () => REQUESTS.fetchComedyTV,                label: 'Late-Night Comedy' },
   ],
 };
 

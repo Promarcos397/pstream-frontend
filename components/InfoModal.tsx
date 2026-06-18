@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { XIcon, PlayIcon, CheckIcon, PlusIcon, SpeakerSlashIcon, SpeakerHighIcon, ThumbsUpIcon, ThumbsDownIcon, HeartIcon, TicketIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
@@ -266,11 +266,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         : 'movie';
 
     const modalRef = useRef<HTMLDivElement>(null);
-    const backdropRef = useRef<HTMLDivElement>(null);
     const heroRef = useRef<HTMLDivElement>(null);
-    // Stores the FLIP values so the close animation can reverse them
-    const flipRef = useRef<{ dx: number; dy: number; sx: number; sy: number } | null>(null);
-    const isClosingRef = useRef(false);
 
     useEffect(() => {
         (window as any).__modal_active = true;
@@ -281,33 +277,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         };
     }, []);
 
-    // FLIP open: runs synchronously before the browser paints so frame 0 shows
-    // the card position — no flash. One rAF later we start the CSS transition.
-    useLayoutEffect(() => {
-        flipRef.current = null;
-        const rect = (window as any).__last_card_rect as DOMRect | undefined;
-        if (!rect || !modalRef.current) return;
-
-        const el = modalRef.current;
-        const mr = el.getBoundingClientRect();
-        const dx = (rect.left + rect.width / 2) - (mr.left + mr.width / 2);
-        const dy = (rect.top + rect.height / 2) - (mr.top + mr.height / 2);
-        const sx = rect.width / mr.width;
-        const sy = rect.height / mr.height;
-
-        flipRef.current = { dx, dy, sx, sy };
-        delete (window as any).__last_card_rect;
-
-        // Pin to card position before paint (no React state → no extra render)
-        el.style.transition = 'none';
-        el.style.transform = `translate(${dx}px,${dy}px) scale(${sx},${sy})`;
-
-        // After the first painted frame, transition to natural position
-        requestAnimationFrame(() => {
-            el.style.transition = 'transform 0.38s cubic-bezier(0.25, 1, 0.5, 1)';
-            el.style.transform = '';
-        });
-    }, [movie]);
 
     useEffect(() => {
         if (!movie) return;
@@ -330,24 +299,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     }, [movie, setActiveVideoId]);
 
     const handleClose = () => {
-        if (isClosingRef.current) return;
         if (movie && modalTrailerTimeRef.current > 4) {
             _modalTrailerCache.set(String(movie.id), modalTrailerTimeRef.current);
         }
-
-        const flip = flipRef.current;
-        const el = modalRef.current;
-        const bd = backdropRef.current;
-        if (flip && el) {
-            // Reverse FLIP: shrink back to the originating card, then navigate
-            isClosingRef.current = true;
-            if (bd) { bd.style.transition = 'opacity 0.2s ease-in'; bd.style.opacity = '0'; bd.style.pointerEvents = 'none'; }
-            el.style.transition = 'transform 0.2s cubic-bezier(0.4, 0, 1, 0.6)';
-            el.style.transform = `translate(${flip.dx}px,${flip.dy}px) scale(${flip.sx},${flip.sy})`;
-            setTimeout(() => { isClosingRef.current = false; onClose(); }, 210);
-        } else {
-            onClose();
-        }
+        onClose();
     };
 
     useEffect(() => {
@@ -522,17 +477,12 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     return (
         <div
-            ref={backdropRef}
             className="fixed inset-0 z-[10000] bg-black/70 flex justify-center overflow-y-auto scrollbar-hide animate-fadeIn cursor-default"
             onClick={handleClose}
         >
             <div
                 ref={modalRef}
                 className="relative w-full max-w-[850px] bg-[#181818] rounded-xl shadow-2xl mt-6 md:mt-8 mb-8 overflow-hidden h-fit mx-4 ring-1 ring-white/10"
-                style={{
-                    transformOrigin: 'center center',
-                    willChange: 'transform',
-                }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <button

@@ -31,7 +31,6 @@ export const MOVIE_GENRES: PageGenre[] = [
   { id: 878, name: 'Sci-Fi' },
   { id: 10013, name: 'Shorts' },
   { id: 10014, name: 'Sport' },
-  { id: 35, name: 'Stand-up Comedy' },
   { id: 53, name: 'Thriller' },
 ];
 
@@ -59,7 +58,6 @@ export const TV_GENRES: PageGenre[] = [
   { id: 10765, name: 'Sci-Fi & Fantasy' },
   { id: 99, name: 'Science & Nature' },
   { id: 10014, name: 'Sport' },
-  { id: 10767, name: 'Stand-up & Chat Shows' },
   { id: 10015, name: 'Teen' },
   { id: 53, name: 'Thriller' },
   { id: 10008, name: 'US' },
@@ -79,7 +77,7 @@ export const HOME_GENRE_ID_MAP: Record<number, { movie: number; tv: number }> = 
   9648: { movie: 53, tv: 9648 },
 };
 
-const TV_ONLY_GENRE_IDS = new Set([10759, 10762, 10763, 10764, 10765, 10766, 10767, 10768, 10015, 9648]);
+const TV_ONLY_GENRE_IDS = new Set([10759, 10762, 10763, 10764, 10765, 10766, 10768, 10015, 9648]);
 const MOVIE_ONLY_GENRE_IDS = new Set([12, 36, 53, 10402, 10751, 10013]);
 
 export const resolveGenreId = (
@@ -117,7 +115,6 @@ const TV_APPEND: PageGenre[] = [
   { id: 10764, name: 'Reality' },
   { id: 10765, name: 'Sci-Fi & Fantasy' },
   { id: 99, name: 'Science & Nature' },
-  { id: 10767, name: 'Stand-up & Chat Shows' },
   { id: 99, name: 'Documentary Series' },
   { id: 10015, name: 'Teen' },
   { id: 10008, name: 'US' },

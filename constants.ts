@@ -1,4 +1,6 @@
 export const BASE_URL = 'https://api.themoviedb.org/3';
+
+export const SHADOW_BANNED_IDS = new Set([76572, 259537, 79481]);
 export const IMG_PATH = 'https://image.tmdb.org/t/p/w780';
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 export const LOGO_SIZE = 'w780'; // Higher resolution for professional display
@@ -53,19 +55,21 @@ export const REQUESTS = {
     
     // Intercept custom Netflix-style genres
     if (genreId === 10001) { // Pride / LGBTQ
-      params.with_keywords = '9003';
+      params.with_keywords = '158718'; // lgbt
     } else if (genreId === 10002) { // Astrology
-      params.with_keywords = '185246|10168|15386';
+      params.with_keywords = '156174|40931|14742|2591'; // occult | witchcraft | psychic | tarot cards
     } else if (genreId === 10003) { // Black Stories
-      params.with_keywords = '237248|175510|242137|161556';
+      params.with_keywords = type === 'tv'
+        ? '12425|898|256015|41385'    // racism | hip-hop | african american | racial tension
+        : '12425|256015|41385|6984';  // racism | african american | racial tension | racial segregation
     } else if (genreId === 10004) { // Book Adaptations
-      params.with_keywords = '818|10214';
+      params.with_keywords = '818';
     } else if (genreId === 10005) { // British
       params.with_origin_country = 'GB';
     } else if (genreId === 10006) { // European
       params.with_origin_country = 'FR|DE|IT|ES|NL|DK|SE|NO|FI|PL';
-    } else if (genreId === 10007) { // Moods
-      params.with_keywords = '9663|10224|10185';
+    } else if (genreId === 10007) { // Moods — no keyword base; rows use genre/rating filters
+      params['vote_count.gte'] = type === 'tv' ? 50 : 100;
     } else if (genreId === 10008) { // US / Hollywood
       params.with_origin_country = 'US';
     } else if (genreId === 10009) { // Classics
@@ -82,9 +86,9 @@ export const REQUESTS = {
     } else if (genreId === 10013) { // Shorts
       params['with_runtime.lte'] = 40;
     } else if (genreId === 10014) { // Sport
-      params.with_keywords = '6075|9715|180370';
+      params.with_keywords = '6075'; // sports (removed superhero 9715 and secret agent 4289)
     } else if (genreId === 10015) { // Teen
-      params.with_keywords = '175602|4565|1701';
+      params.with_keywords = '10683|296608|6270'; // coming-of-age | teenager | high school
     } else {
       params.with_genres = genreId;
     }

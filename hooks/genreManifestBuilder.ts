@@ -1,10 +1,13 @@
-import {
+﻿import {
   MICRO_GENRES, GENRES, ADJACENT_GENRES,
 } from '../data/genres';
-import { REQUESTS } from '../constants';
+import { REQUESTS, BASE_URL } from '../constants';
 import { resolveGenreId, isTvOnlyGenreId, isMovieOnlyGenreId } from '../data/pageGenres';
 import type { SmartRow } from './useDynamicManifest';
 import { Movie } from '../types';
+
+// Randomises pool order every browser session (changes on page refresh/new tab)
+const SESSION_SEED = Math.floor(Math.random() * 2147483647);
 
 const GENRE_NAMES: Record<number, string> = {
   28: 'Action', 12: 'Adventure', 16: 'Anime', 35: 'Comedy', 80: 'Crime',
@@ -368,16 +371,13 @@ export const resolveProfileKey = (selectedGenreId: number, mediaType: 'movie' | 
     }
     return '99-documentaries';
   }
-  if ((selectedGenreId === 35 || selectedGenreId === 10767) && selectedGenreName?.toLowerCase().includes('stand-up')) {
-    return '35-standup';
-  }
   if (selectedGenreId === 16) {
-    return mediaType === 'tv' ? '16-anime' : '16';
+    return '16-anime'; // Both TV series and anime films use the anime-keyword profile
   }
   return String(selectedGenreId);
 };
 
-type ProfileRowDef = { key: string; title: string; sort: string; extra: string };
+type ProfileRowDef = { key: string; title: string; sort: string; extra: string; url?: string };
 
 export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): ProfileRowDef[] => {
   switch (profileKey) {
@@ -386,182 +386,378 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
     case '10759':
       return [
         { key: 'superhero', title: 'Superhero Blockbusters', sort: 'popularity.desc', extra: '&with_keywords=9715' },
-        { key: 'martial-arts', title: 'High-Kick Action & Martial Arts', sort: 'popularity.desc', extra: '&with_keywords=3671' },
+        { key: 'martial-arts', title: 'High-Kick Action & Martial Arts', sort: 'popularity.desc', extra: '&with_keywords=779|780' },
         { key: 'spy-espionage', title: 'Secret Agents & Spy Thrillers', sort: 'popularity.desc', extra: '&with_keywords=470' },
-        { key: 'treasure-hunt', title: 'Treasure Hunts & Epic Quests', sort: 'popularity.desc', extra: '&with_keywords=9714' },
-        { key: 'survival-disaster', title: 'Survival Against the Odds', sort: 'popularity.desc', extra: '&with_keywords=549' },
-        { key: 'heist-caper', title: 'Heist Sagas & Capers', sort: 'popularity.desc', extra: '&with_keywords=10214' },
+        { key: 'treasure-hunt', title: 'Treasure Hunts & Epic Quests', sort: 'popularity.desc', extra: '&with_keywords=207372' },
+        { key: 'survival-disaster', title: 'Survival Against the Odds', sort: 'popularity.desc', extra: '&with_keywords=10349' },
+        { key: 'heist-caper', title: 'Heist Sagas & Capers', sort: 'popularity.desc', extra: '&with_keywords=10051' },
         { key: 'war-combat', title: 'War & Military Action', sort: 'popularity.desc', extra: '&with_genres=10752' },
         { key: 'underdog-champ', title: 'Inspiring Underdog Stories', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
         { key: 'car-chase', title: 'High-Speed Car Chases', sort: 'popularity.desc', extra: '&with_keywords=10034' },
-        { key: 'revenge', title: 'Revenge Thrillers', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+        { key: 'revenge', title: 'Revenge Thrillers', sort: 'popularity.desc', extra: '&with_keywords=9748' },
         { key: 'one-man-army', title: 'One-Man Army Epics', sort: 'popularity.desc', extra: '&with_keywords=1568' },
         { key: 'dystopian-action', title: 'Dystopian & Apocalyptic Action', sort: 'popularity.desc', extra: '&with_keywords=4565' },
         { key: 'space-battles', title: 'Epic Space Battles', sort: 'popularity.desc', extra: '&with_keywords=3801' },
         { key: 'assassin', title: 'Deadly Assassins', sort: 'popularity.desc', extra: '&with_keywords=1432' },
-        { key: 'sword-fight', title: 'Sword & Sandal Epics', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'sword-fight', title: 'Sword & Sandal Epics', sort: 'popularity.desc', extra: '&with_keywords=9725' },
+        { key: 'action-comedy', title: 'Action-Packed Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'action-scifi', title: 'Sci-Fi Action Spectacles', sort: 'popularity.desc', extra: '&with_genres=878' },
+        { key: 'historical-action', title: 'Historical Action & Battles', sort: 'popularity.desc', extra: '&with_genres=36' },
+        { key: 'action-crime', title: 'Crime Action Thrillers', sort: 'popularity.desc', extra: '&with_genres=80' },
+        { key: 'jungle-safari', title: 'Jungle & Wilderness Adventures', sort: 'popularity.desc', extra: '&with_genres=12' },
+        { key: 'superhero-p2', title: 'More Superhero Stories', sort: 'popularity.desc', extra: '&with_keywords=9715&page=2' },
+        { key: 'action-toprated', title: 'Critically Acclaimed Action', sort: 'vote_average.desc', extra: '&vote_count.gte=800' },
+        { key: 'action-p2', title: 'More Action Blockbusters', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'action-p3', title: 'Action Hidden Gems', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'ninja-samurai', title: 'Ninja & Samurai Legends', sort: 'popularity.desc', extra: '&with_keywords=779&with_origin_country=JP' },
+        { key: 'disaster-epic', title: 'Disaster & Catastrophe Epics', sort: 'popularity.desc', extra: '&with_keywords=5096&with_genres=878' },
+        { key: 'animation-action', title: 'Action Animation', sort: 'popularity.desc', extra: '&with_genres=16' },
+        { key: 'female-action-leads', title: 'Fierce Female Action Heroes', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'action-oldschool', title: 'Old-School Action Classics', sort: 'vote_count.desc', extra: '&vote_count.gte=400' },
+        { key: 'international-action', title: 'International Action Hits', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'cold-war-thriller', title: 'Cold War Spy Thrillers', sort: 'popularity.desc', extra: '&with_keywords=470&with_genres=36' },
+        { key: 'post-apocalyptic-action', title: 'Post-Apocalyptic Survival', sort: 'popularity.desc', extra: '&with_keywords=4565|10349' },
+        { key: 'bollywood-action', title: 'Bollywood & Indian Action', sort: 'popularity.desc', extra: '&with_origin_country=IN&with_genres=28' },
+        { key: 'latin-action', title: 'Latin American & Spanish Action', sort: 'popularity.desc', extra: '&with_origin_country=MX|BR|CO|AR&with_genres=28' },
+        { key: 'thai-indonesian-action', title: 'Southeast Asian Martial Arts', sort: 'popularity.desc', extra: '&with_origin_country=TH|ID|PH&with_genres=28' },
+        { key: 'military-ops', title: 'Special Forces & Military Ops', sort: 'popularity.desc', extra: '&with_keywords=1568&with_genres=10752' },
+        { key: 'parkour-stunt', title: 'Parkour & Stunt Spectacles', sort: 'vote_average.desc', extra: '&vote_count.gte=50&vote_count.lte=400' },
+        { key: 'western-action', title: 'Western Action & Gunfighters', sort: 'popularity.desc', extra: '&with_genres=37' },
+        { key: 'pirate-seas', title: 'Pirates & High Seas Adventures', sort: 'popularity.desc', extra: '&with_keywords=6684' },
+        { key: 'action-toprated-new', title: 'Action Picks: 2020s Hits', sort: 'popularity.desc', extra: '&primary_release_date.gte=2020-01-01' },
+        { key: 'action-90s', title: '90s Action Blockbusters', sort: 'vote_count.desc', extra: '&primary_release_date.gte=1990-01-01&primary_release_date.lte=1999-12-31' },
+        { key: 'action-2000s', title: '2000s Action Hits', sort: 'vote_count.desc', extra: '&primary_release_date.gte=2000-01-01&primary_release_date.lte=2009-12-31' },
       ];
     case '16':
       return [
         { key: 'family-animation', title: 'Family Animated Movies', sort: 'popularity.desc', extra: '&with_genres=10751' },
-        { key: 'cgi-pixar', title: '3D Animated Favorites', sort: 'popularity.desc', extra: '&with_keywords=12542' },
+        { key: 'cgi-pixar', title: '3D Animated Favorites', sort: 'popularity.desc', extra: '&page=2' },
         { key: 'fantasy-animation', title: 'Magical Fantasy Adventures', sort: 'popularity.desc', extra: '&with_genres=14' },
-        { key: 'anime-cross', title: 'Epic Anime Battles', sort: 'popularity.desc', extra: '&with_keywords=210024' },
+        { key: 'anime-cross', title: 'Epic Anime Series', sort: 'popularity.desc', extra: '&with_keywords=210024' },
         { key: 'adventure-animation', title: 'Epic Animated Adventures', sort: 'popularity.desc', extra: '&with_genres=12' },
-        { key: 'comedy-animation', title: 'Laugh-Out-Loud Animations', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'comedy-animation', title: 'Laugh-Out-Loud Animation', sort: 'popularity.desc', extra: '&with_genres=35' },
         { key: 'sci-fi-animation', title: 'Futuristic Animated Sci-Fi', sort: 'popularity.desc', extra: '&with_genres=878' },
         { key: 'musical-animation', title: 'Animated Musicals', sort: 'popularity.desc', extra: '&with_genres=10402' },
         { key: 'stop-motion', title: 'Stop-Motion Masterpieces', sort: 'popularity.desc', extra: '&with_keywords=3386' },
-        { key: 'animal-protagonists', title: 'Animal Adventures', sort: 'popularity.desc', extra: '&with_keywords=11400' },
-        { key: 'fairy-tales', title: 'Fairy Tales & Fables', sort: 'popularity.desc', extra: '&with_keywords=3205' },
+        { key: 'animal-protagonists', title: 'Animal Hero Adventures', sort: 'popularity.desc', extra: '&with_keywords=3205' },
+        { key: 'fairy-tales-anim', title: 'Fairy Tales & Timeless Fables', sort: 'popularity.desc', extra: '&with_keywords=3205' },
+        { key: 'superhero-animation', title: 'Animated Superhero Action', sort: 'popularity.desc', extra: '&with_keywords=9715' },
+        { key: 'japanese-anim', title: 'Japanese Animation Gems', sort: 'popularity.desc', extra: '&with_origin_country=JP' },
+        { key: 'horror-dark-anim', title: 'Dark & Horror Animation', sort: 'popularity.desc', extra: '&with_genres=27' },
+        { key: 'adult-animation', title: 'Adult Animated Series & Films', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
+        { key: 'classic-cartoons', title: 'Classic Cartoons & Golden Age', sort: 'vote_count.desc', extra: '&vote_count.gte=300' },
+        { key: 'animation-toprated', title: 'Highest-Rated Animation', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+        { key: 'animation-p2', title: 'More Animated Favorites', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'international-anim', title: 'International Animation Treasures', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'action-animation', title: 'High-Action Animation', sort: 'popularity.desc', extra: '&with_genres=28' },
       ];
     case '16-anime':
       return [
-        { key: 'shonen', title: 'Action Shonen Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=28' },
-        { key: 'fantasy-anime', title: 'Isekai & Fantasy Hits', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=14' },
-        { key: 'drama-anime', title: 'Emotional Anime Series', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=18' },
-        { key: 'classic-anime', title: 'Nostalgic Classic Anime', sort: 'vote_count.desc', extra: '&with_keywords=210024&first_air_date.lte=2015-01-01' },
+        { key: 'shonen', title: 'Action Shonen Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=10759' },
+        { key: 'fantasy-anime', title: 'Isekai & Fantasy Hits', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=10765' },
+        { key: 'drama-anime', title: 'Emotional Anime Dramas', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=18' },
+        { key: 'classic-anime', title: 'Legendary Classic Anime', sort: 'vote_count.desc', extra: '&with_keywords=210024' },
         { key: 'romance-anime', title: 'Romance & Slice of Life', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=10749' },
-        { key: 'horror-anime', title: 'Dark & Horror Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=27' },
+        { key: 'horror-anime', title: 'Dark & Horror Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&page=3' },
+        { key: 'scifi-anime', title: 'Sci-Fi & Mecha Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_original_language=ja' },
+        { key: 'comedy-anime', title: 'Hilarious Comedy Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=35' },
+        { key: 'psychological-anime', title: 'Mind-Bending Psychological Anime', sort: 'vote_average.desc', extra: '&with_keywords=210024&vote_count.gte=200' },
+        { key: 'sports-anime', title: 'Sports Anime Sagas', sort: 'popularity.desc', extra: '&with_keywords=210024&with_original_language=ja&sort_by=popularity.desc' },
+        { key: 'villain-anime', title: 'Dark Heroes & Villain Stories', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=80' },
+        { key: 'kids-anime', title: 'Family Anime Favorites', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=16' },
+        { key: 'ghibli-inspired', title: 'Studio Ghibli & Beloved Anime Films', sort: 'vote_count.desc', extra: '&with_keywords=210024&with_original_language=ja' },
+        { key: 'crime-anime', title: 'Crime & Detective Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=80' },
+        { key: 'adventure-anime', title: 'Epic Adventure Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=12' },
+        { key: 'popular-anime-p2', title: 'More Must-Watch Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&page=2' },
+        { key: 'top-rated-anime', title: 'Highest-Rated Anime of All Time', sort: 'vote_average.desc', extra: '&with_keywords=210024&vote_count.gte=500' },
+        { key: 'new-anime', title: 'Recent Anime Hits', sort: 'popularity.desc', extra: '&with_keywords=210024&with_original_language=ja&vote_count.gte=30' },
+        { key: 'supernatural-anime', title: 'Supernatural & Demons Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=14|10765' },
+        { key: 'samurai-anime', title: 'Samurai & Historical Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=36|37' },
+        { key: 'cyberpunk-anime', title: 'Cyberpunk & Futuristic Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&with_genres=878' },
+        { key: 'anime-classics-p2', title: 'More Anime Classics', sort: 'vote_count.desc', extra: '&with_keywords=210024&page=2' },
+        { key: 'anime-p3', title: 'Discover More Anime', sort: 'popularity.desc', extra: '&with_keywords=210024&page=3' },
       ];
     case '35':
       if (mediaType === 'movie') {
         return [
           { key: 'rom-com', title: 'Romantic Comedies', sort: 'popularity.desc', extra: '&with_genres=10749' },
-          { key: 'dark-comedy', title: 'Witty Satire & Dark Comedy', sort: 'popularity.desc', extra: '&with_keywords=10224' },
-          { key: 'raunchy-comedy', title: 'Silly & Raunchy Comedies', sort: 'popularity.desc', extra: '&with_keywords=9716' },
+          { key: 'dark-comedy', title: 'Witty Satire & Dark Comedy', sort: 'popularity.desc', extra: '&with_keywords=10084' },
+          { key: 'raunchy-comedy', title: 'Silly & Raunchy Comedies', sort: 'popularity.desc', extra: '&page=5' },
           { key: 'family-comedy', title: 'Family Comedy Night', sort: 'popularity.desc', extra: '&with_genres=10751' },
-          { key: 'buddy-comedy', title: 'Buddy Comedies & Road Trips', sort: 'popularity.desc', extra: '&with_keywords=9717' },
+          { key: 'buddy-comedy', title: 'Buddy Comedies & Road Trips', sort: 'popularity.desc', extra: '&with_keywords=7312' },
           { key: 'mockumentary', title: 'Absurdly Funny Mockumentaries', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
           { key: 'comedy-classics', title: 'Timeless Comedy Classics', sort: 'vote_count.desc', extra: '&primary_release_date.lte=2005-01-01' },
           { key: 'action-comedy', title: 'Action-Packed Comedies', sort: 'popularity.desc', extra: '&with_genres=28' },
           { key: 'slapstick', title: 'Slapstick & Physical Comedy', sort: 'popularity.desc', extra: '&with_keywords=2700' },
-          { key: 'workplace-comedy', title: 'Office Humor & Workplace Hijinks', sort: 'popularity.desc', extra: '&with_keywords=1701' },
+          { key: 'workplace-comedy', title: 'Office Humor & Workplace Hijinks', sort: 'popularity.desc', extra: '&with_keywords=6282' },
           { key: 'stoner-comedy', title: 'Stoner Comedies', sort: 'popularity.desc', extra: '&with_keywords=2783' },
-          { key: 'teen-comedy', title: 'High School & Teen Comedies', sort: 'popularity.desc', extra: '&with_keywords=2864' },
+          { key: 'teen-comedy', title: 'High School & Teen Comedies', sort: 'popularity.desc', extra: '&with_keywords=155722' },
+          { key: 'horror-comedy', title: 'Horror Comedies', sort: 'popularity.desc', extra: '&with_genres=27' },
+          { key: 'crime-comedy', title: 'Comedy Heists & Crime', sort: 'popularity.desc', extra: '&with_genres=80' },
+          { key: 'animated-comedy', title: 'Animated Comedy Features', sort: 'popularity.desc', extra: '&with_genres=16' },
+          { key: 'scifi-comedy', title: 'Sci-Fi Comedy', sort: 'popularity.desc', extra: '&with_genres=878' },
+          { key: 'sports-comedy', title: 'Sports Comedies', sort: 'popularity.desc', extra: '&with_keywords=6075' },
+          { key: 'holiday-comedy', title: 'Holiday & Seasonal Comedies', sort: 'popularity.desc', extra: '&with_keywords=65' },
+          { key: 'improv-satire', title: 'Improv & Satirical Comedy', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+          { key: 'intl-comedy', title: 'International Comedy Hits', sort: 'popularity.desc', extra: '&without_original_language=en' },
+          { key: 'lgbtq-comedy', title: 'LGBTQ+ Comedy', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+          { key: 'comedy-p2', title: 'More Comedy Favorites', sort: 'popularity.desc', extra: '&page=2' },
+          { key: 'comedy-p3', title: 'Discover More Comedies', sort: 'popularity.desc', extra: '&page=3' },
+          { key: 'comedy-toprated', title: 'Highest-Rated Comedies', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+          { key: 'indie-comedy', title: 'Quirky Independent Comedies', sort: 'vote_average.desc', extra: '&vote_count.gte=80&vote_count.lte=400' },
         ];
       }
       return [
         { key: 'rom-com', title: 'Romantic Comedies', sort: 'popularity.desc', extra: '&with_genres=10749' },
-        { key: 'dark-comedy', title: 'Witty Satire & Dark Comedy', sort: 'popularity.desc', extra: '&with_keywords=10224' },
-        { key: 'sitcoms', title: 'Workplace Sitcoms', sort: 'popularity.desc', extra: '&with_keywords=1701' },
+        { key: 'dark-comedy', title: 'Witty Satire & Dark Comedy', sort: 'popularity.desc', extra: '&with_keywords=10084' },
+        { key: 'sitcoms', title: 'Workplace Sitcoms', sort: 'popularity.desc', extra: '&with_keywords=210605' },
         { key: 'family-comedy', title: 'Family Comedy Night', sort: 'popularity.desc', extra: '&with_genres=10751' },
-        { key: 'sketch-comedy', title: 'Sketch & Stand-Up Shows', sort: 'popularity.desc', extra: '&with_keywords=9663' },
+        { key: 'sketch-comedy', title: 'Sketch & Stand-Up Shows', sort: 'popularity.desc', extra: '&with_keywords=156203' },
         { key: 'crime-comedy', title: 'Crime & Comedy', sort: 'popularity.desc', extra: '&with_genres=80' },
-        { key: 'coming-of-age-comedy', title: 'Coming-of-Age Comedies', sort: 'popularity.desc', extra: '&with_keywords=4565' },
+        { key: 'coming-of-age-comedy', title: 'Coming-of-Age Comedies', sort: 'popularity.desc', extra: '&with_keywords=10683' },
         { key: 'animated-comedy', title: 'Adult Animated Comedies', sort: 'popularity.desc', extra: '&with_genres=16' },
         { key: 'mockumentary-tv', title: 'Cringe & Mockumentary', sort: 'popularity.desc', extra: '&with_keywords=10084' },
         { key: 'sci-fi-comedy', title: 'Sci-Fi Humor', sort: 'popularity.desc', extra: '&with_genres=10765' },
         { key: 'variety-shows', title: 'Late Night Variety', sort: 'popularity.desc', extra: '&with_genres=10767' },
         { key: 'nostalgic-sitcoms', title: 'Nostalgic 90s & 2000s Sitcoms', sort: 'vote_count.desc', extra: '&first_air_date.lte=2010-01-01' },
-      ];
-    case '35-standup':
-      return [
-        { key: 'standup-hits', title: 'Stand-Up Comedy Specials', sort: 'popularity.desc', extra: '&with_keywords=stand-up' },
-        { key: 'talk-shows', title: 'Late Night Chat Shows', sort: 'popularity.desc', extra: '&with_genres=10767' },
-        { key: 'satire-specials', title: 'Political Satire & Comedy', sort: 'popularity.desc', extra: '&with_keywords=satire' },
-        { key: 'global-comedy', title: 'Global Comedy Specials', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'horror-comedy-tv', title: 'Horror Comedy Series', sort: 'popularity.desc', extra: '&with_genres=27' },
+        { key: 'teen-comedy-tv', title: 'Teen Sitcoms & High School', sort: 'popularity.desc', extra: '&with_keywords=155722' },
+        { key: 'political-comedy', title: 'Political Satire & Comedy', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'british-comedy-tv', title: 'Brilliant British Comedies', sort: 'popularity.desc', extra: '&with_origin_country=GB' },
+        { key: 'intl-comedy-tv', title: 'International Comedy Hits', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'lgbtq-comedy-tv', title: 'LGBTQ+ Comedy Series', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'drama-comedy-tv', title: 'Dramedies & Hybrid Shows', sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'comedy-toprated-tv', title: 'Highest-Rated Comedy Series', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
+        { key: 'comedy-p2-tv', title: 'More Comedy Series', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'comedy-p3-tv', title: 'Discover More Comedy Shows', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'workplace-tv', title: 'Office & Work Comedies', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+        { key: 'anthology-comedy', title: 'Anthology Comedy Series', sort: 'popularity.desc', extra: '&with_keywords=10084' },
+        { key: 'improv-tv', title: 'Improv & Absurdist Comedy', sort: 'popularity.desc', extra: '&vote_count.gte=50' },
       ];
     case '80':
       return [
-        { key: 'heist', title: 'Heist Sagas & Capers', sort: 'popularity.desc', extra: '&with_keywords=10214' },
+        { key: 'heist', title: 'Heist Sagas & Capers', sort: 'popularity.desc', extra: '&with_keywords=10051' },
         { key: 'mafia-mob', title: 'Mob Sagas & Organized Crime', sort: 'popularity.desc', extra: '&with_keywords=4737' },
-        { key: 'detective-police', title: 'Cop & Detective Mysteries', sort: 'popularity.desc', extra: '&with_keywords=1701' },
-        { key: 'courtroom-legal', title: 'Legal & Courtroom Dramas', sort: 'popularity.desc', extra: '&with_keywords=5691' },
-        { key: 'serial-killer', title: 'Serial Killer Thrillers', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+        { key: 'detective-police', title: 'Cop & Detective Mysteries', sort: 'popularity.desc', extra: '&with_keywords=703' },
+        { key: 'courtroom-legal', title: 'Legal & Courtroom Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
+        { key: 'serial-killer', title: 'Serial Killer Thrillers', sort: 'popularity.desc', extra: '&with_keywords=12339' },
         { key: 'true-crime', title: 'Grisly True Crime Sagas', sort: 'popularity.desc', extra: '&with_keywords=818' },
         { key: 'underworld', title: 'Underworld & Gang Life', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
-        { key: 'cyber-crime', title: 'Cyber Crime & Hacking Thrillers', sort: 'popularity.desc', extra: '&with_keywords=180370' },
+        { key: 'cyber-crime', title: 'Cyber Crime & Hacking Thrillers', sort: 'popularity.desc', extra: '&with_keywords=4289' },
         { key: 'prison-break', title: 'Prison Escapes & Captivity', sort: 'popularity.desc', extra: '&with_keywords=378' },
         { key: 'kidnapping-ransom', title: 'High-Stakes Kidnapping', sort: 'popularity.desc', extra: '&with_keywords=1556' },
         { key: 'corrupt-cops', title: 'Corrupt Cops & Vigilantes', sort: 'popularity.desc', extra: '&with_keywords=9715' },
         { key: 'drug-cartel', title: 'Narcos & Cartel Sagas', sort: 'popularity.desc', extra: '&with_keywords=9951' },
         { key: 'bank-robbery', title: 'Bank Robbery Thrillers', sort: 'popularity.desc', extra: '&with_keywords=2157' },
+        { key: 'noir-crime', title: 'Noir & Neo-Noir Crime', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
+        { key: 'femme-fatale', title: 'Femme Fatale & Seductive Crime', sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'con-artist', title: 'Con Artists & Swindlers', sort: 'popularity.desc', extra: '&with_keywords=2157' },
+        { key: 'nordic-crime', title: 'Nordic Crime & Dark Thrillers', sort: 'popularity.desc', extra: '&with_origin_country=SE|NO|DK|FI' },
+        { key: 'british-crime', title: 'British Crime Dramas', sort: 'popularity.desc', extra: '&with_origin_country=GB' },
+        { key: 'international-crime', title: 'International Crime Sagas', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'crime-comedy-mix', title: 'Crime Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'crime-toprated', title: 'Critically Acclaimed Crime', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+        { key: 'crime-p2', title: 'More Crime Sagas', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'crime-p3', title: 'Discover More Crime', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'crime-scifi', title: 'Sci-Fi Crime', sort: 'popularity.desc', extra: '&with_genres=878' },
+        { key: 'crime-classics', title: 'Classic Crime Favorites', sort: 'vote_count.desc', extra: '&vote_count.gte=400' },
+        { key: 'white-collar-crime', title: 'White-Collar Crime & Fraud', sort: 'popularity.desc', extra: '&with_keywords=4289|2157' },
+        { key: 'drug-cartel-2', title: 'Narcos & Drug War Sagas', sort: 'vote_count.desc', extra: '&with_keywords=9951' },
+        { key: 'cold-case', title: 'Cold Cases & Unsolved Crimes', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'political-crime', title: 'Political Corruption & Scandals', sort: 'vote_average.desc', extra: '&vote_count.gte=150&with_genres=18' },
+        { key: 'yakuza-triads', title: 'Yakuza, Triads & Asian Crime', sort: 'popularity.desc', extra: '&with_origin_country=JP|KR|HK|CN' },
+        { key: 'hitman-contract', title: 'Hitmen & Contract Killers', sort: 'popularity.desc', extra: '&with_keywords=1432' },
+        { key: 'crime-romance', title: 'Crime & Romance', sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'art-theft-con', title: 'Art Theft & Elaborate Cons', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+        { key: 'latin-crime', title: 'Latin American Crime & Narco Drama', sort: 'popularity.desc', extra: '&with_origin_country=MX|CO|BR' },
+        { key: 'crime-2010s', title: 'Best Crime of the 2010s', sort: 'vote_count.desc', extra: '&primary_release_date.gte=2010-01-01&primary_release_date.lte=2019-12-31' },
+        { key: 'crime-2020s', title: 'Crime Hits of the 2020s', sort: 'popularity.desc', extra: '&primary_release_date.gte=2020-01-01' },
       ];
     case '99-documentaries':
       return [
-        { key: 'true-crime-docs', title: 'True Crime Investigations', sort: 'popularity.desc', extra: '&with_keywords=80' },
-        { key: 'history-docs', title: 'History & War Docs', sort: 'popularity.desc', extra: '&with_genres=36' },
-        { key: 'biography-docs', title: 'Biographies & Real Lives', sort: 'popularity.desc', extra: '&with_keywords=237054' },
+        { key: 'true-crime-docs', title: 'True Crime Investigations', sort: 'popularity.desc', extra: '&with_genres=80' },
+        { key: 'history-docs', title: 'History & War Documentaries', sort: 'popularity.desc', extra: '&with_genres=36' },
+        { key: 'biography-docs', title: 'Biographies & Real Lives', sort: 'popularity.desc', extra: '&with_keywords=818' },
         { key: 'music-docs', title: 'Music & Pop Culture Docs', sort: 'popularity.desc', extra: '&with_genres=10402' },
-        { key: 'political-docs', title: 'Political & Social Docs', sort: 'popularity.desc', extra: '&with_keywords=1555' },
+        { key: 'political-docs', title: 'Political Power & Social Docs', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
         { key: 'sports-docs', title: 'Sports Documentaries', sort: 'popularity.desc', extra: '&with_keywords=6075' },
-        { key: 'food-travel-docs', title: 'Food, Travel & Culture', sort: 'popularity.desc', extra: '&with_keywords=9663' },
-        { key: 'climate-docs', title: 'Nature & Climate Docs', sort: 'vote_average.desc', extra: '&with_keywords=3336&vote_count.gte=100' },
-        { key: 'science-docs', title: 'Science & Tech Documentaries', sort: 'popularity.desc', extra: '&with_keywords=285559' },
-        { key: 'art-design-docs', title: 'Art & Design', sort: 'popularity.desc', extra: '&with_keywords=163004' },
-        { key: 'cult-docs', title: 'Bizarre Cults & Strange Lives', sort: 'popularity.desc', extra: '&with_keywords=156026' },
-        { key: 'wildlife-docs', title: 'Wildlife & Animal Planet', sort: 'popularity.desc', extra: '&with_keywords=11400' },
-        { key: 'space-docs', title: 'Space & Cosmology', sort: 'popularity.desc', extra: '&with_keywords=3801' },
+        { key: 'food-travel-docs', title: 'Food, Travel & World Culture', sort: 'popularity.desc', extra: '&with_keywords=9935|10637' },
+        { key: 'climate-nature-docs', title: 'Nature, Climate & Environment', sort: 'vote_average.desc', extra: '&with_keywords=9902|18330&vote_count.gte=100' },
+        { key: 'science-docs', title: 'Science & Technology Docs', sort: 'vote_average.desc', extra: '&vote_count.gte=100&page=2' },
+        { key: 'art-design-docs', title: 'Art, Design & Creativity', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'cult-conspiracy-docs', title: 'Cults, Conspiracies & Dark Truths', sort: 'popularity.desc', extra: '&with_keywords=10084' },
+        { key: 'wildlife-docs', title: 'Wildlife & Animal Planet', sort: 'popularity.desc', extra: '&with_keywords=9902|18330' },
+        { key: 'space-docs', title: 'Space, Stars & Cosmology', sort: 'popularity.desc', extra: '&with_keywords=3801' },
+        { key: 'war-military-docs', title: 'War & Military Documentaries', sort: 'popularity.desc', extra: '&with_genres=10752' },
+        { key: 'social-justice-docs', title: 'Social Justice & Human Rights', sort: 'vote_average.desc', extra: '&vote_count.gte=50&page=5' },
+        { key: 'investigative-journalism', title: 'Investigative Journalism Stories', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+        { key: 'tech-internet-docs', title: 'Tech, Internet & Digital Age', sort: 'popularity.desc', extra: '&with_keywords=4289' },
+        { key: 'health-medicine-docs', title: 'Health, Medicine & The Body', sort: 'popularity.desc', extra: '&with_keywords=11171' },
+        { key: 'business-finance-docs', title: 'Business, Finance & Wall Street', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'fashion-celebrity-docs', title: 'Fashion, Celebrity & Pop Culture', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'lgbtq-docs', title: 'LGBTQ+ Stories & Pride Docs', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'religion-spirituality-docs', title: 'Religion, Spirituality & Belief', sort: 'popularity.desc', extra: '&page=5' },
+        { key: 'ocean-docs', title: 'Oceans, Seas & Deep Water Worlds', sort: 'popularity.desc', extra: '&with_keywords=1721' },
+        { key: 'international-docs', title: 'International Documentary Gems', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'docs-toprated', title: 'Highest-Rated Documentaries', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
+        { key: 'miniseries-docs', title: 'Gripping Documentary Miniseries', sort: 'vote_average.desc', extra: '&vote_count.gte=50&page=6' },
+        { key: 'crime-investigation-series', title: 'Crime Investigation Series', sort: 'popularity.desc', extra: '&with_genres=80&page=2' },
+        { key: 'nature-series', title: 'Breathtaking Nature Series', sort: 'vote_count.desc', extra: '&with_keywords=9902|18330' },
+        { key: 'historical-docs-p2', title: 'Hidden History Documentaries', sort: 'vote_average.desc', extra: '&with_genres=36&page=2' },
+        { key: 'startup-innovation-docs', title: 'Startups, Innovation & Big Ideas', sort: 'popularity.desc', extra: '&with_keywords=4289&page=2' },
       ];
     case '99-science-nature':
       return [
         { key: 'wildlife-nature', title: 'Wildlife & Nature Epics', sort: 'popularity.desc', extra: '&with_keywords=196884' },
         { key: 'space-cosmology', title: 'Space & Universe Exploration', sort: 'popularity.desc', extra: '&with_keywords=3801' },
-        { key: 'science-tech', title: 'Science & Tech Discoveries', sort: 'popularity.desc', extra: '&with_keywords=285559' },
-        { key: 'earth-environment', title: 'Earth & Nature Mysteries', sort: 'popularity.desc', extra: '&with_keywords=3336' },
+        { key: 'science-tech', title: 'Science & Tech Discoveries', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'earth-environment', title: 'Earth & Climate Mysteries', sort: 'popularity.desc', extra: '&with_keywords=9902|18330' },
         { key: 'human-body', title: 'Human Body & Medical Science', sort: 'popularity.desc', extra: '&with_keywords=11171' },
         { key: 'ocean-deep', title: 'Deep Sea & Ocean Wonders', sort: 'popularity.desc', extra: '&with_keywords=1721' },
+        { key: 'dinosaurs-paleontology', title: 'Dinosaurs & Prehistoric Earth', sort: 'popularity.desc', extra: '&with_keywords=12616' },
+        { key: 'climate-change', title: 'Climate Change & Our Future', sort: 'popularity.desc', extra: '&with_keywords=9902|18330&page=2' },
+        { key: 'ai-tech-future', title: 'AI, Tech & The Future', sort: 'popularity.desc', extra: '&with_keywords=4289' },
+        { key: 'biology-evolution', title: 'Biology, Evolution & Life', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'physics-cosmos', title: 'Physics, Quantum & The Cosmos', sort: 'vote_average.desc', extra: '&vote_count.gte=50' },
+        { key: 'natural-disasters', title: 'Natural Disasters & Earth Forces', sort: 'popularity.desc', extra: '&with_keywords=5096' },
+        { key: 'animals-behavior', title: 'Animal Behavior & Instinct', sort: 'popularity.desc', extra: '&with_keywords=9902|18330&page=2' },
+        { key: 'planet-earth-series', title: 'Planet Earth Explorations', sort: 'vote_count.desc', extra: '&with_keywords=9902|18330' },
+        { key: 'engineering-wonders', title: 'Engineering & Human Innovation', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'mindscience-psychology', title: 'Psychology & Human Mind', sort: 'popularity.desc', extra: '&with_keywords=11171&page=2' },
+        { key: 'explorer-adventure', title: 'Explorers & Scientific Expeditions', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'nature-toprated', title: 'Highest-Rated Nature Documentaries', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+        { key: 'marine-biology', title: 'Deep Ocean & Marine Life', sort: 'popularity.desc', extra: '&with_keywords=1721&page=2' },
+        { key: 'astronomy-cosmos', title: 'Star-Gazing & Cosmology', sort: 'popularity.desc', extra: '&with_keywords=3801&page=2' },
+        { key: 'genetics-medicine', title: 'Genetics, DNA & Medical Breakthroughs', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'extreme-weather', title: 'Extreme Weather & Natural Phenomena', sort: 'popularity.desc', extra: '&with_keywords=5096&page=2' },
+        { key: 'nature-conservation', title: 'Wildlife Conservation & Earth', sort: 'vote_average.desc', extra: '&with_keywords=9902|18330&vote_count.gte=50' },
+        { key: 'science-comedy-nature', title: 'Lighthearted Science & Discovery', sort: 'popularity.desc', extra: '&page=5' },
       ];
     case '14':
       return [
-        { key: 'epic-fantasy', title: 'Epic Fantasy Worlds', sort: 'popularity.desc', extra: '&with_keywords=1701' },
-        { key: 'sword-sorcery', title: 'Swords & Sorcery', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'epic-fantasy', title: 'Epic Fantasy Worlds', sort: 'popularity.desc', extra: '&with_keywords=6152' },
+        { key: 'sword-sorcery', title: 'Swords & Sorcery', sort: 'popularity.desc', extra: '&with_keywords=9725|5147' },
         { key: 'myth-legend', title: 'Myths & Legends', sort: 'popularity.desc', extra: '&with_keywords=4379' },
-        { key: 'magic-spells', title: 'Magic & Witchcraft', sort: 'popularity.desc', extra: '&with_keywords=156026' },
-        { key: 'urban-fantasy', title: 'Urban Fantasy Thrills', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+        { key: 'magic-spells', title: 'Magic & Witchcraft', sort: 'popularity.desc', extra: '&with_keywords=40931' },
+        { key: 'urban-fantasy', title: 'Urban Fantasy Thrills', sort: 'popularity.desc', extra: '&with_keywords=6152' },
+        { key: 'dragon-fantasy', title: 'Dragons & Mythical Creatures', sort: 'popularity.desc', extra: '&with_keywords=3205' },
+        { key: 'dark-fantasy', title: 'Dark Fantasy & Gothic Tales', sort: 'popularity.desc', extra: '&with_genres=27' },
+        { key: 'fairy-tale-fantasy', title: 'Fairy Tales & Enchanted Worlds', sort: 'popularity.desc', extra: '&with_keywords=3205' },
+        { key: 'superhero-fantasy', title: 'Superhero Fantasy', sort: 'popularity.desc', extra: '&with_keywords=9715' },
+        { key: 'animated-fantasy', title: 'Animated Fantasy Adventures', sort: 'popularity.desc', extra: '&with_genres=16' },
+        { key: 'historical-fantasy', title: 'Historical & Period Fantasy', sort: 'popularity.desc', extra: '&with_genres=36' },
+        { key: 'scifi-fantasy-cross', title: 'Sci-Fi Fantasy Crossovers', sort: 'popularity.desc', extra: '&with_genres=878' },
+        { key: 'horror-fantasy', title: 'Supernatural Horror Fantasy', sort: 'popularity.desc', extra: '&with_genres=27' },
+        { key: 'kids-fantasy', title: 'Magical Adventures for All Ages', sort: 'popularity.desc', extra: '&with_genres=10751' },
+        { key: 'quest-fantasy', title: 'Epic Quest Adventures', sort: 'popularity.desc', extra: '&with_keywords=207372' },
+        { key: 'romance-fantasy', title: 'Fantasy Romance', sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'japanese-fantasy', title: 'Japanese & Asian Fantasy', sort: 'popularity.desc', extra: '&with_origin_country=JP|KR|CN' },
+        { key: 'fantasy-toprated', title: 'Critically Acclaimed Fantasy', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+        { key: 'adventure-fantasy', title: 'High Adventure Fantasy', sort: 'popularity.desc', extra: '&with_genres=12' },
+        { key: 'comedy-fantasy', title: 'Comedic Fantasy', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'fantasy-p2', title: 'More Fantasy Favorites', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'fantasy-p3', title: 'Discover More Fantasy', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'apocalyptic-fantasy', title: 'Apocalyptic & Dystopian Fantasy', sort: 'popularity.desc', extra: '&with_keywords=4565' },
+        { key: 'portal-fantasy', title: 'Other Worlds & Portal Stories', sort: 'popularity.desc', extra: '&with_keywords=4379' },
+        { key: 'international-fantasy', title: 'International Fantasy Gems', sort: 'popularity.desc', extra: '&without_original_language=en' },
       ];
     case '18':
       return [
         { key: 'true-story-dramas', title: 'Dramas Based on a True Story', sort: 'popularity.desc', extra: '&with_keywords=818' },
-        { key: 'coming-of-age-dramas', title: 'Coming-of-Age Journeys', sort: 'popularity.desc', extra: '&with_keywords=4565' },
-        { key: 'period-costume', title: 'Period & Costume Dramas', sort: 'popularity.desc', extra: '&with_keywords=5691' },
+        { key: 'coming-of-age-dramas', title: 'Coming-of-Age Journeys', sort: 'popularity.desc', extra: '&with_keywords=10683' },
+        { key: 'period-costume', title: 'Period & Costume Dramas', sort: 'popularity.desc', extra: '&primary_release_date.lte=1990-01-01' },
         { key: 'romance-dramas', title: 'Romance & Heartbreak', sort: 'popularity.desc', extra: '&with_genres=10749' },
         { key: 'family-saga-dramas', title: 'Family Sagas & Generational Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
-        { key: 'social-justice-dramas', title: 'Social Issues & Power Dynamics', sort: 'popularity.desc', extra: '&with_keywords=1555' },
+        { key: 'social-justice-dramas', title: 'Social Issues & Power Dynamics', sort: 'vote_count.desc', extra: '&page=3' },
         { key: 'grief-loss-dramas', title: 'Grief, Loss & Healing', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
         { key: 'prestige-award-dramas', title: 'Award-Winning Prestige Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=1000' },
-        { key: 'courtroom-drama', title: 'Courtroom Dramas', sort: 'popularity.desc', extra: '&with_keywords=5691' },
+        { key: 'courtroom-drama', title: 'Courtroom Dramas', sort: 'popularity.desc', extra: '&with_genres=80' },
         { key: 'medical-drama', title: 'Medical Dramas & Hospitals', sort: 'popularity.desc', extra: '&with_keywords=11171' },
-        { key: 'political-drama', title: 'Political Dramas', sort: 'popularity.desc', extra: '&with_keywords=1555' },
+        { key: 'political-drama', title: 'Political Dramas', sort: 'vote_count.desc', extra: '&page=4' },
         { key: 'sports-drama', title: 'Inspiring Sports Dramas', sort: 'popularity.desc', extra: '&with_keywords=6075' },
         { key: 'crime-drama', title: 'Gritty Crime Dramas', sort: 'popularity.desc', extra: '&with_genres=80' },
+        { key: 'biography-drama', title: 'Biographical Dramas', sort: 'popularity.desc', extra: '&with_keywords=818' },
+        { key: 'war-drama', title: 'War & Conflict Dramas', sort: 'popularity.desc', extra: '&with_genres=10752' },
+        { key: 'psychological-drama', title: 'Psychological & Mind-Game Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=400' },
+        { key: 'indie-drama', title: 'Independent Arthouse Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=100&vote_count.lte=500' },
+        { key: 'immigration-drama', title: 'Immigration & Identity Stories', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'addiction-drama', title: 'Addiction & Redemption Stories', sort: 'vote_average.desc', extra: '&vote_count.gte=150' },
+        { key: 'workplace-drama', title: 'High-Stakes Workplace Dramas', sort: 'popularity.desc', extra: '&with_keywords=6282' },
+        { key: 'lgbtq-drama', title: 'LGBTQ+ Dramas', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'drama-p2', title: 'More Acclaimed Dramas', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'drama-p3', title: 'Hidden Drama Gems', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'international-drama', title: 'International Drama Masterpieces', sort: 'vote_count.desc', extra: '&without_original_language=en' },
+        { key: 'teen-drama', title: 'Teen & YA Dramas', sort: 'popularity.desc', extra: '&with_keywords=10683' },
+        { key: 'nature-drama', title: 'Nature & Environmental Dramas', sort: 'popularity.desc', extra: '&with_keywords=9902|18330' },
+        { key: 'drama-toprated', title: 'All-Time Great Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=2000' },
+        { key: 'drama-p4', title: 'More Great Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=500&page=2' },
       ];
     case '10751':
     case '10762':
       return [
         { key: 'animated-kids', title: 'Animated Family Classics', sort: 'popularity.desc', extra: '&with_genres=16' },
         { key: 'live-action-kids', title: 'Live-Action Family Adventures', sort: 'popularity.desc', extra: '&with_genres=12' },
-        { key: 'animal-stories', title: 'Animal & Nature Adventures', sort: 'popularity.desc', extra: '&with_keywords=3336' },
+        { key: 'animal-stories', title: 'Animal & Nature Adventures', sort: 'popularity.desc', extra: '&with_keywords=9902|18330' },
         { key: 'fantasy-magic', title: 'Magical & Fantasy Adventures', sort: 'popularity.desc', extra: '&with_genres=14' },
-        { key: 'ghibli-style', title: 'Studio Ghibli & Beloved Classics', sort: 'popularity.desc', extra: '&with_keywords=12883' },
-        { key: 'teen-adventure', title: 'Teen & YA Adventures', sort: 'popularity.desc', extra: '&with_keywords=1701' },
-        { key: 'educational', title: 'Educational & Learning', sort: 'popularity.desc', extra: '&with_keywords=9663' },
-        { key: 'toddler-friendly', title: 'For the Little Ones', sort: 'popularity.desc', extra: '&with_keywords=180547' },
-        { key: 'music-singalong', title: 'Sing-Alongs & Music', sort: 'popularity.desc', extra: '&with_genres=10402' },
-        { key: 'superhero-kids', title: 'Superhero Adventures', sort: 'popularity.desc', extra: '&with_keywords=9715' },
+        { key: 'ghibli-style', title: 'Studio Ghibli & Japanese Animation', sort: 'popularity.desc', extra: '&with_origin_country=JP&with_genres=16' },
+        { key: 'teen-adventure', title: 'Teen & YA Adventures', sort: 'popularity.desc', extra: '&with_keywords=10683' },
+        { key: 'educational', title: 'Educational & Discovery', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'toddler-friendly', title: 'For Toddlers & Little Ones', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'music-singalong', title: 'Musical Adventures & Sing-Alongs', sort: 'popularity.desc', extra: '&with_genres=10402' },
+        { key: 'superhero-kids', title: 'Superhero Adventures for Kids', sort: 'popularity.desc', extra: '&with_keywords=9715' },
         { key: 'fairy-tales', title: 'Classic Fairy Tales & Fables', sort: 'popularity.desc', extra: '&with_keywords=3205' },
         { key: 'kids-comedy', title: 'Hilarious Kids Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
-        { key: 'spooky-kids', title: 'Spooky (But Not Too Scary)', sort: 'popularity.desc', extra: '&with_keywords=3133' },
+        { key: 'spooky-kids', title: 'Spooky (But Not Too Scary)', sort: 'popularity.desc', extra: '&with_genres=27&with_genres=14' },
         { key: 'sports-kids', title: 'Inspiring Kids Sports Stories', sort: 'popularity.desc', extra: '&with_keywords=6075' },
         { key: 'sci-fi-kids', title: 'Out of This World Sci-Fi', sort: 'popularity.desc', extra: '&with_genres=878' },
-        { key: 'dinosaurs-kids', title: 'Dinosaurs & Prehistoric', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'dinosaurs-kids', title: 'Dinosaurs & Prehistoric Worlds', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'christmas-holidays-kids', title: 'Holiday Specials & Festive Fun', sort: 'vote_count.desc', extra: '&page=3' },
+        { key: 'ocean-sea-kids', title: 'Ocean, Sea & Underwater Adventures', sort: 'popularity.desc', extra: '&with_keywords=1721' },
+        { key: 'space-kids', title: 'Space & Galaxy Adventures', sort: 'popularity.desc', extra: '&with_keywords=3801' },
+        { key: 'friendship-kindness', title: 'Friendship & Kindness Stories', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+        { key: 'multicultural-kids', title: 'Multicultural & World Stories', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'pixar-disney-style', title: 'Beloved Animated Studio Films', sort: 'vote_count.desc', extra: '&with_genres=16' },
+        { key: 'kids-mystery', title: 'Kid-Friendly Mysteries & Puzzles', sort: 'popularity.desc', extra: '&with_genres=9648' },
+        { key: 'kids-toprated', title: 'Highest-Rated Family Films', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
+        { key: 'kids-p2', title: 'More Family Favorites', sort: 'popularity.desc', extra: '&page=4' },
       ];
     case '27':
       return [
         { key: 'slasher-horror', title: 'Slasher Favorites', sort: 'popularity.desc', extra: '&with_keywords=12339' },
-        { key: 'supernatural-horror', title: 'Supernatural & Ghost Stories', sort: 'popularity.desc', extra: '&with_keywords=10185' },
-        { key: 'creature-features', title: 'Creature Features & Monsters', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'supernatural-horror', title: 'Supernatural & Ghost Stories', sort: 'popularity.desc', extra: '&with_keywords=6152' },
+        { key: 'creature-features', title: 'Creature Features & Monsters', sort: 'popularity.desc', extra: '&with_keywords=12339&page=2' },
         { key: 'psychological-horror', title: 'Psychological Horror & Mind Games', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
-        { key: 'folk-horror', title: 'Folk Horror & Eerie Cults', sort: 'popularity.desc', extra: '&with_keywords=156026' },
+        { key: 'folk-horror', title: 'Folk Horror & Eerie Cults', sort: 'popularity.desc', extra: '&with_genres=53' },
         { key: 'body-horror', title: 'Body Horror & Gore', sort: 'vote_average.desc', extra: '&vote_count.gte=150' },
         { key: 'horror-comedy', title: 'Horror Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
         { key: 'found-footage', title: 'Found Footage Horror', sort: 'popularity.desc', extra: '&with_keywords=11322' },
         { key: 'zombie-survival', title: 'Zombie Survival', sort: 'popularity.desc', extra: '&with_keywords=12377' },
         { key: 'vampire-lore', title: 'Vampire & Gothic Horror', sort: 'popularity.desc', extra: '&with_keywords=3133' },
-        { key: 'witchcraft', title: 'Witches & Dark Magic', sort: 'popularity.desc', extra: '&with_keywords=156026' },
+        { key: 'witchcraft', title: 'Witches & Dark Magic', sort: 'popularity.desc', extra: '&with_keywords=40931' },
         { key: 'scifi-horror-cross', title: 'Sci-Fi Horror Crossovers', sort: 'popularity.desc', extra: '&with_genres=878' },
-        { key: 'demon-possession', title: 'Demonic Possessions', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'demon-possession', title: 'Demonic Possessions', sort: 'popularity.desc', extra: '&with_keywords=6152' },
+        { key: 'home-invasion-horror', title: 'Home Invasion & Stalker Horror', sort: 'popularity.desc', extra: '&with_keywords=10349' },
+        { key: 'asian-horror', title: 'Asian Horror Masterpieces', sort: 'popularity.desc', extra: '&with_origin_country=JP|KR|TH' },
+        { key: 'indie-horror', title: 'Indie & A24-Style Horror', sort: 'vote_average.desc', extra: '&vote_count.gte=100&vote_count.lte=600' },
+        { key: 'monster-horror', title: 'Giant Monsters & Kaiju', sort: 'popularity.desc', extra: '&with_keywords=12339&with_genres=878' },
+        { key: 'ghost-haunted', title: 'Haunted Houses & Ghosts', sort: 'popularity.desc', extra: '&with_keywords=6152&page=2' },
+        { key: 'supernatural-thriller-horror', title: 'Supernatural Thrillers', sort: 'popularity.desc', extra: '&with_genres=53' },
+        { key: 'horror-toprated', title: 'All-Time Horror Greats', sort: 'vote_average.desc', extra: '&vote_count.gte=600' },
+        { key: 'horror-p2', title: 'More Horror Picks', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'horror-p3', title: 'Horror Hidden Gems', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'horror-p4', title: 'Discover More Horror', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'action-horror', title: 'Action-Packed Horror', sort: 'popularity.desc', extra: '&with_genres=28' },
+        { key: 'classic-horror-golden', title: 'Golden Age Horror Classics', sort: 'vote_count.desc', extra: '&vote_count.gte=300' },
+        { key: 'eco-horror', title: 'Eco-Horror & Nature Attacks', sort: 'popularity.desc', extra: '&with_keywords=9902|5096&with_genres=27' },
+        { key: 'cosmic-horror', title: 'Cosmic & Lovecraftian Horror', sort: 'vote_average.desc', extra: '&vote_count.gte=80' },
+        { key: 'religious-horror', title: 'Religious & Cult Horror', sort: 'popularity.desc', extra: '&with_keywords=40931|6152&with_genres=27' },
+        { key: 'isolation-horror', title: 'Isolation & Cabin-in-the-Woods Horror', sort: 'vote_average.desc', extra: '&vote_count.gte=150' },
+        { key: 'anthology-horror', title: 'Horror Anthologies & Short Scares', sort: 'popularity.desc', extra: '&page=5' },
+        { key: 'teen-horror', title: 'Teen Slashers & YA Horror', sort: 'popularity.desc', extra: '&with_keywords=296608' },
+        { key: 'horror-romance', title: 'Dark Romance & Horror', sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'nordic-horror', title: 'Scandinavian & Nordic Horror', sort: 'popularity.desc', extra: '&with_origin_country=SE|NO|DK|FI' },
+        { key: 'horror-2010s', title: 'Best Horror of the 2010s', sort: 'vote_count.desc', extra: '&primary_release_date.gte=2010-01-01&primary_release_date.lte=2019-12-31' },
+        { key: 'horror-2020s', title: 'Modern Horror of the 2020s', sort: 'popularity.desc', extra: '&primary_release_date.gte=2020-01-01' },
       ];
     case '878':
     case '10765':
@@ -569,235 +765,387 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'space-scifi', title: 'Space Travel & Exploration', sort: 'popularity.desc', extra: '&with_keywords=3801' },
         { key: 'time-travel-scifi', title: 'Time Travel & Alternate Realities', sort: 'popularity.desc', extra: '&with_keywords=4379' },
         { key: 'dystopian-scifi', title: 'Dystopian & Post-Apocalyptic', sort: 'popularity.desc', extra: '&with_keywords=4565' },
-        { key: 'cyberpunk-ai', title: 'Cyberpunk & AI Sci-Fi', sort: 'popularity.desc', extra: '&with_keywords=180370' },
+        { key: 'cyberpunk-ai', title: 'Cyberpunk & AI Sci-Fi', sort: 'popularity.desc', extra: '&with_keywords=4289' },
         { key: 'alien-contact', title: 'Alien Contact & Invasions', sort: 'popularity.desc', extra: '&with_keywords=9951' },
         { key: 'near-future', title: 'Near-Future Sci-Fi Thrillers', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
         { key: 'scifi-horror', title: 'Sci-Fi Horror Crossovers', sort: 'popularity.desc', extra: '&with_genres=27' },
         { key: 'superhero-scifi', title: 'Superhero Sci-Fi', sort: 'popularity.desc', extra: '&with_keywords=9715' },
         { key: 'robot-uprising', title: 'Robots & Androids', sort: 'popularity.desc', extra: '&with_keywords=14544' },
-        { key: 'virtual-reality', title: 'Virtual Realities & Simulations', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'virtual-reality', title: 'Virtual Realities & Simulations', sort: 'popularity.desc', extra: '&with_keywords=4563' },
         { key: 'mind-bending', title: 'Mind-Bending Sci-Fi', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+        { key: 'first-contact', title: 'First Contact & Alien Life', sort: 'popularity.desc', extra: '&with_keywords=3801&page=2' },
+        { key: 'space-opera', title: 'Space Opera & Galactic Sagas', sort: 'popularity.desc', extra: '&with_keywords=3801&with_genres=12' },
+        { key: 'scifi-comedy', title: 'Sci-Fi Comedy & Satire', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'climate-scifi', title: 'Climate Disaster Sci-Fi', sort: 'popularity.desc', extra: '&with_keywords=18330|5096' },
+        { key: 'anime-scifi', title: 'Anime & Animated Sci-Fi', sort: 'popularity.desc', extra: '&with_keywords=210024' },
+        { key: 'scifi-action', title: 'High-Action Sci-Fi', sort: 'popularity.desc', extra: '&with_genres=28' },
+        { key: 'scifi-adventure', title: 'Sci-Fi Adventure', sort: 'popularity.desc', extra: '&with_genres=12' },
+        { key: 'biotech-mutation', title: 'Biotech & Genetic Experiments', sort: 'popularity.desc', extra: '&with_keywords=14544&page=2' },
+        { key: 'scifi-toprated', title: 'All-Time Sci-Fi Greats', sort: 'vote_average.desc', extra: '&vote_count.gte=800' },
+        { key: 'scifi-p2', title: 'More Sci-Fi Favorites', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'scifi-p3', title: 'Discover More Sci-Fi', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'scifi-p4', title: 'Sci-Fi Hidden Gems', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'international-scifi', title: 'International Sci-Fi Gems', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'scifi-indie', title: 'Independent Sci-Fi', sort: 'vote_average.desc', extra: '&vote_count.gte=100&vote_count.lte=500' },
+        { key: 'kids-scifi', title: 'Sci-Fi for All Ages', sort: 'popularity.desc', extra: '&with_genres=10751' },
+        { key: 'time-loop', title: 'Time Loops & Paradoxes', sort: 'vote_average.desc', extra: '&with_keywords=4379&vote_count.gte=100' },
+        { key: 'mecha-scifi', title: 'Mecha, Robots & Powered Suits', sort: 'popularity.desc', extra: '&with_keywords=14544&with_genres=16' },
+        { key: 'genetic-experiment', title: 'Genetic Engineering & Evolution', sort: 'popularity.desc', extra: '&page=5' },
+        { key: 'korean-scifi', title: 'Korean Sci-Fi Hits', sort: 'popularity.desc', extra: '&with_origin_country=KR' },
+        { key: 'scifi-thriller-cross', title: 'Sci-Fi Thriller Hybrids', sort: 'vote_average.desc', extra: '&with_genres=53&vote_count.gte=200' },
+        { key: 'scifi-drama-cross', title: 'Thoughtful Sci-Fi Drama', sort: 'vote_average.desc', extra: '&with_genres=18&vote_count.gte=300' },
+        { key: 'scifi-2020s', title: 'New Sci-Fi of the 2020s', sort: 'popularity.desc', extra: '&primary_release_date.gte=2020-01-01' },
+        { key: 'scifi-90s', title: '90s Sci-Fi Classics', sort: 'vote_count.desc', extra: '&primary_release_date.gte=1990-01-01&primary_release_date.lte=1999-12-31' },
       ];
     case '10749':
       return [
-        { key: 'rom-comedy', title: 'Romantic Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
-        { key: 'rom-drama', title: 'Romantic Dramas', sort: 'popularity.desc', extra: '&with_genres=18' },
-        { key: 'period-romance', title: 'Period Romance & Costumes', sort: 'popularity.desc', extra: '&with_keywords=5691' },
-        { key: 'forbidden-rom', title: 'Forbidden Love & Passion', sort: 'popularity.desc', extra: '&with_keywords=10224' },
-        { key: 'lgbtq-romance', title: 'LGBTQ+ Love Stories', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'summer-love', title: 'Summer Romance & Escapism', sort: 'popularity.desc', extra: '&with_keywords=9663' },
-        { key: 'unrequited-love', title: 'Unrequited Love & Heartbreak', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
-        { key: 'teen-romance', title: 'Teen Romance', sort: 'popularity.desc', extra: '&with_keywords=4565' },
-        { key: 'wedding-jitters', title: 'Weddings & Engagements', sort: 'popularity.desc', extra: '&with_keywords=9716' },
-        { key: 'enemies-to-lovers', title: 'Enemies to Lovers', sort: 'popularity.desc', extra: '&with_keywords=9717' },
-        { key: 'workplace-romance', title: 'Office Romances', sort: 'popularity.desc', extra: '&with_keywords=1701' },
-        { key: 'steamy-romance', title: 'Steamy & Sensual Romances', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+        { key: 'rom-comedy', title: 'Romantic Comedies', sort: 'popularity.desc', extra: '&with_genres=35&without_original_language=ko' },
+        { key: 'rom-drama', title: 'Romantic Dramas', sort: 'popularity.desc', extra: '&with_genres=18&without_original_language=ko' },
+        { key: 'k-drama-romance', title: 'K-Drama Romance', sort: 'popularity.desc', extra: '&with_origin_country=KR' },
+        { key: 'forbidden-rom', title: 'Forbidden Love & Passion', sort: 'popularity.desc', extra: '&with_keywords=3691&without_original_language=ko' },
+        { key: 'lgbtq-romance', title: 'LGBTQ+ Love Stories', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'summer-love', title: 'Summer Flings & Vacation Romance', sort: 'popularity.desc', extra: '&with_keywords=9935' },
+        { key: 'unrequited-love', title: 'Unrequited Love & Heartbreak', sort: 'vote_average.desc', extra: '&vote_count.gte=200&without_original_language=ko' },
+        { key: 'teen-romance', title: 'Teen & YA Romance', sort: 'popularity.desc', extra: '&with_keywords=10683&without_original_language=ko' },
+        { key: 'wedding-jitters', title: 'Weddings, Engagements & Marriage', sort: 'popularity.desc', extra: '&page=2&without_original_language=ko' },
+        { key: 'period-romance', title: 'Period Romance & Costume Dramas', sort: 'popularity.desc', extra: '&primary_release_date.lte=1995-01-01' },
+        { key: 'workplace-romance', title: 'Office & Workplace Romances', sort: 'popularity.desc', extra: '&with_keywords=6282&without_original_language=ko' },
+        { key: 'enemies-to-lovers', title: 'Enemies to Lovers', sort: 'popularity.desc', extra: '&page=3&without_original_language=ko' },
+        { key: 'fantasy-romance', title: 'Fantasy & Supernatural Romance', sort: 'popularity.desc', extra: '&with_genres=14&without_original_language=ko' },
+        { key: 'british-romance', title: 'British Romance & Period Drama', sort: 'popularity.desc', extra: '&with_origin_country=GB' },
+        { key: 'french-romance', title: 'French & European Romance', sort: 'popularity.desc', extra: '&with_origin_country=FR|IT|ES' },
+        { key: 'steamy-romance', title: 'Steamy & Passionate Romances', sort: 'vote_average.desc', extra: '&vote_count.gte=100&without_original_language=ko' },
+        { key: 'second-chance-love', title: 'Second Chance & Reunion Romance', sort: 'popularity.desc', extra: '&page=4&without_original_language=ko' },
+        { key: 'action-romance', title: 'Action-Adventure Romance', sort: 'popularity.desc', extra: '&with_genres=28&without_original_language=ko' },
+        { key: 'romance-toprated', title: 'Critically Acclaimed Romance', sort: 'vote_average.desc', extra: '&vote_count.gte=400' },
+        { key: 'classic-hollywood-romance', title: 'Classic Hollywood Romance', sort: 'vote_count.desc', extra: '&vote_count.gte=500&with_original_language=en' },
+        { key: 'music-romance', title: 'Music & Love Stories', sort: 'popularity.desc', extra: '&with_genres=10402' },
+        { key: 'royals-romance', title: 'Royals & Aristocratic Love', sort: 'popularity.desc', extra: '&with_genres=36&without_original_language=ko' },
+        { key: 'holiday-romance', title: 'Holiday Season Romance', sort: 'vote_count.desc', extra: '&with_keywords=65' },
+        { key: 'mature-love', title: 'Love After 40 & Second Bloom', sort: 'popularity.desc', extra: '&page=5&without_original_language=ko' },
+        { key: 'indie-romance', title: 'Indie Romance & Low-Key Love', sort: 'vote_average.desc', extra: '&vote_count.gte=50&vote_count.lte=300' },
+        { key: 'anime-romance', title: 'Anime Romance', sort: 'popularity.desc', extra: '&with_genres=16&with_origin_country=JP' },
+        { key: 'chinese-romance', title: 'C-Drama & Chinese Romance', sort: 'popularity.desc', extra: '&with_origin_country=CN' },
+        { key: 'us-rom-coms', title: 'Hollywood Rom-Coms', sort: 'vote_count.desc', extra: '&with_original_language=en&with_genres=35' },
+        { key: 'romance-p2', title: 'More Romance Favorites', sort: 'popularity.desc', extra: '&page=6&without_original_language=ko' },
       ];
     case '9648':
       return [
-        { key: 'detective-mystery', title: 'Cop & Detective Mysteries', sort: 'popularity.desc', extra: '&with_keywords=1701' },
+        { key: 'detective-mystery', title: 'Cop & Detective Mysteries', sort: 'popularity.desc', extra: '' },
         { key: 'whodunit', title: 'Whodunits & Puzzle Mysteries', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
-        { key: 'supernatural-mystery', title: 'Supernatural & Sci-Fi Mysteries', sort: 'popularity.desc', extra: '&with_keywords=10185' },
-        { key: 'conspiracy-thriller', title: 'Conspiracy & Hidden Truths', sort: 'popularity.desc', extra: '&with_keywords=1555' },
-        { key: 'missing-persons', title: 'Disappearances & Cold Cases', sort: 'popularity.desc', extra: '&with_keywords=10224' },
-        { key: 'cozy-mystery', title: 'Cozy Mysteries & Sleuths', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
-        { key: 'amateur-sleuths', title: 'Amateur Sleuths', sort: 'popularity.desc', extra: '&with_keywords=2149' },
-        { key: 'small-town-secrets', title: 'Small Town Secrets', sort: 'popularity.desc', extra: '&with_keywords=9715' },
-        { key: 'noir-neo-noir', title: 'Noir & Neo-Noir', sort: 'popularity.desc', extra: '&with_keywords=242137' },
-        { key: 'psych-mystery', title: 'Psychological Mysteries', sort: 'popularity.desc', extra: '&with_keywords=10224' },
-        { key: 'classic-mysteries', title: 'Classic Whodunits', sort: 'vote_average.desc', extra: '&primary_release_date.lte=1990-01-01' },
-        { key: 'british-mysteries-2', title: 'British Detectives', sort: 'popularity.desc', extra: '&with_origin_country=GB' },
+        { key: 'supernatural-mystery', title: 'Supernatural & Paranormal Mysteries', sort: 'popularity.desc', extra: '&with_keywords=6152' },
+        { key: 'conspiracy-thriller', title: 'Conspiracy & Hidden Truths', sort: 'popularity.desc', extra: '&with_keywords=470' },
+        { key: 'missing-persons', title: 'Disappearances & Cold Cases', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'cozy-mystery', title: 'Cozy Mysteries & Armchair Sleuths', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+        { key: 'amateur-sleuths', title: 'Amateur Detectives & Unlikely Heroes', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'small-town-secrets', title: 'Small Town Dark Secrets', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'noir-neo-noir', title: 'Noir & Neo-Noir Classics', sort: 'popularity.desc', extra: '&with_genres=80' },
+        { key: 'psych-mystery', title: 'Psychological & Mind-Bending Mysteries', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
+        { key: 'classic-mysteries', title: 'Golden Age Mystery Classics', sort: 'vote_count.desc', extra: '&vote_count.gte=300' },
+        { key: 'british-mysteries-2', title: 'British Detective Drama', sort: 'popularity.desc', extra: '&with_origin_country=GB' },
         { key: 'nordic-mysteries', title: 'Chilling Nordic Mysteries', sort: 'popularity.desc', extra: '&with_origin_country=SE|NO|DK' },
-        { key: 'action-mysteries', title: 'Action-Packed Mysteries', sort: 'popularity.desc', extra: '&with_genres=28' },
-        { key: 'comedy-mysteries', title: 'Funny Whodunits', sort: 'popularity.desc', extra: '&with_genres=35' },
-        { key: 'true-crime-mysteries', title: 'True Crime Investigations', sort: 'popularity.desc', extra: '&with_keywords=818' },
+        { key: 'action-mysteries', title: 'Action-Packed Mystery Adventures', sort: 'popularity.desc', extra: '&with_genres=28' },
+        { key: 'comedy-mysteries', title: 'Funny Whodunits & Madcap Mysteries', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'true-crime-mysteries', title: 'True Crime & Real Investigations', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'historical-mystery', title: 'Historical Mysteries & Period Detectives', sort: 'popularity.desc', extra: '&with_genres=36' },
+        { key: 'scifi-mystery', title: 'Sci-Fi & Tech Mysteries', sort: 'popularity.desc', extra: '&with_genres=878' },
+        { key: 'courtroom-mystery', title: 'Courtroom Mysteries & Legal Thrillers', sort: 'popularity.desc', extra: '&with_genres=53' },
+        { key: 'international-mystery', title: 'International Mystery Gems', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'asian-mystery', title: 'Asian Crime & Mystery', sort: 'popularity.desc', extra: '&with_origin_country=JP|KR' },
+        { key: 'mystery-toprated', title: 'Highest-Rated Mysteries', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+        { key: 'mystery-p2', title: 'More Mystery Favorites', sort: 'popularity.desc', extra: '&page=5' },
+        { key: 'heist-mystery', title: 'Heist & Caper Mysteries', sort: 'popularity.desc', extra: '&with_keywords=10051' },
+        { key: 'locked-room', title: 'Locked-Room & Impossible Crimes', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
       ];
     case '53':
       return [
         { key: 'psych-thriller', title: 'Psychological Thrillers', sort: 'vote_average.desc', extra: '&vote_count.gte=1000' },
         { key: 'spy-thriller', title: 'Espionage & Spy Operations', sort: 'popularity.desc', extra: '&with_keywords=470' },
         { key: 'crime-suspense', title: 'Crime & Law Suspense', sort: 'popularity.desc', extra: '&with_genres=80' },
-        { key: 'home-invasion', title: 'Home Invasion & Survival', sort: 'popularity.desc', extra: '&with_keywords=549' },
+        { key: 'home-invasion', title: 'Home Invasion & Survival', sort: 'popularity.desc', extra: '&with_keywords=10349' },
         { key: 'cat-mouse', title: 'Cat & Mouse Mind Games', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
-        { key: 'tech-paranoia', title: 'Tech Paranoia & Digital Dangers', sort: 'popularity.desc', extra: '&with_keywords=180370' },
-        { key: 'legal-corruption', title: 'Legal Corruption & Corporate Thrillers', sort: 'popularity.desc', extra: '&with_keywords=5691' },
-        { key: 'survival-thriller', title: 'Survival Thrillers', sort: 'popularity.desc', extra: '&with_keywords=12377' },
-        { key: 'political-thriller', title: 'Political Thrillers', sort: 'popularity.desc', extra: '&with_keywords=1555' },
+        { key: 'tech-paranoia', title: 'Tech Paranoia & Digital Dangers', sort: 'popularity.desc', extra: '&with_keywords=4289' },
+        { key: 'legal-corruption', title: 'Legal Corruption & Corporate Thrillers', sort: 'popularity.desc', extra: '&with_genres=80' },
+        { key: 'survival-thriller', title: 'Survival Thrillers', sort: 'popularity.desc', extra: '&with_keywords=10349' },
+        { key: 'political-thriller', title: 'Political Thrillers', sort: 'popularity.desc', extra: '&with_keywords=470' },
         { key: 'action-thriller', title: 'Action Thrillers', sort: 'popularity.desc', extra: '&with_genres=28' },
         { key: 'hostage-situation', title: 'Hostage Situations', sort: 'popularity.desc', extra: '&with_keywords=1556' },
+        { key: 'mystery-thriller', title: 'Mystery Thrillers', sort: 'popularity.desc', extra: '&with_genres=9648' },
+        { key: 'serial-killer-thriller', title: 'Serial Killer Hunts', sort: 'popularity.desc', extra: '&with_keywords=12339' },
+        { key: 'scifi-thriller', title: 'Sci-Fi Thrillers', sort: 'popularity.desc', extra: '&with_genres=878' },
+        { key: 'horror-thriller', title: 'Horror Thrillers', sort: 'popularity.desc', extra: '&with_genres=27' },
+        { key: 'conspiracy-thriller', title: 'Conspiracy & Cover-Ups', sort: 'popularity.desc', extra: '&with_keywords=470&page=2' },
+        { key: 'heist-thriller', title: 'Heist Thrillers', sort: 'popularity.desc', extra: '&with_keywords=10051' },
+        { key: 'nordic-thriller', title: 'Nordic Crime & Thriller', sort: 'popularity.desc', extra: '&with_origin_country=SE|NO|DK|FI' },
+        { key: 'intl-thriller', title: 'International Thriller Gems', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'thriller-toprated', title: 'Critically Acclaimed Thrillers', sort: 'vote_average.desc', extra: '&vote_count.gte=600' },
+        { key: 'thriller-p2', title: 'More Thriller Picks', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'thriller-p3', title: 'Discover More Thrillers', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'thriller-classics', title: 'Classic Thriller Masterpieces', sort: 'vote_count.desc', extra: '&vote_count.gte=300' },
+        { key: 'thriller-p4', title: 'Thriller Hidden Gems', sort: 'popularity.desc', extra: '&page=4' },
       ];
     case '37':
       return [
-        { key: 'outlaws-revenge', title: 'Outlaws & Revenge Sagas', sort: 'popularity.desc', extra: '&with_keywords=10224' },
+        { key: 'outlaws-revenge', title: 'Outlaws & Revenge Sagas', sort: 'popularity.desc', extra: '&with_keywords=9748' },
         { key: 'bounty-hunters', title: 'Bounty Hunters & Gunslingers', sort: 'vote_count.desc', extra: '' },
-        { key: 'frontier-life', title: 'Frontier Life & Settlers', sort: 'popularity.desc', extra: '&with_keywords=9714' },
+        { key: 'frontier-life', title: 'Frontier Life & Settlers', sort: 'popularity.desc', extra: '&with_keywords=9454' },
         { key: 'revisionist-western', title: 'Revisionist & Modern Westerns', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
+        { key: 'spaghetti-western', title: 'Spaghetti Westerns & Italian Classics', sort: 'vote_count.desc', extra: '&with_origin_country=IT|ES' },
+        { key: 'western-action', title: 'Action-Packed Westerns', sort: 'popularity.desc', extra: '&with_genres=28' },
+        { key: 'western-comedy', title: 'Comedy Westerns', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'western-scifi', title: 'Sci-Fi Westerns & Space Cowboys', sort: 'popularity.desc', extra: '&with_genres=878' },
+        { key: 'classic-western', title: 'Classic Western Heroes', sort: 'vote_count.desc', extra: '&vote_count.gte=250' },
+        { key: 'native-american', title: 'Native American & Revisionist Stories', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'neo-western', title: 'Neo-Westerns & Modern Frontier', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'western-mystery', title: 'Western Mystery & Crime', sort: 'popularity.desc', extra: '&with_genres=9648|80' },
+        { key: 'epic-western', title: 'Epic Wide-Screen Westerns', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
+        { key: 'western-animation', title: 'Animated Western Adventures', sort: 'popularity.desc', extra: '&with_genres=16' },
+        { key: 'outlaw-biopics', title: 'Outlaw Biographies', sort: 'popularity.desc', extra: '&with_keywords=818' },
+        { key: 'western-p2', title: 'More Western Favorites', sort: 'popularity.desc', extra: '&page=4' },
       ];
     case '10752':
       return [
-        { key: 'military-combat-war', title: 'Military & Combat Action', sort: 'popularity.desc', extra: '&with_keywords=1706' },
+        { key: 'military-combat-war', title: 'Military & Combat Action', sort: 'vote_count.desc', extra: '' },
         { key: 'historical-war', title: 'Historical Warfare', sort: 'popularity.desc', extra: '&with_genres=36' },
-        { key: 'war-survival', title: 'Survival & Heroism', sort: 'popularity.desc', extra: '&with_keywords=549' },
+        { key: 'war-survival', title: 'Survival & Heroism', sort: 'popularity.desc', extra: '&with_keywords=10349' },
         { key: 'anti-war', title: 'Thought-Provoking Anti-War Stories', sort: 'vote_average.desc', extra: '&vote_count.gte=300' },
         { key: 'cold-war', title: 'Cold War Intrigue', sort: 'popularity.desc', extra: '&with_keywords=470' },
+        { key: 'ww2-war', title: 'World War II Epics', sort: 'vote_count.desc', extra: '&vote_count.gte=300' },
+        { key: 'ww1-war', title: 'World War I Stories', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'vietnam-war', title: 'Vietnam War Films', sort: 'popularity.desc', extra: '&primary_release_date.gte=1970-01-01&primary_release_date.lte=1985-01-01' },
+        { key: 'war-drama', title: 'Powerful War Dramas', sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'war-action', title: 'War Action Spectacles', sort: 'popularity.desc', extra: '&with_genres=28' },
+        { key: 'special-ops', title: 'Special Forces & Elite Ops', sort: 'popularity.desc', extra: '&with_keywords=470&with_genres=28' },
+        { key: 'prisoner-of-war', title: 'Prisoners of War & Escape', sort: 'popularity.desc', extra: '&with_keywords=378' },
+        { key: 'naval-warfare', title: 'Naval & Sea Warfare', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'war-docs', title: 'War Documentaries & Testimonials', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'war-home-front', title: 'Home Front & Civilian Stories', sort: 'popularity.desc', extra: '&with_genres=18&page=2' },
+        { key: 'modern-warfare', title: 'Modern & Contemporary Warfare', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'war-toprated', title: 'Greatest War Films of All Time', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+        { key: 'intl-war', title: 'International War Cinema', sort: 'popularity.desc', extra: '&without_original_language=en' },
       ];
     case '36':
       return [
-        { key: 'historical-bios', title: 'Biographies & Historical Profiles', sort: 'popularity.desc', extra: '&with_keywords=237054' },
+        { key: 'historical-bios', title: 'Biographies & Historical Profiles', sort: 'popularity.desc', extra: '&with_keywords=818' },
         { key: 'war-history', title: 'War & Military History', sort: 'popularity.desc', extra: '&with_genres=10752' },
-        { key: 'ancient-civil', title: 'Ancient Civilizations', sort: 'popularity.desc', extra: '&with_keywords=5691' },
-        { key: 'political-history', title: 'Political History & Power Games', sort: 'popularity.desc', extra: '&with_keywords=1555' },
-        { key: 'royal-court', title: 'Royalty & Court Intrigue', sort: 'popularity.desc', extra: '&with_keywords=12339' },
-        { key: 'civil-rights', title: 'Civil Rights & Social History', sort: 'popularity.desc', extra: '&with_keywords=1555' },
-        { key: 'period-drama-history', title: 'Historical Epics & Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
+        { key: 'ancient-civil', title: 'Ancient Civilizations', sort: 'popularity.desc', extra: '&primary_release_date.lte=1975-01-01' },
+        { key: 'political-history', title: 'Political History & Power Games', sort: 'vote_count.desc', extra: '&page=3' },
+        { key: 'royal-court', title: 'Royalty & Court Intrigue', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
+        { key: 'civil-rights', title: 'Civil Rights & Social Justice', sort: 'popularity.desc', extra: '&with_genres=18&page=2' },
+        { key: 'period-drama-history', title: 'Historical Epics & Costume Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
         { key: 'history-docs', title: 'Historical Documentaries', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'medieval-history', title: 'Medieval & Dark Ages', sort: 'popularity.desc', extra: '&with_genres=14&page=2' },
+        { key: 'roman-greek', title: 'Ancient Rome & Greece', sort: 'popularity.desc', extra: '&primary_release_date.lte=1975-01-01&page=2' },
+        { key: 'american-history', title: 'American History Stories', sort: 'popularity.desc', extra: '&with_origin_country=US&page=2' },
+        { key: 'european-history', title: 'European History & Culture', sort: 'popularity.desc', extra: '&with_origin_country=GB|FR|DE|IT|ES' },
+        { key: 'asian-history', title: 'Asian History & Dynasties', sort: 'popularity.desc', extra: '&with_origin_country=JP|CN|KR|IN' },
+        { key: 'ww2-history', title: 'World War II History', sort: 'vote_count.desc', extra: '&with_genres=10752' },
+        { key: 'explorer-pioneers', title: 'Explorers, Pioneers & Inventors', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'revolution-history', title: 'Revolutions That Changed the World', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'victorian-era', title: 'Victorian & Industrial Era', sort: 'popularity.desc', extra: '&with_keywords=252596' },
+        { key: 'african-history', title: 'African & World History', sort: 'popularity.desc', extra: '&without_original_language=en&page=2' },
+        { key: 'history-crime', title: 'Historical Crime & Mystery', sort: 'popularity.desc', extra: '&with_genres=80&with_genres=9648' },
+        { key: 'historical-romance', title: 'Historical Romance & Passion', sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'history-toprated', title: 'Highest-Rated History Films', sort: 'vote_average.desc', extra: '&vote_count.gte=400' },
+        { key: 'history-p2', title: 'More Historical Favorites', sort: 'popularity.desc', extra: '&page=4' },
       ];
     case '10402':
       return [
-        { key: 'musicals', title: 'Musicals', sort: 'vote_count.desc', extra: '' },
-        { key: 'rock-pop-sagas', title: 'Rock & Pop Music Sagas', sort: 'popularity.desc', extra: '&with_keywords=237054' },
-        { key: 'concert-films', title: 'Concert Films & Performances', sort: 'popularity.desc', extra: '&with_keywords=9663' },
-        { key: 'hip-hop-culture', title: 'Hip-Hop & Urban Music', sort: 'popularity.desc', extra: '&with_keywords=9715' },
-      ];
-    case '10767':
-      return [
-        { key: 'standup-hits', title: 'Stand-Up Comedy Specials', sort: 'popularity.desc', extra: '&with_keywords=stand-up' },
-        { key: 'talk-shows', title: 'Late Night Chat Shows', sort: 'popularity.desc', extra: '&with_genres=10767' },
-        { key: 'satire-specials', title: 'Political Satire & Comedy', sort: 'popularity.desc', extra: '&with_keywords=satire' },
-        { key: 'global-comedy', title: 'Global Comedy Specials', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'musicals', title: 'Beloved Musicals', sort: 'vote_count.desc', extra: '' },
+        { key: 'rock-pop-sagas', title: 'Rock & Pop Music Biopics', sort: 'popularity.desc', extra: '&with_keywords=818' },
+        { key: 'concert-films', title: 'Concert Films & Live Performances', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'hip-hop-culture', title: 'Hip-Hop & Urban Music Stories', sort: 'popularity.desc', extra: '&with_keywords=898' },
+        { key: 'broadway-musicals', title: 'Broadway & Stage Musicals', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
+        { key: 'jazz-blues', title: 'Jazz & Blues Classics', sort: 'vote_count.desc', extra: '&page=3' },
+        { key: 'classical-music', title: 'Classical Music & Opera', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'dance-music', title: 'Dance & Choreography Films', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'country-folk', title: 'Country, Folk & Americana', sort: 'popularity.desc', extra: '&with_origin_country=US&page=2' },
+        { key: 'animated-musicals', title: 'Animated Musical Adventures', sort: 'popularity.desc', extra: '&with_genres=16' },
+        { key: 'music-docs', title: 'Behind the Music Documentaries', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'reggae-world-music', title: 'World Music & Reggae Stories', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'music-romance', title: 'Music & Romance', sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'music-comedy', title: 'Musical Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'music-drama', title: 'Music Dramas & Struggles', sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'band-stories', title: 'Band Stories & Music Rivalries', sort: 'popularity.desc', extra: '&page=5' },
+        { key: 'music-toprated', title: 'Highest-Rated Music Films', sort: 'vote_average.desc', extra: '&vote_count.gte=200' },
       ];
     case '10764':
       return [
         { key: 'reality-comps', title: 'Talent & Competition Shows', sort: 'vote_count.desc', extra: '' },
-        { key: 'dating-reality', title: 'Dating & Relationship Shows', sort: 'popularity.desc', extra: '' },
-        { key: 'survival-reality', title: 'Survival Challenges', sort: 'popularity.desc', extra: '&with_keywords=549' },
-        { key: 'makeover-reality', title: 'Makeover & Transformation Shows', sort: 'popularity.desc', extra: '&with_keywords=9663' },
-        { key: 'docusoap', title: 'Docusoaps & Real Lives', sort: 'vote_average.desc', extra: '&vote_count.gte=50' },
-        { key: 'food-reality', title: 'Cooking & Food Competitions', sort: 'popularity.desc', extra: '&with_keywords=10168' },
-        { key: 'home-real-estate', title: 'Real Estate & Home Renovation', sort: 'popularity.desc', extra: '&with_keywords=180370' },
-        { key: 'travel-reality', title: 'Travel & Exploration', sort: 'popularity.desc', extra: '&with_keywords=9663' },
-        { key: 'game-shows', title: 'Game Shows', sort: 'popularity.desc', extra: '&with_keywords=2157' },
+        { key: 'dating-reality', title: 'Dating, Love & Reality Romance', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'survival-reality', title: 'Survival Challenges & Wilderness', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'makeover-reality', title: 'Makeover & Life Transformation', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'docusoap', title: 'Docusoaps & Celebrity Real Lives', sort: 'vote_average.desc', extra: '&vote_count.gte=50' },
+        { key: 'food-reality', title: 'Cooking, Baking & Food Competitions', sort: 'popularity.desc', extra: '&page=5' },
+        { key: 'home-real-estate', title: 'Real Estate & Home Renovation', sort: 'popularity.desc', extra: '&page=4' },
+        { key: 'travel-reality', title: 'Travel, Adventure & Exploration Shows', sort: 'popularity.desc', extra: '&page=6' },
+        { key: 'game-shows', title: 'Game Shows & Trivia Challenges', sort: 'popularity.desc', extra: '' },
+        { key: 'talent-shows', title: 'Singing, Dancing & Talent Battles', sort: 'vote_count.desc', extra: '&page=2' },
+        { key: 'celebrity-reality', title: 'Celebrity Life & Behind the Scenes', sort: 'popularity.desc', extra: '&page=5' },
+        { key: 'extreme-challenges', title: 'Extreme Challenges & Stunts', sort: 'popularity.desc', extra: '&with_keywords=10349&page=2' },
+        { key: 'fashion-beauty', title: 'Fashion, Beauty & Style Shows', sort: 'popularity.desc', extra: '&page=6' },
+        { key: 'international-reality', title: 'International Reality Hits', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'true-crime-reality', title: 'True Crime Reality Shows', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'family-reality', title: 'Family & Kids Reality Shows', sort: 'popularity.desc', extra: '&with_genres=10751' },
+        { key: 'sports-reality', title: 'Sports Reality & Athletic Challenges', sort: 'popularity.desc', extra: '&with_keywords=6075' },
+        { key: 'business-reality', title: 'Business & Entrepreneur Shows', sort: 'popularity.desc', extra: '&page=7' },
+        { key: 'nature-wildlife-reality', title: 'Nature & Wildlife Reality Shows', sort: 'popularity.desc', extra: '&page=6' },
+        { key: 'reality-toprated', title: 'Highest-Rated Reality TV', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
       ];
     case '10768':
       return [
-        { key: 'political-drama-wp', title: 'Political Dramas & Power Games', sort: 'vote_count.desc', extra: '&with_keywords=5691' },
-        { key: 'military-ops-wp', title: 'Military Operations', sort: 'popularity.desc', extra: '&with_keywords=1706' },
+        { key: 'political-drama-wp', title: 'Political Dramas & Power Games', sort: 'vote_count.desc', extra: '' },
+        { key: 'military-ops-wp', title: 'Military Operations & Command', sort: 'popularity.desc', extra: '&with_keywords=470' },
+        { key: 'war-politics-thriller', title: 'War & Politics Thrillers', sort: 'popularity.desc', extra: '&with_genres=53' },
+        { key: 'political-intrigue', title: 'Espionage & Political Intrigue', sort: 'popularity.desc', extra: '&with_keywords=470' },
+        { key: 'government-corruption', title: 'Government Corruption Stories', sort: 'vote_average.desc', extra: '&vote_count.gte=50&page=2' },
+        { key: 'democracy-elections', title: 'Democracy, Elections & Campaigns', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'whistleblowers', title: 'Whistleblowers & Truth Seekers', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+        { key: 'cold-war-politics', title: 'Cold War & Geopolitical Tension', sort: 'popularity.desc', extra: '&with_keywords=470&page=2' },
+        { key: 'revolution-uprising', title: 'Revolutions & Uprisings', sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'civil-conflict', title: 'Civil War & Internal Conflict', sort: 'popularity.desc', extra: '&with_genres=10752' },
+        { key: 'frontline-reporting', title: 'War Journalism & Frontline Docs', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'propaganda-power', title: 'Propaganda, Power & Ideology', sort: 'vote_average.desc', extra: '&vote_count.gte=50' },
+        { key: 'political-satire-wp', title: 'Political Satire & Dark Comedy', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'wartime-leadership', title: 'Wartime Leadership & Sacrifice', sort: 'vote_count.desc', extra: '' },
+        { key: 'international-politics', title: 'International Affairs & Diplomacy', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'war-politics-p2', title: 'More War & Politics Picks', sort: 'popularity.desc', extra: '&page=3' },
       ];
     case '10766':
       return [
         { key: 'soap-drama', title: 'Daily Dramas & Telenovelas', sort: 'popularity.desc', extra: '' },
-        { key: 'family-soaps', title: 'Family Soap Operas', sort: 'popularity.desc', extra: '&with_genres=10751' },
+        { key: 'family-soaps', title: 'Family Saga Soap Operas', sort: 'popularity.desc', extra: '&with_genres=10751' },
+        { key: 'latin-telenovelas', title: 'Latin & Spanish Telenovelas', sort: 'popularity.desc', extra: '&with_origin_country=MX|BR|CO|AR' },
+        { key: 'british-soaps', title: 'Classic British Soaps', sort: 'popularity.desc', extra: '&with_origin_country=GB' },
+        { key: 'american-soaps', title: 'American Daytime Drama', sort: 'popularity.desc', extra: '&with_origin_country=US' },
+        { key: 'romance-soaps', title: 'Romantic Soap Operas', sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'korean-dramas', title: 'K-Drama Love & Passion', sort: 'popularity.desc', extra: '&with_origin_country=KR' },
+        { key: 'scandal-secrets', title: 'Scandals, Secrets & Affairs', sort: 'vote_average.desc', extra: '&vote_count.gte=50' },
+        { key: 'class-wealth-soaps', title: 'Class, Wealth & High Society', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'revenge-betrayal', title: 'Revenge & Betrayal Stories', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'soap-toprated', title: 'Highly Rated Soap Dramas', sort: 'vote_average.desc', extra: '&vote_count.gte=100' },
+        { key: 'soap-p2', title: 'More Soap Opera Favorites', sort: 'popularity.desc', extra: '&page=4' },
       ];
     case '10763':
       return [
         { key: 'current-affairs', title: 'Current Affairs & Specials', sort: 'popularity.desc', extra: '' },
         { key: 'doc-news', title: 'Investigative Journalism', sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'political-news', title: 'Political News & Analysis', sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'breaking-news-docs', title: 'Breaking News Documentaries', sort: 'vote_average.desc', extra: '&vote_count.gte=50' },
+        { key: 'war-reporting', title: 'War Reporting & Frontline News', sort: 'vote_average.desc', extra: '&vote_count.gte=50' },
+        { key: 'climate-news', title: 'Climate & Environmental Reporting', sort: 'popularity.desc', extra: '&with_keywords=9902|18330' },
+        { key: 'sports-news', title: 'Sports News & Analysis', sort: 'popularity.desc', extra: '&with_keywords=6075' },
+        { key: 'satire-news', title: 'News Satire & Comedy', sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'international-news', title: 'International News Perspectives', sort: 'popularity.desc', extra: '&without_original_language=en' },
+        { key: 'news-p2', title: 'More News & Commentary', sort: 'popularity.desc', extra: '&page=2' },
       ];
     
     case '10001': // Pride / LGBTQ
       return [
-        { key: 'pride-classics', title: 'Iconic Pride Classics', sort: 'vote_count.desc', extra: '&with_keywords=9003' },
-        { key: 'feel-good-favs', title: 'Feel-Good LGBTQ+ Favorites', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=35' },
-        { key: 'love-out-loud', title: 'LGBTQ+ Romance & Love Stories', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=10749' },
-        { key: 'beyond-binary', title: 'Beyond the Binary: Trans & Non-Binary Stories', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'inspired-true', title: 'LGBTQ+ Stories Inspired by Real Life', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'critics-love', title: 'Critically Acclaimed LGBTQ+ Stories', sort: 'vote_average.desc', extra: '&with_keywords=9003&vote_count.gte=50' },
-        { key: 'queer-horror', title: 'Queer Horror & Thrills', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=27|53' },
-        { key: 'lesbian-cinema', title: 'Sapphic Love & Dramas', sort: 'popularity.desc', extra: '&with_keywords=207317' },
-        { key: 'drag-culture', title: 'Drag Queens & Ballroom Culture', sort: 'popularity.desc', extra: '&with_keywords=256183' },
-        { key: 'queer-docs', title: 'Essential Queer Documentaries', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=99' },
-        { key: 'international-queer', title: 'Global LGBTQ+ Cinema', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-comedy', title: 'Hilarious Queer Comedies', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=35' },
-        { key: 'queer-indie', title: 'Under-the-Radar Queer Indies', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'coming-of-age-pride', title: 'Queer Coming-of-Age', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-drama', title: 'Transcendent Queer Dramas', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=18' },
-        { key: 'queer-pop-culture', title: 'Queer Pop Culture & Musicals', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=10402' },
-        { key: 'british-queer', title: 'British Queer Cinema', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-action', title: 'LGBTQ+ Action', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=28' },
-        { key: 'queer-scifi', title: 'Sci-Fi & Fantasy LGBTQ+ Stories', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=878|14' },
-        { key: 'queer-history', title: 'Historical LGBTQ+ Stories', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=36' },
-        { key: 'queer-mysteries', title: 'LGBTQ+ Crime & Mysteries', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=80|9648' },
-        { key: 'queer-family', title: 'Queer Family & Relationships', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=10751' },
-        { key: 'queer-youth', title: 'LGBTQ+ Youth Stories', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-shorts', title: 'Short Queer Cinema', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-festival', title: 'LGBTQ+ Festival Favorites', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-award', title: 'Award-Winning LGBTQ+', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-reality', title: 'Queer Reality TV', sort: 'popularity.desc', extra: '&with_keywords=9003&with_genres=10764' },
-        { key: 'pride-month', title: 'Celebrate Pride Month', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-visionaries', title: 'Visionary Queer Storytellers', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'queer-icons', title: 'Icons of the LGBTQ+ Community', sort: 'vote_count.desc', extra: '&with_keywords=9003' }
+        { key: 'pride-classics', title: 'Iconic Pride Classics', sort: 'vote_count.desc', extra: '&with_keywords=158718' },
+        { key: 'feel-good-favs', title: 'Feel-Good LGBTQ+ Favorites', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=35' },
+        { key: 'love-out-loud', title: 'LGBTQ+ Romance & Love Stories', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=10749' },
+        { key: 'beyond-binary', title: 'Beyond the Binary: Trans & Non-Binary Stories', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'inspired-true', title: 'LGBTQ+ Stories Inspired by Real Life', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'critics-love', title: 'Critically Acclaimed LGBTQ+ Stories', sort: 'vote_average.desc', extra: '&with_keywords=158718&vote_count.gte=50' },
+        { key: 'queer-horror', title: 'Queer Horror & Thrills', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=27|53' },
+        { key: 'lesbian-cinema', title: 'Sapphic Love & Dramas', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'drag-culture', title: 'Drag Queens & Ballroom Culture', sort: 'popularity.desc', extra: '&with_keywords=824' },
+        { key: 'queer-docs', title: 'Essential Queer Documentaries', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=99' },
+        { key: 'international-queer', title: 'Global LGBTQ+ Cinema', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-comedy', title: 'Hilarious Queer Comedies', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=35' },
+        { key: 'queer-indie', title: 'Under-the-Radar Queer Indies', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'coming-of-age-pride', title: 'Queer Coming-of-Age', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-drama', title: 'Transcendent Queer Dramas', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=18' },
+        { key: 'queer-pop-culture', title: 'Queer Pop Culture & Musicals', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=10402' },
+        { key: 'british-queer', title: 'British Queer Cinema', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-action', title: 'LGBTQ+ Action', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=28' },
+        { key: 'queer-scifi', title: 'Sci-Fi & Fantasy LGBTQ+ Stories', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=878|14' },
+        { key: 'queer-history', title: 'Historical LGBTQ+ Stories', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=36' },
+        { key: 'queer-mysteries', title: 'LGBTQ+ Crime & Mysteries', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=80|9648' },
+        { key: 'queer-family', title: 'Queer Family & Relationships', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=10751' },
+        { key: 'queer-youth', title: 'LGBTQ+ Youth Stories', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-shorts', title: 'Short Queer Cinema', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-festival', title: 'LGBTQ+ Festival Favorites', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-award', title: 'Award-Winning LGBTQ+', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-reality', title: 'Queer Reality TV', sort: 'popularity.desc', extra: '&with_keywords=158718&with_genres=10764' },
+        { key: 'pride-month', title: 'Celebrate Pride Month', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-visionaries', title: 'Visionary Queer Storytellers', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'queer-icons', title: 'Icons of the LGBTQ+ Community', sort: 'vote_count.desc', extra: '&with_keywords=158718' }
       ];
     case '10002': // Astrology
+      // Base keywords (set in constants.ts): 156174|40931|14742|2591
+      // occult | witchcraft | psychic | tarot cards
       return [
-        { key: 'zodiac-matches', title: 'Zodiac Matches', sort: 'popularity.desc', extra: '&with_keywords=185246|10168|15386' },
-        { key: 'cosmic-journeys', title: 'Cosmic & Spiritual Journeys', sort: 'popularity.desc', extra: '&with_keywords=185246|10168|15386' },
-        { key: 'fate-destiny', title: 'Fate & Destiny Sagas', sort: 'popularity.desc', extra: '&with_keywords=185246|10168|15386' },
-        { key: 'mystic-arts', title: 'Mysticism & The Occult', sort: 'popularity.desc', extra: '&with_keywords=156026' },
-        { key: 'spiritual-awakening', title: 'Spiritual Awakenings', sort: 'popularity.desc', extra: '&with_keywords=3336' },
-        { key: 'tarot-magic', title: 'Tarot, Magic & Mystery', sort: 'popularity.desc', extra: '&with_keywords=10185' },
-        { key: 'star-crossed', title: 'Star-Crossed Lovers', sort: 'popularity.desc', extra: '&with_genres=10749&with_keywords=185246' },
-        { key: 'mercury-retrograde', title: 'Mercury in Retrograde Chaos', sort: 'popularity.desc', extra: '&with_keywords=549|10185' },
-        { key: 'sun-moon', title: 'Sun & Moon Contrast', sort: 'popularity.desc', extra: '&vote_count.gte=100' },
-        { key: 'destiny-lives', title: 'Destiny & Past Lives', sort: 'popularity.desc', extra: '&with_keywords=4379' },
-        { key: 'cosmic-supernatural', title: 'Supernatural Cosmic Forces', sort: 'popularity.desc', extra: '&with_genres=14|10765' },
-        { key: 'cosmic-horror', title: 'Cosmic Horror & Nightmares', sort: 'popularity.desc', extra: '&with_genres=27' },
-        { key: 'ancient-mystics', title: 'Ancient Mystics & Sages', sort: 'popularity.desc', extra: '&with_genres=36|37' },
-        { key: 'spiritual-docs', title: 'Spiritual Awakening Docs', sort: 'popularity.desc', extra: '&with_genres=99' },
-        { key: 'magic-sorcery', title: 'Magic & Sorcery Realms', sort: 'popularity.desc', extra: '&with_genres=14' },
-        { key: 'alien-zodiac', title: 'Alien Encounters & Zodiacs', sort: 'popularity.desc', extra: '&with_genres=878' },
-        { key: 'ethereal-dream', title: 'Ethereal & Dreamy Realities', sort: 'popularity.desc', extra: '&with_keywords=10185' },
-        { key: 'astronomy-space', title: 'Astronomy & The Universe', sort: 'popularity.desc', extra: '&with_keywords=3801' },
-        { key: 'astrological-romance', title: 'Written in the Stars Romance', sort: 'popularity.desc', extra: '&with_genres=10749' },
-        { key: 'celestial-beings', title: 'Celestial Beings & Angels', sort: 'popularity.desc', extra: '&with_genres=14|10765' },
-        { key: 'zodiac-thrillers', title: 'Zodiac Thrillers', sort: 'popularity.desc', extra: '&with_genres=53' },
-        { key: 'fortune-tellers', title: 'Fortune Tellers & Seers', sort: 'popularity.desc', extra: '&with_keywords=156026' },
-        { key: 'new-age', title: 'New Age Discoveries', sort: 'popularity.desc', extra: '&with_genres=99' },
-        { key: 'astrology-comedies', title: 'Astrology Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
-        { key: 'cosmic-battles', title: 'Cosmic Battles', sort: 'popularity.desc', extra: '&with_genres=28|878' },
-        { key: 'moon-magic', title: 'Moon Magic & Werewolves', sort: 'popularity.desc', extra: '&with_genres=27|14' },
-        { key: 'karma-revenge', title: 'Karma & Revenge', sort: 'popularity.desc', extra: '&with_genres=53|28' },
-        { key: 'astral-projection', title: 'Astral Projection & Dreams', sort: 'popularity.desc', extra: '&with_keywords=10185' },
-        { key: 'spiritual-healing', title: 'Spiritual Healing Journeys', sort: 'popularity.desc', extra: '&with_genres=18' },
-        { key: 'astrology-docs', title: 'Astrology Documentaries', sort: 'popularity.desc', extra: '&with_genres=99' }
+        { key: 'astro-popular',   title: 'Supernatural & Occult',    sort: 'popularity.desc', extra: '' },
+        { key: 'astro-acclaimed', title: 'Acclaimed Mystic Films',    sort: 'vote_count.desc', extra: '' },
+        { key: 'astro-horror',    title: 'Occult Horror',             sort: 'popularity.desc', extra: '&with_genres=27' },
+        { key: 'astro-mystery',   title: 'Psychic Mysteries',         sort: 'popularity.desc', extra: '&with_genres=9648' },
+        { key: 'astro-thriller',  title: 'Supernatural Thrillers',    sort: 'popularity.desc', extra: '&with_genres=53' },
+        { key: 'astro-fantasy',   title: 'Magic & Fantasy',           sort: 'popularity.desc', extra: '&with_genres=14' },
+        { key: 'astro-drama',     title: 'Spiritual Dramas',          sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'astro-romance',   title: 'Star-Crossed Love',         sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'astro-scifi',     title: 'Cosmic Sci-Fi',             sort: 'popularity.desc', extra: '&with_genres=878' },
+        { key: 'astro-animation', title: 'Animated Supernatural',     sort: 'popularity.desc', extra: '&with_genres=16' },
+        { key: 'astro-comedy',    title: 'Supernatural Comedies',     sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'astro-action',    title: 'Occult Action',             sort: 'popularity.desc', extra: '&with_genres=28' },
+        { key: 'astro-ancient',   title: 'Ancient Mystics',           sort: 'popularity.desc', extra: '&with_genres=36' },
+        { key: 'astro-more',      title: 'More Supernatural Cinema',  sort: 'popularity.desc', extra: '&page=2' },
+        { key: 'astro-deep',      title: 'Deep Cuts: Esoteric Films', sort: 'popularity.desc', extra: '&page=3' },
       ];
     case '10003': // Black Stories
+      // Base keywords (set in constants.ts fetchByGenre genreId 10003):
+      //   movie: 12425|256015|41385|6984  (racism | african american | racial tension | racial segregation)
+      //   tv:    12425|898|256015|41385   (racism | hip-hop | african american | racial tension)
       return [
-        { key: 'black-directors', title: 'Black Directors & Writers', sort: 'popularity.desc', extra: '&with_keywords=237248|175510|242137|161556' },
-        { key: 'black-leads', title: 'Acclaimed Black Leads', sort: 'vote_count.desc', extra: '&with_keywords=237248|175510|242137|161556' },
-        { key: 'black-narratives', title: 'Powerful Black Narratives', sort: 'popularity.desc', extra: '&with_keywords=237248|175510|242137|161556' },
-        { key: 'black-comedy', title: 'Black Comedy & Stand-up', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=35' },
-        { key: 'black-history', title: 'Black History & Documentaries', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=99' },
-        { key: 'black-excellence', title: 'Black Excellence in Sports & Life', sort: 'popularity.desc', extra: '&with_keywords=237248' },
-        { key: 'black-romance', title: 'Black Love & Romance', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=10749' },
-        { key: 'afrofuturism', title: 'Afrofuturism & Black Sci-Fi', sort: 'popularity.desc', extra: '&with_genres=878|10765' },
-        { key: 'urban-dramas', title: 'Gritty Urban Dramas', sort: 'popularity.desc', extra: '&with_genres=80|18' },
-        { key: 'black-family', title: 'Black Family Sagas', sort: 'popularity.desc', extra: '&with_genres=18|10751' },
-        { key: 'black-british', title: 'Black British Stories', sort: 'popularity.desc', extra: '&with_origin_country=GB' },
-        { key: 'coming-of-age-black', title: 'Coming-of-Age Black Stories', sort: 'popularity.desc', extra: '&with_keywords=4565' },
-        { key: 'hip-hop-soul', title: 'Hip-Hop & Soul Music Biographies', sort: 'popularity.desc', extra: '&with_genres=10402' },
-        { key: 'black-horror', title: 'Black Horror & Thrillers', sort: 'popularity.desc', extra: '&with_genres=27|53' },
-        { key: 'black-indie', title: 'Groundbreaking Black Indies', sort: 'popularity.desc', extra: '&vote_count.lte=1000' },
-        { key: 'black-icons', title: 'Inspiring Black Icons', sort: 'vote_average.desc', extra: '&vote_count.gte=50' },
-        { key: 'black-women', title: 'Black Women Storytellers', sort: 'popularity.desc', extra: '&with_keywords=237248' },
-        { key: 'black-action', title: 'Black Action Heroes', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=28' },
-        { key: 'civil-rights', title: 'Civil Rights Movement', sort: 'popularity.desc', extra: '&with_keywords=1555' },
-        { key: 'black-music', title: 'Black Music Icons', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=10402' },
-        { key: 'black-sci-fi', title: 'Black Voices in Sci-Fi', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=878' },
-        { key: 'black-fantasy', title: 'Black Voices in Fantasy', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=14' },
-        { key: 'black-thrillers', title: 'Black Voices in Thrillers', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=53' },
-        { key: 'black-mysteries', title: 'Black Voices in Mysteries', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=9648' },
-        { key: 'black-animation', title: 'Black Animated Stories', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=16' },
-        { key: 'black-sports', title: 'Black Sports Legends', sort: 'popularity.desc', extra: '&with_keywords=237248&with_keywords=6075' },
-        { key: 'black-westerns', title: 'Black Westerns', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=37' },
-        { key: 'black-reality', title: 'Black Reality TV', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=10764' },
-        { key: 'black-talk-shows', title: 'Black Talk Shows', sort: 'popularity.desc', extra: '&with_keywords=237248&with_genres=10767' },
-        { key: 'black-standup', title: 'Black Stand-Up Specials', sort: 'popularity.desc', extra: '&with_keywords=237248' }
+        { key: 'bs-popular',   title: 'Popular Black Cinema',   sort: 'popularity.desc', extra: '' },
+        { key: 'bs-acclaimed', title: 'Acclaimed Black Cinema',  sort: 'vote_count.desc', extra: '' },
+        { key: 'bs-drama',     title: 'Powerful Black Dramas',   sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'bs-comedy',    title: 'Black Comedy',            sort: 'popularity.desc', extra: '&with_genres=35' },
+        { key: 'bs-docs',      title: 'Black Documentaries',     sort: 'popularity.desc', extra: '&with_genres=99' },
+        { key: 'bs-crime',     title: 'Black Crime Stories',     sort: 'popularity.desc', extra: '&with_genres=80' },
+        { key: 'bs-thriller',  title: 'Black Thrillers',         sort: 'popularity.desc', extra: '&with_genres=53' },
+        { key: 'bs-romance',   title: 'Black Love & Romance',    sort: 'popularity.desc', extra: '&with_genres=10749' },
+        { key: 'bs-action',    title: 'Black Action Films',      sort: 'popularity.desc', extra: '&with_genres=28' },
+        { key: 'bs-history',   title: 'Black History Films',     sort: 'popularity.desc', extra: '&with_genres=36' },
+        { key: 'bs-horror',    title: 'Black Horror',            sort: 'popularity.desc', extra: '&with_genres=27' },
+        { key: 'bs-western',   title: 'Black Westerns',          sort: 'popularity.desc', extra: '&with_genres=37' },
+        { key: 'bs-british',   title: 'Black British Stories',   sort: 'popularity.desc', extra: '&with_origin_country=GB' },
+        { key: 'bs-scifi',     title: 'Black Sci-Fi',            sort: 'popularity.desc', extra: '&with_genres=878' },
+        { key: 'bs-music',     title: 'Black Music Films',       sort: 'popularity.desc', extra: '&with_genres=10402' },
+        { key: 'bs-more',      title: 'More Black Cinema',       sort: 'popularity.desc', extra: '&page=2' },
+        ...(mediaType === 'movie' ? [
+          { key: 'bs-hiphop',
+            title: 'Hip-Hop & Soul Biopics',
+            sort: '', extra: '',
+            url: REQUESTS._build(`${BASE_URL}/discover/movie`, { sort_by: 'popularity.desc', 'vote_count.gte': 25, with_keywords: '898|254106' }),
+          },
+          { key: 'bs-civil-rights',
+            title: 'Civil Rights Stories',
+            sort: '', extra: '',
+            url: REQUESTS._build(`${BASE_URL}/discover/movie`, { sort_by: 'popularity.desc', 'vote_count.gte': 25, with_keywords: '270891|4098' }),
+          },
+          { key: 'recs-get-out', title: 'More Like Get Out', sort: '', extra: '', url: REQUESTS.fetchRecommendations('movie', 419430) },
+          { key: 'recs-selma',   title: 'Films Like Selma',  sort: '', extra: '', url: REQUESTS.fetchRecommendations('movie', 244786) },
+        ] : [
+          { key: 'bs-hiphop',
+            title: 'Hip-Hop TV Shows',
+            sort: '', extra: '',
+            url: REQUESTS._build(`${BASE_URL}/discover/tv`, { sort_by: 'popularity.desc', 'vote_count.gte': 5, with_keywords: '898' }),
+          },
+          { key: 'bs-civil-rights',
+            title: 'Civil Rights Stories',
+            sort: '', extra: '',
+            url: REQUESTS._build(`${BASE_URL}/discover/tv`, { sort_by: 'popularity.desc', 'vote_count.gte': 5, with_keywords: '270891|4098' }),
+          },
+          { key: 'recs-atlanta', title: 'Because You Like Atlanta', sort: '', extra: '', url: REQUESTS.fetchRecommendations('tv', 67195) },
+        ]),
       ];
     case '10004': // Book Adaptations
       return [
-        { key: 'page-to-screen', title: 'Page-to-Screen Masterpieces', sort: 'popularity.desc', extra: '&with_keywords=818|10214' },
-        { key: 'literary-adaptations', title: 'Literary Adaptations', sort: 'vote_count.desc', extra: '&with_keywords=818|10214' },
-        { key: 'bestseller-hits', title: 'Bestseller Hits', sort: 'popularity.desc', extra: '&with_keywords=818|10214' },
+        { key: 'page-to-screen', title: 'Page-to-Screen Masterpieces', sort: 'popularity.desc', extra: '' },
+        { key: 'literary-adaptations', title: 'Literary Adaptations', sort: 'vote_count.desc', extra: '' },
+        { key: 'bestseller-hits', title: 'Bestseller Hits', sort: 'popularity.desc', extra: '&page=2' },
         { key: 'young-adult-books', title: 'Young Adult Novel Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818' },
         { key: 'classic-lit', title: 'Classic Literature Brought to Life', sort: 'vote_average.desc', extra: '&with_keywords=818&vote_count.gte=100' },
         { key: 'fantasy-books', title: 'Epic Fantasy Novels', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=14' },
@@ -809,7 +1157,7 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'romance-books', title: 'Romantic Bestsellers', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=10749' },
         { key: 'award-books', title: 'Award-Winning Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818' },
         { key: 'kids-books', title: 'Children\'s Book Classics', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=10751|16' },
-        { key: 'biography-books', title: 'Biographies & Real Memoirs', sort: 'popularity.desc', extra: '&with_keywords=237054' },
+        { key: 'biography-books', title: 'Biographies & Real Memoirs', sort: 'popularity.desc', extra: '&with_keywords=818' },
         { key: 'cozy-books', title: 'Cozy Mystery Novel Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=9648' },
         { key: 'dystopian-books', title: 'Dystopian Novels', sort: 'popularity.desc', extra: '&with_keywords=4565' },
         { key: 'horror-books', title: 'Terrifying Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=27' },
@@ -818,7 +1166,7 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'drama-books', title: 'Dramatic Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=18' },
         { key: 'spy-books', title: 'Espionage Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_keywords=470' },
         { key: 'vampire-books', title: 'Vampire Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_keywords=3133' },
-        { key: 'witch-books', title: 'Witches & Magic Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_keywords=156026' },
+        { key: 'witch-books', title: 'Witches & Magic Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=14' },
         { key: 'sports-books', title: 'Sports Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_keywords=6075' },
         { key: 'music-books', title: 'Music Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=10402' },
         { key: 'war-books', title: 'War Book Adaptations', sort: 'popularity.desc', extra: '&with_keywords=818&with_genres=10752' },
@@ -830,7 +1178,7 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
       return [
         { key: 'british-mysteries', title: 'British Mystery & Suspense', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_genres=80|53|9648' },
         { key: 'british-comedies', title: 'Witty British Comedies', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_genres=35' },
-        { key: 'british-period-dramas', title: 'British Period & Costume Dramas', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_keywords=5691|180370' },
+        { key: 'british-period-dramas', title: 'British Period & Costume Dramas', sort: 'popularity.desc', extra: '&with_origin_country=GB&primary_release_date.lte=1995-01-01' },
         { key: 'british-action', title: 'British Action & Thrills', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_genres=28' },
         { key: 'british-scifi', title: 'British Sci-Fi & Fantasy', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_genres=878|10765' },
         { key: 'british-docs', title: 'British Documentaries', sort: 'popularity.desc', extra: '&with_origin_country=GB&with_genres=99' },
@@ -894,9 +1242,9 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
       ];
     case '10007': // Moods
       return [
-        { key: 'feel-good-moods', title: 'Feel-Good Favorites', sort: 'popularity.desc', extra: '&with_keywords=9663|10224|10185' },
+        { key: 'feel-good-moods', title: 'Feel-Good Favorites', sort: 'popularity.desc', extra: '&with_genres=35|10749' },
         { key: 'gripping-drama', title: 'Intense & Gripping Drama', sort: 'popularity.desc', extra: '&with_genres=18|53' },
-        { key: 'relaxed-vibes', title: 'Chilled & Relaxed Vibes', sort: 'popularity.desc', extra: '&with_keywords=9663|10224|10185' },
+        { key: 'relaxed-vibes', title: 'Chilled & Relaxed Vibes', sort: 'vote_average.desc', extra: '&vote_count.gte=500' },
         { key: 'heartwarming', title: 'Heartwarming & Uplifting', sort: 'vote_count.desc', extra: '&with_genres=10751|35' },
         { key: 'mind-bending', title: 'Mind-Bending & Surreal', sort: 'popularity.desc', extra: '&with_genres=878|9648' },
         { key: 'tearjerkers', title: 'Emotional Tearjerkers', sort: 'popularity.desc', extra: '&with_genres=18|10749' },
@@ -905,7 +1253,7 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'nostalgia-trip', title: 'Ultimate Nostalgia Trip', sort: 'vote_count.desc', extra: '&primary_release_date.lte=2000-01-01' },
         { key: 'spooky-season', title: 'Spooky & Eerie Vibes', sort: 'popularity.desc', extra: '&with_genres=27' },
         { key: 'romantic-escape', title: 'Romantic Escapism', sort: 'popularity.desc', extra: '&with_genres=10749' },
-        { key: 'inspirational', title: 'Inspirational & Motivating', sort: 'vote_count.desc', extra: '&with_keywords=1555|6075' },
+        { key: 'inspirational', title: 'Inspirational & Motivating', sort: 'vote_count.desc', extra: '&with_keywords=6075' },
         { key: 'edge-of-seat', title: 'Edge-of-Your-Seat Tension', sort: 'vote_count.desc', extra: '&with_genres=53' },
         { key: 'wholesome-family', title: 'Wholesome Family Fun', sort: 'popularity.desc', extra: '&with_genres=10751' },
         { key: 'thought-provoking', title: 'Thought-Provoking & Intellectual', sort: 'vote_count.desc', extra: '' },
@@ -937,7 +1285,7 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'oscar-winners', title: 'Oscar Best Picture Winners', sort: 'vote_count.desc', extra: '&with_origin_country=US' },
         { key: 'us-sports', title: 'US Sports & Triumphs', sort: 'popularity.desc', extra: '&with_origin_country=US&with_keywords=6075' },
         { key: 'us-road-trips', title: 'American Road Trips & Journeys', sort: 'popularity.desc', extra: '&with_origin_country=US' },
-        { key: 'new-york-set', title: 'New York Set Stories', sort: 'popularity.desc', extra: '&with_origin_country=US&with_keywords=10185' },
+        { key: 'new-york-set', title: 'New York Set Stories', sort: 'popularity.desc', extra: '&with_origin_country=US&with_keywords=1368' },
         { key: 'la-set', title: 'Los Angeles & Hollywood Stories', sort: 'popularity.desc', extra: '&with_origin_country=US' },
         { key: 'us-scifi-movies', title: 'High-Budget US Sci-Fi', sort: 'popularity.desc', extra: '&with_origin_country=US&with_genres=878' },
         { key: 'us-crime-thrillers', title: 'Gritty American Crime Thrillers', sort: 'popularity.desc', extra: '&with_origin_country=US&with_genres=80|53' },
@@ -966,7 +1314,7 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'black-and-white', title: 'Black & White Masterpieces', sort: 'vote_count.desc', extra: '&with_keywords=233|2041' },
         { key: 'silent-era', title: 'The Silent Era', sort: 'vote_count.desc', extra: '&with_keywords=4450' },
         { key: 'western-classics', title: 'Classic Westerns', sort: 'popularity.desc', extra: '&with_genres=37&primary_release_date.lte=1980-01-01' },
-        { key: 'noir-classics', title: 'Classic Film Noir', sort: 'vote_count.desc', extra: '&with_keywords=242137' },
+        { key: 'noir-classics', title: 'Classic Film Noir', sort: 'vote_count.desc', extra: '&with_genres=53&primary_release_date.lte=1970-01-01' },
         { key: 'pre-code', title: 'Pre-Code Hollywood', sort: 'popularity.desc', extra: '&primary_release_date.lte=1934-07-01' },
         { key: 'hitchcock', title: 'Alfred Hitchcock Suspense', sort: 'popularity.desc', extra: '&with_genres=53' },
         { key: 'golden-age-musicals', title: 'Golden Age Musicals', sort: 'popularity.desc', extra: '&with_genres=10402' },
@@ -999,11 +1347,11 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'midnight-movies', title: 'Midnight Movies', sort: 'popularity.desc', extra: '&with_keywords=10084' },
         { key: 'campy-cult', title: 'Campy & Bizarre', sort: 'popularity.desc', extra: '&with_keywords=10084' },
         { key: 'cult-action', title: 'Cult Action & Martial Arts', sort: 'popularity.desc', extra: '&with_keywords=10084' },
-        { key: 'cyberpunk-cult', title: 'Cyberpunk Cult Favorites', sort: 'popularity.desc', extra: '&with_keywords=180370' },
+        { key: 'cyberpunk-cult', title: 'Cyberpunk Cult Favorites', sort: 'popularity.desc', extra: '&with_keywords=4289' },
         { key: 'b-movie-cult', title: 'B-Movie Sci-Fi & Monsters', sort: 'popularity.desc', extra: '&with_keywords=10084' },
         { key: 'quirky-cult', title: 'Quirky Indie Cults', sort: 'popularity.desc', extra: '' },
         { key: 'anime-cult', title: 'Anime Cult Hits', sort: 'popularity.desc', extra: '&with_genres=16' },
-        { key: 'surreal-cult', title: 'Surreal & Absurdist Cinema', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'surreal-cult', title: 'Surreal & Absurdist Cinema', sort: 'popularity.desc', extra: '&with_genres=14' },
         { key: 'cult-directors', title: 'Cult Directors & Auteurs', sort: 'vote_count.desc', extra: '' },
         { key: 'eighties-cult', title: '80s Cult Classics', sort: 'popularity.desc', extra: '&primary_release_date.gte=1980-01-01&primary_release_date.lte=1989-12-31' },
         { key: 'nineties-cult', title: '90s Cult Favorites', sort: 'popularity.desc', extra: '&primary_release_date.gte=1990-01-01&primary_release_date.lte=1999-12-31' },
@@ -1031,12 +1379,12 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'under-the-radar-indies', title: 'Under-the-Radar Indies', sort: 'popularity.desc', extra: '' },
         { key: 'indie-comedies', title: 'Quirky Indie Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
         { key: 'indie-horror', title: 'Indie Horror & Thrillers', sort: 'popularity.desc', extra: '&with_genres=27|53' },
-        { key: 'mumblecore', title: 'Mumblecore & Realism', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'mumblecore', title: 'Mumblecore & Realism', sort: 'popularity.desc', extra: '&vote_count.lte=300' },
         { key: 'sundance-hits', title: 'Acclaimed Sundance Hits', sort: 'vote_count.desc', extra: '' },
         { key: 'a24-style-movies', title: 'A24-Style Indie Favorites', sort: 'popularity.desc', extra: '' },
         { key: 'micro-budget', title: 'Micro-Budget Masterpieces', sort: 'popularity.desc', extra: '' },
         { key: 'indie-noir', title: 'Independent Noir & Crime', sort: 'popularity.desc', extra: '&with_genres=80|53' },
-        { key: 'queer-indie', title: 'Queer Indie Cinema', sort: 'popularity.desc', extra: '&with_keywords=9003' },
+        { key: 'queer-indie', title: 'Queer Indie Cinema', sort: 'popularity.desc', extra: '&with_keywords=158718' },
         { key: 'intl-indie', title: 'International Indie Gems', sort: 'popularity.desc', extra: '&without_original_language=en' },
         { key: 'indie-docs', title: 'Award-Winning Indie Docs', sort: 'popularity.desc', extra: '&with_genres=99' },
         { key: 'indie-family', title: 'Heartfelt Family Indies', sort: 'popularity.desc', extra: '&with_genres=10751' },
@@ -1052,9 +1400,9 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'indie-westerns', title: 'Independent Westerns', sort: 'popularity.desc', extra: '&with_genres=37' },
         { key: 'indie-history', title: 'Independent Historical Films', sort: 'popularity.desc', extra: '&with_genres=36' },
         { key: 'indie-coming-of-age', title: 'Independent Coming-of-Age', sort: 'popularity.desc', extra: '&with_keywords=4565' },
-        { key: 'indie-road-trips', title: 'Independent Road Trips', sort: 'popularity.desc', extra: '&with_keywords=9717' },
-        { key: 'indie-lgbtq', title: 'Independent LGBTQ+', sort: 'popularity.desc', extra: '&with_keywords=9003' },
-        { key: 'indie-biographies', title: 'Independent Biographies', sort: 'popularity.desc', extra: '&with_keywords=237054' },
+        { key: 'indie-road-trips', title: 'Independent Road Trips', sort: 'popularity.desc', extra: '&with_keywords=7312' },
+        { key: 'indie-lgbtq', title: 'Independent LGBTQ+', sort: 'popularity.desc', extra: '&with_keywords=158718' },
+        { key: 'indie-biographies', title: 'Independent Biographies', sort: 'popularity.desc', extra: '&with_keywords=818' },
         { key: 'indie-sports', title: 'Independent Sports Films', sort: 'popularity.desc', extra: '&with_keywords=6075' }
       ];
     case '10012': // International
@@ -1103,7 +1451,7 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'family-shorts', title: 'Heartwarming Animated Shorts', sort: 'popularity.desc', extra: '&with_genres=16|10751' },
         { key: 'experimental-shorts', title: 'Experimental & Avant-Garde', sort: 'popularity.desc', extra: '' },
         { key: 'thriller-shorts', title: 'Bite-Sized Thrillers', sort: 'popularity.desc', extra: '&with_genres=53' },
-        { key: 'lgbtq-shorts', title: 'LGBTQ+ Short Films', sort: 'popularity.desc', extra: '&with_keywords=9003' },
+        { key: 'lgbtq-shorts', title: 'LGBTQ+ Short Films', sort: 'popularity.desc', extra: '&with_keywords=158718' },
         { key: 'indie-shorts', title: 'Indie Short Dramas', sort: 'popularity.desc', extra: '&with_genres=18' },
         { key: 'student-shorts', title: 'Student Film Showcases', sort: 'popularity.desc', extra: '' },
         { key: 'intl-shorts', title: 'International Short Cinema', sort: 'popularity.desc', extra: '&without_original_language=en' },
@@ -1126,34 +1474,31 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
     case '10014': // Sport
       return [
         { key: 'sports-dramas', title: 'Inspiring Sports Dramas', sort: 'popularity.desc', extra: '&with_genres=18' },
+        { key: 'boxing-films', title: 'Boxing Films & Fight Stories', sort: 'vote_count.desc', extra: '&with_keywords=779|10034|6075&with_genres=18|28|99' },
         { key: 'docu-sports', title: 'Sports Docuseries & Profiles', sort: 'popularity.desc', extra: '&with_genres=99' },
-        { key: 'high-stakes-games', title: 'High-Stakes Competitions', sort: 'popularity.desc', extra: '' },
-        { key: 'underdog-sports', title: 'Underdog Triumphs', sort: 'popularity.desc', extra: '&with_keywords=549|4379' },
-        { key: 'boxing-martial-arts', title: 'Boxing & Martial Arts', sort: 'popularity.desc', extra: '&with_keywords=3671|378|4344' },
-        { key: 'auto-racing', title: 'Auto Racing & Motorsport', sort: 'popularity.desc', extra: '&with_keywords=10034|11400' },
-        { key: 'soccer-football', title: 'Soccer & Football Focus', sort: 'popularity.desc', extra: '&with_keywords=6075|11062' },
+        { key: 'underdog-sports', title: 'Underdog Triumphs', sort: 'popularity.desc', extra: '&with_keywords=4379' },
+        { key: 'martial-arts-sport', title: 'Martial Arts & Combat Sport', sort: 'popularity.desc', extra: '&with_keywords=779|780&with_genres=28|18' },
+        { key: 'soccer-football', title: 'Soccer, Football & The Beautiful Game', sort: 'popularity.desc', extra: '&with_keywords=6075|11062' },
         { key: 'basketball', title: 'Basketball & Hoop Dreams', sort: 'popularity.desc', extra: '&with_keywords=6075' },
+        { key: 'auto-racing', title: 'Auto Racing & Motorsport', sort: 'popularity.desc', extra: '&with_keywords=10034' },
+        { key: 'high-stakes-games', title: 'High-Stakes Competitions', sort: 'popularity.desc', extra: '' },
         { key: 'olympics', title: 'Olympic Triumphs & Legends', sort: 'popularity.desc', extra: '&with_keywords=4379' },
-        { key: 'extreme-sports', title: 'Extreme Sports & Surfing', sort: 'popularity.desc', extra: '&with_keywords=11400' },
+        { key: 'extreme-sports', title: 'Extreme Sports, Surfing & Adventure', sort: 'popularity.desc', extra: '&page=2' },
         { key: 'american-football', title: 'Gridiron & American Football', sort: 'popularity.desc', extra: '&with_origin_country=US' },
         { key: 'sports-comedies', title: 'Sports Comedies', sort: 'popularity.desc', extra: '&with_genres=35' },
-        { key: 'youth-sports', title: 'High School & College Sports', sort: 'popularity.desc', extra: '&with_keywords=2864' },
-        { key: 'golf-tennis', title: 'Golf & Tennis Showdowns', sort: 'vote_count.desc', extra: '' },
-        { key: 'winter-sports', title: 'Ice Hockey & Winter Sports', sort: 'vote_count.desc', extra: '' },
-        { key: 'sports-biographies', title: 'Sports Biographies & Memoirs', sort: 'popularity.desc', extra: '&with_keywords=237054' },
-        { key: 'women-sports', title: 'Inspirational Women in Sports', sort: 'popularity.desc', extra: '' },
-        { key: 'sports-action', title: 'Sports Action', sort: 'popularity.desc', extra: '&with_genres=28' },
+        { key: 'youth-sports', title: 'High School & College Sports', sort: 'popularity.desc', extra: '&with_keywords=296608' },
+        { key: 'sports-biographies', title: 'Sports Biographies & Memoirs', sort: 'vote_count.desc', extra: '&with_keywords=818' },
+        { key: 'women-sports', title: 'Inspirational Women in Sport', sort: 'popularity.desc', extra: '' },
+        { key: 'golf-tennis', title: 'Golf, Tennis & Racket Sports', sort: 'vote_count.desc', extra: '' },
+        { key: 'winter-sports', title: 'Ice Hockey, Skiing & Winter Sports', sort: 'vote_count.desc', extra: '' },
         { key: 'sports-romance', title: 'Sports Romance', sort: 'popularity.desc', extra: '&with_genres=10749' },
-        { key: 'sports-animation', title: 'Sports Animation', sort: 'popularity.desc', extra: '&with_genres=16' },
+        { key: 'sports-animation', title: 'Sports Anime & Animation', sort: 'popularity.desc', extra: '&with_genres=16' },
         { key: 'sports-family', title: 'Family Sports Films', sort: 'popularity.desc', extra: '&with_genres=10751' },
-        { key: 'sports-history', title: 'Sports History', sort: 'popularity.desc', extra: '&with_genres=36' },
-        { key: 'sports-thrillers', title: 'Sports Thrillers', sort: 'popularity.desc', extra: '&with_genres=53' },
-        { key: 'sports-mysteries', title: 'Sports Mysteries', sort: 'popularity.desc', extra: '&with_genres=9648' },
-        { key: 'sports-crime', title: 'Sports Crime', sort: 'popularity.desc', extra: '&with_genres=80' },
-        { key: 'sports-scifi', title: 'Sci-Fi Sports', sort: 'popularity.desc', extra: '&with_genres=878' },
-        { key: 'sports-fantasy', title: 'Fantasy Sports', sort: 'popularity.desc', extra: '&with_genres=14' },
-        { key: 'sports-westerns', title: 'Western Sports', sort: 'popularity.desc', extra: '&with_genres=37' },
-        { key: 'sports-war', title: 'War & Sports', sort: 'popularity.desc', extra: '&with_genres=10752' },
+        { key: 'sports-history', title: 'Sports History & Legends', sort: 'popularity.desc', extra: '&with_genres=36' },
+        { key: 'sports-thrillers', title: 'Sports Thrillers & Mind Games', sort: 'popularity.desc', extra: '&with_genres=53' },
+        { key: 'sports-crime', title: 'Sports Corruption & Crime', sort: 'popularity.desc', extra: '&with_genres=80' },
+        { key: 'baseball-cricket', title: 'Baseball, Cricket & Bat Sports', sort: 'popularity.desc', extra: '&page=3' },
+        { key: 'swimming-athletics', title: 'Athletics, Swim & Track', sort: 'popularity.desc', extra: '&page=4' },
         { key: 'sports-music', title: 'Music & Sports', sort: 'popularity.desc', extra: '&with_genres=10402' }
       ];
     case '10015': // Teen
@@ -1164,12 +1509,12 @@ export const getProfileRows = (profileKey: string, mediaType: 'movie' | 'tv'): P
         { key: 'teen-romance', title: 'Teen Romance & First Love', sort: 'popularity.desc', extra: '&with_genres=10749' },
         { key: 'teen-scifi-fantasy', title: 'Teen Sci-Fi & Fantasy', sort: 'popularity.desc', extra: '&with_genres=10765|878|14' },
         { key: 'teen-thrillers', title: 'Teen Thrillers & Mysteries', sort: 'popularity.desc', extra: '&with_genres=53|9648' },
-        { key: 'college-life', title: 'College & University Life', sort: 'popularity.desc', extra: '&with_keywords=1701|2864' },
+        { key: 'college-life', title: 'College & University Life', sort: 'popularity.desc', extra: '&page=3' },
         { key: 'teen-horror', title: 'Teen Slashers & Horror', sort: 'popularity.desc', extra: '&with_genres=27' },
-        { key: 'supernatural-teen', title: 'Supernatural Teen Sagas', sort: 'popularity.desc', extra: '&with_keywords=10185' },
+        { key: 'supernatural-teen', title: 'Supernatural Teen Sagas', sort: 'popularity.desc', extra: '&with_genres=14' },
         { key: 'teen-rebels', title: 'Rebel Teenagers & Outcasts', sort: 'popularity.desc', extra: '&with_genres=18' },
         { key: 'teen-musicals', title: 'Teen Musical & Drama Series', sort: 'popularity.desc', extra: '&with_genres=10402' },
-        { key: 'teen-drama-friends', title: 'Best Friends & Teen Drama', sort: 'popularity.desc', extra: '&with_keywords=1701' },
+        { key: 'teen-drama-friends', title: 'Best Friends & Teen Drama', sort: 'popularity.desc', extra: '&with_genres=18' },
         { key: 'teen-gossip', title: 'High School Gossip & Secrets', sort: 'popularity.desc', extra: '&with_keywords=4565' },
         { key: 'teen-book-adaptations', title: 'YA Book Adaptations for Teens', sort: 'popularity.desc', extra: '&with_keywords=818' },
         { key: 'intl-teen-drama', title: 'International Teen Drama', sort: 'popularity.desc', extra: '&without_original_language=en' },
@@ -1265,8 +1610,16 @@ export const buildGenreManifestSlice = (opts: BuildGenreSliceOpts): SmartRow[] =
   }
 
   profileRows.forEach(pr => {
-    const row = gRow(`genre-profile-${profileKey}-${pr.key}`, pr.title, pr.sort, pr.extra);
-    if (row) rows.push(row);
+    if (pr.url) {
+      const sig = makeUrlSig(pr.url);
+      if (!usedUrls.has(sig)) {
+        usedUrls.add(sig);
+        rows.push({ key: `genre-profile-${profileKey}-${pr.key}`, title: pr.title, fetchUrl: pr.url });
+      }
+    } else {
+      const row = gRow(`genre-profile-${profileKey}-${pr.key}`, pr.title, pr.sort, pr.extra);
+      if (row) rows.push(row);
+    }
   });
 
   const movieAcclaimedThreshold = softerMovieVotes ? '&vote_count.gte=150' : '&vote_count.gte=400';
@@ -1354,15 +1707,12 @@ const getThemedTitle = (baseTitle: string, mediaType: 'movie' | 'tv', selectedGe
   const genre = selectedGenreName;
   const suffix = mediaType === 'tv' ? 'Series' : 'Films';
 
-  if (baseTitle.includes("Best of the 2000s") || baseTitle.includes("2000s")) {
-    return `2000s ${genre} ${suffix}`;
-  }
-  if (baseTitle.includes("90s Nostalgia Trip") || baseTitle.includes("90s")) {
-    return `90s ${genre} ${suffix}`;
-  }
-  if (baseTitle.includes("80s Classics") || baseTitle.includes("80s")) {
-    return `80s ${genre} ${suffix}`;
-  }
+  if (baseTitle.includes("2010s")) return `2010s ${genre} ${suffix}`;
+  if (baseTitle.includes("2000s")) return `2000s ${genre} ${suffix}`;
+  if (baseTitle.includes("90s"))   return `90s ${genre} ${suffix}`;
+  if (baseTitle.includes("80s"))   return `80s ${genre} ${suffix}`;
+  if (baseTitle.includes("70s"))   return `70s ${genre} ${suffix}`;
+  if (baseTitle.includes("60s"))   return `60s ${genre} ${suffix}`;
   if (baseTitle.includes("30-Minute Hits") || baseTitle.includes("30-Minute")) {
     return `30-Minute ${genre} Hits`;
   }
@@ -1402,27 +1752,40 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   const movieGenreId = selectedGenreId ? resolveGenreId('movie', selectedGenreId) : undefined;
   const tvGenreId = selectedGenreId ? resolveGenreId('tv', selectedGenreId) : undefined;
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // 1. CURATED ANCHOR ROW (rows 0-1 — give the page a strong cold start before any personalization)
+  const primaryCuratedUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('movie', movieGenreId!, 'vote_count.desc')
+    : REQUESTS.fetchTrending;
+  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
+  if (!usedUrls.has(primaryCuratedSig)) {
+    usedUrls.add(primaryCuratedSig);
+    addRow({
+      key: `home-genre-primary-curated-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Most Loved ${baseGenreName}` : 'Trending Now',
+      fetchUrl: primaryCuratedUrl,
+    });
+  }
+
+  // 2. PERSONALIZED ROWS (rows 2-5 — threshold raised to 6 so small lists don't dominate)
   let CW_at_top = false;
   let ML_at_top = false;
 
-  // Pinned to Row 0 if it has >= 4 items
-  if (continueWatchingRow && continueWatchingRow.data && continueWatchingRow.data.length >= 4) {
+  // Continue Watching: only near top when list is substantial (>= 6 items)
+  if (continueWatchingRow && continueWatchingRow.data && continueWatchingRow.data.length >= 6) {
     addRow(continueWatchingRow);
     CW_at_top = true;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // 2. PERSONALIZED RECOMMENDATIONS (Row 1-2)
-  // ───────────────────────────────────────────────────────────────────────────
+  // “Because you watched” — 1 row, placed after the curated anchor
   let watchRowsCount = 0;
   continueWatching.forEach((m) => {
-    if (watchRowsCount >= 1) return; // Only 1 "Because you watched" near the top
-    if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
+    if (watchRowsCount >= 1) return;
+    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
-    const url = REQUESTS.fetchSimilar(isTV ? 'tv' : 'movie', m.id);
+    const url = REQUESTS.fetchRecommendations(isTV ? 'tv' : 'movie', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
       usedUrls.add(sig);
@@ -1435,44 +1798,27 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   });
 
-  // Prioritize My List to Row 1 or 2 if it has >= 4 items
-  if (myListRow && myListRow.data && myListRow.data.length >= 4) {
+  // My List: only near top when substantial (>= 6 items)
+  if (myListRow && myListRow.data && myListRow.data.length >= 6) {
     addRow(myListRow);
     ML_at_top = true;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // 3. DEMOTED COMFORT ROWS (Index 2-3 if < 4 items)
-  // ───────────────────────────────────────────────────────────────────────────
+  // 3. DEMOTED COMFORT ROWS (smaller lists fall here — rows 4-6)
   if (continueWatchingRow && !CW_at_top) {
-    addRow(continueWatchingRow); // Demoted Continue Watching (1-3 items)
+    addRow(continueWatchingRow);
   }
 
-  // Add a highly engaging, full curated Row high up (Index 3/4)
-  const primaryCuratedUrl = selectedGenreId
-    ? REQUESTS.fetchByGenre('movie', movieGenreId!, 'popularity.desc')
-    : REQUESTS.fetchTrending;
-  const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
-  if (!usedUrls.has(primaryCuratedSig)) {
-    usedUrls.add(primaryCuratedSig);
-    addRow({
-      key: `home-genre-primary-curated-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Today's Top ${baseGenreName} Picks` : 'Trending Now',
-      fetchUrl: primaryCuratedUrl,
-    });
-  }
-
-  // Demoted My List (1-3 items) at Index 4 or 5
   if (myListRow && !ML_at_top) {
     addRow(myListRow);
   }
 
-  // Second "Because you watched / liked" personalization row
+  // “Because you liked” — 1 row, after comfort rows
   let likedRowsCount = 0;
   likedEntries.forEach((entry) => {
     if (likedRowsCount >= 1) return;
     const m = entry.movie;
-    if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
+    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     const url = REQUESTS.fetchRecommendations(isTV ? 'tv' : 'movie', m.id);
     const sig = makeUrlSig(url);
@@ -1487,9 +1833,9 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 4. TOP 10 PLACEMENTS (Demoted to index 5-8, split apart)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // First Top 10 split row placed at Row 5 or 6
   const top10MovieUrl = selectedGenreId
     ? REQUESTS.fetchByGenre('movie', movieGenreId!, 'popularity.desc')
@@ -1505,9 +1851,9 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     });
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 5. THEMATIC ROWS POOL (Interleaved)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const moviePrefix = `home-genre-movie-${selectedGenreId || 'all'}`;
   const tvPrefix = `home-genre-tv-${selectedGenreId || 'all'}`;
   let movieCount = 0;
@@ -1534,31 +1880,41 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
 
   const pool: SmartRow[] = [];
 
-  // Theme A: Retro Flashback 2000-2005 (Nostalgia Pack)
-  const retro00sUrl = buildScopedQuery('tv', {
-    sort_by: 'popularity.desc',
-    'first_air_date.gte': '2000-01-01',
-    'first_air_date.lte': '2005-12-31',
-    'vote_count.gte': selectedGenreId ? 20 : 100,
-  });
-  pool.push({
-    key: `${tvPrefix}-theme-retro00s`,
-    title: getThemedTitle('Best of the 2000s', 'tv', selectedGenreName),
-    fetchUrl: retro00sUrl,
-  });
-
-  // Theme B: 90s Nostalgia Trip
-  const retro90sUrl = buildScopedQuery('tv', {
-    sort_by: 'popularity.desc',
-    'first_air_date.gte': '1990-01-01',
-    'first_air_date.lte': '1999-12-31',
-    'vote_count.gte': selectedGenreId ? 20 : 100,
-  });
-  pool.push({
-    key: `${tvPrefix}-theme-retro90s`,
-    title: getThemedTitle('90s Nostalgia Trip', 'tv', selectedGenreName),
-    fetchUrl: retro90sUrl,
-  });
+  // Decades / trending rows — genre pages get TV decade rows; home All gets trending/all (mixed types)
+  const homeTvDecadePool = [
+    { label: 'Best of the 2000s',  gte: '2000-01-01', lte: '2009-12-31' },
+    { label: '90s Nostalgia Trip', gte: '1990-01-01', lte: '1999-12-31' },
+    { label: '80s Classics',       gte: '1980-01-01', lte: '1989-12-31' },
+    { label: '70s Retro TV',       gte: '1970-01-01', lte: '1979-12-31' },
+    { label: '2010s Must-Watch',   gte: '2010-01-01', lte: '2019-12-31' },
+    { label: '60s TV Classics',    gte: '1960-01-01', lte: '1969-12-31' },
+  ];
+  if (selectedGenreId) {
+    seededPick(homeTvDecadePool, 2, hash + 311).forEach((d, i) => {
+      pool.push({
+        key: `${tvPrefix}-theme-decade-${i}`,
+        title: getThemedTitle(d.label, 'tv', selectedGenreName),
+        fetchUrl: buildScopedQuery('tv', {
+          sort_by: 'popularity.desc',
+          'first_air_date.gte': d.gte,
+          'first_air_date.lte': d.lte,
+          'vote_count.gte': 20,
+        }),
+      });
+    });
+  } else {
+    // Home All: trending/all rows are genuinely mixed (both movies AND TV in one row)
+    const trendingAllVariants = [
+      { key: 'home-trall-2', title: 'Films & Series of the Moment',   page: 2 },
+      { key: 'home-trall-3', title: 'Rising Stars: Films & Shows',    page: 3 },
+      { key: 'home-trall-4', title: 'Discover Something New',         page: 4 },
+      { key: 'home-trall-5', title: 'Under-the-Radar Picks',          page: 5 },
+      { key: 'home-trall-6', title: 'More Hidden Favourites',         page: 6 },
+    ];
+    seededPick(trendingAllVariants, 3, hash + 311).forEach(d => {
+      pool.push({ key: d.key, title: d.title, fetchUrl: `${REQUESTS.fetchTrending}?page=${d.page}` });
+    });
+  }
 
   // Theme C: In a Bit of a Hurry? Try These 30-Minute Hits!
   const quickUrl = buildScopedQuery('tv', {
@@ -1590,7 +1946,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   // Theme D: Popular Series Based on Books (Adaptations)
   const bookUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
-    with_keywords: '818,10214',
+    with_keywords: '818',
     'vote_count.gte': selectedGenreId ? 3 : 20,
   });
   pool.push({
@@ -1637,27 +1993,8 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     fetchUrl: familiarUrl,
   });
 
-  // Theme H: 80s Classics
-  const retro80sUrl = buildScopedQuery('tv', {
-    sort_by: 'popularity.desc',
-    'first_air_date.gte': '1980-01-01',
-    'first_air_date.lte': '1989-12-31',
-    'vote_count.gte': selectedGenreId ? 10 : 70,
-  });
-  pool.push({
-    key: `${tvPrefix}-theme-retro80s`,
-    title: getThemedTitle('80s Classics', 'tv', selectedGenreName),
-    fetchUrl: retro80sUrl,
-  });
-
-  // Theme I: Netflix Originals / Curated Exclusives
-  if (!selectedGenreId) {
-    pool.push({
-      key: 'home-nf-originals',
-      title: 'Netflix Originals',
-      fetchUrl: REQUESTS.fetchNetflixOriginals,
-    });
-  }
+  // Netflix Originals lives in the pool (standardCategories) when !selectedGenreId,
+  // or gets pushed individually below when a genre is active, so nothing here.
 
   // Standard discover slice interleave
   if (selectedGenreId) {
@@ -1692,39 +2029,72 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
       if (tvSlice[i]) pool.push(tvSlice[i]);
     }
   } else {
-    // Unfiltered home: rich mix of curated categories — seeded daily so order rotates
+    // Home All: large rich pool — movies AND series mixed — shuffled fresh each session
     const standardCategories: SmartRow[] = [
-      { key: 'home-us-series',          title: 'US Series',                         fetchUrl: REQUESTS.fetchUSSeries },
-      { key: 'home-trending',           title: 'Your Next Watch',                   fetchUrl: REQUESTS.fetchTrending },
-      { key: 'home-new',                title: 'New on P-Stream',                   fetchUrl: REQUESTS.fetchNewReleases },
-      { key: 'home-drama-binge',        title: 'Bingeworthy Drama Series',          fetchUrl: REQUESTS.fetchDramaTV },
-      { key: 'home-loved',              title: "We think you'll love these",        fetchUrl: REQUESTS.fetchLoveTheseTV },
-      { key: 'home-action-adventure',   title: 'Exciting Action & Adventure',       fetchUrl: REQUESTS.fetchActionTV },
-      { key: 'home-boredom',            title: 'Boredom Busters',                   fetchUrl: REQUESTS.fetchBoredomBustersMovies },
-      { key: 'home-gems',               title: 'Gems for You',                      fetchUrl: REQUESTS.fetchHiddenGems },
-      { key: 'home-us-drama',           title: 'US Drama Series',                   fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'popularity.desc') + '&with_origin_country=US' },
-      { key: 'home-originals',          title: 'Only on P-Stream',                  fetchUrl: REQUESTS.fetchNetflixOriginals },
-      { key: 'home-suspense',           title: 'Suspense Drama Series',             fetchUrl: REQUESTS.fetchMysteryThrillerSeries },
-      { key: 'home-comedy',             title: 'Comedy Series',                     fetchUrl: REQUESTS.fetchComedyTV },
-      { key: 'home-supernatural',       title: 'Supernatural Soaps',                fetchUrl: REQUESTS.fetchByGenre('tv', 10765, 'popularity.desc') + '&with_genres=18' },
-      { key: 'home-crime',              title: 'Crime Drama Series',                fetchUrl: REQUESTS.fetchCrimeTV },
-      { key: 'home-us-action',          title: 'US Action & Adventure Series',      fetchUrl: REQUESTS.fetchByGenre('tv', 10759, 'popularity.desc') + '&with_origin_country=US' },
+      // Mixed (trending/all returns both movies and TV in a single row)
+      { key: 'home-trending',           title: 'Your Next Watch',                           fetchUrl: REQUESTS.fetchTrending },
+      { key: 'home-trending-p2',        title: 'Popular with Everyone',                     fetchUrl: `${REQUESTS.fetchTrending}?page=2` },
+      { key: 'home-trending-p3',        title: 'Keep Discovering',                          fetchUrl: `${REQUESTS.fetchTrending}?page=3` },
+
+      // Film rows
+      { key: 'home-new',                title: 'New on P-Stream',                           fetchUrl: REQUESTS.fetchNewReleases },
+      { key: 'home-upcoming',           title: 'Coming Soon',                               fetchUrl: REQUESTS.fetchUpcoming },
+      { key: 'home-toprated',           title: 'All-Time Masterpieces',                     fetchUrl: REQUESTS.fetchTopRated },
+      { key: 'home-trending-movies',    title: 'Trending Films Right Now',                  fetchUrl: REQUESTS.fetchTrendingMovies },
+      { key: 'home-action-movies',      title: 'Action & Adventure Films',                  fetchUrl: REQUESTS.fetchActionMovies },
+      { key: 'home-horror-movies',      title: 'Horror Films',                              fetchUrl: REQUESTS.fetchHorrorMovies },
+      { key: 'home-scifi-movies',       title: 'Sci-Fi & Fantasy Films',                    fetchUrl: REQUESTS.fetchSciFiMovies },
+      { key: 'home-comedy-movies',      title: 'Comedy Films',                              fetchUrl: REQUESTS.fetchComedyMovies },
+      { key: 'home-romance-movies',     title: 'Romance Films',                             fetchUrl: REQUESTS.fetchRomanceMovies },
+      { key: 'home-thriller-movies',    title: 'Thrillers That Keep You Guessing',          fetchUrl: REQUESTS.fetchUnderratedThrillers },
+      { key: 'home-prestige',           title: 'Award-Winning & Critically Acclaimed',      fetchUrl: REQUESTS.fetchPrestigeDrama },
+      { key: 'home-world-cinema',       title: 'World Cinema: Global Hits',                 fetchUrl: REQUESTS.fetchWorldCinema },
+      { key: 'home-cult',               title: 'Cult Classics',                             fetchUrl: REQUESTS.fetchCultFilms },
+      { key: 'home-hidden-gems',        title: 'Hidden Gems',                               fetchUrl: REQUESTS.fetchHiddenGems },
+      { key: 'home-loved-movies',       title: 'Films Worth Loving',                        fetchUrl: REQUESTS.fetchLoveTheseMovies },
+      { key: 'home-boredom-movies',     title: 'Crowd-Pleasers',                            fetchUrl: REQUESTS.fetchBoredomBustersMovies },
+      { key: 'home-conceptual-sf',      title: 'Mind-Bending Sci-Fi',                       fetchUrl: REQUESTS.fetchConceptualSciFi },
+      { key: 'home-crime-movies',       title: 'Crime & Heist Films',                       fetchUrl: REQUESTS.fetchByGenre('movie', 80, 'popularity.desc') },
+      { key: 'home-drama-movies',       title: 'Acclaimed Drama Films',                     fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', '&vote_count.gte=200') },
+      { key: 'home-family-films',       title: 'Family & Animation',                        fetchUrl: REQUESTS.fetchByGenre('movie', 10751, 'popularity.desc') },
+      { key: 'home-anime-films',        title: 'Must-Watch Anime Films',                    fetchUrl: `${REQUESTS.fetchByGenre('movie', 16, 'popularity.desc')}&with_origin_country=JP` },
+      { key: 'home-kr-films',           title: 'Korean Cinema',                             fetchUrl: `${REQUESTS.fetchByGenre('movie', 18, 'popularity.desc')}&with_origin_country=KR` },
+      { key: 'home-euro-cinema',        title: 'European Art-House',                        fetchUrl: `${REQUESTS.fetchByGenre('movie', 18, 'popularity.desc')}&with_origin_country=FR|IT|ES|DE` },
+      { key: 'home-docs',               title: 'Documentaries Worth Watching',              fetchUrl: REQUESTS.fetchDocumentaries },
+      { key: 'home-classic-cinema',     title: 'Classic Cinema',                            fetchUrl: REQUESTS.fetchClassicCinema },
+
+      // Series rows
+      { key: 'home-trending-tv',        title: 'Trending Series',                           fetchUrl: REQUESTS.fetchTrendingTV },
+      { key: 'home-action-tv',          title: 'Action & Adventure Series',                 fetchUrl: REQUESTS.fetchActionTV },
+      { key: 'home-crime-tv',           title: 'Crime & Thriller Series',                   fetchUrl: REQUESTS.fetchCrimeTV },
+      { key: 'home-drama-binge',        title: 'Bingeworthy Drama Series',                  fetchUrl: REQUESTS.fetchDramaTV },
+      { key: 'home-comedy-tv',          title: 'Comedy Series',                             fetchUrl: REQUESTS.fetchComedyTV },
+      { key: 'home-suspense',           title: 'Mystery & Thriller Series',                 fetchUrl: REQUESTS.fetchMysteryThrillerSeries },
+      { key: 'home-us-series',          title: 'US Series',                                 fetchUrl: REQUESTS.fetchUSSeries },
+      { key: 'home-loved-tv',           title: 'Series Worth Bingeing',                     fetchUrl: REQUESTS.fetchLoveTheseTV },
+      { key: 'home-originals',          title: 'Only on P-Stream',                          fetchUrl: REQUESTS.fetchNetflixOriginals },
+      { key: 'home-boredom-tv',         title: 'Series to Cure Your Boredom',               fetchUrl: REQUESTS.fetchBoredomBustersTV },
+      { key: 'home-hidden-tv-gems',     title: 'Under-the-Radar Series',                    fetchUrl: REQUESTS.fetchHiddenTVGems },
+      { key: 'home-intl-series',        title: 'International Series',                      fetchUrl: REQUESTS.fetchInternationalSeries },
+      { key: 'home-award-series',       title: 'Award-Winning Series',                      fetchUrl: REQUESTS.fetchAwardWinningSeries },
+      { key: 'home-supernatural',       title: 'Supernatural & Fantasy Series',             fetchUrl: REQUESTS.fetchByGenre('tv', 10765, 'popularity.desc') },
+      { key: 'home-us-drama',           title: 'US Drama Series',                           fetchUrl: `${REQUESTS.fetchByGenre('tv', 18, 'popularity.desc')}&with_origin_country=US` },
+      { key: 'home-us-action',          title: 'US Action & Adventure Series',              fetchUrl: `${REQUESTS.fetchByGenre('tv', 10759, 'popularity.desc')}&with_origin_country=US` },
+      { key: 'home-romance-tv',         title: 'Romance Series',                            fetchUrl: `${REQUESTS.fetchByGenre('tv', 10749, 'popularity.desc')}&without_original_language=ko,ja,zh` },
+      { key: 'home-scifi-tv',           title: 'Sci-Fi & Fantasy Series',                   fetchUrl: REQUESTS.fetchImaginativeSeries },
+      { key: 'home-kdrama',             title: 'K-Drama Hits',                              fetchUrl: `${REQUESTS.fetchByGenre('tv', 18, 'popularity.desc')}&with_origin_country=KR` },
+      { key: 'home-anime-tv',           title: 'Top Anime Series',                          fetchUrl: `${REQUESTS.fetchByGenre('tv', 16, 'popularity.desc')}&with_origin_country=JP` },
     ];
     pool.push(...standardCategories);
   }
 
-  // Do not shuffle if we are on the main generic home page to respect the exact category order requested!
-  if (!selectedGenreId) {
-    pool.forEach(row => trackAdd(row));
-  } else {
-    // Interleave and shuffle the entire dynamic pool based on daily seed to keep page alive!
-    const seededPool = seededPick(pool, pool.length, hash);
-    seededPool.forEach(row => trackAdd(row));
-  }
+  // Shuffle the pool every session (home All page included — user wants random order each visit)
+  const seededPool = seededPick(pool, pool.length, Math.abs((hash ^ SESSION_SEED) | 0));
+  seededPool.forEach(row => trackAdd(row));
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 6. SECOND TOP 10 SPLIT (Demoted to index 11+, separated from first)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const top10TvUrl = selectedGenreId
     ? REQUESTS.fetchByGenre('tv', tvGenreId!, 'popularity.desc')
     : REQUESTS.fetchTrendingTV;
@@ -1742,9 +2112,9 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     });
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 7. GLOBAL DYNAMIC FILL
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const movieFillTitles = getPremiumFillTitles(baseGenreName, 'movie');
   const tvFillTitles = getPremiumFillTitles(baseGenreName, 'tv');
 
@@ -1811,9 +2181,9 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let CW_at_top = false;
   let ML_at_top = false;
 
@@ -1822,20 +2192,19 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     CW_at_top = true;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 2. PERSONALIZED RECOMMENDATIONS (Row 1-2)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let watchRowsCount = 0;
   continueWatching.forEach((m) => {
     if (watchRowsCount >= 1) return;
     const isMovie = m.media_type === 'movie' || (!m.media_type && !!m.title);
     if (!isMovie) return;
-    if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
+    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
 
-    const url = REQUESTS.fetchSimilar('movie', m.id);
+    const url = REQUESTS.fetchRecommendations('movie', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
-      usedUrls.add(sig);
       watchRowsCount++;
       addRow({
         key: `movie-personal-watched-${m.id}`,
@@ -1850,23 +2219,22 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     ML_at_top = true;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 3. DEMOTED COMFORT ROWS (Index 2-3 if < 4 items)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (filteredContinueWatchingRow && !CW_at_top) {
     addRow(filteredContinueWatchingRow);
   }
 
-  // Primary Curated Row
+  // Primary Curated Row — vote_count sort surfaces fan-favourites, not just this week's trending
   const primaryCuratedUrl = selectedGenreId
-    ? REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc')
+    ? REQUESTS.fetchByGenre('movie', selectedGenreId, 'vote_count.desc')
     : REQUESTS.fetchTrendingMovies;
   const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
   if (!usedUrls.has(primaryCuratedSig)) {
-    usedUrls.add(primaryCuratedSig);
     addRow({
       key: `movie-primary-curated-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Today's Top ${baseGenreName} Picks` : 'Trending Films Right Now',
+      title: selectedGenreId ? `Most Loved ${baseGenreName} Films` : 'Trending Films Right Now',
       fetchUrl: primaryCuratedUrl,
     });
   }
@@ -1882,12 +2250,11 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     const m = entry.movie;
     const isMovie = m.media_type === 'movie' || (!m.media_type && !!m.title);
     if (!isMovie) return;
-    if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
+    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
 
     const url = REQUESTS.fetchRecommendations('movie', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
-      usedUrls.add(sig);
       likedRowsCount++;
       addRow({
         key: `movie-personal-liked-${m.id}`,
@@ -1897,15 +2264,14 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     }
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 4. TOP 10 PLACEMENTS (Demoted to index 5-8)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const top10Url = selectedGenreId
     ? REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc')
     : REQUESTS.fetchTrendingMovies;
   const top10Sig = makeUrlSig(top10Url);
   if (!usedUrls.has(top10Sig)) {
-    usedUrls.add(top10Sig);
     addRow({
       key: `movie-top10-genre-${selectedGenreId || 'all'}`,
       title: selectedGenreId ? `Top 10 ${baseGenreName} Films` : 'Top 10 Films in the UK Today',
@@ -1914,14 +2280,14 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     });
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 5. THEMATIC ROWS POOL (Interleaved)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const moviePrefix = `movie-${selectedGenreId || 'all'}`;
   const pool: SmartRow[] = [];
 
   const trackAdd = (row: SmartRow) => {
-    addRow(row);
+    manifest.push(row);
   };
 
   const buildScopedQuery = (
@@ -1950,7 +2316,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
 
     const animalUrl = buildScopedQuery('movie', {
       sort_by: 'popularity.desc',
-      with_keywords: '3336', // Animal tales
+      with_keywords: '9902|18330', // Animal tales
     });
     pool.push({
       key: `${moviePrefix}-theme-animals`,
@@ -1984,7 +2350,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
 
     const trueCrimeUrl = buildScopedQuery('movie', {
       sort_by: 'popularity.desc',
-      with_keywords: '818,10224', // based on real life / investigation
+      with_keywords: '818', // based on real life sagas
     });
     pool.push({
       key: `${moviePrefix}-theme-true-crime-sagas`,
@@ -1993,43 +2359,26 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     });
   }
 
-  // Theme A: Retro Flashback 2000-2005 (Nostalgia Pack)
-  const retro00sUrl = buildScopedQuery('movie', {
-    sort_by: 'popularity.desc',
-    'primary_release_date.gte': '2000-01-01',
-    'primary_release_date.lte': '2005-12-31',
-    'vote_count.gte': selectedGenreId ? 25 : 120,
-  });
-  pool.push({
-    key: `${moviePrefix}-theme-retro00s`,
-    title: getThemedTitle('Best of the 2000s', 'movie', selectedGenreName),
-    fetchUrl: retro00sUrl,
-  });
-
-  // Theme B: 90s Nostalgia Trip
-  const retro90sUrl = buildScopedQuery('movie', {
-    sort_by: 'popularity.desc',
-    'primary_release_date.gte': '1990-01-01',
-    'primary_release_date.lte': '1999-12-31',
-    'vote_count.gte': selectedGenreId ? 25 : 120,
-  });
-  pool.push({
-    key: `${moviePrefix}-theme-retro90s`,
-    title: getThemedTitle('90s Nostalgia Trip', 'movie', selectedGenreName),
-    fetchUrl: retro90sUrl,
-  });
-
-  // Theme C: 80s Classics
-  const retro80sUrl = buildScopedQuery('movie', {
-    sort_by: 'popularity.desc',
-    'primary_release_date.gte': '1980-01-01',
-    'primary_release_date.lte': '1989-12-31',
-    'vote_count.gte': selectedGenreId ? 12 : 80,
-  });
-  pool.push({
-    key: `${moviePrefix}-theme-retro80s`,
-    title: getThemedTitle('80s Classics', 'movie', selectedGenreName),
-    fetchUrl: retro80sUrl,
+  // Decades: rotate through 6 eras and pick 2 per 4h segment so the same eras don't repeat
+  const movieDecadePool = [
+    { label: 'Best of the 2000s',     gte: '2000-01-01', lte: '2009-12-31' },
+    { label: '90s Nostalgia Trip',    gte: '1990-01-01', lte: '1999-12-31' },
+    { label: '80s Classics',          gte: '1980-01-01', lte: '1989-12-31' },
+    { label: '70s Cinema Gems',       gte: '1970-01-01', lte: '1979-12-31' },
+    { label: '2010s Blockbusters',    gte: '2010-01-01', lte: '2019-12-31' },
+    { label: '60s & Earlier Classics',gte: '1960-01-01', lte: '1969-12-31' },
+  ];
+  seededPick(movieDecadePool, 2, hash + 433).forEach((d, i) => {
+    pool.push({
+      key: `${moviePrefix}-theme-decade-${i}`,
+      title: getThemedTitle(d.label, 'movie', selectedGenreName),
+      fetchUrl: buildScopedQuery('movie', {
+        sort_by: 'popularity.desc',
+        'primary_release_date.gte': d.gte,
+        'primary_release_date.lte': d.lte,
+        'vote_count.gte': selectedGenreId ? 25 : 120,
+      }),
+    });
   });
 
   // Theme D: Quick Watch Films (Runtime <= 90 mins)
@@ -2047,7 +2396,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
   // Theme E: Adaptations
   const bookUrl = buildScopedQuery('movie', {
     sort_by: 'popularity.desc',
-    with_keywords: '818,10214',
+    with_keywords: '818',
     'vote_count.gte': selectedGenreId ? 5 : 40,
   });
   pool.push({
@@ -2083,7 +2432,7 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     });
     pool.push(...movieSlice);
   } else {
-    // Curated standard film categories — seeded daily so order rotates
+    // Curated standard film categories â€” seeded daily so order rotates
     const curatedCategories: SmartRow[] = [
       { key: 'movie-trending',      title: 'Trending Films Right Now',                      fetchUrl: REQUESTS.fetchTrendingMovies },
       { key: 'movie-exciting',      title: 'High-Octane Action Films',                      fetchUrl: REQUESTS.fetchExcitingMovies },
@@ -2110,13 +2459,13 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
       { key: 'movie-french',        title: 'Prestige European Cinema',                      fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'popularity.desc') + '&with_origin_country=FR|IT|ES' },
       { key: 'movie-anime-film',    title: 'Must-Watch Anime Films',                        fetchUrl: REQUESTS.fetchByGenre('movie', 16, 'popularity.desc') + '&with_origin_country=JP' },
       { key: 'movie-runtime90',     title: 'Under 90 Minutes: Fast & Great',                fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'popularity.desc') + '&with_runtime.lte=95' },
-      { key: 'movie-adaptations',   title: 'Book Adaptations',                              fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'popularity.desc') + '&with_keywords=818|10214' },
+      { key: 'movie-adaptations',   title: 'Book Adaptations',                              fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'popularity.desc') + '&with_keywords=818' },
     ];
     pool.push(...curatedCategories);
   }
 
-  // Interleave and shuffle the entire dynamic pool based on daily seed to keep page alive!
-  const seededPool = seededPick(pool, pool.length, hash);
+  // Interleave and shuffle using session seed so order varies every page load, not just every 4 hours
+  const seededPool = seededPick(pool, pool.length, Math.abs((hash ^ SESSION_SEED) | 0));
   seededPool.forEach(row => trackAdd(row));
 
   // Global Dynamic Fill
@@ -2127,7 +2476,6 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
       const url = REQUESTS.fetchByGenre('movie', selectedGenreId, 'popularity.desc') + `&page=${page}`;
       const sig = makeUrlSig(url);
       if (!usedUrls.has(sig)) {
-        usedUrls.add(sig);
         const title = fillTitles[page % fillTitles.length];
         const slug = title.toLowerCase().replace(/[^a-z0-9]/g, '-');
         addRow({ key: `movie-fill-${slug}-${page}`, title, fetchUrl: url });
@@ -2185,9 +2533,9 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let CW_at_top = false;
   let ML_at_top = false;
 
@@ -2196,20 +2544,19 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     CW_at_top = true;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 2. PERSONALIZED RECOMMENDATIONS (Row 1-2)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let watchRowsCount = 0;
   continueWatching.forEach((m) => {
     if (watchRowsCount >= 1) return;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     if (!isTV) return;
-    if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
+    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
 
-    const url = REQUESTS.fetchSimilar('tv', m.id);
+    const url = REQUESTS.fetchRecommendations('tv', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
-      usedUrls.add(sig);
       watchRowsCount++;
       addRow({
         key: `tv-personal-watched-${m.id}`,
@@ -2224,23 +2571,24 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     ML_at_top = true;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 3. DEMOTED COMFORT ROWS (Index 2-3 if < 4 items)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (filteredContinueWatchingRow && !CW_at_top) {
     addRow(filteredContinueWatchingRow);
   }
 
-  // Primary Curated Row
+  // Primary Curated Row — popularity sort shows what audiences are watching now
+  // For Romance: filter non-English-language to avoid K-drama/anime domination
+  const primaryCuratedExtra = selectedGenreId === 10749 ? '&without_original_language=ko,ja,zh' : '';
   const primaryCuratedUrl = selectedGenreId
-    ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc')
+    ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc', primaryCuratedExtra)
     : REQUESTS.fetchTrendingTV;
   const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
   if (!usedUrls.has(primaryCuratedSig)) {
-    usedUrls.add(primaryCuratedSig);
     addRow({
       key: `tv-primary-curated-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Today's Top ${baseGenreName} Picks` : 'Trending Series Right Now',
+      title: selectedGenreId ? `Popular ${baseGenreName} Series` : 'Trending Series Right Now',
       fetchUrl: primaryCuratedUrl,
     });
   }
@@ -2256,12 +2604,11 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     const m = entry.movie;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     if (!isTV) return;
-    if (selectedGenreId && m.genre_ids && !m.genre_ids.includes(selectedGenreId)) return;
+    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
 
     const url = REQUESTS.fetchRecommendations('tv', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
-      usedUrls.add(sig);
       likedRowsCount++;
       addRow({
         key: `tv-personal-liked-${m.id}`,
@@ -2271,15 +2618,16 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     }
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 4. TOP 10 PLACEMENTS (Demoted to index 5-8)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // For Romance on TV: add language filter so Top 10 shows Western content, not just K-drama/anime
+  const top10Extra = selectedGenreId === 10749 ? '&without_original_language=ko,ja,zh' : '';
   const top10Url = selectedGenreId
-    ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc')
+    ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'vote_count.desc', top10Extra)
     : REQUESTS.fetchTrendingTV;
   const top10Sig = makeUrlSig(top10Url);
   if (!usedUrls.has(top10Sig)) {
-    usedUrls.add(top10Sig);
     addRow({
       key: `tv-top10-genre-${selectedGenreId || 'all'}`,
       title: selectedGenreId ? `Top 10 ${baseGenreName} Series` : 'Top 10 Series in the UK Today',
@@ -2288,14 +2636,14 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     });
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 5. THEMATIC ROWS POOL (Interleaved)
-  // ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const tvPrefix = `tv-${selectedGenreId || 'all'}`;
   const pool: SmartRow[] = [];
 
   const trackAdd = (row: SmartRow) => {
-    addRow(row);
+    manifest.push(row);
   };
 
   const buildScopedQuery = (
@@ -2309,6 +2657,46 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     };
     return REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/${mediaType}`, mergedParams, extra);
   };
+
+  // Special Bespoke Curation for Romance Series (Genre ID 10749)
+  // All rows use without_original_language=ko,ja,zh to surface Western/English content
+  if (selectedGenreId === 10749) {
+    pool.push({
+      key: `${tvPrefix}-theme-en-romance`,
+      title: 'English-Language Romance Series',
+      fetchUrl: buildScopedQuery('tv', {
+        sort_by: 'popularity.desc',
+        without_original_language: 'ko,ja,zh',
+        'vote_count.gte': 50,
+      }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-prestige-romance`,
+      title: 'Critically Acclaimed Romance',
+      fetchUrl: buildScopedQuery('tv', {
+        sort_by: 'vote_average.desc',
+        without_original_language: 'ko,ja,zh',
+        'vote_count.gte': 300,
+      }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-new-romance`,
+      title: 'New & Recent Romance Series',
+      fetchUrl: buildScopedQuery('tv', {
+        sort_by: 'popularity.desc',
+        'first_air_date.gte': `${new Date().getFullYear() - 2}-01-01`,
+        without_original_language: 'ko,ja,zh',
+      }),
+    });
+    pool.push({
+      key: `${tvPrefix}-theme-latin-romance`,
+      title: 'Latin & Spanish Romance',
+      fetchUrl: buildScopedQuery('tv', {
+        sort_by: 'popularity.desc',
+        with_origin_country: 'ES|MX|CO|AR|PT|BR',
+      }),
+    });
+  }
 
   // Special Bespoke Curation for Comedy Series (Genre ID 35)
   if (selectedGenreId === 35) {
@@ -2329,7 +2717,7 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     const bustersUrl = REQUESTS._build(`${REQUESTS.fetchTrendingTV.split('/trending')[0]}/discover/tv`, {
       sort_by: 'popularity.desc',
       with_genres: '35',
-      with_keywords: '1701', // Sitcoms / workplace
+      with_keywords: '210605', // workplace comedy
     });
     pool.push({
       key: `${tvPrefix}-theme-comedy-busters`,
@@ -2371,30 +2759,29 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     });
   }
 
-  // Theme A: Retro Flashback 2000-2005 (Nostalgia Pack)
-  const retro00sUrl = buildScopedQuery('tv', {
-    sort_by: 'popularity.desc',
-    'first_air_date.gte': '2000-01-01',
-    'first_air_date.lte': '2005-12-31',
-    'vote_count.gte': selectedGenreId ? 20 : 100,
-  });
-  pool.push({
-    key: `${tvPrefix}-theme-retro00s`,
-    title: getThemedTitle('Best of the 2000s', 'tv', selectedGenreName),
-    fetchUrl: retro00sUrl,
-  });
-
-  // Theme B: 90s Nostalgia Trip
-  const retro90sUrl = buildScopedQuery('tv', {
-    sort_by: 'popularity.desc',
-    'first_air_date.gte': '1990-01-01',
-    'first_air_date.lte': '1999-12-31',
-    'vote_count.gte': selectedGenreId ? 20 : 100,
-  });
-  pool.push({
-    key: `${tvPrefix}-theme-retro90s`,
-    title: getThemedTitle('90s Nostalgia Trip', 'tv', selectedGenreName),
-    fetchUrl: retro90sUrl,
+  // Decades: rotate through 6 eras and pick 2 per 4h segment so the same eras don't repeat
+  const tvDecadePool = [
+    { label: 'Best of the 2000s',   gte: '2000-01-01', lte: '2009-12-31' },
+    { label: '90s Nostalgia Trip',  gte: '1990-01-01', lte: '1999-12-31' },
+    { label: '80s TV Classics',     gte: '1980-01-01', lte: '1989-12-31' },
+    { label: '70s Retro TV',        gte: '1970-01-01', lte: '1979-12-31' },
+    { label: '2010s Must-Watch',    gte: '2010-01-01', lte: '2019-12-31' },
+    { label: '60s TV Classics',     gte: '1960-01-01', lte: '1969-12-31' },
+  ];
+  // For Romance genre on TV, filter out K-drama/anime from decade rows
+  const decadeLangFilter = selectedGenreId === 10749 ? { without_original_language: 'ko,ja,zh' } : {};
+  seededPick(tvDecadePool, 2, hash + 557).forEach((d, i) => {
+    pool.push({
+      key: `${tvPrefix}-theme-decade-${i}`,
+      title: getThemedTitle(d.label, 'tv', selectedGenreName),
+      fetchUrl: buildScopedQuery('tv', {
+        sort_by: 'popularity.desc',
+        'first_air_date.gte': d.gte,
+        'first_air_date.lte': d.lte,
+        'vote_count.gte': selectedGenreId ? 20 : 100,
+        ...decadeLangFilter,
+      }),
+    });
   });
 
   // Theme C: 30-Minute Hits! (Fallback)
@@ -2418,7 +2805,7 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
   // Theme D: Popular Series Based on Books (Adaptations)
   const bookUrl = buildScopedQuery('tv', {
     sort_by: 'popularity.desc',
-    with_keywords: '818,10214',
+    with_keywords: '818',
     'vote_count.gte': selectedGenreId ? 10 : 80,
   });
   pool.push({
@@ -2470,7 +2857,7 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     });
     pool.push(...tvSlice);
   } else {
-    // Curated standard TV categories — seeded daily so order rotates
+    // Curated standard TV categories â€” seeded daily so order rotates
     const curatedCategories: SmartRow[] = [
       { key: 'tv-us-series',          title: 'US Series',                         fetchUrl: REQUESTS.fetchUSSeries },
       { key: 'tv-trending',           title: 'Your Next Watch',                   fetchUrl: REQUESTS.fetchTrendingTV },
@@ -2495,7 +2882,7 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
   if (!selectedGenreId) {
     pool.forEach(row => trackAdd(row));
   } else {
-    const seededPool = seededPick(pool, pool.length, hash);
+    const seededPool = seededPick(pool, pool.length, Math.abs((hash ^ SESSION_SEED) | 0));
     seededPool.forEach(row => trackAdd(row));
   }
 
@@ -2508,7 +2895,6 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
       const url = REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc') + `&page=${page}`;
       const sig = makeUrlSig(url);
       if (!usedUrls.has(sig)) {
-        usedUrls.add(sig);
         const title = fillTitles[page % fillTitles.length];
         const slug = title.toLowerCase().replace(/[^a-z0-9]/g, '-');
         addRow({ key: `tv-fill-${slug}-${page}`, title, fetchUrl: url });
@@ -2534,3 +2920,7 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     );
   }
 };
+
+
+
+

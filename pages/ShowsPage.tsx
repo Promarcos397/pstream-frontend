@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { REQUESTS } from '../constants';
@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
 import { TV_GENRES } from '../data/pageGenres';
 import { useGlobalContext } from '../context/GlobalContext';
+import { HeroEngine } from '../services/HeroEngine';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -27,6 +28,14 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
   const stateGenre = location.state?.genre as Genre | null;
   const [selectedGenre, setSelectedGenre] = useState<Genre | null>(stateGenre || null);
   const { rows, isLoading } = useDynamicManifest('tv', selectedGenre?.id, selectedGenre?.name);
+
+  useEffect(() => {
+    if (selectedGenre?.id != null) {
+      HeroEngine.invalidateGenreHero('tv', selectedGenre.id);
+    } else {
+      HeroEngine.invalidateGenreHero('tv');
+    }
+  }, [selectedGenre?.id]);
 
   return (
     <div className="relative">

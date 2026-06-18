@@ -212,20 +212,29 @@ export const useDynamicManifest = (
   }, [rows, pageType, selectedGenreId]);
 
   const skipSkeleton = alreadyVisited || isDataCached;
-  const [isLoading, setIsLoading] = useState(!skipSkeleton);
+
+  // Track last committed cacheKey in state so isLoading is true SYNCHRONOUSLY when
+  // the genre changes — prevents a one-frame flash of stale rows before the effect fires.
+  const [committedCacheKey, setCommittedCacheKey] = useState<string>(cacheKey);
+  const [rawLoading, setRawLoading] = useState<boolean>(!skipSkeleton);
+
+  // isLoading is true when either the key hasn't been committed yet OR raw loading flag is set
+  const isLoading = committedCacheKey !== cacheKey || rawLoading;
 
   useEffect(() => {
     clearSeenIds();
     if (!skipSkeleton) {
-      setIsLoading(true);
+      setRawLoading(true);
       const timer = setTimeout(() => {
         visitedCache.add(cacheKey);
-        setIsLoading(false);
+        setCommittedCacheKey(cacheKey);
+        setRawLoading(false);
       }, 80);
       return () => clearTimeout(timer);
     } else {
       visitedCache.add(cacheKey);
-      setIsLoading(false);
+      setCommittedCacheKey(cacheKey);
+      setRawLoading(false);
     }
   }, [pageType, selectedGenreId, clearSeenIds, cacheKey, skipSkeleton]);
 

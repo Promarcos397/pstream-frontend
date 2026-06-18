@@ -6,6 +6,7 @@ import { Movie, RowProps } from '../types';
 import MovieCard from './MovieCard';
 import { fetchData } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
+import { SHADOW_BANNED_IDS } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { getWatchData } from './MovieCardBadges';
 import RowMobile from './RowMobile';
@@ -27,6 +28,10 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
   const MIN_FEED_VOTE_COUNT = useMemo(() => {
     return isTV ? 10 : 30;
   }, [isTV]);
+
+  const isPersonalizedRow = useMemo(() =>
+    !!(rowKey?.includes('personal') || rowKey?.includes('watched') || rowKey?.includes('liked')),
+  [rowKey]);
 
   const handleViewAll = () => {
     if (onViewAll && rowKey && fetchUrl) {
@@ -134,16 +139,26 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
               break;
             }
 
-            const isGenreRow = rowKey?.startsWith('home-genre-');
-
-            const filtered = results.filter((m: Movie) => {
+            let filtered = results.filter((m: Movie) => {
               const hasImage = m.backdrop_path || m.poster_path;
               const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
-              // Dynamic No-Repetition Rule
-              const isNotDuplicate = isGenreRow ? true : !pageSeenIds.includes(Number(m.id));
-              
-              return hasImage && hasMinVotes && isNotDuplicate;
+              const isNotDuplicate = !pageSeenIds.includes(Number(m.id));
+              const isNotBanned = !SHADOW_BANNED_IDS.has(Number(m.id));
+              return hasImage && hasMinVotes && isNotDuplicate && isNotBanned;
             });
+
+            // For personalized rows: remove bottom 30% by quality score so the threshold
+            // adapts to what TMDB returns rather than using a hard vote-count ceiling.
+            // Score = vote_average × log10(vote_count + 10) rewards shows with both
+            // good ratings AND meaningful audience size.
+            if (isPersonalizedRow && filtered.length > 4) {
+              const scores = filtered.map((m: Movie) =>
+                (m.vote_average || 0) * Math.log10((m.vote_count || 0) + 10)
+              );
+              const sorted = [...scores].sort((a, b) => a - b);
+              const cutoff = sorted[Math.floor(sorted.length * 0.3)];
+              filtered = filtered.filter((_: Movie, i: number) => scores[i] >= cutoff);
+            }
 
             filtered.forEach((item: Movie) => {
               if (!gatheredMovies.some(g => g.id === item.id)) {
@@ -337,12 +352,12 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
   return (
     <motion.div
       ref={viewRef}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ 
-        duration: 0.8, 
-        delay: Math.min(index * 0.1, 0.4), // Stagger delay, capped for deep rows
-        ease: [0.16, 1, 0.3, 1] 
+      transition={{
+        duration: 0.4,
+        delay: Math.min(index * 0.06, 0.25),
+        ease: [0.16, 1, 0.3, 1]
       }}
       className="group relative my-3 md:my-4 space-y-1 z-10"
     >

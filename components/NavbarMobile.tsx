@@ -265,7 +265,9 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     return () => clearTimeout(id);
   }, []);
 
-  const opacity = Math.min(1, scrollY / 20);
+  const opacity = scrollY <= 40
+    ? scrollY / 80
+    : Math.min(1, 0.5 + (scrollY - 40) / 160);
 
   // Sync search state with URL
   useEffect(() => {

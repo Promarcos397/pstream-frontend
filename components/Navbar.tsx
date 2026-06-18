@@ -1,4 +1,4 @@
-import React, { useEffect, startTransition } from 'react';
+import React, { useEffect, useState, startTransition } from 'react';
 import { useTranslation } from 'react-i18next';
 import SearchBar from './SearchBar';
 import pstreamWordmark from '../assets/logos/pstream-logo.svg';
@@ -25,6 +25,17 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const isMobile = useIsMobile();
   const avatarUrl = settings.avatarUrl || DEFAULT_AVATAR;
   const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
+
+  const [navScrollY, setNavScrollY] = useState(0);
+  useEffect(() => {
+    if (isMobile) return;
+    const onScroll = () => setNavScrollY(window.scrollY);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [isMobile]);
+  const navBgOpacity = navScrollY <= 40
+    ? navScrollY / 80
+    : Math.min(1, 0.5 + (navScrollY - 40) / 160);
 
   const navItems = [
     { id: 'home', label: t('nav.home', { defaultValue: 'Home' }) },
@@ -87,10 +98,11 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   // --- DESKTOP LAYOUT RENDERING (Standard Layout) ---
   return (
     <nav
-      className={`fixed top-0 w-full z-[80] transition-colors duration-500 
+      className={`fixed top-0 w-full z-[80]
         px-6 md:px-14 lg:px-16
-        ${isSettings ? 'bg-white border-b border-gray-100' : (isScrolled ? 'bg-[#141414]/100' : 'bg-transparent')}
+        ${isSettings ? 'bg-white border-b border-gray-100' : ''}
         ${isSettings ? 'pt-4 pb-4' : 'pt-[calc(1rem+env(safe-area-inset-top))] pb-2 md:pt-1 md:pb-1'}`}
+      style={!isSettings ? { backgroundColor: `rgba(20,20,20,${navBgOpacity})` } : undefined}
     >
       <div className="flex items-center justify-between relative w-full">
         <div className="contents md:flex md:items-center md:space-x-4 md:space-x-8">
