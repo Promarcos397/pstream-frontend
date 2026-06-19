@@ -375,7 +375,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
                 setGlobalMute(!globalMute);
               }
             }}
-            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:border-white shadow-lg group mr-4"
+            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-colors duration-200 hover:bg-white/10 hover:border-white shadow-lg group mr-4"
             aria-label={globalMute ? 'Unmute' : 'Mute'}
           >
             {hasVideoEnded ? (

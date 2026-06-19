@@ -716,10 +716,10 @@ const TopTenCard: React.FC<{
               exit={{ opacity: 0, y: 8, scale: 0.95 }}
               transition={{
                 type: 'spring',
-                stiffness: 380,
-                damping: 34,
-                mass: 0.75,
-                opacity: { duration: 0.12 }
+                stiffness: 450,
+                damping: 32,
+                mass: 0.8,
+                opacity: { duration: 0.15 }
               }}
               style={{
                 ...getPopupFixedStyle(),
@@ -1155,7 +1155,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
         delay: Math.min(index * 0.1, 0.4), 
         ease: [0.16, 1, 0.3, 1] 
       }}
-      className="group relative my-4 md:my-6 space-y-2 z-10 hover:z-50 transition-all duration-300"
+      className="group relative my-4 md:my-6 space-y-2 z-10"
     >
       <h2 className="pl-4 md:pl-10 lg:pl-16 pr-6 md:pr-14 lg:pr-20 text-[20px] sm:text-[22px] md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
         {title}

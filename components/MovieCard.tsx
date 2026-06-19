@@ -763,10 +763,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               exit={{ opacity: 0, y: 8, scale: 0.95 }}
               transition={{
                 type: 'spring',
-                stiffness: 380,
-                damping: 34,
-                mass: 0.75,
-                opacity: { duration: 0.12 }
+                stiffness: 450,
+                damping: 32,
+                mass: 0.8,
+                opacity: { duration: 0.15 }
               }}
               style={{
                 ...getPopupFixedStyle(),

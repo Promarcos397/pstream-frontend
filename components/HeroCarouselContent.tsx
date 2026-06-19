@@ -61,7 +61,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
 
                 {/* Logo/Title - Anchored lower, scales down after delay */}
                 {/* Logo/Title */}
-                <div className={`relative flex items-end mb-3 md:mb-5 origin-bottom-left transition-all duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.6] sm:scale-[0.65] origin-bottom-left translate-y-8 md:translate-y-6' : ''}`}>
+                <div className={`relative flex items-end mb-3 md:mb-5 origin-bottom-left transition-transform duration-700 ${!showDescription && isVideoReady && !hasVideoEnded ? 'scale-[0.6] sm:scale-[0.65] origin-bottom-left translate-y-8 md:translate-y-6' : ''}`}>
                     {logoUrl && !imgFailed ? (
                         <div className="relative inline-flex items-end">
                             {/* Dual-layer premium shadow for perfect legibility on any background */}
@@ -111,9 +111,9 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                 </div>
 
                 {/* Description - Hides after 7 seconds of video play */}
-                <div className={`transition-all duration-600 overflow-hidden ${!showDescription && isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-4 md:mb-6'}`}>
+                <div className={`transition-[opacity,max-height,margin] duration-500 overflow-hidden ${!showDescription && isVideoReady && !hasVideoEnded ? 'opacity-0 max-h-0' : 'opacity-100 max-h-40 mb-4 md:mb-6'}`}>
                     <p
-                        className={`text-[12px] sm:text-[13px] md:text-[15px] font-medium text-white/90 line-clamp-2 md:line-clamp-3 leading-relaxed max-w-[90%] sm:max-w-lg transition-all duration-600 ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
+                        className={`text-[12px] sm:text-[13px] md:text-[15px] font-medium text-white/90 line-clamp-2 md:line-clamp-3 leading-relaxed max-w-[90%] sm:max-w-lg ${['ar', 'he'].includes(t('lang', { defaultValue: 'en' }).split('-')[0]) ? 'text-right' : ''}`}
                     >
                         {movie?.overview}
                     </p>
@@ -129,7 +129,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                             if (rawRect) (window as any).__last_card_rect = rawRect;
                             onSelect(movie, undefined, trailerVideoId);
                         }}
-                        className="flex items-center justify-center bg-[#6d6d6e]/50 text-white px-4 sm:px-6 h-[34px] md:h-[45px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/35 transition-all duration-300 text-[15px] md:text-[18px] gap-2 md:gap-2 pointer-events-auto"
+                        className="flex items-center justify-center bg-[#6d6d6e]/50 text-white px-4 sm:px-6 h-[34px] md:h-[45px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/35 transition-colors duration-200 text-[15px] md:text-[18px] gap-2 md:gap-2 pointer-events-auto"
                     >
                         <InfoIcon weight="bold" className="text-xl md:text-[26px]" />
                         <span className="whitespace-nowrap">{t('hero.moreInfo')}</span>
