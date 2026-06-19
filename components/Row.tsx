@@ -447,7 +447,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
             <div
               className={`absolute top-0 bottom-0 left-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/70 flex group/arrow-left
-                transition-opacity duration-300 rounded-r-sm
+                transition-[opacity,background-color] duration-200 rounded-r-sm
                 ${(!isScrolled || initialLoad)
                   ? 'opacity-0 pointer-events-none'
                   : 'opacity-0 pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto'
@@ -459,7 +459,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
             <div
               className={`absolute top-0 bottom-0 right-0 z-[1000] w-6 md:w-14 lg:w-16 items-center justify-center cursor-pointer
                 bg-transparent hover:bg-[#141414]/70 flex group/arrow-right
-                transition-opacity duration-300 pointer-events-none rounded-l-sm
+                transition-[opacity,background-color] duration-200 pointer-events-none rounded-l-sm
                 ${initialLoad ? 'opacity-0' : 'opacity-0 group-hover/row:opacity-100 group-hover/row:pointer-events-auto'}`}
               onClick={() => scroll('right')}
             >

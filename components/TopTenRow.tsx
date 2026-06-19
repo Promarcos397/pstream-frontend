@@ -347,6 +347,7 @@ const TopTenCard: React.FC<{
   const isCinemaOnly = useIsInTheaters(movie);
   const timerRef = useRef<any>(null);
   const leaveTimerRef = useRef<any>(null);
+  const closeTimerRef = useRef<any>(null);
   const neighborsTimerRef = useRef<any>(null);
   const preloadTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -549,6 +550,11 @@ const TopTenCard: React.FC<{
     if (!prefersHover || isScrolling) return;
     if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
 
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
     // Hover intent delay: Wait 80ms before we actually trigger preload
     if (settings.autoplayPreviews) {
       if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
@@ -638,17 +644,23 @@ const TopTenCard: React.FC<{
       neighborsTimerRef.current = null;
     }
 
-    setIsHovered(false);
-    setHoveredRect(null);
-    setIsHoverVideoReady(false);
-    setIsActuallyPlaying(false);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setIsHovered(false);
+      setHoveredRect(null);
+      setIsHoverVideoReady(false);
+      setIsActuallyPlaying(false);
 
-    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-    leaveTimerRef.current = setTimeout(() => {
       const myId = `card-${movie.id}`;
       if (activePopupId === myId) setActivePopupId(null);
       if (activeVideoId === myId) setActiveVideoId(null);
     }, 200);
+
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = setTimeout(() => {
+      const myId = `card-${movie.id}`;
+      if (activeVideoId === myId) setActiveVideoId(null);
+    }, 400);
   };
 
   const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
@@ -702,12 +714,12 @@ const TopTenCard: React.FC<{
               initial={{ opacity: 0, y: 12, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.95 }}
-              transition={{ 
+              transition={{
                 type: 'spring',
-                stiffness: 450,
-                damping: 32,
-                mass: 0.8,
-                opacity: { duration: 0.15 }
+                stiffness: 380,
+                damping: 34,
+                mass: 0.75,
+                opacity: { duration: 0.12 }
               }}
               style={{
                 ...getPopupFixedStyle(),
@@ -1131,7 +1143,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
   const btnBase =
     `absolute top-1/2 -translate-y-1/2 z-50 ${SIZES.button} w-12 md:w-16 lg:w-20 ` +
     `bg-black/50 hover:bg-black/70 cursor-pointer flex items-center justify-center ` +
-    `transition-all duration-300 opacity-0 pointer-events-none`;
+    `transition-[opacity,background-color] duration-200 opacity-0 pointer-events-none`;
 
   return (
     <motion.div
@@ -1155,7 +1167,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       <div className="relative group/row">
         {/* Left Button */}
         <div
-          className={`${btnBase} left-0 rounded-r-md group-hover/row:opacity-100 group-hover/row:pointer-events-auto`}
+          className={`${btnBase} left-0 rounded-r-md ${scrollState.left ? 'group-hover/row:opacity-100 group-hover/row:pointer-events-auto' : ''}`}
           onClick={() => scroll('left')}
         >
           <CaretLeftIcon size={64} weight="bold" className="text-white" />
