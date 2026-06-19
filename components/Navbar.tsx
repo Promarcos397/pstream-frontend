@@ -115,7 +115,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
       style={!isSettings ? { backgroundColor: `rgba(20,20,20,${navBgOpacity})` } : undefined}
     >
       <div className="flex items-center justify-between relative w-full">
-        <div className="contents md:flex md:items-center md:space-x-4 md:space-x-8">
+        <div className="contents md:flex md:items-center md:space-x-8 lg:space-x-10">
           <img
             src={pstreamWordmark}
             alt="Pstream"
@@ -124,7 +124,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
           />
 
           {!isSettings && (
-            <ul className="hidden md:flex items-center space-x-5 lg:space-x-6 text-sm lg:text-base tracking-[-0.2px] font-normal text-[#e5e5e5]">
+            <ul className="hidden md:flex items-center space-x-4 lg:space-x-5 text-xs lg:text-sm tracking-[-0.2px] font-normal text-[#e5e5e5]">
               {navItems.map((item) => (
                 <li
                   key={item.id}
