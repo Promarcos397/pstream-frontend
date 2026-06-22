@@ -105,10 +105,9 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
     const portalElement = document.getElementById('category-subnav-portal');
 
     const content = (
-        <div className={`relative z-30 flex items-center justify-between pt-3 md:pt-3.5 pb-0 md:pb-0.5 select-none w-full`}>
-            <div className={`flex items-center ${selectedGenre ? 'gap-3 md:gap-[15px]' : 'gap-3 md:gap-[15px]'}`} ref={containerRef}>
-                <h1 className={`font-bold tracking-[-0.5px] text-white flex items-center transition-all duration-300 mt-2 md:mt-2.5
-                    ${selectedGenre ? 'text-2xl md:text-[38px]' : 'text-2xl md:text-[38px]'} leading-tight`}>
+        <div className="relative z-30 flex items-center justify-between px-14 py-3 select-none w-full">
+            <div className="flex items-center gap-4" ref={containerRef}>
+                <h1 className="text-[32px] md:text-[38px] font-bold tracking-[-0.5px] text-white leading-none flex items-center">
                     {selectedGenre ? (
                         <>
                             <span
@@ -126,10 +125,10 @@ const CategorySubNav: React.FC<CategorySubNavProps> = ({
                 </h1>
 
                 {!selectedGenre && (
-                    <div className="relative mt-[10px] md:mt-[12px] ml-4 md:ml-[24px]">
+                    <div className="relative ml-5">
                         <button
                             onClick={toggleMenu}
-                            className={`flex items-center justify-between min-w-[95px] md:min-w-[115px] px-3 py-[4px] md:py-[6px] leading-none text-[13px] md:text-[14px] font-bold tracking-[-0.2px] text-white bg-black hover:bg-white/5 ${genreMenuOpen ? 'bg-white/5' : ''} border border-white/80 transition-colors rounded-none active:scale-95 gap-x-2`}
+                            className={`flex items-center justify-between min-w-[95px] md:min-w-[115px] px-3 py-[5px] leading-none text-[13px] md:text-[14px] font-bold tracking-[-0.2px] text-white bg-black hover:bg-white/5 ${genreMenuOpen ? 'bg-white/5' : ''} border border-white/80 transition-colors rounded-none active:scale-95 gap-x-2`}
                             aria-haspopup="listbox"
                             aria-expanded={genreMenuOpen}
                         >

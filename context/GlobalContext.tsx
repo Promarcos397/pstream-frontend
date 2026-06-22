@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback, useContext, ReactNode } from 'react';
 import { Movie, AppSettings } from '../types';
-import { setApiLanguage } from '../services/api';
+import { setApiLanguage, fetchData } from '../services/api';
+import { REQUESTS } from '../constants';
 import i18n from '../i18n';
 import Cookies from 'js-cookie';
 import { useSettingsStore, DEFAULT_SETTINGS } from '../store/useSettingsStore';
@@ -103,12 +104,8 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   useEffect(() => {
-    import('../constants').then(({ REQUESTS }) => {
-      import('../services/api').then(({ fetchData }) => {
-        fetchData(REQUESTS.fetchTrendingTV).then(res => { if (res) setTop10TV(res.slice(0, 10).map((m: any) => m.id)); });
-        fetchData(REQUESTS.fetchTrendingMovies).then(res => { if (res) setTop10Movies(res.slice(0, 10).map((m: any) => m.id)); });
-      });
-    });
+    fetchData(REQUESTS.fetchTrendingTV).then(res => { if (res) setTop10TV(res.slice(0, 10).map((m: any) => m.id)); });
+    fetchData(REQUESTS.fetchTrendingMovies).then(res => { if (res) setTop10Movies(res.slice(0, 10).map((m: any) => m.id)); });
   }, [settings.displayLanguage]);
 
   const [pageSeenIds, setPageSeenIds] = useState<number[]>([]);

@@ -50,6 +50,16 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --app-x: 16px;
+}
+@media (min-width: 768px) {
+  :root { --app-x: 48px; }
+}
+@media (min-width: 1024px) {
+  :root { --app-x: 56px; }
+}
+
 html {
   scroll-behavior: smooth;
   scrollbar-width: auto;

@@ -58,6 +58,24 @@ const BrowseLanguagePage  = lazy(() => import('./pages/BrowseLanguagePage'));
 const GhostPage           = lazy(() => import('./pages/GhostPage'));
 const NotFoundPage     = lazy(() => import('./pages/NotFoundPage'));
 
+// Prefetch nav pages + hero data during idle time
+const idle = (window as any).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 200));
+idle(() => {
+  import('./pages/HomePage');
+  import('./pages/ShowsPage');
+  import('./pages/MoviesPage');
+  import('./pages/NewPopularPage');
+  import('./pages/MyListPage');
+  import('./pages/BrowseLanguagePage');
+  // Warm hero data for all main pages so backdrop images are browser-cached before first visit
+  import('./services/HeroEngine').then(({ HeroEngine }) => {
+    HeroEngine.getHero('home');
+    HeroEngine.getHero('tv');
+    HeroEngine.getHero('movie');
+    HeroEngine.getHero('new_popular');
+  });
+});
+
 const PageFallback = <div className="h-screen w-screen bg-black" />;
 
 const App: React.FC = () => {
@@ -331,6 +349,45 @@ const App: React.FC = () => {
     navigate(`/browse/${rowKey}?${params.toString()}`);
   }, [navigate]);
 
+// -------------------------------------------------------------
+  // GLOBAL COLLISION ENGINE (Strictly for closing during scroll)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    const mousePos = { x: -1, y: -1 };
+    
+    const updateMouse = (e: MouseEvent) => {
+      mousePos.x = e.clientX;
+      mousePos.y = e.clientY;
+    };
+    
+    window.addEventListener('mousemove', updateMouse);
+
+    const handleScroll = () => {
+      const { x, y } = mousePos;
+      if (x < 0 || y < 0) return;
+      
+      const el = document.elementFromPoint(x, y);
+      if (!el) return;
+
+      // 1. If mouse is over an open popup, do nothing (keep it alive)
+      if (el.closest('[data-popup="true"]')) return;
+
+      // 2. We ONLY use scroll to CLOSE the old popup, NEVER to open a new one.
+      const card = el.closest('[data-card="true"]');
+      const cardId = card ? card.getAttribute('data-card-id') : null;
+      
+      // Dispatch check. Any currently open card will check if it's still under the mouse.
+      window.dispatchEvent(new CustomEvent('pstream:scroll-check', { detail: { cardId } }));
+    };
+
+    window.addEventListener('scroll', handleScroll, true);
+    
+    return () => {
+      window.removeEventListener('mousemove', updateMouse);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, []);
+  
   if (isWatching) {
     return (
       <Suspense fallback={PageFallback}>
@@ -439,6 +496,12 @@ const App: React.FC = () => {
         onClose={handleCloseModal}
         onPlay={handlePlay}
         trailerId={infoVideoId}
+      />
+
+      {/* Netflix-style popup overlay — fixed full-screen, pointer-events off so it doesn't block clicks */}
+      <div
+        id="popup-root"
+        style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}
       />
     </div>
   );

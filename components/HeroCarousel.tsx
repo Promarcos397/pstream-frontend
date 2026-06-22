@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SpeakerSlashIcon, SpeakerHighIcon, ArrowCounterClockwise } from '@phosphor-icons/react';
 import MobileHero from './MobileHero';
-import SkeletonManifest, { ManifestSkeleton } from '../components/ManifestSkeleton';
+import { ManifestSkeleton } from '../components/ManifestSkeleton';
 import { useGlobalContext } from '../context/GlobalContext';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -9,7 +8,6 @@ import HeroCarouselBackground from './HeroCarouselBackground';
 import HeroCarouselContent from './HeroCarouselContent';
 import { Movie } from '../types';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
-import { MaturityBadge } from './MovieCardBadges';
 import HeroSkeleton from './HeroSkeleton';
 
 interface HeroCarouselProps {
@@ -22,16 +20,42 @@ interface HeroCarouselProps {
   pageType?: 'home' | 'movie' | 'tv' | 'new_popular';
 }
 
-const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, seekTime, heroMovie, genreId, pageType: explicitPageType }) => {
-  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState, setIsAppReady, settings, myList, toggleList } = useGlobalContext();
+const resolveHeroCacheKey = (url: string, explicitType?: string, gid?: number): string => {
+  let type = explicitType;
+  if (!type) {
+    if (url.includes('tv')) type = 'tv';
+    else if (url.includes('movie')) type = 'movie';
+    else type = 'home';
+  }
+  return gid ? `${type}_${gid}` : type;
+};
+
+const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, heroMovie, genreId, pageType: explicitPageType }) => {
+  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState, setIsAppReady, settings } = useGlobalContext();
   const networkQuality = useNetworkQuality();
   const isMobile = useIsMobile();
-  const [movie, setMovie] = useState<Movie | null>(null);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // Seed state from cache synchronously — eliminates skeleton flash on revisit
+  const [movie, setMovie] = useState<Movie | null>(() => {
+    const cached = HeroEngine.getCachedHero(resolveHeroCacheKey(fetchUrl || '', explicitPageType, genreId));
+    return cached?.movie ?? null;
+  });
+  const [logoUrl, setLogoUrl] = useState<string | null>(() => {
+    const cached = HeroEngine.getCachedHero(resolveHeroCacheKey(fetchUrl || '', explicitPageType, genreId));
+    return cached?.logoUrl ?? null;
+  });
+  const [loading, setLoading] = useState(() => {
+    return !HeroEngine.getCachedHero(resolveHeroCacheKey(fetchUrl || '', explicitPageType, genreId));
+  });
   const [isBackdropLoaded, setIsBackdropLoaded] = useState(false);
   const [isLogoLoaded, setIsLogoLoaded] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
+
+  // If we started with cached data, mark app ready immediately
+  useEffect(() => {
+    if (!loading) setIsAppReady(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
@@ -318,7 +342,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
     <div
       id="hero-container"
       ref={containerRef}
-      className="relative w-full aspect-[16/7.5] overflow-hidden group bg-black"
+      className="relative w-full aspect-[16/7] overflow-hidden group bg-black"
     >
       {/* Global Skeleton Overlay (Unified Blink) */}
       {loading && (
@@ -346,10 +370,12 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
         onErrored={() => { setShowVideo(false); setIsVideoReady(false); setIsActuallyPlaying(false); }}
       />
       <HeroCarouselContent
-        movie={movie} logoUrl={logoUrl} isVideoReady={isActuallyPlaying} onPlay={onPlay}
+        movie={movie}
+        logoUrl={logoUrl}
+        isVideoReady={isActuallyPlaying}
+        onPlay={onPlay}
         onImageLoad={() => setIsLogoLoaded(true)}
         onSelect={(m) => {
-          // Capture the live trailer time so InfoModal can continue from there
           let t = trailerTimeRef.current;
           try {
             if (heroPlayerRef.current && typeof heroPlayerRef.current.getCurrentTime === 'function') {
@@ -359,36 +385,19 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
           onSelect(m, t > 0 ? t : undefined);
         }}
         hasVideoEnded={hasVideoEnded}
+        showMuteButton={(showVideo && isVideoReady) || hasVideoEnded}
+        globalMute={globalMute}
+        onMuteButtonClick={() => {
+          if (hasVideoEnded) {
+            clearVideoState(movie.id);
+            setHasVideoEnded(false);
+            setReplayCount(prev => prev + 1);
+            setShowVideo(true);
+          } else {
+            setGlobalMute(!globalMute);
+          }
+        }}
       />
-      <div className="absolute right-0 flex items-center gap-3 z-30 pointer-events-auto 
-          bottom-[25%] sm:bottom-[21%] md:bottom-[17%]"
-      >
-        {((showVideo && isVideoReady) || hasVideoEnded) && (
-          <button
-            onClick={() => {
-              if (hasVideoEnded) {
-                clearVideoState(movie.id);
-                setHasVideoEnded(false);
-                setReplayCount(prev => prev + 1);
-                setShowVideo(true);
-              } else {
-                setGlobalMute(!globalMute);
-              }
-            }}
-            className="w-9 h-9 md:w-10 md:h-10 border-[1.5px] border-white/40 rounded-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-md transition-colors duration-200 hover:bg-white/10 hover:border-white shadow-lg group mr-4"
-            aria-label={globalMute ? 'Unmute' : 'Mute'}
-          >
-            {hasVideoEnded ? (
-              <ArrowCounterClockwise size={20} className="text-white" />
-            ) : (
-              globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />
-            )}
-          </button>
-        )}
-        <div className="mr-4">
-          <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} size="md" />
-        </div>
-      </div>
     </div>
   );
 };

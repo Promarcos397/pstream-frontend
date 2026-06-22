@@ -204,9 +204,6 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
         useSettingsStore.getState().setGlobalMute(false);
         useWatchStore.getState().clearHistory();
         useLibraryStore.getState().clearLibrary();
-        localStorage.removeItem('pstream-settings-store');
-        localStorage.removeItem('pstream-watch-store');
-        localStorage.removeItem('pstream-library-store');
       }
     });
 

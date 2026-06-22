@@ -4,7 +4,7 @@ import { CaretRightIcon, CaretLeftIcon } from '@phosphor-icons/react';
 import { animate } from 'framer-motion';
 import { Movie, RowProps } from '../types';
 import MovieCard from './MovieCard';
-import { fetchData } from '../services/api';
+import { fetchData, isUrlCached } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
 import { SHADOW_BANNED_IDS } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -57,7 +57,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
   const viewRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isInView, setIsInView] = useState(!!data || index < 4);
+  const [isInView, setIsInView] = useState(!!data || index < 6);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
   // Sync window width for threshold calculation
@@ -77,7 +77,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
   // Viewport Observer for Lazy Loading
   useEffect(() => {
-    if (data || index < 4) {
+    if (data || index < 6) {
       setIsInView(true);
       return;
     }
@@ -104,7 +104,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
       setMovies([]);
       setPage(1);
       setHasMore(true);
-      setInitialLoad(true);
+      setInitialLoad(!isUrlCached(fetchUrl));
       setIsHidden(false);
 
       if (scrollRef.current) {
@@ -362,7 +362,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
       className="group relative my-3 md:my-4 space-y-1 z-10"
     >
       {/* Row Title */}
-      <div className="flex items-center justify-between px-6 md:px-14 lg:px-16">
+      <div className="flex items-center justify-between px-[var(--app-x)]">
         <h2
           className={`text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit tracking-wide ${canViewAll ? 'hover:text-white' : ''}`}
           onClick={canViewAll ? handleViewAll : undefined}
@@ -399,11 +399,11 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
           }}
         >
           {/* Initial Spacer — aligns first card with title while allowing left peek when scrolled */}
-          <div className="flex-none w-6 md:w-14 lg:w-16 h-full pointer-events-none" />
+          <div className="flex-none h-full pointer-events-none" style={{ width: 'var(--app-x)' }} />
 
           {initialLoad
             ? Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="movie-card-container relative flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.20] bg-[#1e1e1e] rounded-sm overflow-hidden border border-white/[0.04] pointer-events-auto mr-1 md:mr-1.5 lg:mr-2">
+              <div key={i} className="movie-card-container relative flex-none w-[calc((100vw-3rem)/2.3)] sm:w-[calc((100vw-3rem)/3.3)] md:w-[calc((100vw-3.5rem)/4.3)] lg:w-[calc((100vw-4rem)/6.6)] aspect-[7/4.20] bg-[#1e1e1e] rounded-sm overflow-hidden border border-white/[0.04] pointer-events-auto mr-0.5 md:mr-1 lg:mr-1.5">
                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" style={{ animationDelay: `${i * 0.08}s` }} />
                 <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
                 <div className="absolute bottom-4 left-3 space-y-2">
@@ -421,7 +421,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
                   return (
                     <div
                       key={`${movie.id}-${idx}`}
-                      className="movie-card-container relative pointer-events-auto mr-1 md:mr-1.5 lg:mr-2 overflow-visible"
+                      className="movie-card-container relative pointer-events-auto mr-0.5 md:mr-1 lg:mr-1.5 overflow-visible"
                       style={{ zIndex: 'auto' }}
                     >
                       <MovieCard 
@@ -438,7 +438,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
           }
 
           {/* End Spacer — ensures the last card doesn't hit the right edge too abruptly */}
-          <div className="flex-none w-6 md:w-14 lg:w-16 h-full pointer-events-none" />
+          <div className="flex-none h-full pointer-events-none" style={{ width: 'var(--app-x)' }} />
         </div>
 
         {/* Arrows — desktop only, hidden if not enough content to loop */}

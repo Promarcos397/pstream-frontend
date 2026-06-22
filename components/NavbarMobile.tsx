@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, startTransition } from 'react';
-import { House, Bookmark } from '@phosphor-icons/react';
-import { MdCast, MdAirplay } from 'react-icons/md';
+import { House, Bookmark, AirplayIcon, ScreencastIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useSpring, useVelocity, useTransform } from 'framer-motion';
@@ -363,7 +362,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                     ${isAirPlayActive ? 'text-[#3b82f6]' : 'text-white/80 hover:text-white'}`}
                   title={t('nav.airplay')}
                 >
-                  <MdAirplay size={22} />
+                  <AirplayIcon size={22} />
                 </button>
               )}
               {isChromecastAvailable && (
@@ -373,7 +372,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                     ${isChromecastConnected ? 'text-[#3b82f6]' : (isChromecastConnecting ? 'text-[#3b82f6] animate-pulse' : 'text-white/80 hover:text-white')}`}
                   title={t('nav.chromecast')}
                 >
-                  <MdCast size={22} />
+                  <ScreencastIcon size={22} />
                 </button>
               )}
             </div>

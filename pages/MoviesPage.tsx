@@ -75,7 +75,7 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
                 </div>
              )}
               <HeroSkeleton />
-              <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6 px-4 md:px-14 lg:px-16 pt-4 md:pt-10">
+              <main className="relative z-10 pb-12 -mt-2 sm:-mt-4 md:-mt-6 space-y-4 md:space-y-6 px-[var(--app-x)] pt-4 md:pt-10">
                  <ManifestSkeleton count={8} />
               </main>
           </motion.div>
@@ -94,7 +94,7 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
           genreId={selectedGenre?.id}
           pageType="movie"
         />
-        <main className="relative z-10 pb-12 -mt-8 sm:-mt-14 md:-mt-20 space-y-4 md:space-y-6">
+        <main className="relative z-10 pb-12 -mt-2 sm:-mt-4 md:-mt-6 space-y-4 md:space-y-6">
           {rows.map((row, index) => (
             row.type === 'top10' ? (
               <TopTenRow

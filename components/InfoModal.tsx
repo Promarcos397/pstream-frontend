@@ -149,7 +149,7 @@ const InfoModalRatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (
         <div className="relative flex items-center" onMouseEnter={() => setExpanded(true)} onMouseLeave={() => setExpanded(false)}>
             <button
                 type="button"
-                className="border border-white/40 rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white"
+                className="border border-white/40 rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white bg-zinc-800/80 hover:bg-white/15 hover:border-white"
             >
                 <RatingIcon rating={rating} size={22} weight={rating ? 'fill' : 'bold'} className="text-white" maskColor="#444444" />
             </button>
@@ -261,20 +261,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     useEffect(() => {
         if (!movie) return;
-        const scrollY = window.scrollY;
-        document.body.style.position = 'fixed';
-        document.body.style.top = `-${scrollY}px`;
-        document.body.style.left = '0';
-        document.body.style.right = '0';
-        document.body.style.overflowY = 'scroll';
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+        document.body.style.overflow = 'hidden';
+        if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
         setActiveVideoId(`modal-${movie.id}`);
         return () => {
-            document.body.style.position = '';
-            document.body.style.top = '';
-            document.body.style.left = '';
-            document.body.style.right = '';
-            document.body.style.overflowY = '';
-            window.scrollTo({ top: scrollY, behavior: 'instant' as ScrollBehavior });
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
             setActiveVideoId(null);
         };
     }, [movie, setActiveVideoId]);
@@ -473,7 +466,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         e.stopPropagation();
                         handleClose();
                     }}
-                    className="absolute top-4 right-4 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-colors duration-150 hover:bg-white/10 hover:border-white z-50 cursor-pointer shadow-lg"
+                    className="absolute top-4 right-4 w-10 h-10 rounded-full border border-white/40 bg-zinc-800/80 flex items-center justify-center transition-colors duration-150 hover:bg-white/15 hover:border-white z-50 cursor-pointer shadow-lg"
                 >
                     <XIcon size={24} className="text-white" />
                 </button>
@@ -556,7 +549,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             <TooltipWrapper label={isAdded ? t('modal.removeFromList') : t('modal.addToList')}>
                                 <button
                                     onClick={() => toggleList(activeMovie)}
-                                    className="border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white"
+                                    className="border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white border-white/40 bg-zinc-800/80 hover:bg-white/15 hover:border-white"
                                 >
                                     {isAdded ? <CheckIcon size={24} /> : <PlusIcon size={24} />}
                                 </button>
@@ -568,7 +561,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                         onClick={() => {
                                             clearVideoState(activeMovie.id);
                                         }}
-                                        className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
+                                        className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-800/80 hover:bg-white/15 hover:border-white transition-colors duration-150 text-white"
                                     >
                                         <XIcon size={22} weight="bold" />
                                     </button>
@@ -588,7 +581,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             } else { 
                                 setGlobalMute(!globalMute); 
                             } 
-                        }} className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-colors duration-150 hover:bg-white/10 hover:border-white shadow-xl pointer-events-auto cursor-pointer">
+                        }} className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full border border-white/40 bg-zinc-800/80 flex items-center justify-center transition-colors duration-150 hover:bg-white/15 hover:border-white shadow-xl pointer-events-auto cursor-pointer">
                             {hasVideoEnded ? <ArrowCounterClockwiseIcon size={20} className="text-white" /> : globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={20} className="text-white" />}
                         </button>
                     )}

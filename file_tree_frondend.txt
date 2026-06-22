@@ -1,5 +1,5 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-18 10:51:21
+# Generated: 2026-06-21 11:34:24
 # Root: D:\coding-projects\streaming-app\pstream-frontend
 
 pstream-frontend/
@@ -62,6 +62,7 @@ pstream-frontend/
 │   ├── HeroCarousel.tsx
 │   ├── HeroCarouselBackground.tsx
 │   ├── HeroCarouselContent.tsx
+│   ├── HeroMoreInfoButton.tsx
 │   ├── HeroSkeleton.tsx
 │   ├── InfoModal.tsx
 │   ├── InfoModalEpisodes.tsx
@@ -75,6 +76,8 @@ pstream-frontend/
 │   ├── MobileHero.tsx
 │   ├── MovieCard.tsx
 │   ├── MovieCardBadges.tsx
+│   ├── MovieCardPopup.tsx
+│   ├── MovieCardRating.tsx
 │   ├── MovieCardTouch.tsx
 │   ├── Navbar.tsx
 │   ├── NavbarMobile.tsx
@@ -83,6 +86,7 @@ pstream-frontend/
 │   ├── RowMobile.tsx
 │   ├── SearchBar.tsx
 │   ├── SpotlightCard.tsx
+│   ├── TooltipWrapper.tsx
 │   ├── TopTenRow.tsx
 │   ├── TopTenRowMobile.tsx
 │   ├── TrailerPlayer.tsx
@@ -111,6 +115,7 @@ pstream-frontend/
 │   ├── useKeepAlive.ts
 │   ├── useMovieData.ts
 │   ├── useNetworkQuality.ts
+│   ├── usePrefersHover.ts
 │   ├── useScroll.ts
 │   ├── useSearch.ts
 │   ├── useSkipTimestamps.ts
@@ -119,6 +124,8 @@ pstream-frontend/
 │   ├── useTouchGestures.ts
 │   ├── useTrailer.ts
 │   └── useYouTubeCaptions.ts
+├── icons
+│   └── index.tsx
 ├── locales
 │   ├── ar.json
 │   ├── de.json
@@ -138,6 +145,7 @@ pstream-frontend/
 │   └── zh.json
 ├── pages
 │   ├── BrowseGridPage.tsx
+│   ├── BrowseLanguagePage.tsx
 │   ├── CinemaPage.tsx
 │   ├── GhostPage.tsx
 │   ├── HomePage.tsx
@@ -344,4 +352,4 @@ pstream-frontend/
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 27 directories, 313 files
+# 28 directories, 320 files
