@@ -3,7 +3,7 @@ export const BASE_URL = 'https://api.themoviedb.org/3';
 export const SHADOW_BANNED_IDS = new Set([76572, 259537, 79481]);
 export const IMG_PATH = 'https://image.tmdb.org/t/p/w780';
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
-export const LOGO_SIZE = 'w780'; // Higher resolution for professional display
+export const LOGO_SIZE = 'w300';
 
 // Dynamic REQUESTS - URLs are handled by the tmdb service which injects keys/language
 export const REQUESTS = {

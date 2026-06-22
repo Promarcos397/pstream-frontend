@@ -324,8 +324,10 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         };
     }, [controllerRef, broadcastSeek, broadcastMute, broadcastVolume, broadcastSpeed, currentProvider]);
 
-    // React to parent's isPlaying state
+    // React to parent's isPlaying state — skip mount so we don't send pause before the iframe loads
+    const hasMountedPlayRef = useRef(false);
     useEffect(() => {
+        if (!hasMountedPlayRef.current) { hasMountedPlayRef.current = true; return; }
         broadcastPlayPause(isPlaying);
     }, [isPlaying, broadcastPlayPause]);
 
@@ -437,10 +439,10 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     const isIOSOrMac = isIOS || isMac;
 
     // TEMP: Set to true to temporarily pause scaling and zoom hacks
-    const tempPauseScaling = true;
+    const tempPauseScaling = false;
 
     const getHighResFactor = () => {
-        if (tempPauseScaling) return 2.5;
+        if (tempPauseScaling) return 1;
         return isIOSOrMac ? 2.5 : 2.5;
     };
     const highResFactor = getHighResFactor();
@@ -468,7 +470,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                     ref={iframeRef}
                     src={embedUrl}
                     onLoad={handleIframeLoad}
-                    style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                    style={{ width: '100%', height: '100%', border: 'none', display: 'block', transform: 'translateZ(0)', pointerEvents: 'none' }}
                     allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                     allowFullScreen={true}
                     referrerPolicy="no-referrer-when-downgrade"

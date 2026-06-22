@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, animate } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  CaretRightIcon, CaretLeftIcon, PlayIcon, CheckIcon, PlusIcon,
-  ThumbsUpIcon, ThumbsDownIcon, HeartIcon, CaretDownIcon,
-  BookOpenIcon, TicketIcon, ArrowCounterClockwiseIcon,
+  CaretRightIcon, CaretLeftIcon, CheckIcon, PlusIcon,
+  ThumbsUpIcon, ThumbsDownIcon, CaretDownIcon,
+  BookOpenIcon, ArrowCounterClockwiseIcon,
   SpeakerSlashIcon, SpeakerHighIcon, XIcon
 } from '@phosphor-icons/react';
 import { useGlobalContext } from '../context/GlobalContext';
@@ -19,16 +19,14 @@ import { preloadTrailer } from '../hooks/useTrailer';
 import { TrailerPlayer } from './TrailerPlayer';
 import {
   MaturityBadge, BadgeOverlay, HoverProgressBar,
-  getWatchData, ProgressIndicator
+  getWatchData
 } from './MovieCardBadges';
 import { useIsMobile } from '../hooks/useIsMobile';
 import TopTenRowMobile from './TopTenRowMobile';
-import { useIsScrolling } from '../utils/scrollState';
+import { getIsScrolling, onScrollStart, onScrollEnd } from '../utils/scrollState';
 import TooltipWrapper from './TooltipWrapper';
 
-// ─── Shared pointer-type hook (same logic as MovieCard) ────────────────────────
-// IMPORTANT: Only flip to touch-mode when a touch pointer is used AND screen is narrow.
-// A touch laptop at 1440px wide must stay in hover/desktop mode.
+// ─── Shared pointer-type hook ────────────────────────
 type _PHListener = (v: boolean) => void;
 const _phSubs = new Set<_PHListener>();
 let _prefersHover = typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : true;
@@ -59,14 +57,13 @@ function usePrefersHover(): boolean {
   return val;
 }
 
-// ─── Rating Pill (copied from MovieCard) ────────────────────────────────────
+// ─── Rating Pill ────────────────────────────────────
 type MovieRating = 'like' | 'dislike' | 'love';
 
-export const DoubleThumbsUpIcon: React.FC<{ size?: number; weight?: 'fill' | 'bold'; className?: string; maskColor?: string }> = ({ 
-  size = 22, 
-  weight = 'bold', 
-  className = '',
-  maskColor = '#2f2f2f'
+export const DoubleThumbsUpIcon: React.FC<{ size?: number; weight?: 'fill' | 'bold'; className?: string }> = ({
+  size = 22,
+  weight = 'bold',
+  className = ''
 }) => {
   const offset = size * 0.35;
   const maskId = React.useId ? React.useId() : `love-mask-${Math.random().toString(36).substr(2, 9)}`;
@@ -85,33 +82,21 @@ export const DoubleThumbsUpIcon: React.FC<{ size?: number; weight?: 'fill' | 'bo
       >
         <defs>
           <mask id={safeMaskId}>
-            {/* White background: keeps back icon visible */}
             <rect x="0" y="0" width="100%" height="100%" fill="white" />
-            
-            {/* Black silhouette of front icon to cut it out */}
             <g transform={`translate(0, ${offset})`} fill="black" stroke="black" strokeWidth={3} strokeLinejoin="round" strokeLinecap="round">
               <ThumbsUpIcon size={size} weight="fill" />
             </g>
           </mask>
         </defs>
-
-        {/* Draw the back icon, masked by the front icon's cutout */}
         <g mask={`url(#${safeMaskId})`}>
           <g transform={`translate(${offset}, 0)`}>
             <ThumbsUpIcon size={size} weight={weight} />
           </g>
         </g>
       </svg>
-
-      {/* Front icon sits on top of the SVG, aligned with the mask cutout */}
       <div 
         className="absolute"
-        style={{
-          left: 0,
-          top: offset,
-          width: size,
-          height: size,
-        }}
+        style={{ left: 0, top: offset, width: size, height: size }}
       >
         <ThumbsUpIcon size={size} weight={weight} />
       </div>
@@ -119,19 +104,14 @@ export const DoubleThumbsUpIcon: React.FC<{ size?: number; weight?: 'fill' | 'bo
   );
 };
 
-export const RatingIcon: React.FC<{ rating: MovieRating | undefined; size?: number; weight?: 'fill' | 'bold'; className?: string; maskColor?: string }> = ({
+export const RatingIcon: React.FC<{ rating: MovieRating | undefined; size?: number; weight?: 'fill' | 'bold'; className?: string }> = ({
   rating,
   size = 22,
   weight = 'bold',
-  className = '',
-  maskColor = '#2f2f2f'
+  className = ''
 }) => {
-  if (rating === 'love') {
-    return <DoubleThumbsUpIcon size={size} weight={weight} className={className} maskColor={maskColor} />;
-  }
-  if (rating === 'dislike') {
-    return <ThumbsDownIcon size={size} weight={weight} className={className} />;
-  }
+  if (rating === 'love') return <DoubleThumbsUpIcon size={size} weight={weight} className={className} />;
+  if (rating === 'dislike') return <ThumbsDownIcon size={size} weight={weight} className={className} />;
   return <ThumbsUpIcon size={size} weight={weight} className={className} />;
 };
 
@@ -140,45 +120,18 @@ const RatingPillOption: React.FC<{
   isActive: boolean;
   tooltipText: string;
   onClick: () => void;
-  maskColor?: string;
-}> = ({ option, isActive, tooltipText, onClick, maskColor = '#2f2f2f' }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
+}> = ({ option, isActive, tooltipText, onClick }) => {
   return (
-    <div
-      className="relative flex items-center justify-center"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <AnimatePresence>
-        {isHovered && (
-          <motion.div
-            initial={{ opacity: 0, y: 4, scale: 0.9, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
-            exit={{ opacity: 0, y: 2, scale: 0.95, x: '-50%' }}
-            transition={{ duration: 0.1 }}
-            className="absolute bottom-full left-1/2 mb-3 flex flex-col items-center z-[110] pointer-events-none"
-            style={{ transformOrigin: 'bottom center' }}
-          >
-            {/* Tooltip Box */}
-            <div className="bg-[#e6e6e6] text-[#141414] text-[15px] font-extrabold px-5 py-3 rounded-[1px] shadow-[0_8px_24px_rgba(0,0,0,0.5)] whitespace-nowrap leading-none select-none">
-              {tooltipText}
-            </div>
-            {/* Tooltip Arrow */}
-            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#e6e6e6] -mt-[1px]" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <TooltipWrapper label={tooltipText}>
       <button
         onClick={onClick}
         className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors duration-150 hover:bg-white/10 flex-shrink-0 text-white
           ${isActive ? 'bg-white/15' : ''}`}
         title={tooltipText}
       >
-        <RatingIcon rating={option} size={20} weight={isActive ? 'fill' : 'bold'} maskColor={maskColor} />
+        <RatingIcon rating={option} size={20} weight={isActive ? 'fill' : 'bold'} />
       </button>
-    </div>
+    </TooltipWrapper>
   );
 };
 
@@ -194,14 +147,10 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
     >
       <button
         type="button"
-        className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white
-          ${rating
-            ? 'border-white bg-white/15'
-            : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
-          }`}
+        className="border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer text-white border-white/40 bg-zinc-800/80 hover:bg-white/15 hover:border-white"
         title={t('common.rateTitle')}
       >
-        <RatingIcon rating={rating} size={20} weight={rating ? 'fill' : 'bold'} className="text-white" maskColor={expanded ? '#414141' : '#2a2a2a'} />
+        <RatingIcon rating={rating} size={20} weight={rating ? 'fill' : 'bold'} className="text-white" />
       </button>
 
       <AnimatePresence>
@@ -227,9 +176,7 @@ const RatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (r: MovieR
                    option={r}
                    isActive={rating === r}
                    tooltipText={tooltipText}
-                   onClick={() => {
-                     onRate(r);
-                   }}
+                   onClick={() => { onRate(r); }}
                  />
                );
             })}
@@ -248,9 +195,6 @@ const SIZES = {
 };
 
 // ─── Rank Number ────────────────────────────────────────────────────────────
-// 1-9: tall, narrow-ish, hugging the left edge.
-// 10: smaller overall, digits squished together with negative letter-spacing,
-//     container bleeds wider so the "0" peeks past the poster on the right.
 const RankNumber: React.FC<{ index: number }> = ({ index }) => {
   const isTen = index === 9;
   return (
@@ -268,7 +212,6 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
           transform={isTen ? "scale(1.25, 1.08)" : "scale(1.5, 1.12)"}
           style={{ transformOrigin: isTen ? "130px 205px" : "70px 205px" }}
         >
-          {/* Outer Outline Stroke — very white, thinner */}
           <text
             x="8"
             y="195"
@@ -285,7 +228,6 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
           >
             {index + 1}
           </text>
-          {/* Main Body — solid black fill */}
           <text
             x="8"
             y="195"
@@ -308,7 +250,7 @@ const RankNumber: React.FC<{ index: number }> = ({ index }) => {
   );
 };
 
-// ─── TopTenCard (base rank layout + full MovieCard hover popup) ─────────────
+// ─── TopTenCard ──────────────────────────────────────────────────────────────
 const TopTenCard: React.FC<{
   movie: Movie;
   index: number;
@@ -322,43 +264,43 @@ const TopTenCard: React.FC<{
 
   const {
     myList, toggleList, rateMovie, getMovieRating, getVideoState,
-    updateVideoState, getEpisodeProgress, getLastWatchedEpisode,
-    top10TV, top10Movies, activeVideoId, setActiveVideoId,
-    activePopupId, setActivePopupId,
-    globalMute, setGlobalMute, clearVideoState, settings
+    getLastWatchedEpisode, top10TV, top10Movies, activeVideoId, setActiveVideoId,
+    activePopupId, setActivePopupId, globalMute, setGlobalMute, clearVideoState, settings
   } = useGlobalContext();
-  const isScrolling = useIsScrolling();
-
+  
   const [isHovered, setIsHovered] = useState(false);
-  const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
-  const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
+  const isHoveredRef = useRef(false);
+  useEffect(() => { isHoveredRef.current = isHovered; }, [isHovered]);
 
+  const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
+  const [initialScroll, setInitialScroll] = useState({ x: 0, y: 0 }); // NEW: Lock the scroll coords
+  const [hoverPosition, setHoverPosition] = useState<'center' | 'left' | 'right'>('center');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const [logoDim, setLogoDim] = useState<{ ratio: number; isSquare: boolean }>({ ratio: 1.5, isSquare: false });
   const [logoFaded, setLogoFaded] = useState(false);
-
   const [isHoverVideoReady, setIsHoverVideoReady] = useState(false);
   const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
   const [hasVideoEnded, setHasVideoEnded] = useState(false);
   const [replayCount, setReplayCount] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [popupMounted, setPopupMounted] = useState(false); // For fade-in effect
 
   const isCinemaOnly = useIsInTheaters(movie);
-  const timerRef = useRef<any>(null);
   const leaveTimerRef = useRef<any>(null);
   const closeTimerRef = useRef<any>(null);
+  const showTimerRef = useRef<any>(null);
   const neighborsTimerRef = useRef<any>(null);
   const preloadTimerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const cardPlayerRef = useRef<any>(null);
   const cardTrailerTimeRef = useRef<number>(0);
+  const myCardId = `top-ten-card-${movie.id}`;
 
   const isBook = ['series', 'comic', 'manga', 'local'].includes(movie.media_type || '');
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const isTen = index === 9;
 
-  // Intersection Observer for lazy logo fetch
   useEffect(() => {
     if (!cardRef.current) return;
     const observer = new IntersectionObserver((entries) => {
@@ -371,7 +313,6 @@ const TopTenCard: React.FC<{
     return () => observer.disconnect();
   }, []);
 
-  // Fetch logo
   useEffect(() => {
     if (!isVisible) return;
     let isMounted = true;
@@ -384,7 +325,7 @@ const TopTenCard: React.FC<{
           const logo = data.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
           if (logo) setLogoUrl(`https://image.tmdb.org/t/p/${LOGO_SIZE}${logo.file_path}`);
         }
-      } catch (e) { /* silent */ }
+      } catch (e) {}
     };
     fetchLogo();
     return () => { isMounted = false; };
@@ -392,14 +333,11 @@ const TopTenCard: React.FC<{
 
   useEffect(() => {
     if (preload && settings.autoplayPreviews) {
-      const t = setTimeout(() => {
-        preloadTrailer(movie);
-      }, 1000 + (Number(movie.id) % 5) * 200);
+      const t = setTimeout(() => { preloadTrailer(movie); }, 1000 + (Number(movie.id) % 5) * 200);
       return () => clearTimeout(t);
     }
   }, [preload, movie, settings.autoplayPreviews]);
 
-  // Logo fade-out once trailer plays
   useEffect(() => {
     if (isActuallyPlaying && !hasVideoEnded) {
       const t = setTimeout(() => setLogoFaded(true), 3500);
@@ -409,54 +347,40 @@ const TopTenCard: React.FC<{
     }
   }, [isActuallyPlaying, hasVideoEnded]);
 
-  // Unify Popup logic via Context (replaces module singleton)
   useEffect(() => {
-    const myId = `card-${movie.id}`;
-    if (activePopupId && isHovered && (activePopupId !== myId || activePopupId.startsWith('modal-'))) {
+    if (activePopupId && isHovered && (activePopupId !== myCardId || activePopupId.startsWith('modal-'))) {
       setIsHovered(false);
       setHoveredRect(null);
       setIsHoverVideoReady(false);
     }
-  }, [activePopupId, movie.id, isHovered]);
+  }, [activePopupId, myCardId, isHovered]);
 
-  // Force close if another video (e.g. Hero, Modal) takes control
   useEffect(() => {
-    const myId = `card-${movie.id}`;
-    if (activeVideoId && isHovered && (activeVideoId !== myId || activeVideoId.startsWith('modal-'))) {
+    if (activeVideoId && isHovered && (activeVideoId !== myCardId || activeVideoId.startsWith('modal-'))) {
       setIsHovered(false);
       setHoveredRect(null);
     }
-  }, [activeVideoId, movie.id, isHovered]);
+  }, [activeVideoId, myCardId, isHovered]);
 
-  // Collapse popup on scroll / blur / tab-hide
   useEffect(() => {
     if (!isHovered) return;
     const collapse = () => {
-      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      if (showTimerRef.current) { clearTimeout(showTimerRef.current); showTimerRef.current = null; }
       if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
       if (neighborsTimerRef.current) { clearTimeout(neighborsTimerRef.current); neighborsTimerRef.current = null; }
       setIsHovered(false);
       setHoveredRect(null);
       setIsHoverVideoReady(false);
-      const myId = `card-${movie.id}`;
-      if (activePopupId === myId) setActivePopupId(null);
+      if (activePopupId === myCardId) setActivePopupId(null);
     };
-    window.addEventListener('scroll', collapse, { passive: true });
     window.addEventListener('blur', collapse);
     const onVis = () => { if (document.visibilityState === 'hidden') collapse(); };
     document.addEventListener('visibilitychange', onVis);
     return () => {
-      window.removeEventListener('scroll', collapse);
       window.removeEventListener('blur', collapse);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [isHovered]);
-
-  const handleLogoLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const { naturalWidth, naturalHeight } = e.currentTarget;
-    const ratio = naturalWidth / naturalHeight;
-    setLogoDim({ ratio, isSquare: ratio < 1.35 });
-  };
+  }, [isHovered, activePopupId, myCardId, setActivePopupId]);
 
   const getBadgeInfo = () => {
     const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
@@ -490,16 +414,14 @@ const TopTenCard: React.FC<{
 
   const handleOpenModal = (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (showTimerRef.current) { clearTimeout(showTimerRef.current); showTimerRef.current = null; }
     if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
     if (neighborsTimerRef.current) { clearTimeout(neighborsTimerRef.current); neighborsTimerRef.current = null; }
     setIsHovered(false);
     setHoveredRect(null);
-    const myId = `card-${movie.id}`;
-    if (activePopupId === myId) setActivePopupId(null);
-    if (activeVideoId === myId) setActiveVideoId(null);
+    if (activePopupId === myCardId) setActivePopupId(null);
+    if (activeVideoId === myCardId) setActiveVideoId(null);
 
-    // Capture current trailer time from the card hover player
     let trailerT = cardTrailerTimeRef.current;
     try {
       if (cardPlayerRef.current && typeof cardPlayerRef.current.getCurrentTime === 'function') {
@@ -511,7 +433,6 @@ const TopTenCard: React.FC<{
     const rawRect = cardRef.current?.getBoundingClientRect();
     if (rawRect) (window as any).__last_card_rect = rawRect;
 
-    // Pass trailer time if playing, otherwise fall back to movie watch progress
     const timeToPass = trailerT > 0 ? trailerT : (savedState?.time || 0);
     onSelect(movie, timeToPass || undefined, savedState?.videoId || undefined);
   };
@@ -523,145 +444,126 @@ const TopTenCard: React.FC<{
     let left: number;
     if (hoverPosition === 'left') {
       let targetLeft = hoveredRect.left;
-      if (window.innerWidth >= 1024) {
-        targetLeft -= 32; // align to normal row's 64px padding
-      } else if (window.innerWidth >= 768) {
-        // already aligned
-      } else {
-        targetLeft -= 8; // align to normal row's 24px padding
-      }
+      if (window.innerWidth >= 1024) targetLeft -= 32;
+      else if (window.innerWidth < 768) targetLeft -= 8;
       left = targetLeft;
     }
     else if (hoverPosition === 'right') left = hoveredRect.right - POPUP_W;
     else left = hoveredRect.left + hoveredRect.width / 2 - POPUP_W / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
+    
+    // Uses locked coordinates!
     return {
-      position: 'fixed',
-      top: hoveredRect.top + TOP_OFFSET,
-      left: left,
+      position: 'absolute',
+      top: hoveredRect.top + initialScroll.y + TOP_OFFSET,
+      left: left + initialScroll.x,
       width: POPUP_W,
-      zIndex: 9999,
+      zIndex: 3,
+      pointerEvents: 'auto',
     };
   };
 
-  const SHOW_DELAY = 200;
+  const handleMouseEnter = useCallback(() => {
+    if (!prefersHover || getIsScrolling()) return;
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
 
-  const handlePointerEnter = (e: React.PointerEvent) => {
-    if (!prefersHover || isScrolling) return;
-    if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
-
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-
-    // Hover intent delay: Wait 80ms before we actually trigger preload
     if (settings.autoplayPreviews) {
-      if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
-      preloadTimerRef.current = setTimeout(() => {
-        preloadTrailer(movie);
-
-        // Debounce neighbor preloading (150ms after hover intent is confirmed)
-        if (neighbors && neighbors.length > 0) {
-          if (neighborsTimerRef.current) clearTimeout(neighborsTimerRef.current);
-          neighborsTimerRef.current = setTimeout(() => {
-            neighbors.forEach(neighbor => {
-              if (neighbor) {
-                preloadTrailer(neighbor);
-              }
-            });
-          }, 150);
-        }
-      }, 80);
+      preloadTrailer(movie);
+      if (neighbors && neighbors.length > 0) {
+        if (neighborsTimerRef.current) clearTimeout(neighborsTimerRef.current);
+        neighborsTimerRef.current = setTimeout(() => {
+          neighbors.forEach(neighbor => { if (neighbor) preloadTrailer(neighbor); });
+        }, 100);
+      }
     }
 
-    if (cardRef.current) {
-      const rect = cardRef.current.getBoundingClientRect();
+    if (showTimerRef.current) return;
+    if (isHoveredRef.current) return;
+    
+    const delay = 250;
+
+    showTimerRef.current = setTimeout(() => {
+      showTimerRef.current = null;
+      const rect = cardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
       const EDGE_BUFFER = 120;
       let currentPos: 'center' | 'left' | 'right' = 'center';
       if (rect.left < EDGE_BUFFER) currentPos = 'left';
       else if (window.innerWidth - rect.right < EDGE_BUFFER) currentPos = 'right';
       setHoverPosition(currentPos);
-    }
-
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-
-    // ── STAGE: SHOW ──────────────────────────────────────────────────────
-    const showDelay = SHOW_DELAY;
-    const showTimer = setTimeout(() => {
-      const rect = cardRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const dx = e.clientX - rect.left - rect.width / 2;
-      const dy = e.clientY - rect.top - rect.height / 2;
-      if (Math.sqrt(dx * dx + dy * dy) > rect.width * 0.7) return;
 
       setHoveredRect(rect);
+      
+      // LOCK THE SCROLL COORDINATES HERE!
+      setInitialScroll({ x: window.scrollX, y: window.scrollY });
+
       setIsHovered(true);
-      const myId = `card-${movie.id}`;
-      setActivePopupId(myId);
-      setActiveVideoId(myId);
-    }, showDelay);
+      setActivePopupId(myCardId);
+      setActiveVideoId(myCardId);
 
-    timerRef.current = showTimer;
-  };
+      setPopupMounted(false);
+      setTimeout(() => setPopupMounted(true), 10);
+    }, delay);
+  }, [prefersHover, settings.autoplayPreviews, movie, neighbors, myCardId, setActivePopupId, setActiveVideoId]);
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (isScrolling || isHovered || timerRef.current) return;
-    handlePointerEnter(e);
-  };
-
-  useEffect(() => {
-    if (isScrolling && timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-    }
-  }, [isScrolling]);
-
-  // Handle "Snap-to-Hover" when scrolling stops
-  useEffect(() => {
-    if (!isScrolling && !isHovered && prefersHover && cardRef.current) {
-        if (cardRef.current.matches(':hover')) {
-            const mockEvent = { pointerType: 'mouse', clientX: 0, clientY: 0 } as any;
-            handlePointerEnter(mockEvent);
-        }
-    }
-  }, [isScrolling, isHovered, prefersHover]);
-
-  const handlePointerLeave = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    if (preloadTimerRef.current) {
-      clearTimeout(preloadTimerRef.current);
-      preloadTimerRef.current = null;
-    }
-    if (neighborsTimerRef.current) {
-      clearTimeout(neighborsTimerRef.current);
-      neighborsTimerRef.current = null;
-    }
-
+  const handleMouseLeave = useCallback(() => {
+    if (showTimerRef.current) { clearTimeout(showTimerRef.current); showTimerRef.current = null; }
+    if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
+    if (neighborsTimerRef.current) { clearTimeout(neighborsTimerRef.current); neighborsTimerRef.current = null; }
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+
     closeTimerRef.current = setTimeout(() => {
       setIsHovered(false);
       setHoveredRect(null);
       setIsHoverVideoReady(false);
       setIsActuallyPlaying(false);
-
-      const myId = `card-${movie.id}`;
-      if (activePopupId === myId) setActivePopupId(null);
-      if (activeVideoId === myId) setActiveVideoId(null);
+      if (activePopupId === myCardId) setActivePopupId(null);
+      if (activeVideoId === myCardId) setActiveVideoId(null);
     }, 200);
 
     if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
     leaveTimerRef.current = setTimeout(() => {
-      const myId = `card-${movie.id}`;
-      if (activeVideoId === myId) setActiveVideoId(null);
+      if (activeVideoId === myCardId) setActiveVideoId(null);
     }, 400);
-  };
+  }, [activePopupId, activeVideoId, myCardId, setActivePopupId, setActiveVideoId]);
+
+  const handleCancelClose = useCallback(() => {
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
+  }, []);
+
+  useEffect(() => {
+    const onCardEnter = (e: any) => { if (e.detail?.cardId === myCardId) handleMouseEnter(); };
+    const onCardLeave = () => { if (isHoveredRef.current) handleMouseLeave(); };
+    const onPopupEnter = () => { if (isHoveredRef.current) handleCancelClose(); };
+
+    window.addEventListener('pstream:card-enter', onCardEnter);
+    window.addEventListener('pstream:card-leave', onCardLeave);
+    window.addEventListener('pstream:popup-enter', onPopupEnter);
+
+    return () => {
+      window.removeEventListener('pstream:card-enter', onCardEnter);
+      window.removeEventListener('pstream:card-leave', onCardLeave);
+      window.removeEventListener('pstream:popup-enter', onPopupEnter);
+    };
+  }, [myCardId, handleMouseEnter, handleMouseLeave, handleCancelClose]);
+
+  useEffect(() => {
+    const onScrollCheck = (e: any) => {
+      if (isHoveredRef.current && e.detail?.cardId !== myCardId) handleMouseLeave();
+    };
+    const onSettled = (e: any) => {
+      if (e.detail?.element !== cardRef.current) return;
+      if (!prefersHover || isHoveredRef.current) return;
+      handleMouseEnter();
+    };
+    window.addEventListener('pstream:scroll-check', onScrollCheck);
+    window.addEventListener('pstream:scroll-settled', onSettled);
+    return () => {
+      window.removeEventListener('pstream:scroll-check', onScrollCheck);
+      window.removeEventListener('pstream:scroll-settled', onSettled);
+    };
+  }, [myCardId, prefersHover, handleMouseEnter, handleMouseLeave]);
 
   const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
     ? movie.poster_path
@@ -674,17 +576,16 @@ const TopTenCard: React.FC<{
   return (
     <div
       ref={cardRef}
-      data-card
+      data-card="true"
+      data-card-id={myCardId}
       className={`relative flex-none ${SIZES.card} mr-0 cursor-pointer flex items-end pointer-events-auto select-none z-10`}
       style={prefersHover ? { touchAction: 'none' } : undefined}
-      onPointerEnter={prefersHover ? handlePointerEnter : undefined}
-      onPointerLeave={prefersHover ? handlePointerLeave : undefined}
-      onPointerMove={prefersHover ? handlePointerMove : undefined}
+      onMouseEnter={prefersHover ? handleMouseEnter : undefined}
+      onMouseLeave={prefersHover ? handleMouseLeave : undefined}
       onClick={handleOpenModal}
     >
       <RankNumber index={index} />
 
-      {/* Poster + Badges */}
       <div className={`absolute right-[12px] bottom-0 h-full z-10 rounded-sm overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.5)] ${isTen ? 'w-[42%]' : 'w-[46%]'}`}>
         <img
           src={posterSrc}
@@ -696,38 +597,28 @@ const TopTenCard: React.FC<{
         <BadgeOverlay badge={badge} isBook={isBook} />
       </div>
 
-      {/* Progress bar hidden per user request
-      <ProgressIndicator
-        movie={movie}
-        getLastWatchedEpisode={getLastWatchedEpisode}
-        getVideoState={getVideoState}
-      />
-      */}
-
-      {/* ─── Hover Popup (portal) ─────────────────────────────────────────── */}
       {createPortal(
         <AnimatePresence>
           {isHovered && prefersHover && hoveredRect && (
-            <motion.div
-              className="bg-[#141414] rounded-md movie-card-glow overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
+            <div
+              data-popup="true"
               onClick={(e) => e.stopPropagation()}
-              initial={{ opacity: 0, y: 12, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.95 }}
-              transition={{
-                type: 'spring',
-                stiffness: 450,
-                damping: 32,
-                mass: 0.8,
-                opacity: { duration: 0.15 }
-              }}
+              onMouseEnter={handleCancelClose}
+              onMouseLeave={handleMouseLeave}
+              className={`transition-opacity duration-200 ${popupMounted ? 'opacity-100' : 'opacity-0'}`}
               style={{
                 ...getPopupFixedStyle(),
-                willChange: 'transform, opacity',
                 transformOrigin: hoverPosition === 'left' ? 'top left' : hoverPosition === 'right' ? 'top right' : 'top center',
               }}
             >
-              {/* Media Container */}
+            <motion.div
+              className="bg-[#141414] rounded-md overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
+              initial={{ opacity: 0, y: 12, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.13, ease: [0.25, 1, 0.5, 1], opacity: { duration: 0.15 } }}
+              style={{ willChange: 'transform, opacity' }}
+            >
               <div className="relative w-full h-[200px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
                 {(!isBook && settings.autoplayPreviews) ? (
                   <>
@@ -766,7 +657,6 @@ const TopTenCard: React.FC<{
                   />
                 )}
 
-                {/* Mute / Replay */}
                 {!isBook && settings.autoplayPreviews && (
                   <button
                     onClick={(e) => {
@@ -780,7 +670,7 @@ const TopTenCard: React.FC<{
                         setGlobalMute(!globalMute);
                       }
                     }}
-                    className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-900/40 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:bg-white/10 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
+                    className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-800/80 flex items-center justify-center transition-colors duration-150 hover:bg-white/15 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                   >
                     {hasVideoEnded
                       ? <ArrowCounterClockwiseIcon size={24} className="text-white" />
@@ -791,7 +681,6 @@ const TopTenCard: React.FC<{
 
                 <div className="absolute inset-x-0 bottom-0 h-7 bg-gradient-to-t from-[#181818]/70 to-transparent z-10 pointer-events-none" />
 
-                {/* Logo / Title overlay inside media */}
                 <div className={`absolute bottom-3 left-4 right-12 pointer-events-none z-20 transition-opacity duration-1000 ${logoFaded ? 'opacity-0' : 'opacity-100'}`}>
                   {logoUrl && !imgFailed ? (
                     <div className="relative inline-flex items-end max-w-[260px]">
@@ -810,7 +699,7 @@ const TopTenCard: React.FC<{
                       <img
                         src={logoUrl}
                         alt={movie.title || movie.name}
-                        className={`relative w-auto max-w-[260px] object-contain origin-bottom-left transition-all duration-300 z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
+                        className={`relative w-auto max-w-[260px] object-contain origin-bottom-left z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
                         onError={() => setImgFailed(true)}
                       />
                     </div>
@@ -822,9 +711,7 @@ const TopTenCard: React.FC<{
                 </div>
               </div>
 
-              {/* Info Section */}
               <div className="px-4 pt-6 pb-5 space-y-4 bg-[#181818]">
-                {/* Action Buttons */}
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2.5">
                     {isBook ? (
@@ -848,11 +735,7 @@ const TopTenCard: React.FC<{
                     <TooltipWrapper label={isAdded ? t('modal.removeFromList') : t('modal.addToList')}>
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleList(movie); }}
-                        className={`border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white
-                          ${isAdded
-                            ? 'border-white bg-white/15'
-                            : 'border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white'
-                          }`}
+                        className="border rounded-full w-10 h-10 flex items-center justify-center transition-colors duration-150 text-white border-white/40 bg-zinc-800/80 hover:bg-white/15 hover:border-white"
                       >
                         {isAdded ? <CheckIcon size={24} weight="bold" /> : <PlusIcon size={24} weight="bold" />}
                       </button>
@@ -869,9 +752,9 @@ const TopTenCard: React.FC<{
                           onClick={(e) => {
                             e.stopPropagation();
                             clearVideoState(movie.id);
-                            handlePointerLeave();
+                            handleMouseLeave();
                           }}
-                          className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
+                          className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-800/80 hover:bg-white/15 hover:border-white transition-colors duration-150 text-white"
                         >
                           <XIcon size={20} weight="bold" />
                         </button>
@@ -882,14 +765,13 @@ const TopTenCard: React.FC<{
                   <TooltipWrapper label={t('hero.moreInfo')}>
                     <button
                       onClick={handleOpenModal}
-                      className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-900/40 backdrop-blur-md hover:bg-white/10 hover:border-white transition-colors duration-150 text-white"
+                      className="border rounded-full w-10 h-10 flex items-center justify-center border-white/40 bg-zinc-800/80 hover:bg-white/15 hover:border-white transition-colors duration-150 text-white"
                     >
                       <CaretDownIcon size={22} weight="bold" />
                     </button>
                   </TooltipWrapper>
                 </div>
 
-                {/* Metadata */}
                 <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
                   <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
                   {(() => {
@@ -908,7 +790,6 @@ const TopTenCard: React.FC<{
                   {!isBook && <span className="border border-gray-300 text-gray-200 px-1 py-[2px] text-[14px] font-bold rounded-[2px] ml-3">HD</span>}
                 </div>
 
-                {/* Genres or Progress */}
                 {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? (
                   <div className="pt-0.5 pb-1">
                     <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
@@ -925,7 +806,7 @@ const TopTenCard: React.FC<{
                             className="text-gray-400 hover:text-white cursor-pointer transition-colors"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handlePointerLeave();
+                              handleMouseLeave();
                               navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);
                             }}
                           >
@@ -939,9 +820,10 @@ const TopTenCard: React.FC<{
                 )}
               </div>
             </motion.div>
+            </div>
           )}
         </AnimatePresence>,
-        document.body
+        document.getElementById('popup-root') ?? document.body
       )}
     </div>
   );
@@ -964,17 +846,16 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
   const viewRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({ left: false, right: false });
-  const [isInView, setIsInView] = useState(!!data || index < 4);
+  const [isInView, setIsInView] = useState(!!data || index < 6);
 
-  // Viewport Observer for Lazy Loading
   useEffect(() => {
-    if (data || index < 4) {
+    if (data || index < 6) {
       setIsInView(true);
       return;
     }
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setIsInView(true); },
-      { rootMargin: '1200px' } // Load far in advance to prevent scroll lag
+      { rootMargin: '1200px' } 
     );
     if (viewRef.current) observer.observe(viewRef.current);
     return () => observer.disconnect();
@@ -995,7 +876,6 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
           const results = await fetchData(fetchUrl);
           setMovies(results.slice(0, 10));
         } catch (e) {
-          console.error('Top 10 fetch failed', e);
         } finally {
           setLoading(false);
         }
@@ -1039,26 +919,17 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
     const visibleWidth = container.clientWidth;
     const V = Math.max(1, Math.floor(visibleWidth / step));
 
-    // Two-Step Set Logic: 
-    // Step 1: Scroll by (V - 2) to reach the "overlap" point (e.g., Card 5).
-    // Step 2: Scroll by the remainder (SetLength - Step 1) to hit Card 1 perfectly.
     const S1 = Math.max(1, V - 2);
     const S2 = Math.max(1, movies.length - S1);
 
-    // Detect current position in the 10-card cycle
     const currentPos = Math.round(container.scrollLeft / step) % movies.length;
 
-    let scrollCount = V; // Fallback
+    let scrollCount = V;
     if (direction === 'right') {
-      // If we are at Card 1 (0), move to Card 5 (S1)
       if (currentPos === 0) scrollCount = S1;
-      // If we are at Card 5 (S1), move to next Card 1 (SetLength)
       else if (currentPos === S1) scrollCount = S2;
     } else {
-      // Backwards logic:
-      // If at Card 1 (0), jump back to Card 5 (S1)
       if (currentPos === 0) scrollCount = S2;
-      // If at Card 5 (S1), jump back to Card 1 (0)
       else if (currentPos === S1) scrollCount = S1;
     }
 
@@ -1069,7 +940,6 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       ? container.scrollLeft + amount
       : container.scrollLeft - amount;
 
-    // --- Infinity Warping Logic ---
     if (direction === 'left' && rawTarget < 0) {
       container.scrollLeft += oneSetWidth;
       rawTarget += oneSetWidth;
@@ -1079,7 +949,6 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       rawTarget -= oneSetWidth;
     }
 
-    // Snap to nearest card boundary to eliminate 0.5% drift
     const target = Math.round(rawTarget / step) * step;
 
     animate(container.scrollLeft, target, {
@@ -1118,10 +987,9 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       container.scrollLeft += oneSetWidth;
     }
 
-    updateScrollState(); // Update button visibility states if needed
+    updateScrollState();
   };
 
-  // Reset infinite engagement on fetch URL change
   useEffect(() => {
     hasEngagedInfinite.current = false;
   }, [fetchUrl]);
@@ -1150,14 +1018,10 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       ref={viewRef}
       initial={{ opacity: 0, y: 20 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ 
-        duration: 0.8, 
-        delay: Math.min(index * 0.1, 0.4), 
-        ease: [0.16, 1, 0.3, 1] 
-      }}
+      transition={{ duration: 0.8, delay: Math.min(index * 0.1, 0.4), ease: [0.16, 1, 0.3, 1] }}
       className="group relative my-4 md:my-6 space-y-2 z-10"
     >
-      <h2 className="pl-4 md:pl-10 lg:pl-16 pr-6 md:pr-14 lg:pr-20 text-[20px] sm:text-[22px] md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
+      <h2 className="px-[var(--app-x)] text-[20px] sm:text-[22px] md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
         {title}
         <span className="text-xs text-cyan-500 ml-2 opacity-0 group-hover/title:opacity-100 transition-opacity duration-300 flex items-center font-semibold">
           {t('rows.exploreAll')} <CaretRightIcon size={14} className="ml-1" />
@@ -1165,7 +1029,6 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       </h2>
 
       <div className="relative group/row">
-        {/* Left Button */}
         <div
           className={`${btnBase} left-0 rounded-r-md ${scrollState.left ? 'group-hover/row:opacity-100 group-hover/row:pointer-events-auto' : ''}`}
           onClick={() => scroll('left')}
@@ -1173,20 +1036,17 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
           <CaretLeftIcon size={64} weight="bold" className="text-white" />
         </div>
 
-        {/* Scroll Container */}
         <div
           ref={scrollRef}
           onScroll={handleManualScroll}
-          className="flex overflow-x-scroll scrollbar-hide space-x-0 py-10 -my-10 pl-8 md:pl-14 lg:pl-24 pr-6 md:pr-14 lg:pr-20 w-full items-center pointer-events-auto relative z-10"
+          className="flex overflow-x-scroll scrollbar-hide space-x-0 py-10 -my-10 pl-[var(--app-x)] pr-[var(--app-x)] w-full items-center pointer-events-auto relative z-10"
         >
           {loading
             ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} data-card className={`relative flex-none ${SIZES.card} mr-1 sm:mr-2 md:mr-2 flex items-end`}>
-                {/* Number skeleton */}
+              <div key={i} data-card="true" className={`relative flex-none ${SIZES.card} mr-1 sm:mr-2 md:mr-2 flex items-end`}>
                 <div className="absolute left-[-5px] bottom-[-4px] h-[110%] w-[90%] flex items-end justify-start pointer-events-none">
                   <div className="h-[85%] w-[65%] bg-[#222] rounded-sm opacity-40 skew-x-[-6deg]" />
                 </div>
-                {/* Poster skeleton */}
                 <div className="absolute right-0 bottom-0 h-full w-[46%] bg-[#222] rounded-sm border border-white/5 overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.3)]">
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
                 </div>
@@ -1214,7 +1074,6 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
               })()}
         </div>
 
-        {/* Right Button */}
         <div
           className={`${btnBase} right-0 rounded-l-md group-hover/row:opacity-100 group-hover/row:pointer-events-auto`}
           onClick={() => scroll('right')}

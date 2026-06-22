@@ -1755,68 +1755,61 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 1. PRIORITIZED COMFORT ROWS (Based on Card Count)
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // 1. CURATED ANCHOR ROW (rows 0-1 — give the page a strong cold start before any personalization)
+  // 1. CURATED ANCHOR ROWS (non-trending — give the page a strong cold start)
   const primaryCuratedUrl = selectedGenreId
     ? REQUESTS.fetchByGenre('movie', movieGenreId!, 'vote_count.desc')
-    : REQUESTS.fetchTrending;
+    : REQUESTS.fetchTopRated;
   const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
   if (!usedUrls.has(primaryCuratedSig)) {
     usedUrls.add(primaryCuratedSig);
     addRow({
       key: `home-genre-primary-curated-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Most Loved ${baseGenreName}` : 'Trending Now',
+      title: selectedGenreId ? `Most Loved ${baseGenreName}` : 'Award-Winning Films',
       fetchUrl: primaryCuratedUrl,
     });
   }
 
-  // 2. PERSONALIZED ROWS (rows 2-5 — threshold raised to 6 so small lists don't dominate)
-  let CW_at_top = false;
-  let ML_at_top = false;
-
-  // Continue Watching: only near top when list is substantial (>= 6 items)
-  if (continueWatchingRow && continueWatchingRow.data && continueWatchingRow.data.length >= 6) {
-    addRow(continueWatchingRow);
-    CW_at_top = true;
+  const secondCuratedUrl = selectedGenreId
+    ? REQUESTS.fetchByGenre('tv', tvGenreId!, 'vote_count.desc')
+    : REQUESTS.fetchPopular;
+  const secondCuratedSig = makeUrlSig(secondCuratedUrl);
+  if (!usedUrls.has(secondCuratedSig)) {
+    usedUrls.add(secondCuratedSig);
+    addRow({
+      key: `home-genre-secondary-curated-${selectedGenreId || 'all'}`,
+      title: selectedGenreId ? `Popular ${baseGenreName} Series` : 'Popular Right Now',
+      fetchUrl: secondCuratedUrl,
+    });
   }
 
-  // “Because you watched” — 1 row, placed after the curated anchor
-  let watchRowsCount = 0;
+  // 2. PERSONALIZED ROWS
+  // 2. PERSONALIZED ROWS — collected first, then spliced in at specific positions
+  const personalRows: { row: SmartRow; targetIndex: number }[] = [];
+
+  // Continue Watching → row 1
+  if (continueWatchingRow) {
+    personalRows.push({ row: continueWatchingRow, targetIndex: 1 });
+  }
+
+  // “Because you watched” → row 4
   continueWatching.forEach((m) => {
-    if (watchRowsCount >= 1) return;
+    if (personalRows.some(p => p.row.key.startsWith('home-genre-personal-watched'))) return;
     if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     const url = REQUESTS.fetchRecommendations(isTV ? 'tv' : 'movie', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
       usedUrls.add(sig);
-      watchRowsCount++;
-      addRow({
-        key: `home-genre-personal-watched-${m.id}`,
-        title: `Because you watched ${m.title || m.name}`,
-        fetchUrl: url,
+      personalRows.push({
+        row: { key: `home-genre-personal-watched-${m.id}`, title: `Because you watched ${m.title || m.name}`, fetchUrl: url },
+        targetIndex: 4,
       });
     }
   });
 
-  // My List: only near top when substantial (>= 6 items)
-  if (myListRow && myListRow.data && myListRow.data.length >= 6) {
-    addRow(myListRow);
-    ML_at_top = true;
-  }
-
-  // 3. DEMOTED COMFORT ROWS (smaller lists fall here — rows 4-6)
-  if (continueWatchingRow && !CW_at_top) {
-    addRow(continueWatchingRow);
-  }
-
-  if (myListRow && !ML_at_top) {
-    addRow(myListRow);
-  }
-
-  // “Because you liked” — 1 row, after comfort rows
-  let likedRowsCount = 0;
+  // “Because you liked” → row 7
   likedEntries.forEach((entry) => {
-    if (likedRowsCount >= 1) return;
+    if (personalRows.some(p => p.row.key.startsWith('home-genre-personal-liked'))) return;
     const m = entry.movie;
     if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
@@ -1824,31 +1817,40 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
       usedUrls.add(sig);
-      likedRowsCount++;
-      addRow({
-        key: `home-genre-personal-liked-${m.id}`,
-        title: `Because you liked ${m.title || m.name}`,
-        fetchUrl: url,
+      personalRows.push({
+        row: { key: `home-genre-personal-liked-${m.id}`, title: `Because you liked ${m.title || m.name}`, fetchUrl: url },
+        targetIndex: 7,
       });
     }
   });
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // 4. TOP 10 PLACEMENTS (Demoted to index 5-8, split apart)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // First Top 10 split row placed at Row 5 or 6
+  // My List → row 12
+  if (myListRow) {
+    personalRows.push({ row: myListRow, targetIndex: 12 });
+  }
+
+  // 4. TRENDING + TOP 10 — added to personalRows so they're spliced after the fill
+  const trendingAllUrl = REQUESTS.fetchTrending;
+  const trendingAllSig = makeUrlSig(trendingAllUrl);
+  if (!selectedGenreId && !usedUrls.has(trendingAllSig)) {
+    usedUrls.add(trendingAllSig);
+    personalRows.push({ row: { key: 'home-trending-all', title: 'Trending Now', fetchUrl: trendingAllUrl }, targetIndex: 9 });
+  }
+
   const top10MovieUrl = selectedGenreId
     ? REQUESTS.fetchByGenre('movie', movieGenreId!, 'popularity.desc')
     : REQUESTS.fetchTrendingMovies;
   const top10MovieSig = makeUrlSig(top10MovieUrl);
   if (!usedUrls.has(top10MovieSig)) {
     usedUrls.add(top10MovieSig);
-    addRow({
-      key: `home-genre-top10-movie-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Top 10 ${baseGenreName} Films` : 'Top 10 Films in the UK Today',
-      fetchUrl: top10MovieUrl,
-      type: 'top10',
-    });
+    personalRows.push({ row: { key: `home-genre-top10-movie-${selectedGenreId || 'all'}`, title: selectedGenreId ? `Top 10 ${baseGenreName} Films` : 'Top 10 Films in the UK Today', fetchUrl: top10MovieUrl, type: 'top10' }, targetIndex: 10 });
+  }
+
+  const trendingTVUrl = REQUESTS.fetchTrendingTV;
+  const trendingTVSig = makeUrlSig(trendingTVUrl);
+  if (!selectedGenreId && !usedUrls.has(trendingTVSig)) {
+    usedUrls.add(trendingTVSig);
+    personalRows.push({ row: { key: 'home-trending-tv', title: 'Trending Series Right Now', fetchUrl: trendingTVUrl }, targetIndex: 11 });
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -2147,6 +2149,13 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
       }
     }
   }
+
+  // Splice personalized rows into their target positions (sorted ascending so earlier inserts don't shift later ones incorrectly)
+  personalRows
+    .sort((a, b) => a.targetIndex - b.targetIndex)
+    .forEach(({ row, targetIndex }) => {
+      manifest.splice(Math.min(manifest.length, targetIndex), 0, row);
+    });
 };
 
 const countByPrefix = (prefix: string, manifest: SmartRow[]) => 
@@ -2224,17 +2233,8 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     }
   });
 
-  if (myListRow && myListRow.data && myListRow.data.length >= 6) {
-    addRow(myListRow);
-    ML_at_top = true;
-  }
-
   if (filteredContinueWatchingRow && !CW_at_top) {
     addRow(filteredContinueWatchingRow);
-  }
-
-  if (myListRow && !ML_at_top) {
-    addRow(myListRow);
   }
 
   let likedRowsCount = 0;
@@ -2256,6 +2256,10 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
       });
     }
   });
+
+  if (myListRow) {
+    addRow(myListRow);
+  }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 4. TOP 10 PLACEMENTS (Demoted to index 5-8)
@@ -2848,91 +2852,75 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
   const primaryCuratedExtra = selectedGenreId === 10749 ? '&without_original_language=ko,ja,zh' : '';
   const primaryCuratedUrl = selectedGenreId
     ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc', primaryCuratedExtra)
-    : REQUESTS.fetchTrendingTV;
+    : REQUESTS.fetchNetflixOriginals;
   const primaryCuratedSig = makeUrlSig(primaryCuratedUrl);
   if (!usedUrls.has(primaryCuratedSig)) {
     addRow({
       key: `tv-primary-curated-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Popular ${baseGenreName} Series` : 'Trending Series Right Now',
+      title: selectedGenreId ? `Popular ${baseGenreName} Series` : 'Popular Series',
       fetchUrl: primaryCuratedUrl,
     });
   }
 
-  let CW_at_top = false;
-  let ML_at_top = false;
+  // Personalized + Top 10 rows — deferred and spliced after thematic fill
+  const personalRows: { row: SmartRow; targetIndex: number }[] = [];
 
-  if (filteredContinueWatchingRow && filteredContinueWatchingRow.data && filteredContinueWatchingRow.data.length >= 6) {
-    addRow(filteredContinueWatchingRow);
-    CW_at_top = true;
+  // Continue Watching → row 1
+  if (filteredContinueWatchingRow) {
+    personalRows.push({ row: filteredContinueWatchingRow, targetIndex: 1 });
   }
 
-  let watchRowsCount = 0;
+  // Because you watched → row 4
   continueWatching.forEach((m) => {
-    if (watchRowsCount >= 1) return;
+    if (personalRows.some(p => p.row.key.startsWith('tv-personal-watched'))) return;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     if (!isTV) return;
     if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
-
     const url = REQUESTS.fetchRecommendations('tv', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
-      watchRowsCount++;
-      addRow({
-        key: `tv-personal-watched-${m.id}`,
-        title: `Because you watched ${m.title || m.name}`,
-        fetchUrl: url,
+      usedUrls.add(sig);
+      personalRows.push({
+        row: { key: `tv-personal-watched-${m.id}`, title: `Because you watched ${m.title || m.name}`, fetchUrl: url },
+        targetIndex: 4,
       });
     }
   });
 
-  if (myListRow && myListRow.data && myListRow.data.length >= 6) {
-    addRow(myListRow);
-    ML_at_top = true;
-  }
-
-  if (filteredContinueWatchingRow && !CW_at_top) {
-    addRow(filteredContinueWatchingRow);
-  }
-
-  if (myListRow && !ML_at_top) {
-    addRow(myListRow);
-  }
-
-  let likedRowsCount = 0;
+  // Because you liked → row 7
   likedEntries.forEach((entry) => {
-    if (likedRowsCount >= 1) return;
+    if (personalRows.some(p => p.row.key.startsWith('tv-personal-liked'))) return;
     const m = entry.movie;
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     if (!isTV) return;
     if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
-
     const url = REQUESTS.fetchRecommendations('tv', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
-      likedRowsCount++;
-      addRow({
-        key: `tv-personal-liked-${m.id}`,
-        title: `Because you liked ${m.title || m.name}`,
-        fetchUrl: url,
+      usedUrls.add(sig);
+      personalRows.push({
+        row: { key: `tv-personal-liked-${m.id}`, title: `Because you liked ${m.title || m.name}`, fetchUrl: url },
+        targetIndex: 7,
       });
     }
   });
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // 4. TOP 10 PLACEMENTS (Demoted to index 5-8)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // For Romance on TV: add language filter so Top 10 shows Western content, not just K-drama/anime
+  // My List → row 12
+  if (myListRow) {
+    personalRows.push({ row: myListRow, targetIndex: 12 });
+  }
+
+  // Top 10 → row 9
   const top10Extra = selectedGenreId === 10749 ? '&without_original_language=ko,ja,zh' : '';
   const top10Url = selectedGenreId
     ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'vote_count.desc', top10Extra)
     : REQUESTS.fetchTrendingTV;
   const top10Sig = makeUrlSig(top10Url);
   if (!usedUrls.has(top10Sig)) {
-    addRow({
-      key: `tv-top10-genre-${selectedGenreId || 'all'}`,
-      title: selectedGenreId ? `Top 10 ${baseGenreName} Series` : 'Top 10 Series in the UK Today',
-      fetchUrl: top10Url,
-      type: 'top10',
+    usedUrls.add(top10Sig);
+    personalRows.push({
+      row: { key: `tv-top10-genre-${selectedGenreId || 'all'}`, title: selectedGenreId ? `Top 10 ${baseGenreName} Series` : 'Top 10 Series in the UK Today', fetchUrl: top10Url, type: 'top10' },
+      targetIndex: 9,
     });
   }
 
@@ -3534,7 +3522,7 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
   }
 
   // Secondary Top-10 / mid top-10
-  const midUrl = selectedGenreId 
+  const midUrl = selectedGenreId
     ? REQUESTS.fetchByGenre('tv', selectedGenreId, 'popularity.desc') + '&page=2'
     : REQUESTS.fetchTrendingTV + '?page=2';
   const midSig = makeUrlSig(midUrl);
@@ -3543,13 +3531,20 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     insertTop10(
       manifest,
       `tv-mid-top10-${selectedGenreId || 'all'}`,
-      selectedGenreId 
+      selectedGenreId
         ? `Trending ${baseGenreName} Series`
         : `Trending Series in the UK`,
       midUrl,
       Math.min(manifest.length, 8),
     );
   }
+
+  // Splice personalized rows into their target positions after the fill
+  personalRows
+    .sort((a, b) => a.targetIndex - b.targetIndex)
+    .forEach(({ row, targetIndex }) => {
+      manifest.splice(Math.min(manifest.length, targetIndex), 0, row);
+    });
 };
 
 

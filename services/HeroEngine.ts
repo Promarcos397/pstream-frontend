@@ -432,6 +432,7 @@ class HeroEngineService {
     const fromSession = this.fromCache(cacheKey);
     if (fromSession) {
       this.live.set(cacheKey, fromSession);
+      this.preloadBackdrop(fromSession.movie?.backdrop_path);
       return fromSession;
     }
 
@@ -532,7 +533,7 @@ class HeroEngineService {
           if (logo) {
             selectedMovie = c;
             mediaType     = cType;
-            logoUrl       = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+            logoUrl       = `https://image.tmdb.org/t/p/w300${logo.file_path}`;
             externals     = exts;
             break;
           }
@@ -544,7 +545,7 @@ class HeroEngineService {
           externals     = await getExternalIds(selectedMovie.id, mediaType);
           const images  = await getMovieImages(selectedMovie.id, mediaType);
           const logo    = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
-          if (logo) logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+          if (logo) logoUrl = `https://image.tmdb.org/t/p/w300${logo.file_path}`;
         }
 
         const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
@@ -558,6 +559,7 @@ class HeroEngineService {
 
         this.live.set(cacheKey, pkg);
         this.toCache(cacheKey, pkg);
+        this.preloadBackdrop(pkg.movie?.backdrop_path);
         this.listeners.forEach(cb => cb(pageType, pkg));
 
         return pkg;
@@ -579,6 +581,12 @@ class HeroEngineService {
   subscribe(callback: (pageType: string, hero: HeroPackage) => void) {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
+  }
+
+  private preloadBackdrop(backdropPath?: string) {
+    if (!backdropPath || typeof window === 'undefined') return;
+    const img = new window.Image();
+    img.src = `https://image.tmdb.org/t/p/w780${backdropPath}`;
   }
 
   getCachedHero(pageTypeOrKey: string, genreId?: number): HeroPackage | undefined {
