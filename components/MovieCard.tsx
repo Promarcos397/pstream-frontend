@@ -221,7 +221,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       setIsActuallyPlaying(false);
       if (activePopupId === myCardId) setActivePopupId(null);
       if (activeVideoId === myCardId) setActiveVideoId(null);
-    }, 200);
+    }, 0);
   }, [activePopupId, activeVideoId, myCardId, setActivePopupId, setActiveVideoId]);
 
   const handleMouseEnter = useCallback(() => {
@@ -241,7 +241,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     if (showTimerRef.current) return;
     if (isHoveredRef.current) return; 
     
-    const delay = 250; 
+    const delay = 20;
 
     showTimerRef.current = setTimeout(() => {
       showTimerRef.current = null;

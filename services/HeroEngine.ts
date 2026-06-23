@@ -627,6 +627,16 @@ class HeroEngineService {
   getContext() {
     return { timeSlot: getTimeSlot(), season: getSeason(), holiday: getCurrentHoliday() };
   }
+
+  /** Fire background hero fetches for all main page types so switching pages is instant. */
+  prefetchAll() {
+    const PAGE_TYPES: string[] = ['home', 'movie', 'tv'];
+    PAGE_TYPES.forEach(pt => {
+      if (!this.live.has(pt) && !this.initializing.has(pt)) {
+        this.getHero(pt);
+      }
+    });
+  }
 }
 
 export const HeroEngine = new HeroEngineService();

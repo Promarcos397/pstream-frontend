@@ -245,11 +245,32 @@ export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') 
 
 export const getMovieDetails = async (id: number | string, type: 'movie' | 'tv') => {
   try {
-    const { data } = await tmdb.get(`/${type}/${id}`);
+    const appendKey = type === 'movie' ? 'release_dates' : 'content_ratings';
+    const { data } = await tmdb.get(`/${type}/${id}`, { params: { append_to_response: appendKey } });
     if (isBlacklisted(data, 'hard')) {
       console.warn(`[TMDB] Details request blocked for blacklisted content: ${id}`);
       return null;
     }
+
+    // Extract certification — prefer GB (BBFC), fall back to US
+    let certification: string | undefined;
+    if (type === 'movie' && data.release_dates?.results) {
+      const regions: any[] = data.release_dates.results;
+      const pick = (iso: string) => regions.find((r) => r.iso_3166_1 === iso);
+      const region = pick('GB') || pick('US');
+      if (region?.release_dates?.length) {
+        const dates: any[] = region.release_dates;
+        // Prefer theatrical (type 3), then any entry with a cert
+        const cert = (dates.find((d) => d.type === 3 && d.certification) || dates.find((d) => d.certification))?.certification;
+        if (cert) certification = cert;
+      }
+    } else if (type === 'tv' && data.content_ratings?.results) {
+      const regions: any[] = data.content_ratings.results;
+      const pick = (iso: string) => regions.find((r) => r.iso_3166_1 === iso);
+      certification = pick('GB')?.rating || pick('US')?.rating;
+    }
+
+    if (certification) data.certification = certification;
     return data;
   } catch (e) {
     console.error(`[TMDB] Details ${type}/${id}:`, e);
@@ -409,17 +430,25 @@ export const searchMovies = async (query: string) => {
 
 export const fetchData = async (url: string) => {
   if (_dataCache.has(url)) return _dataCache.get(url);
+  if (_pending.has(url)) return _pending.get(url);
 
-  try {
-    const { data } = await tmdb.get(url);
-    const results = data.results || [];
-    const filteredResults = results.filter((item: any) => !isBlacklisted(item, 'any'));
-    _dataCache.set(url, filteredResults);
-    return filteredResults;
-  } catch (e) {
-    console.error('[TMDB] fetchData error:', e);
-    return [];
-  }
+  const promise = (async () => {
+    try {
+      const { data } = await tmdb.get(url);
+      const results = data.results || [];
+      const filteredResults = results.filter((item: any) => !isBlacklisted(item, 'any'));
+      _dataCache.set(url, filteredResults);
+      return filteredResults;
+    } catch (e) {
+      console.error('[TMDB] fetchData error:', e);
+      return [];
+    } finally {
+      _pending.delete(url);
+    }
+  })();
+
+  _pending.set(url, promise);
+  return promise;
 };
 
 export default tmdb;

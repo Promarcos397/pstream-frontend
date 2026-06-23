@@ -41,7 +41,7 @@ interface MovieCardPopupProps {
   onMouseEnter: () => void;
 }
 
-export const POPUP_W = 343;
+export const POPUP_W = 341;
 export const TOP_OFFSET = -88;
 
 export function calcPopupPosition(
@@ -57,7 +57,11 @@ export function calcPopupPosition(
   } else {
     left = rect.left + rect.width / 2 - POPUP_W / 2;
   }
-  left = Math.max(8, Math.min(left, window.innerWidth - POPUP_W - 8));
+  let appX = 16;
+  if (window.innerWidth >= 1024) appX = 56;
+  else if (window.innerWidth >= 768) appX = 48;
+
+  left = Math.max(appX, Math.min(left, window.innerWidth - POPUP_W - appX));
   
   // Use the LOCKED scroll variables, not the live window variables!
   return { 
@@ -141,7 +145,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
       onClick={(e) => e.stopPropagation()}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`transition-[opacity,transform] duration-200 ease-out ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.97]'}`}
+      className={`transition-[opacity,transform] duration-[50ms] ease-out ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.97]'}`}
       style={{
         position: 'absolute',
         top,
@@ -298,22 +302,22 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
 
         {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct <= 0 && (
           <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
-            <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} />
+            <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={movie.certification} />
 
             {(() => {
-              if (isBook) return <span className="text-white/70">{movie.media_type === 'series' ? 'Series' : 'Comic'}</span>;
+              if (isBook) return <span className="text-white">{movie.media_type === 'series' ? 'Series' : 'Comic'}</span>;
               const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
               if (isTV) {
                 const s = movie.number_of_seasons;
-                return <span className="text-white/70">{s ? `${s} ${s === 1 ? 'Season' : 'Seasons'}` : 'TV Series'}</span>;
+                return <span className="text-white">{s ? `${s} ${s === 1 ? 'Season' : 'Seasons'}` : 'TV Series'}</span>;
               }
               if (!movie.runtime) return null;
               const h = Math.floor(movie.runtime / 60);
               const m = movie.runtime % 60;
-              return <span className="text-white/70">{h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`}</span>;
+              return <span className="text-white">{h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`}</span>;
             })()}
 
-            {!isBook && <span className="border border-gray-300 text-gray-200 px-1 py-[2px] text-[14px] font-bold rounded-[2px] ml-3">HD</span>}
+            {!isBook && <span className="border border-white text-white px-1.5 py-0 text-[10px] font-bold rounded-[2px] ml-3 leading-[1.3]">HD</span>}
           </div>
         )}
 
@@ -340,7 +344,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
               return (
                 <span key={genreId} className="flex items-center">
                   <span
-                    className="text-gray-400 hover:text-white cursor-pointer transition-colors"
+                    className="text-white/80 hover:text-white cursor-pointer transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       onMouseLeave();
@@ -349,7 +353,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
                   >
                     {genreName}
                   </span>
-                  {idx < arr.length - 1 && <span className="text-gray-500 mx-1.5 text-[16px] leading-none">•</span>}
+                  {idx < arr.length - 1 && <span className="text-white/30 mx-1.5 text-[16px] leading-none">•</span>}
                 </span>
               );
             })}

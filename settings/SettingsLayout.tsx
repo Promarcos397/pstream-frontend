@@ -200,7 +200,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
 /* ═══════════════════════════════════════════════════════════════
    PROFILE EDIT PAGE — Large avatar + name input
    ═══════════════════════════════════════════════════════════════ */
-import { AVATAR_CATEGORIES } from '../constants';
+import { AVATAR_CATEGORIES, ALL_AVATARS } from '../constants';
+import { preloadAvatars } from '../utils/avatarCache';
 
 const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Partial<AppSettings>) => void }> = ({ settings, updateSettings }) => {
     const navigate = useNavigate();
@@ -303,6 +304,8 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
 const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: Partial<AppSettings>) => void }> = ({ settings, updateSettings }) => {
     const navigate = useNavigate();
     const { t } = useTranslation();
+
+    useEffect(() => { preloadAvatars(ALL_AVATARS); }, []);
 
     const handleSelectAvatar = (url: string) => {
         updateSettings({ avatarUrl: url });

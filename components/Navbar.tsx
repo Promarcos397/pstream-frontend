@@ -6,6 +6,7 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DEFAULT_AVATAR } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useAvatarReady } from '../hooks/useAvatarReady';
 import NavbarMobile from './NavbarMobile';
 
 interface NavbarProps {
@@ -23,22 +24,14 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { settings, user, logout } = useGlobalContext();
+  const { settings, user } = useGlobalContext();
   const isSettings = location.pathname.startsWith('/settings');
   const isMobile = useIsMobile();
   const avatarUrl = settings.avatarUrl || DEFAULT_AVATAR;
   const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
 
   const [navScrollY, setNavScrollY] = useState(0);
-  const [avatarLoaded, setAvatarLoaded] = useState(false);
-
-  useEffect(() => {
-    setAvatarLoaded(false);
-    if (!avatarUrl) return;
-    const img = new Image();
-    img.onload = () => setAvatarLoaded(true);
-    img.src = avatarUrl;
-  }, [avatarUrl]);
+  const avatarLoaded = useAvatarReady(avatarUrl);
 
   useEffect(() => {
     if (isMobile) return;
@@ -122,12 +115,12 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
         <img
           src={pstreamWordmark}
           alt="Pstream"
-          className="h-[22px] cursor-pointer transition-transform hover:scale-105 flex-shrink-0"
+          className="h-[26px] cursor-pointer flex-shrink-0"
           onClick={() => handleTabClick('home')}
         />
 
         {!isSettings && (
-          <ul className="flex items-center gap-5 ml-8 text-xs lg:text-sm tracking-[-0.2px] font-normal text-[#e5e5e5]">
+          <ul className="flex items-center gap-5 ml-8 text-[14px] tracking-[-0.2px] font-normal text-[#e5e5e5]">
             {navItems.map((item) => (
               <li
                 key={item.id}
@@ -161,70 +154,24 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
               {t('nav.signIn')}
             </button>
           ) : (
-            <div className="relative group/profile py-2 flex items-center">
-              <div className="flex items-center cursor-pointer">
-                <div
-                  className="w-8 h-8 rounded overflow-hidden shadow-md group-hover/profile:ring-2 ring-white/60 transition-all flex items-center justify-center relative"
-                  style={{ background: '#E50914' }}
-                >
-                  <span className="text-white font-bold text-sm absolute">{avatarInitial}</span>
-                  {avatarUrl && (
-                    <img
-                      src={avatarUrl}
-                      alt="Profile"
-                      decoding="async"
-                      className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-300 ${avatarLoaded ? 'opacity-100' : 'opacity-0'}`}
-                    />
-                  )}
-                </div>
-                <span className="border-t-[4px] border-t-white border-x-[4px] border-x-transparent ml-2 transition-transform duration-300 group-hover/profile:rotate-180" />
-              </div>
-
-              {/* Dropdown */}
-              <div className="absolute right-0 top-full mt-2 w-56 bg-black/95 border border-white/10 rounded-md shadow-2xl p-2 hidden group-hover/profile:flex flex-col text-sm text-white/90 animate-fadeIn z-[90] backdrop-blur-md">
-                <div className="absolute right-3.5 bottom-full w-0 h-0 border-b-[6px] border-b-black/95 border-x-[6px] border-x-transparent" />
-
-                <div className="px-3 py-2 flex items-center gap-2.5 border-b border-white/10">
-                  <div
-                    className="w-6 h-6 rounded overflow-hidden flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white relative"
-                    style={{ background: '#E50914' }}
-                  >
-                    <span className="absolute">{avatarInitial}</span>
-                    {avatarUrl && (
-                      <img src={avatarUrl} decoding="async" className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-300 ${avatarLoaded ? 'opacity-100' : 'opacity-0'}`} alt="" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold truncate leading-none text-white text-xs">
-                      {settings.displayName || user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User'}
-                    </p>
-                    <p className="text-[10px] text-white/40 truncate mt-0.5">{user?.email}</p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleTabClick('settings')}
-                  className="w-full text-left px-3 py-2 hover:bg-white/10 rounded transition-colors text-xs font-semibold mt-1"
-                >
-                  {t('nav.accountSettings')}
-                </button>
-                <button
-                  onClick={() => handleTabClick('list')}
-                  className="w-full text-left px-3 py-2 hover:bg-white/10 rounded transition-colors text-xs font-semibold"
-                >
-                  {t('nav.myList')}
-                </button>
-
-                <div className="h-px bg-white/10 my-1" />
-
-                <button
-                  onClick={() => { logout(); navigate('/'); }}
-                  className="w-full text-left px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors text-xs font-bold"
-                >
-                  {t('nav.logOut')}
-                </button>
-              </div>
-            </div>
+            <button
+              onClick={() => handleTabClick('settings')}
+              onMouseEnter={() => preloadPage('settings')}
+              className="w-8 h-8 rounded overflow-hidden shadow-md transition-all flex items-center justify-center relative focus-visible:outline-none"
+              style={{ background: '#E50914' }}
+              aria-label="Account settings"
+            >
+              <span className="text-white font-bold text-sm absolute">{avatarInitial}</span>
+              {avatarUrl && (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-300 ${avatarLoaded ? 'opacity-100' : 'opacity-0'}`}
+                />
+              )}
+            </button>
           )}
         </div>
       </div>

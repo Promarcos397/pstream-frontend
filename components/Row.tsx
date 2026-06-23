@@ -4,7 +4,7 @@ import { CaretRightIcon, CaretLeftIcon } from '@phosphor-icons/react';
 import { animate } from 'framer-motion';
 import { Movie, RowProps } from '../types';
 import MovieCard from './MovieCard';
-import { fetchData, isUrlCached } from '../services/api';
+import { fetchData, isUrlCached, getMovieImages } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
 import { SHADOW_BANNED_IDS } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -107,100 +107,113 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
       setInitialLoad(!isUrlCached(fetchUrl));
       setIsHidden(false);
 
-      if (scrollRef.current) {
-        // We do not reset scrollLeft to 0 here because it breaks the infinite loop offset.
-      }
+      const buildPageUrl = (n: number) => {
+        if (n === 1) return fetchUrl;
+        return fetchUrl.includes('page=')
+          ? fetchUrl.replace(/page=\d+/, `page=${n}`)
+          : `${fetchUrl}${fetchUrl.includes('?') ? '&' : '?'}page=${n}`;
+      };
+
+      const filterBatch = (results: Movie[]): Movie[] =>
+        results.filter((m: Movie) => {
+          const hasImage = m.backdrop_path || m.poster_path;
+          const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
+          const isNotDuplicate = !pageSeenIds.includes(Number(m.id));
+          const isNotBanned = !SHADOW_BANNED_IDS.has(Number(m.id));
+          return hasImage && hasMinVotes && isNotDuplicate && isNotBanned;
+        });
+
+      const qualityTrim = (arr: Movie[]): Movie[] => {
+        if (!isPersonalizedRow || arr.length <= 4) return arr;
+        const scores = arr.map(m => (m.vote_average || 0) * Math.log10((m.vote_count || 0) + 10));
+        const sorted = [...scores].sort((a, b) => a - b);
+        const cutoff = sorted[Math.floor(sorted.length * 0.3)];
+        return arr.filter((_, i) => scores[i] >= cutoff);
+      };
+
+      // Strided Tier Shuffle: randomises within tiers to preserve quality gradient
+      const stridedTierShuffle = (array: Movie[], baseTierSize = 15): Movie[] => {
+        const result: Movie[] = [];
+        const dynamicTierSize = baseTierSize + Math.floor(Math.random() * 12) - 3;
+        for (let i = 0; i < array.length; i += dynamicTierSize) {
+          const tier = array.slice(i, i + dynamicTierSize);
+          for (let j = tier.length - 1; j > 0; j--) {
+            const k = Math.floor(Math.random() * (j + 1));
+            [tier[j], tier[k]] = [tier[k], tier[j]];
+          }
+          result.push(...tier);
+        }
+        return result;
+      };
 
       const loadRowData = async () => {
         try {
           if (!isMounted) return;
 
-          let gatheredMovies: Movie[] = [];
-          let currentPage = 1;
-          let keepFetching = true;
-
-          // Loop up to 8 pages to compile a rich, deep set of movies for the row
-          while (keepFetching && gatheredMovies.length < 120 && currentPage <= 8) {
-            let targetUrl = fetchUrl;
-            if (currentPage > 1) {
-              if (targetUrl.includes('page=')) {
-                targetUrl = targetUrl.replace(/page=\d+/, `page=${currentPage}`);
-              } else {
-                const separator = targetUrl.includes('?') ? '&' : '?';
-                targetUrl = `${targetUrl}${separator}page=${currentPage}`;
-              }
-            }
-
-            const results = await fetchData(targetUrl);
-            if (!isMounted) break;
-
-            if (!results || results.length === 0) {
-              keepFetching = false;
-              break;
-            }
-
-            let filtered = results.filter((m: Movie) => {
-              const hasImage = m.backdrop_path || m.poster_path;
-              const hasMinVotes = !m.vote_count || m.vote_count >= MIN_FEED_VOTE_COUNT;
-              const isNotDuplicate = !pageSeenIds.includes(Number(m.id));
-              const isNotBanned = !SHADOW_BANNED_IDS.has(Number(m.id));
-              return hasImage && hasMinVotes && isNotDuplicate && isNotBanned;
-            });
-
-            // For personalized rows: remove bottom 30% by quality score so the threshold
-            // adapts to what TMDB returns rather than using a hard vote-count ceiling.
-            // Score = vote_average × log10(vote_count + 10) rewards shows with both
-            // good ratings AND meaningful audience size.
-            if (isPersonalizedRow && filtered.length > 4) {
-              const scores = filtered.map((m: Movie) =>
-                (m.vote_average || 0) * Math.log10((m.vote_count || 0) + 10)
-              );
-              const sorted = [...scores].sort((a, b) => a - b);
-              const cutoff = sorted[Math.floor(sorted.length * 0.3)];
-              filtered = filtered.filter((_: Movie, i: number) => scores[i] >= cutoff);
-            }
-
-            filtered.forEach((item: Movie) => {
-              if (!gatheredMovies.some(g => g.id === item.id)) {
-                gatheredMovies.push(item);
-              }
-            });
-
-            currentPage++;
-          }
-
+          // Phase 1: fetch pages 1+2 in parallel → show content immediately
+          const [r1, r2] = await Promise.all([
+            fetchData(buildPageUrl(1)),
+            fetchData(buildPageUrl(2)),
+          ]);
           if (!isMounted) return;
 
-          // Strided Tier Shuffle Algorithm with dynamic tier size
-          const stridedTierShuffle = (array: Movie[], baseTierSize: number = 15): Movie[] => {
-            const result: Movie[] = [];
-            // Randomize tier size between 12 and 24 to create a dynamic shuffle feel each session
-            const dynamicTierSize = baseTierSize + Math.floor(Math.random() * 12) - 3;
-            for (let i = 0; i < array.length; i += dynamicTierSize) {
-              const tier = array.slice(i, i + dynamicTierSize);
-              for (let j = tier.length - 1; j > 0; j--) {
-                const k = Math.floor(Math.random() * (j + 1));
-                [tier[j], tier[k]] = [tier[k], tier[j]];
-              }
-              result.push(...tier);
-            }
-            return result;
-          };
+          const initial = qualityTrim(filterBatch([...(r1 || []), ...(r2 || [])]));
 
-          if (gatheredMovies.length < 3) {
-            setIsHidden(true); // Don't show sparse, awkward rows
-          } else {
-            const finalMovies = stridedTierShuffle(gatheredMovies);
-            setMovies(finalMovies);
-            registerSeenIds(finalMovies.map((m: Movie) => Number(m.id)));
+          if (initial.length < 3) {
+            setIsHidden(true);
+            setInitialLoad(false);
+            return;
+          }
+
+          const gatheredIds = new Set<number | string>(initial.map(m => m.id));
+          const firstFrame = stridedTierShuffle(initial);
+          setMovies(firstFrame);
+          setInitialLoad(false);
+          registerSeenIds(firstFrame.map(m => Number(m.id)));
+
+          // Check logos for the first viewport-worth of cards and push logo-less ones past the visible area
+          const LOGO_CHECK = Math.min(firstFrame.length, 10);
+          Promise.all(
+            firstFrame.slice(0, LOGO_CHECK).map(async m => {
+              const mt = (m.media_type || (m.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+              const data = await getMovieImages(String(m.id), mt);
+              const hasLogo = !!(data?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null));
+              return { id: String(m.id), hasLogo };
+            })
+          ).then(results => {
+            if (!isMounted) return;
+            const noLogoIds = new Set(results.filter(r => !r.hasLogo).map(r => r.id));
+            if (noLogoIds.size === 0) return;
+            setMovies(prev => {
+              const withLogo = prev.filter(m => !noLogoIds.has(String(m.id)));
+              const noLogo   = prev.filter(m =>  noLogoIds.has(String(m.id)));
+              return [...withLogo, ...noLogo];
+            });
+          }).catch(() => {});
+
+          // Phase 2: append pages 3–8 in the background, no re-shuffle
+          let gathered = [...initial];
+          for (let p = 3; gathered.length < 120 && p <= 8; p++) {
+            const results = await fetchData(buildPageUrl(p));
+            if (!isMounted) return;
+            if (!results || results.length === 0) break;
+
+            const fresh = filterBatch(results).filter(m => !gatheredIds.has(m.id));
+            if (fresh.length > 0) {
+              fresh.forEach(m => gatheredIds.add(m.id));
+              gathered.push(...fresh);
+              setMovies(prev => [...prev, ...fresh]);
+              registerSeenIds(fresh.map(m => Number(m.id)));
+            }
           }
         } catch (error) {
-          console.error("Error loading row data:", error);
+          console.error('Error loading row data:', error);
           if (isMounted) setIsHidden(true);
         } finally {
           if (isMounted) setInitialLoad(false);
         }
       };
+
       loadRowData();
       return () => { isMounted = false; };
     }

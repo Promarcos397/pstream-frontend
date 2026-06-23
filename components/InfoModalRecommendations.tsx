@@ -130,7 +130,7 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
                 {/* Metadata row — wider tags, consistent with InfoModal */}
                 <div className="flex items-center justify-between gap-2 mb-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <MaturityBadge adult={rec.adult} voteAverage={rec.vote_average} size="sm" />
+                        <MaturityBadge adult={rec.adult} voteAverage={rec.vote_average} certification={rec.certification} size="sm" />
                         {/* HD tag — matches InfoModal's badge style */}
                         <span className="border border-gray-400 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-300 h-fit leading-none font-extrabold">
                             HD

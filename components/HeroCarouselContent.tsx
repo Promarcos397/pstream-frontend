@@ -65,41 +65,15 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                     {/* Logo / title */}
                     <div className={`relative flex items-end transition-transform duration-700 origin-bottom-left ${isShrunken ? 'scale-[0.65] sm:scale-[0.7]' : ''}`}>
                         {logoUrl && !imgFailed ? (
-                            <div className="relative inline-flex items-end max-w-full overflow-hidden">
-                                <img
-                                    src={logoUrl}
-                                    aria-hidden
-                                    className="absolute object-contain object-bottom"
-                                    style={{
-                                        filter: 'blur(25px) brightness(0) opacity(0.5)',
-                                        transform: 'translate(4px, 12px) scale(1.08)',
-                                        pointerEvents: 'none',
-                                        zIndex: 0,
-                                        width: '100%', height: '100%', inset: 0,
-                                    }}
-                                />
-                                <img
-                                    src={logoUrl}
-                                    aria-hidden
-                                    className="absolute object-contain object-bottom"
-                                    style={{
-                                        filter: 'blur(4px) brightness(0) opacity(0.35)',
-                                        transform: 'translate(2px, 4px) scale(1.02)',
-                                        pointerEvents: 'none',
-                                        zIndex: 0,
-                                        width: '100%', height: '100%', inset: 0,
-                                    }}
-                                />
-                                <img
-                                    ref={logoImgRef}
-                                    src={logoUrl}
-                                    alt={movie?.name || movie?.title || 'title logo'}
-                                    className="relative object-contain object-bottom"
-                                    style={{ zIndex: 1, maxHeight: 'clamp(85px, 20vw, 210px)', maxWidth: '100%' }}
-                                    onLoad={onImageLoad}
-                                    onError={() => setImgFailed(true)}
-                                />
-                            </div>
+                            <img
+                                ref={logoImgRef}
+                                src={logoUrl}
+                                alt={movie?.name || movie?.title || 'title logo'}
+                                className="object-contain object-bottom drop-shadow-xl"
+                                style={{ maxHeight: 'clamp(85px, 20vw, 210px)', maxWidth: '100%' }}
+                                onLoad={onImageLoad}
+                                onError={() => setImgFailed(true)}
+                            />
                         ) : (
                             <h1 className="text-3xl sm:text-5xl md:text-6xl font-black font-leaner drop-shadow-xl leading-none text-white tracking-wide uppercase">
                                 {movie?.name || movie?.title || ''}
@@ -142,7 +116,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                         </button>
                     )}
                     <div className="flex items-center bg-[#2e2e2e]/40 h-10 pl-4 -mr-14 lg:-mr-16 pr-14 lg:pr-16 ml-3 border-l-[3px] border-white/40">
-                        <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} size="md" />
+                        <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={movie.certification} size="md" />
                     </div>
                 </div>
             </div>

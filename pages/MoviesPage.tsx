@@ -12,7 +12,6 @@ import ManifestSkeleton from '../components/ManifestSkeleton';
 import HeroSkeleton from '../components/HeroSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MOVIE_GENRES } from '../data/pageGenres';
-import { useGlobalContext } from '../context/GlobalContext';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -23,7 +22,6 @@ interface PageProps {
 
 const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onViewAll }) => {
   const { t } = useTranslation();
-  const { isAppReady } = useGlobalContext();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const stateGenre = location.state?.genre as Genre | null;
@@ -51,7 +49,7 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
         />
 
       <AnimatePresence initial={false}>
-        {(!isAppReady || isLoading) && (
+        {isLoading && (
           <motion.div
             key="skeletons"
             className="absolute inset-0 z-[100] bg-black md:bg-[#141414] pointer-events-none"
@@ -59,21 +57,6 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-             {!isAppReady && (
-                <div className="absolute inset-0 opacity-0 pointer-events-none overflow-hidden" aria-hidden>
-                  <HeroCarousel
-                    key="movies-bootstrap"
-                    onSelect={onSelectMovie}
-                    onPlay={onPlay}
-                    fetchUrl={selectedGenre 
-                      ? REQUESTS.fetchByGenre('movie', selectedGenre.id, 'popularity.desc') 
-                      : REQUESTS.fetchTopRated}
-                    seekTime={seekTime}
-                    genreId={selectedGenre?.id}
-                    pageType="movie"
-                  />
-                </div>
-             )}
               <HeroSkeleton />
               <main className="relative z-10 pb-12 -mt-2 sm:-mt-4 md:-mt-6 space-y-4 md:space-y-6 px-[var(--app-x)] pt-4 md:pt-10">
                  <ManifestSkeleton count={8} />
@@ -82,7 +65,7 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
         )}
       </AnimatePresence>
 
-      <div className={`transition-opacity duration-300 ${(!isAppReady || isLoading) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <HeroCarousel
           key={`movies-${selectedGenre?.id || 'all'}`}
           onSelect={onSelectMovie}

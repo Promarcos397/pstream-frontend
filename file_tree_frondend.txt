@@ -1,5 +1,5 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-21 11:34:24
+# Generated: 2026-06-23 18:08:58
 # Root: D:\coding-projects\streaming-app\pstream-frontend
 
 pstream-frontend/
@@ -108,6 +108,7 @@ pstream-frontend/
 ├── hooks
 │   ├── genreManifestBuilder.ts
 │   ├── useAudioSilenceDetector.ts
+│   ├── useAvatarReady.ts
 │   ├── useDynamicManifest.ts
 │   ├── useHls.ts
 │   ├── useIsInTheaters.ts
@@ -162,6 +163,10 @@ pstream-frontend/
 ├── playwright-report
 │   └── index.html
 ├── public
+│   ├── assets
+│   │   └── logos
+│   │       ├── p-pstream-logo.svg
+│   │       └── pstream-logo.svg
 │   ├── fonts
 │   │   ├── Harmonia Sans Mono W01 Bold.otf
 │   │   ├── Harmonia Sans Mono W01 Bold.ttf
@@ -311,6 +316,7 @@ pstream-frontend/
 ├── ui
 │   └── SettingsUI.tsx
 ├── utils
+│   ├── avatarCache.ts
 │   ├── captions.ts
 │   ├── deviceHelper.ts
 │   ├── ebml.ts
@@ -329,7 +335,7 @@ pstream-frontend/
 ├── App.tsx
 ├── client_secret_432066495032-1s1qo2tifqgldir2tf37bh2b50joisnv.apps.googleusercontent.com.json
 ├── constants.ts
-├── diff_output.txt
+├── diff_output.md
 ├── download (1).zip
 ├── download.zip
 ├── file_tree_frondend.txt
@@ -352,4 +358,4 @@ pstream-frontend/
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 28 directories, 320 files
+# 30 directories, 324 files

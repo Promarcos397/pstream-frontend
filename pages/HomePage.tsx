@@ -5,7 +5,6 @@ import { Movie } from '../types';
 import HeroCarousel from '../components/HeroCarousel';
 import Row from '../components/Row';
 import TopTenRow from '../components/TopTenRow';
-import { useGlobalContext } from '../context/GlobalContext';
 import { useDynamicManifest } from '../hooks/useDynamicManifest';
 import ManifestSkeleton from '../components/ManifestSkeleton';
 import HeroSkeleton from '../components/HeroSkeleton';
@@ -32,7 +31,6 @@ const getDailyHash = (): number => {
 };
 
 const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onViewAll }) => {
-  const { isAppReady } = useGlobalContext();
   const { t } = useTranslation();
   const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
 
@@ -54,7 +52,7 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
             : REQUESTS.fetchByGenre('movie', resolveGenreId('movie', selectedGenre.id), 'popularity.desc')))
     : REQUESTS.fetchPopular;
 
-  const showSkeleton = !isAppReady || isLoading;
+  const showSkeleton = isLoading;
 
   return (
     <div className="relative">
@@ -75,18 +73,6 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            {!isAppReady && (
-              <div className="absolute inset-0 opacity-0 pointer-events-none overflow-hidden" aria-hidden>
-                <HeroCarousel
-                  key="home-bootstrap"
-                  onSelect={onSelectMovie}
-                  onPlay={onPlay}
-                  fetchUrl={REQUESTS.fetchPopular}
-                  seekTime={seekTime}
-                  pageType="home"
-                />
-              </div>
-            )}
             <HeroSkeleton />
             <main className="relative z-10 pb-12 -mt-2 sm:-mt-4 md:-mt-6 space-y-4 md:space-y-6 px-[var(--app-x)] pt-4 md:pt-10">
               <ManifestSkeleton count={6} />

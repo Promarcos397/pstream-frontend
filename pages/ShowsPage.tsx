@@ -12,7 +12,6 @@ import HeroSkeleton from '../components/HeroSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
 import { TV_GENRES } from '../data/pageGenres';
-import { useGlobalContext } from '../context/GlobalContext';
 import { HeroEngine } from '../services/HeroEngine';
 
 interface PageProps {
@@ -23,7 +22,6 @@ interface PageProps {
 
 const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) => {
   const { t } = useTranslation();
-  const { isAppReady } = useGlobalContext();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const stateGenre = location.state?.genre as Genre | null;
@@ -58,7 +56,7 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
           onGenreSelect={handleGenreSelect}
         />
         <AnimatePresence initial={false}>
-        {(!isAppReady || isLoading) && (
+        {isLoading && (
           <motion.div
             key="skeletons"
             className="absolute inset-0 z-[100] bg-black md:bg-[#141414] pointer-events-none"
@@ -66,18 +64,6 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-             {!isAppReady && (
-               <div className="absolute inset-0 opacity-0 pointer-events-none overflow-hidden" aria-hidden>
-                 <HeroCarousel
-                   key="shows-bootstrap"
-                   onSelect={onSelectMovie}
-                   onPlay={onPlay}
-                   fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV}
-                   genreId={selectedGenre?.id}
-                   pageType="tv"
-                 />
-               </div>
-             )}
              <HeroSkeleton />
              <main className="relative z-10 pb-12 -mt-2 sm:-mt-4 md:-mt-6 space-y-4 md:space-y-6 px-[var(--app-x)] pt-4 md:pt-10">
                 <ManifestSkeleton count={8} />
@@ -86,7 +72,7 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
         )}
       </AnimatePresence>
 
-      <div className={`transition-opacity duration-300 ${(!isAppReady || isLoading) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <HeroCarousel
           key={`shows-${selectedGenre?.id || 'all'}`}
           fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV}

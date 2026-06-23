@@ -24,6 +24,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Harmonia Sans W01 Bold';
+  src: url('/fonts/Harmonia Sans W01 Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
 @supports (font-variation-settings: normal) {
   @font-face {
     font-family: 'PStream Sans';

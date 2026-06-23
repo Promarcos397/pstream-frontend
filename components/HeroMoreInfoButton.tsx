@@ -27,7 +27,7 @@ const HeroMoreInfoButton: React.FC<HeroMoreInfoButtonProps> = ({
             }}
             className={`flex items-center justify-center bg-[#6d6d6e]/50 text-white px-5 sm:px-8 h-[35px] md:h-[45px] rounded-[4px] font-bold hover:bg-[#6d6d6e]/35 transition-colors duration-200 text-[15px] md:text-[18px] gap-2 pointer-events-auto ${className}`}
         >
-            <InfoIcon size={26} weight="regular" />
+            <InfoIcon size="1em" weight="regular" className="text-[22px] md:text-[30px]" />
             <span className="whitespace-nowrap">{t('hero.moreInfo')}</span>
         </button>
     );

@@ -6,7 +6,7 @@ import MovieCardTouch from '../components/MovieCardTouch';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { fetchData } from '../services/api';
 import { REQUESTS } from '../constants';
-import { CaretLeftIcon, CaretDownIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, CaretDownIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 
 interface BrowseGridPageProps {
@@ -118,16 +118,16 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
 
   return (
     <div className="bg-black md:bg-[#141414] min-h-screen pb-16 pt-[calc(4rem+env(safe-area-inset-top))] md:pt-28">
-      <div className="px-4 md:px-10 lg:px-14 pt-4">
+      <div className="px-4 md:px-10 lg:px-14 pt-0">
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-3 mb-12">
           <button
             onClick={() => navigate(-1)}
-            className="w-9 h-9 rounded-full border border-white/20 flex items-center justify-center text-white/70 hover:border-white hover:text-white transition-colors bg-[#1a1a1a] shrink-0"
+            className="flex items-center justify-center text-white/70 hover:text-white hover:scale-110 transition-all p-1 shrink-0"
             aria-label={t('common.goBack', { defaultValue: 'Go back' })}
           >
-            <CaretLeftIcon size={18} weight="bold" />
+            <ArrowLeftIcon size={28} weight="bold" />
           </button>
           <h1 className="text-white font-bold text-xl md:text-3xl tracking-tight">{title}</h1>
         </div>

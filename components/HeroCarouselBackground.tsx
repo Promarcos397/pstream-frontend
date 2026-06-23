@@ -51,10 +51,10 @@ const HeroCarouselBackground: React.FC<HeroCarouselBackgroundProps> = ({
             <div className={`absolute inset-0 transition-opacity duration-400 ease-in-out z-0 ${isPlayingTrailer ? "opacity-0" : "opacity-100"}`}>
                 <img
                     ref={imgRef}
-                    src={`https://image.tmdb.org/t/p/w780${movie.backdrop_path}`}
+                    src={`https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`}
                     srcSet={`
-                        https://image.tmdb.org/t/p/w780${movie.backdrop_path} 1280w,
-                        https://image.tmdb.org/t/p/w1280${movie.backdrop_path} 1920w
+                        https://image.tmdb.org/t/p/w1280${movie.backdrop_path} 1280w,
+                        https://image.tmdb.org/t/p/original${movie.backdrop_path} 1920w
                     `}
                     sizes="100vw"
                     fetchPriority="high"

@@ -5,6 +5,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useSpring, useVelocity, useTransform } from 'framer-motion';
 import { useGlobalContext } from '../context/GlobalContext';
 import { DEFAULT_AVATAR } from '../constants';
+import { useAvatarReady } from '../hooks/useAvatarReady';
 import pLogoSymbol from '../assets/logos/p-pstream-logo.svg';
 import { useCastStore } from '../store/useCastStore';
 // removing red pulsing underline from Nav
@@ -289,6 +290,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
   const avatarUrl     = settings.avatarUrl || DEFAULT_AVATAR;
   const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
+  const avatarLoaded  = useAvatarReady(avatarUrl);
 
   // Tab wrapper class (handles text color + active state)
   const getTabClass = (isActive: boolean) =>
@@ -332,7 +334,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                   src={pLogoSymbol}
                   alt="Pstream Emblem Logo"
                   onClick={() => handleMobileTabClick('home')}
-                  className="h-[34px] w-auto cursor-pointer select-none transition-transform active:scale-95"
+                  className="h-[38px] w-auto cursor-pointer select-none transition-transform active:scale-95"
                 />
               )}
               <span className="text-[21px] font-[350] tracking-wide text-white select-none font-sans">
@@ -529,13 +531,18 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
             <div className={getPillClass(activeTab === 'settings' && !isSearchActive)}>
               <div
-                className={`w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded overflow-hidden flex items-center justify-center bg-[#E50914] text-white font-bold text-[10px] ring-[1.5px] transition-all duration-300 shrink-0 group-hover:scale-105 mb-0.5
+                className={`w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded overflow-hidden flex items-center justify-center bg-[#E50914] text-white font-bold text-[10px] ring-[1.5px] transition-all duration-300 shrink-0 group-hover:scale-105 mb-0.5 relative
                   ${activeTab === 'settings' && !isSearchActive ? 'ring-white' : 'ring-transparent'}`}
               >
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <span>{avatarInitial}</span>
+                <span className="absolute">{avatarInitial}</span>
+                {avatarUrl && (
+                  <img
+                    src={avatarUrl}
+                    alt="Profile"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-300 ${avatarLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  />
                 )}
               </div>
               <span className="text-[8px] sm:text-[9px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.profile', { defaultValue: 'Profile' })}</span>

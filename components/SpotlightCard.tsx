@@ -477,7 +477,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
 
                 {/* Maturity disc */}
                 <div className="absolute top-3 right-3 z-30 pointer-events-none drop-shadow-md">
-                    <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} size="xs" />
+                    <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={movie.certification} size="xs" />
                 </div>
             </div>
 

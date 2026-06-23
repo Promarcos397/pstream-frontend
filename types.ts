@@ -35,6 +35,7 @@ export interface Movie {
   imdb_id?: string;
   vote_count?: number;
   popularity?: number;
+  certification?: string;
 }
 
 export interface Episode {

@@ -6,35 +6,129 @@
 import React from 'react';
 import { Movie } from '../types';
 
-// ─── Maturity Rating Badge ────────────────────────────────────────────────────
-// Netflix-style colored circle with a thin white border
-// 13+ = light orange, 15 = pink, 18+ = red
+// ─── BBFC Maturity Rating Badge ───────────────────────────────────────────────
+// U/PG → upward equilateral triangle; 12A / 12 / 15 / 18 / R18 → filled circle
+// Colors and shapes faithfully match UK BBFC classification marks.
 interface MaturityBadgeProps {
   adult?: boolean;
   voteAverage?: number;
-  /** Override the auto-computed label */
+  certification?: string;
   label?: string;
   size?: 'xs' | 'sm' | 'md';
 }
 
-export const MaturityBadge: React.FC<MaturityBadgeProps> = ({ adult, voteAverage, label, size = 'sm' }) => {
-  const rating = label || (adult ? '18+' : (voteAverage ?? 0) >= 7.5 ? '15' : '13');
-  const bg =
-    rating === '18+' ? '#DC0A0A'
-    : rating === '15' ? '#FB4FAE'
-    : '#F97316'; // orange for 13+
+const BBFC: Record<string, { fill: string; shape: 'triangle' | 'circle' }> = {
+  'U':   { fill: '#4CAF50', shape: 'triangle' }, // BBFC green
+  'PG':  { fill: '#FFA000', shape: 'triangle' }, // BBFC amber
+  '12A': { fill: '#E65100', shape: 'circle'   }, // deep orange
+  '12':  { fill: '#E65100', shape: 'circle'   },
+  '15':  { fill: '#D81B8C', shape: 'circle'   }, // BBFC pink/magenta
+  '18':  { fill: '#C62828', shape: 'circle'   }, // BBFC red
+  'R18': { fill: '#6A0D83', shape: 'circle'   }, // BBFC purple
+};
 
-  // Tweak 'dim' sizes here to make the circle bigger/smaller
-  const dim = size === 'md' ? 'w-9 h-9 text-[16px]' : size === 'xs' ? 'w-6 h-6 text-[10px]' : 'w-9 h-9 text-[14px]';
+function resolveLabel(cert?: string, adult?: boolean, voteAverage?: number): string {
+  if (cert) {
+    const u = cert.trim().toUpperCase();
+    if (BBFC[u]) return u;
+    // Map US ratings → nearest BBFC
+    if (u === 'G' || u === 'TV-G' || u === 'TV-Y' || u === 'TV-Y7') return 'U';
+    if (u === 'PG' || u === 'TV-PG') return 'PG';
+    if (u === 'PG-13' || u === 'TV-14') return '12A';
+    if (u === 'R' || u === 'TV-MA') return '18';
+    if (u === 'NC-17') return '18';
+    const n = parseInt(u);
+    if (!isNaN(n)) return n >= 18 ? '18' : n >= 15 ? '15' : n >= 12 ? '12' : n >= 7 ? 'PG' : 'U';
+  }
+  if (adult) return '18';
+  if ((voteAverage ?? 0) >= 7) return '15';
+  return '12';
+}
 
+export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
+  adult, voteAverage, certification, label, size = 'sm',
+}) => {
+  const lbl = label || resolveLabel(certification, adult, voteAverage);
+  const cfg = BBFC[lbl] ?? { fill: '#E65100', shape: 'circle' as const };
+
+  // px sizes: xs=20, sm=30, md=40
+  const px = size === 'md' ? 40 : size === 'xs' ? 20 : 30;
+
+  // ── Triangle (U / PG) ──────────────────────────────────────────────────
+  // viewBox 0 0 110 100 — slightly wider than tall so it looks proportional
+  // Outer white triangle then inner coloured triangle create the border effect.
+  // Text sits in the lower ~40% of the inner triangle.
+  if (cfg.shape === 'triangle') {
+    // font-size scales with label length — large enough to dominate the triangle
+    const fs = lbl.length === 1 ? 40 : 28;
+    // outer / inner triangle verts
+    const OX1 = 55, OY1 = 2;          // apex
+    const OX2 = 2,  OY2 = 100;        // bottom-left
+    const OX3 = 108, OY3 = 100;       // bottom-right
+    const IY1 = 5, IY2 = 97, IY3 = 97;
+    const IX1 = 55, IX2 = 4, IX3 = 106;
+    return (
+      <svg
+        width={px}
+        height={Math.round(px * 100 / 110)}
+        viewBox="0 0 110 100"
+        aria-label={`${lbl} rating`}
+        className="flex-shrink-0"
+        style={{ display: 'inline-block' }}
+      >
+        {/* white border layer */}
+        <polygon points={`${OX1},${OY1} ${OX2},${OY2} ${OX3},${OY3}`} fill="white" />
+        {/* coloured fill */}
+        <polygon points={`${IX1},${IY1} ${IX2},${IY2} ${IX3},${IY3}`} fill={cfg.fill} />
+        {/* label — vertically centred in lower 2/3 of inner triangle */}
+        <text
+          x="55"
+          y="80"
+          textAnchor="middle"
+          fontSize={fs}
+          fontWeight="900"
+          fontFamily="'Arial Black', Arial, sans-serif"
+          fill="white"
+          letterSpacing={lbl.length >= 2 ? '-2' : '0'}
+        >
+          {lbl}
+        </text>
+      </svg>
+    );
+  }
+
+  // ── Circle (12A / 12 / 15 / 18 / R18) ────────────────────────────────
+  // viewBox 0 0 100 100. Outer white circle (r=49) → coloured fill (r=42).
+  // large font so text fills the circle — 12A needs tighter spacing
+  const fs = lbl.length >= 3 ? 36 : lbl.length === 2 ? 44 : 52;
   return (
-    <span
-      // Tweak 'border-[1.5px]' below to change the stroke thickness
-      className={`inline-flex items-center justify-center rounded-full ${dim} text-white font-bold flex-shrink-0 border-[1.8px] border-white shadow-sm`}
-      style={{ backgroundColor: bg }}
+    <svg
+      width={px}
+      height={px}
+      viewBox="0 0 100 100"
+      aria-label={`${lbl} rating`}
+      className="flex-shrink-0"
+      style={{ display: 'inline-block' }}
     >
-      {rating}
-    </span>
+      {/* white border ring */}
+      <circle cx="50" cy="50" r="49" fill="white" />
+      {/* coloured fill */}
+      <circle cx="50" cy="50" r="47" fill={cfg.fill} />
+      {/* label */}
+      <text
+        x="50"
+        y="50"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={fs}
+        fontWeight="900"
+        fontFamily="'Arial Black', Arial, sans-serif"
+        fill="white"
+        letterSpacing={lbl.length >= 3 ? '-2' : lbl.length === 2 ? '-1' : '0'}
+      >
+        {lbl}
+      </text>
+    </svg>
   );
 };
 

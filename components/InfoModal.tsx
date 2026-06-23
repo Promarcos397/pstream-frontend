@@ -626,7 +626,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 <span className="border border-gray-400 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-300 h-fit leading-none font-extrabold">HD</span>
                             </div>
                             <div className="flex items-center gap-3">
-                                <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} size="md" />
+                                <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} certification={activeMovie.certification} size="md" />
                                 <span className="text-sm font-semibold text-gray-200">{activeMovie.adult ? t('common.maturity.adultDesc') : t('common.maturity.teenDesc')}</span>
                             </div>
                             <p className="text-white font-normal text-[14px] md:text-[15px] leading-[1.65] pt-1">{activeMovie.overview}</p>

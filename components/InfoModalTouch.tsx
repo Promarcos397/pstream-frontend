@@ -528,7 +528,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                     <span className="text-white/70 font-normal">{year}</span>
                     
                     {/* Circular rating badge from MovieCardBadges */}
-                    <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} size="xs" />
+                    <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} certification={activeMovie.certification} size="xs" />
 
                     <span className="text-white/70 font-normal">{duration}</span>
                     

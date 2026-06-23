@@ -4,6 +4,7 @@ import { DEFAULT_SUBTITLE_SETTINGS } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { AppSettings } from '../types';
 import { useAuthStore } from './useAuthStore';
+import { preloadAvatar } from '../utils/avatarCache';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   ...DEFAULT_SUBTITLE_SETTINGS,
@@ -32,6 +33,7 @@ export const useSettingsStore = create<SettingsStore>()(
  
       updateSettings: (newSettings) => {
         set((state) => ({ settings: { ...state.settings, ...newSettings } }));
+        if (newSettings.avatarUrl) preloadAvatar(newSettings.avatarUrl);
         // Background sync to cloud if logged in
         const user = useAuthStore.getState().user;
         if (user) {
@@ -74,11 +76,16 @@ export const useSettingsStore = create<SettingsStore>()(
 
       syncFromCloud: (cloudSettings) => {
         set((state) => ({ settings: { ...state.settings, ...cloudSettings } }));
+        if (cloudSettings.avatarUrl) preloadAvatar(cloudSettings.avatarUrl);
       }
     }),
     {
       name: 'pstream-settings-store',
       partialize: (state) => ({ settings: state.settings, globalMute: state.globalMute }),
+      onRehydrateStorage: () => (state) => {
+        // Kick off preload as soon as localStorage is read — before any component renders.
+        if (state?.settings?.avatarUrl) preloadAvatar(state.settings.avatarUrl);
+      },
     }
   )
 );

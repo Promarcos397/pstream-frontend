@@ -10,7 +10,7 @@ import {
   buildTvSubpageManifest,
 } from './genreManifestBuilder';
 import { HeroEngine } from '../services/HeroEngine';
-import { isUrlCached } from '../services/api';
+import { isUrlCached, fetchData } from '../services/api';
 
 // Re-export context helpers from HeroEngine so both systems share the same logic
 export { getTimeSlot, getSeason, getCurrentHoliday } from '../services/HeroEngine';
@@ -45,6 +45,54 @@ const makeUrlSig = (url: string): string => {
 
 // Cache to track which page/genre combinations have already been visited to skip skeletons on revisit
 const visitedCache = new Set<string>();
+
+// Deterministic in-place shuffle using a numeric seed
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    // LCG-style permutation — deterministic for the same seed
+    const j = Math.abs((seed * (i + 1) * 2654435761) | 0) % (i + 1);
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// CW: random position 1–3; my-list: fixed row 5; top10: random after row 7, not last; total: 14–17
+function capAndShuffle(rows: SmartRow[], hash: number): SmartRow[] {
+  const cwRow     = rows.find(r => r.key === 'continue-watching');
+  const myListRow = rows.find(r => r.key === 'my-list');
+  const top10     = rows.filter(r => r.type === 'top10');
+  const rest      = rows.filter(r => r.key !== 'continue-watching' && r.key !== 'my-list' && r.type !== 'top10');
+  const shuffled  = seededShuffle(rest, hash);
+
+  // Total rows: 14–17 (use high bits of hash to avoid correlation with the shuffle seed)
+  const total  = 14 + ((hash >>> 16) % 4);
+  const budget = total - (cwRow ? 1 : 0) - (myListRow ? 1 : 0) - top10.length;
+  let base: SmartRow[] = shuffled.slice(0, Math.max(0, budget));
+
+  // Insert CW at row 1, 2, or 3 (index 0, 1, or 2)
+  if (cwRow) {
+    const at = Math.min((hash >> 2) % 3, base.length);
+    base = [...base.slice(0, at), cwRow, ...base.slice(at)];
+  }
+
+  // Insert my-list at row 5 (index 4)
+  if (myListRow) {
+    const at = Math.min(4, base.length);
+    base = [...base.slice(0, at), myListRow, ...base.slice(at)];
+  }
+
+  // Insert each top10 row randomly: after row 7 (index ≥ 6), but not at the very last slot
+  for (let i = 0; i < top10.length; i++) {
+    const minAt = Math.min(6, base.length);
+    const maxAt = Math.max(minAt, base.length - 1); // one before the end
+    const range = maxAt - minAt;
+    const at    = range <= 0 ? minAt : minAt + (Math.abs((hash * (i + 9) * 1664525) | 0) % (range + 1));
+    base = [...base.slice(0, at), top10[i], ...base.slice(at)];
+  }
+
+  return base;
+}
 
 // ─── useDynamicManifest ───────────────────────────────────────────────────────
 export const useDynamicManifest = (
@@ -144,7 +192,7 @@ export const useDynamicManifest = (
         myListRow,
       });
 
-      return manifest;
+      return capAndShuffle(manifest, hash);
     }
 
     // ── 4. MOVIE SUBPAGE PERSONALIZATION ENGINE ───────────────────────────────
@@ -164,7 +212,7 @@ export const useDynamicManifest = (
         myListRow,
       });
 
-      return manifest;
+      return capAndShuffle(manifest, hash);
     }
 
     // ── 5. TV SUBPAGE PERSONALIZATION ENGINE ──────────────────────────────────
@@ -184,11 +232,25 @@ export const useDynamicManifest = (
         myListRow,
       });
 
-      return manifest;
+      return capAndShuffle(manifest, hash);
     }
 
     return manifest;
   }, [pageType, selectedGenreId, selectedGenreName, continueWatching, myList, user, getLikedMovies, t]);
+
+  // Prefetch the first 8 rows while the hero is loading so they're cache-hot on mount.
+  // Also kick off background hero fetches for all page types so switching pages is instant.
+  useEffect(() => {
+    rows.slice(0, 8).forEach(row => {
+      if (!row.fetchUrl) return;
+      fetchData(row.fetchUrl);
+      const p2 = row.fetchUrl.includes('page=')
+        ? row.fetchUrl.replace(/page=\d+/, 'page=2')
+        : `${row.fetchUrl}${row.fetchUrl.includes('?') ? '&' : '?'}page=2`;
+      fetchData(p2);
+    });
+    HeroEngine.prefetchAll();
+  }, [rows]);
 
   const cacheKey = `${pageType}-${selectedGenreId || 'all'}`;
   const alreadyVisited = useMemo(() => visitedCache.has(cacheKey), [cacheKey]);
@@ -229,7 +291,7 @@ export const useDynamicManifest = (
         visitedCache.add(cacheKey);
         setCommittedCacheKey(cacheKey);
         setRawLoading(false);
-      }, 80);
+      }, 400);
       return () => clearTimeout(timer);
     } else {
       visitedCache.add(cacheKey);

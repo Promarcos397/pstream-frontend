@@ -423,9 +423,9 @@ const App: React.FC = () => {
       <Routes location={backgroundLocation}>
         <Route path="/" element={<Navigate to="/browse" replace />} />
         <Route path="/browse" element={<HomePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
-        <Route path="/browse/series" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/browse/films" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} />} />
-        <Route path="/latest" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/browse/series" element={<ShowsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} onViewAll={handleViewAll} />} />
+        <Route path="/browse/films" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
+        <Route path="/latest" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} onViewAll={handleViewAll} />} />
         <Route path="/browse/my-list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/browse/language" element={<BrowseLanguagePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/settings/*" element={<SettingsPage />} />

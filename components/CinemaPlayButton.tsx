@@ -205,9 +205,9 @@ const CinemaPlayButton: React.FC<CinemaPlayButtonProps> = ({
             <Link
                 to={watchUrl}
                 onClick={handleClick}
-                className={`flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[35px] md:h-[45px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[15px] md:text-[18px] gap-2 shadow-lg ${className}`}
+                className={`flex items-center justify-center bg-white text-black px-5 sm:px-8 h-[35px] md:h-[45px] rounded-[4px] font-bold hover:bg-white/80 transition-colors text-[17px] md:text-[20px] gap-2 shadow-lg ${className}`}
             >
-                <PlayIcon size={22} weight="fill" className="text-black" />
+                <PlayIcon weight="fill" className="text-black text-[22px] md:text-[30px]" />
                 <span>{playLabel}</span>
             </Link>
         );
@@ -233,8 +233,8 @@ const CinemaPlayButton: React.FC<CinemaPlayButtonProps> = ({
             <div className="flex items-center justify-center">
                 {/* Liquid Morphing Icons Container */}
                 <div 
-                    style={{ filter: 'url(#liquid-goo-effect)' }} 
-                    className="relative w-6 h-6 md:w-8 md:h-8 flex items-center justify-center text-current"
+                    style={{ filter: 'url(#liquid-goo-effect)' }}
+                    className="relative w-6 h-6 md:w-9 md:h-9 flex items-center justify-center text-current"
                 >
                     {/* Ticket Icon (Rest State) */}
                     <motion.div
@@ -246,7 +246,7 @@ const CinemaPlayButton: React.FC<CinemaPlayButtonProps> = ({
                         transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
                         className="absolute flex items-center justify-center text-current"
                     >
-                        <TicketIcon weight="fill" className="text-[20px] md:text-[25px]" />
+                        <TicketIcon weight="fill" className="text-[20px] md:text-[30px]" />
                     </motion.div>
 
                     {/* Play Icon (Hover State) */}
@@ -259,7 +259,7 @@ const CinemaPlayButton: React.FC<CinemaPlayButtonProps> = ({
                         transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
                         className="absolute flex items-center justify-center text-current"
                     >
-                        <PlayIcon weight="fill" className="text-[20px] md:text-[25px]" />
+                        <PlayIcon weight="fill" className="text-[20px] md:text-[30px]" />
                     </motion.div>
 
                     {/* Liquid splatters */}

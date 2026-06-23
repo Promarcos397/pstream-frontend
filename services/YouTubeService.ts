@@ -490,6 +490,7 @@ export const searchTrailers = async (
 export const PREMIUM_OVERRIDES: Record<string, string> = {
     "tmdb-4586": "https://res.cloudinary.com/dadwuvdhr/video/upload/v1778862129/1923066622425686017_1_hoiud9.mp4", // Gilmore Girls
     "tmdb-32415": "-34DiCjl_no", // Conan TV show
+    "tmdb-615": "nwrvZhkhZZ0", // Futuram
 };
 
 /**
