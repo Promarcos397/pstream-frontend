@@ -997,8 +997,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         let isMounted = true;
         const loadSubtitles = async () => {
             try {
-                const res = await fetch(currentCaption);
-                const text = await res.text();
+                const text = await SubtitleService.resolveSubtitleText(currentCaption);
                 if (!text || !isMounted) return;
 
                 const cues = parseSubtitles(text);
