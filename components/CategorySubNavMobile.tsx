@@ -74,13 +74,13 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
         return () => window.removeEventListener('scroll', handleScrollClose);
     }, [genreMenuOpen]);
 
-    const isTvActive = location.pathname === '/tv';
-    const isMovieActive = location.pathname === '/movies';
-    const isNewActive = location.pathname === '/new';
+    const isTvActive = location.pathname === '/browse/series';
+    const isMovieActive = location.pathname === '/browse/films';
+    const isNewActive = location.pathname === '/latest';
 
     const handlePillClick = (path: string, active: boolean) => {
         if (active) {
-            navigate('/');
+            navigate('/browse');
         } else {
             navigate(path);
         }
@@ -115,7 +115,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                     : 'max-w-[400px] opacity-100'
             }`}>
                 <button
-                    onClick={() => handlePillClick('/tv', isTvActive)}
+                    onClick={() => handlePillClick('/browse/series', isTvActive)}
                     className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-l-[23px] rounded-r-[12px] text-[15px] sm:text-[16px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                         ${isTvActive 
                             ? 'bg-white/[0.18] backdrop-blur-md text-white border-[1.6px] border-white/40' 
@@ -124,7 +124,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                     {t('nav.shows', { defaultValue: 'Series' })}
                 </button>
                 <button
-                    onClick={() => handlePillClick('/movies', isMovieActive)}
+                    onClick={() => handlePillClick('/browse/films', isMovieActive)}
                     className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-[12px] text-[15px] sm:text-[16px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                         ${isMovieActive 
                             ? 'bg-white/[0.18] backdrop-blur-md text-white border-[1.6px] border-white/40' 
@@ -133,7 +133,7 @@ const CategorySubNavMobile: React.FC<CategorySubNavMobileProps> = ({
                     {t('nav.movies', { defaultValue: 'Movies' })}
                 </button>
                 <button
-                    onClick={() => handlePillClick('/new', isNewActive)}
+                    onClick={() => handlePillClick('/latest', isNewActive)}
                     className={`flex items-center justify-center h-[52px] sm:h-[56px] px-3.5 sm:px-5 rounded-[12px] text-[15px] sm:text-[16px] font-semibold whitespace-nowrap active:scale-95 transition-all leading-none shrink-0
                         ${isNewActive 
                             ? 'bg-white/[0.18] backdrop-blur-md text-white border-[1.6px] border-white/40' 
