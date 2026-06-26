@@ -37,6 +37,28 @@ function shouldForceProxy(source: any): boolean {
     }
 }
 
+// Splits a plain-text segment by (ALL CAPS PARENS) and dims those tokens.
+function renderTextWithHI(text: string, baseStyle: React.CSSProperties, keyPrefix: string): React.ReactNode[] {
+    const parts = text.split(/(\([A-Z][A-Z0-9\s,!?']{1,}\))/g);
+    if (parts.length === 1) {
+        return Object.keys(baseStyle).length
+            ? [<span key={keyPrefix} style={baseStyle}>{text}</span>]
+            : [text];
+    }
+    return parts.map((p, i) => {
+        if (!p) return null;
+        const isHI = /^\([A-Z][A-Z0-9\s,!?']{1,}\)$/.test(p);
+        const style: React.CSSProperties = isHI
+            ? { ...baseStyle, opacity: 0.42, fontSize: '0.82em' }
+            : baseStyle;
+        return Object.keys(style).length
+            ? <span key={`${keyPrefix}-${i}`} style={style}>{p}</span>
+            : <React.Fragment key={`${keyPrefix}-${i}`}>{p}</React.Fragment>;
+    }).filter(Boolean) as React.ReactNode[];
+}
+
+// Parses SRT/VTT inline tags (<i>, <b>, <u>, <font color>) into React nodes.
+// Also dims (ALL CAPS PARENS) sound-effect / HI markers.
 function parseSubtitleTags(text: string): React.ReactNode[] {
     const tagRegex = /(<\/?[ibuf](?: [^>]*)?>|<\/?[uU]>|<br\s*\/?>|\n)/g;
     const parts = text.split(tagRegex);
@@ -51,49 +73,81 @@ function parseSubtitleTags(text: string): React.ReactNode[] {
         if (!part) return;
 
         const lower = part.toLowerCase();
-        if (lower === '<i>') {
-            isItalic = true;
-        } else if (lower === '</i>') {
-            isItalic = false;
-        } else if (lower === '<b>') {
-            isBold = true;
-        } else if (lower === '</b>') {
-            isBold = false;
-        } else if (lower === '<u>') {
-            isUnderline = true;
-        } else if (lower === '</u>') {
-            isUnderline = false;
-        } else if (lower.startsWith('<font')) {
+        if (lower === '<i>') { isItalic = true; }
+        else if (lower === '</i>') { isItalic = false; }
+        else if (lower === '<b>') { isBold = true; }
+        else if (lower === '</b>') { isBold = false; }
+        else if (lower === '<u>') { isUnderline = true; }
+        else if (lower === '</u>') { isUnderline = false; }
+        else if (lower.startsWith('<font')) {
             const colorMatch = part.match(/color=["']?([^"'\s>]+)["']?/i);
-            if (colorMatch) {
-                activeColor = colorMatch[1];
-            }
-        } else if (lower === '</font>') {
-            activeColor = undefined;
-        } else if (lower === '<br>' || lower === '<br/>' || lower === '<br />' || part === '\n') {
+            if (colorMatch) activeColor = colorMatch[1];
+        }
+        else if (lower === '</font>') { activeColor = undefined; }
+        else if (lower === '<br>' || lower === '<br/>' || lower === '<br />' || part === '\n') {
             elements.push(<br key={index} />);
-        } else {
-            if (isItalic || isBold || isUnderline || activeColor) {
-                elements.push(
-                    <span
-                        key={index}
-                        style={{
-                            fontStyle: isItalic ? 'italic' : undefined,
-                            fontWeight: isBold ? 'bold' : undefined,
-                            textDecoration: isUnderline ? 'underline' : undefined,
-                            color: activeColor || undefined,
-                        }}
-                    >
-                        {part}
-                    </span>
-                );
-            } else {
-                elements.push(part);
-            }
+        }
+        else {
+            const baseStyle: React.CSSProperties = {
+                ...(isItalic ? { fontStyle: 'italic' as const } : {}),
+                ...(isBold ? { fontWeight: 'bold' as const } : {}),
+                ...(isUnderline ? { textDecoration: 'underline' as const } : {}),
+                ...(activeColor ? { color: activeColor } : {}),
+            };
+            elements.push(...renderTextWithHI(part, baseStyle, String(index)));
         }
     });
 
     return elements;
+}
+
+// Strip leading dash/en-dash/em-dash from a dialogue line, preserving any leading HTML tags.
+function stripLeadingDash(line: string): string {
+    return line.replace(/^((?:<[^>]+>)*)\s*[-–—]\s*/, '$1').trim();
+}
+
+const RTL_LANGS = new Set(['ar', 'he', 'fa', 'ur', 'yi', 'ps', 'ku']);
+const WATERMARK_RE = /\b(fixed|synced|encoded|subscene|opensubtitles|uploaded by|ripped by|corrected by)\b/i;
+
+// Top-level cue renderer: splits into lines, strips dashes, handles ♪/NAME:/HI, applies layout.
+function renderCue(text: string, isDialogue: boolean): React.ReactNode {
+    const normalized = text.replace(/<br\s*\/?>/gi, '\n');
+    const lines = normalized.split(/\r?\n/).filter(l => l.replace(/<[^>]+>/g, '').trim());
+    if (!lines.length) return null;
+
+    return lines.map((line, i) => {
+        const stripped = stripLeadingDash(line);
+        const clean = stripped.replace(/<[^>]+>/g, '').trim();
+        if (!clean) return null;
+
+        const mb: React.CSSProperties = isDialogue && i < lines.length - 1
+            ? { marginBottom: '0.38em' } : {};
+
+        // ♪ Music line
+        if (/[♪♫]/.test(line)) {
+            return (
+                <div key={i} style={{ fontStyle: 'italic', color: '#ffe599', ...mb }}>
+                    {parseSubtitleTags(stripped)}
+                </div>
+            );
+        }
+
+        // SPEAKER NAME: text  (e.g. "DRE:", "WOMAN:", "MR. FOX:")
+        const nameMatch = clean.match(/^([A-Z][A-Z. ']{1,20}):\s*/);
+        if (nameMatch) {
+            const rest = clean.slice(nameMatch[0].length);
+            return (
+                <div key={i} style={mb}>
+                    <span style={{ opacity: 0.45, fontSize: '0.78em', fontWeight: 700, letterSpacing: '0.03em' }}>
+                        {nameMatch[1]}:
+                    </span>
+                    {rest ? <> {parseSubtitleTags(rest)}</> : null}
+                </div>
+            );
+        }
+
+        return <div key={i} style={mb}>{parseSubtitleTags(stripped)}</div>;
+    });
 }
 
 interface VideoPlayerProps {
@@ -384,12 +438,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     // SAFETY LOCK 2: Prevents stale props from wrapper resetting user progress
     const lastSyncedUrlRef = useRef({ s: season, e: episode });
 
+    // Keep a stable ref so the URL-sync effect below never re-fires just because
+    // the parent passed a new inline arrow function on each render (which would
+    // cause an infinite setSearchParams → re-render → new fn ref → loop).
+    const onEpisodeChangeRef = useRef(onEpisodeChange);
+    onEpisodeChangeRef.current = onEpisodeChange;
+
     useEffect(() => {
         if (mediaType !== 'tv') return;
-        
-        onEpisodeChange?.(playingSeasonNumber, currentEpisode);
+
+        onEpisodeChangeRef.current?.(playingSeasonNumber, currentEpisode);
         lastSyncedUrlRef.current = { s: playingSeasonNumber, e: currentEpisode };
-    }, [mediaType, playingSeasonNumber, currentEpisode, onEpisodeChange]);
+    }, [mediaType, playingSeasonNumber, currentEpisode]);
 
     const [activePanel, setActivePanel] = useState<'none' | 'episodes' | 'seasons' | 'audioSubtitles' | 'quality' | 'servers' | 'playback'>('none');
 
@@ -557,15 +617,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [currentCueText, setCurrentCueText] = useState<string>('');
     const [currentCueSettings, setCurrentCueSettings] = useState<CaptionCueType['settings'] | undefined>(undefined);
 
+    // Dialogue = 2+ lines where at least one starts with a dash (multi-speaker layout)
     const isDialogue = useMemo(() => {
         if (!currentCueText) return false;
         const lines = currentCueText.split(/\r?\n|<br\s*\/?>/i);
         if (lines.length < 2) return false;
         return lines.some(line => {
-            const clean = line.replace(/<\/?[^>]+(>|$)/g, "").trim();
-            return clean.startsWith('-') || clean.startsWith('–') || clean.startsWith('—');
+            const clean = line.replace(/<\/?[^>]+(>|$)/g, '').trim();
+            return /^[-–—]/.test(clean);
         });
     }, [currentCueText]);
+
+    const currentSubtitleLang = useMemo(
+        () => captions.find(c => c.url === currentCaption)?.lang ?? '',
+        [captions, currentCaption]
+    );
+    const isRTL = RTL_LANGS.has(currentSubtitleLang);
 
     // ——— Manual Autoplay State ———
     const [showAutoplayCountdown, setShowAutoplayCountdown] = useState(false);
@@ -1000,7 +1067,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 const text = await SubtitleService.resolveSubtitleText(currentCaption);
                 if (!text || !isMounted) return;
 
-                const cues = parseSubtitles(text);
+                const cues = parseSubtitles(text).filter(cue => {
+                    const raw = (cue.content || cue.text || '').replace(/<[^>]+>/g, '');
+                    return !WATERMARK_RE.test(raw);
+                });
                 parsedCuesRef.current = cues;
 
                 if (isMounted) {
@@ -1494,7 +1564,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 mediaType={mediaType as 'movie' | 'tv'}
                 season={playingSeasonNumber}
                 episode={currentEpisode}
-                videoFit={videoFit}
                 isPlaying={isPlaying}
                 controllerRef={embedControllerRef}
                 subtitleLang={settings.subtitleLanguage || 'en'}
@@ -1638,12 +1707,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             borderRadius: overlayStyle.borderRadius,
                             backdropFilter: overlayStyle.backdropFilter,
                             fontWeight: overlayStyle.fontWeight,
-                            textAlign: isDialogue ? 'left' : 'center',
+                            textAlign: isRTL ? 'right' : isDialogue ? 'left' : 'center',
                             display: 'inline-block',
-                            whiteSpace: 'pre-wrap',
+                            whiteSpace: 'normal',
                         }}
                     >
-                        {parseSubtitleTags(currentCueText)}
+                        {renderCue(currentCueText, isDialogue)}
                     </span>
                 </div>
             )}

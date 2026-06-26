@@ -40,6 +40,12 @@ export const LANG_LABELS: Record<string, string> = {
   id: 'Indonesian', uk: 'Ukrainian', hr: 'Croatian', sk: 'Slovak', bg: 'Bulgarian',
   sr: 'Serbian', hi: 'Hindi', bn: 'Bengali', fa: 'Persian', ms: 'Malay',
   ca: 'Catalan', lt: 'Lithuanian', lv: 'Latvian', et: 'Estonian', sl: 'Slovenian',
+  // Extended for Stremio & broader coverage
+  ta: 'Tamil', ml: 'Malayalam', te: 'Telugu', mr: 'Marathi', pa: 'Punjabi',
+  ka: 'Georgian', sq: 'Albanian', mk: 'Macedonian', bs: 'Bosnian', is: 'Icelandic',
+  si: 'Sinhala', ur: 'Urdu', af: 'Afrikaans', sw: 'Swahili', eu: 'Basque',
+  gl: 'Galician', az: 'Azerbaijani', kk: 'Kazakh', uz: 'Uzbek', hy: 'Armenian',
+  be: 'Belarusian',
 };
 
 /**

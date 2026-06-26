@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ALL_EMBED_PROVIDERS } from '../services/EmbedProviders';
 import { reportStreamError } from '../services/ProviderHealthService';
+import { useEmbedLayout } from '../hooks/useEmbedLayout';
 
 /** Functions exposed to the parent via a ref object */
 export interface EmbedController {
@@ -22,7 +23,6 @@ interface EmbedPlayerProps {
     mediaType: 'movie' | 'tv';
     season?: number;
     episode?: number;
-    videoFit?: 'contain' | 'cover';
     isPlaying?: boolean;
     /** Resume position in seconds */
     startTime?: number;
@@ -48,7 +48,6 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     mediaType,
     season,
     episode,
-    videoFit = 'contain',
     isPlaying = false,
     startTime = 0,
     subtitleLang,
@@ -428,49 +427,30 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         return () => window.removeEventListener('message', handler);
     }, [onTimeUpdate, onPlay, onPause, onEnded, stopTimer, handleProviderError, estimatedDuration]);
 
+    const { iframeW, iframeH, left, top, scale, clipPath } = useEmbedLayout();
+
     if (!currentProvider || activeProviderIndex >= ALL_EMBED_PROVIDERS.length || !embedUrl) return null;
 
-    // Smart high-res scaling factor: renders the iframe at a higher resolution
-    // to make its internal UI elements (controls, menus, buttons) microscopic and sharp.
-    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-    const isIOS = /iPad|iPhone|iPod/.test(ua) ||
-        (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
-    const isMac = /Macintosh|Mac OS X/.test(ua);
-    const isIOSOrMac = isIOS || isMac;
-
-    // TEMP: Set to true to temporarily pause scaling and zoom hacks
-    const tempPauseScaling = false;
-
-    const getHighResFactor = () => {
-        if (tempPauseScaling) return 1;
-        return isIOSOrMac ? 2.5 : 2.5;
-    };
-    const highResFactor = getHighResFactor();
-
-    const defaultZoom = isIOSOrMac ? 1 : 1;
-    const zoomFactor = tempPauseScaling ? 1 : (videoFit === 'cover' ? 1 : defaultZoom);
-
-    const totalScale = zoomFactor / highResFactor;
-
     return (
-        <div className="absolute inset-0 overflow-hidden bg-black z-0 pointer-events-auto flex items-center justify-center">
+        <div className="absolute inset-0 overflow-hidden bg-black z-0 pointer-events-auto">
             <div
-                className="absolute inset-0 flex items-center justify-center"
                 style={{
-                    transform: totalScale !== 1 ? `scale(${totalScale})` : undefined,
+                    position: 'absolute',
+                    width:    `${iframeW}px`,
+                    height:   `${iframeH}px`,
+                    left:     `${left}px`,
+                    top:      `${top}px`,
+                    transform: `scale(${scale})`,
                     transformOrigin: 'center center',
-                    width: `${100 / totalScale}%`,
-                    height: `${100 / totalScale}%`,
-                    left: `${(100 - 100 / totalScale) / 2}%`,
-                    top: `${(100 - 100 / totalScale) / 2}%`,
-                    clipPath: 'inset(7% 0% 12.5% 0%)',
+                    clipPath,
+                    willChange: 'transform',
                 }}
             >
                 <iframe
                     ref={iframeRef}
                     src={embedUrl}
                     onLoad={handleIframeLoad}
-                    style={{ width: '100%', height: '100%', border: 'none', display: 'block', transform: 'translateZ(0)', pointerEvents: 'none' }}
+                    style={{ width: '100%', height: '100%', border: 'none', display: 'block', pointerEvents: 'none' }}
                     allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                     allowFullScreen={true}
                     referrerPolicy="no-referrer-when-downgrade"
@@ -485,7 +465,6 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 onClick={() => {
                     if (!supportsInbound) return;
                     if (activePanel && activePanel !== 'none') return;
-                    // Bubble up to VideoPlayer container for play/pause toggle
                 }}
             />
 

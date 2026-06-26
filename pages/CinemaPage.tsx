@@ -102,9 +102,13 @@ const CinemaPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, type]);
 
-    // Back button: go home with replace so watch URL is removed from history
-    // This prevents the "back = old episode" pollution bug.
-    const handleClose = () => navigate('/browse', { replace: true });
+    const handleClose = () => {
+        try {
+            navigate('/browse', { replace: true });
+        } catch {
+            window.location.replace('/browse');
+        }
+    };
 
     if (loading) {
         return (

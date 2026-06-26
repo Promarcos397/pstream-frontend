@@ -877,23 +877,29 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                 </div>
             )}
 
-            {/* ── TOP: Back button (desktop only, top-left) ── */}
+            {/* ── TOP: Back button (desktop only, always interactive) ── */}
             {!isMobile && (
-                <div className={`absolute top-0 inset-x-0 z-40 px-8 pt-8 flex items-center justify-between transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                    <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white hover:text-white hover:scale-110 transition-all p-1.5" aria-label={t('player.closePlayer')}>
-                        <ArrowLeftIcon size={42} weight="bold" />
-                    </button>
-                    
-                    {onToggleFit && !isEmbedFallback && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onToggleFit(); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-full text-white hover:text-white hover:bg-zinc-800 transition-all active:scale-95 shadow-xl"
-                        >
-                            <CropIcon size={20} weight="bold" />
-                            <span className="text-xs font-bold tracking-[0.15em] uppercase">{videoFit === 'cover' ? t('player.fill') : t('player.fit')}</span>
+                <>
+                    {/* Back arrow — always clickable, fades with UI but pointer-events stay on */}
+                    <div className={`absolute top-0 left-0 z-40 px-8 pt-8 transition-opacity duration-300 pointer-events-auto ${showUI ? 'opacity-100' : 'opacity-0'}`}>
+                        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="flex items-center justify-center text-white hover:text-white hover:scale-110 transition-all p-1.5" aria-label={t('player.closePlayer')}>
+                            <ArrowLeftIcon size={42} weight="bold" />
                         </button>
+                    </div>
+
+                    {/* Fit toggle — only when UI is visible */}
+                    {onToggleFit && !isEmbedFallback && (
+                        <div className={`absolute top-0 right-0 z-40 px-8 pt-8 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onToggleFit(); }}
+                                className="flex items-center gap-2 px-4 py-2 bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-full text-white hover:text-white hover:bg-zinc-800 transition-all active:scale-95 shadow-xl"
+                            >
+                                <CropIcon size={20} weight="bold" />
+                                <span className="text-xs font-bold tracking-[0.15em] uppercase">{videoFit === 'cover' ? t('player.fill') : t('player.fit')}</span>
+                            </button>
+                        </div>
                     )}
-                </div>
+                </>
             )}
 
             {/* ── BOTTOM Controls Container ── */}
