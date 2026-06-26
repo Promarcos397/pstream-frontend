@@ -359,30 +359,26 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     const ageRating = activeMovie.adult ? '18' : (activeMovie.vote_average ?? 0) >= 7.5 ? '16' : '13';
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-black overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pt-[calc(68px+env(safe-area-inset-top))] pb-[calc(96px+env(safe-area-inset-bottom))]">
-            {/* Top Navigation Bar — solid background, Netflix style back arrow */}
-            <div className="fixed top-0 left-0 right-0 h-[calc(68px+env(safe-area-inset-top))] bg-black border-b border-white/[0.04] flex items-center px-3 pt-[env(safe-area-inset-top)] z-[10010] shadow-md">
+        <div className="fixed inset-0 z-[10000] bg-black overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pb-[calc(96px+env(safe-area-inset-bottom))]">
+            {/* Floating back button — overlaid on top of the video, no black bar */}
+
+            {/* Media Container Banner — full bleed to top of screen */}
+            <div 
+                ref={heroRef} 
+                className="relative w-full bg-black overflow-hidden shrink-0 cursor-pointer" style={{ aspectRatio: '16/9', paddingTop: 'env(safe-area-inset-top)' }}
+                onClick={handleMediaTap}
+            >
+                {/* Floating back button over the video */}
                 <button
                     type="button"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleClose();
-                    }}
-                    className="text-white active:scale-95 transition-all duration-200 p-2 cursor-pointer flex items-center justify-center"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleClose(); }}
+                    className="absolute top-[calc(12px+env(safe-area-inset-top))] left-3 z-[10010] w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center active:scale-90 transition-all duration-200 shadow-lg border border-white/20"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-[26px] h-[26px] text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-[20px] h-[20px] text-white">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
                 </button>
-            </div>
 
-            {/* Media Container Banner — clickable media player */}
-            <div 
-                ref={heroRef} 
-                className="relative aspect-video w-full bg-black overflow-hidden shrink-0 mt-0 cursor-pointer"
-                onClick={handleMediaTap}
-            >
                 <img
                     src={
                         typeof activeMovie.id === 'string' && activeMovie.id.startsWith('dim')

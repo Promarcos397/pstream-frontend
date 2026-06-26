@@ -75,6 +75,7 @@ html {
   -webkit-tap-highlight-color: transparent;
   /* Fix blue highlight on mobile */
   -webkit-text-size-adjust: 100%;
+  color-scheme: dark;
 }
 
 * {
@@ -95,8 +96,8 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Lock overscroll only when running as an installed PWA — browser tabs keep pull-to-refresh */
-@media (display-mode: standalone) {
+/* Disable pull-to-refresh on touch devices — this is a video app, never needed */
+@media (pointer: coarse) {
   body {
     overscroll-behavior-y: none;
   }

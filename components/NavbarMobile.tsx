@@ -225,11 +225,12 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       }
 
       const heroRgb = document.documentElement.dataset.heroRgb;
-      if (heroRgb && (location.pathname === '/browse' || location.pathname === '/')) {
+      const heroPages = ['/', '/browse', '/browse/series', '/browse/films', '/latest'];
+      if (heroRgb && heroPages.includes(location.pathname)) {
         const [r, g, b] = heroRgb.split(',').map(Number);
-        // Full accent color at scroll=0, fades to black over 30px as the navbar solidifies.
-        const factor = 1 - Math.min(1, scroll / 30);
-        meta.content = `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
+        // Always show the full hero accent colour — no scroll-based fade.
+        // The 30 px threshold was exceeded by Chrome's address-bar collapsing alone.
+        meta.content = `rgb(${r},${g},${b})`;
       } else {
         meta.content = '#000000';
       }
@@ -498,10 +499,17 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
           <div
             ref={el => { navRefs.current[2] = el; }}
             onClick={() => {
-              setIsSearchActive(true);
-              const p = new URLSearchParams(window.location.search);
-              p.set('search', 'true');
-              setSearchParams(p, { replace: true });
+              if (location.pathname.startsWith('/title/')) {
+                // Modal is route-driven — navigate back to background page first,
+                // then activate search so the modal closes cleanly.
+                const backgroundPath = (location.state as any)?.backgroundLocation?.pathname || '/browse';
+                navigate(`${backgroundPath}?search=true`, { replace: true });
+              } else {
+                setIsSearchActive(true);
+                const p = new URLSearchParams(window.location.search);
+                p.set('search', 'true');
+                setSearchParams(p, { replace: true });
+              }
             }}
             className={getTabClass(isSearchActive)}
           >

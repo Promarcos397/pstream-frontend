@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node -e \"const fs=require('fs');fs.copyFileSync('dist/index.html','dist/404.html');console.log('✓ dist/404.html created for Cloudflare Pages SPA routing');\"",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,1 +1,2 @@
-/* /index.html 200
+# SPA routing is handled by 404.html (copied from index.html in postbuild script)
+# Cloudflare Pages serves 404.html for any unmatched route, which bootstraps the React app
