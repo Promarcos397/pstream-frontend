@@ -402,6 +402,7 @@ export const EpisodeExplorerTouch: React.FC<{
     onClose?: () => void;
 }> = ({ seasonList, currentSeasonEpisodes, selectedSeason, currentEpisode, playingSeason, showId, onSeasonSelect, onEpisodeSelect, activePanel, setActivePanel, showTitle, onClose }) => {
     const { getEpisodeProgress } = useGlobalContext();
+    const { t } = useTranslation();
     const [previewSeason, setPreviewSeason] = React.useState(selectedSeason);
     const [expandedEpisodeId, setExpandedEpisodeId] = React.useState<number | null>(null);
     const episodesContainerRef = useRef<HTMLDivElement>(null);
@@ -507,7 +508,7 @@ export const EpisodeExplorerTouch: React.FC<{
                                                 )}
                                                 <div className="flex-1 flex flex-col justify-center">
                                                     <p className="text-sm text-white/60 leading-snug line-clamp-3">
-                                                        {ep.overview || 'No description available.'}
+                                                        {ep.overview || t('common.noDesc')}
                                                     </p>
                                                 </div>
                                             </div>

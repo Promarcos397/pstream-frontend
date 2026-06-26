@@ -185,7 +185,7 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
                                             setVisibleCount(BATCH_SIZE);
                                         }
                                     }}
-                                    title={hasMore ? 'Show more episodes' : 'Show less'}
+                                    title={hasMore ? t('modal.showMoreEpisodes') : t('modal.showLess')}
                                     className="w-10 h-10 rounded-full border border-white/20 bg-[#2a2a2a] hover:border-white/50 hover:bg-[#3a3a3a] flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 group/btn"
                                 >
                                     {hasMore

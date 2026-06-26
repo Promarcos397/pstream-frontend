@@ -59,7 +59,10 @@
         "removeProgress": "Eliminar progreso",
         "rateTitle": "Valorar",
         "closeRating": "Cerrar valoración",
-        "done": "Listo"
+        "done": "Listo",
+        "clearSearch": "Borrar búsqueda",
+        "closeSearch": "Cerrar búsqueda",
+        "ratingLabel": "Clasificación {{label}}"
     },
     "settings": {
         "title": "Configurar perfil y preferencias",
@@ -214,7 +217,10 @@
         "resume": "Continuar T{{season}} E{{episode}}",
         "more": "más",
         "thisFilmIs": "Esta película es:",
-        "rate": "Valorar"
+        "rate": "Valorar",
+        "showMore": "Mostrar más",
+        "showLess": "Mostrar menos",
+        "showMoreEpisodes": "Mostrar más episodios"
     },
     "player": {
         "skipIntro": "Omitir intro",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "Audio y subtítulos",
         "videoQualityTab": "Calidad de vídeo",
         "serversTab": "Servidores",
-        "playbackTab": "Ajustes de reproducción"
+        "playbackTab": "Ajustes de reproducción",
+        "pause": "Pausar",
+        "play": "Reproducir",
+        "skipCredits": "Saltar créditos"
     },
     "playback": {
         "autoplayTitle": "Controles de reproducción automática",

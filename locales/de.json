@@ -59,7 +59,10 @@
         "removeProgress": "Fortschritt entfernen",
         "rateTitle": "Bewerten",
         "closeRating": "Bewertung schließen",
-        "done": "Fertig"
+        "done": "Fertig",
+        "clearSearch": "Suche löschen",
+        "closeSearch": "Suche schließen",
+        "ratingLabel": "{{label}}-Bewertung"
     },
     "settings": {
         "title": "Profil und Einstellungen verwalten",
@@ -214,7 +217,10 @@
         "resume": "Fortsetzen: S{{season}} E{{episode}}",
         "more": "mehr",
         "thisFilmIs": "Dieser Film ist:",
-        "rate": "Bewerten"
+        "rate": "Bewerten",
+        "showMore": "Mehr anzeigen",
+        "showLess": "Weniger anzeigen",
+        "showMoreEpisodes": "Mehr Episoden anzeigen"
     },
     "player": {
         "skipIntro": "Intro überspringen",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "Audio & Untertitel",
         "videoQualityTab": "Videoqualität",
         "serversTab": "Server",
-        "playbackTab": "Wiedergabeeinstellungen"
+        "playbackTab": "Wiedergabeeinstellungen",
+        "pause": "Pause",
+        "play": "Abspielen",
+        "skipCredits": "Abspann überspringen"
     },
     "playback": {
         "autoplayTitle": "Autoplay-Steuerung",

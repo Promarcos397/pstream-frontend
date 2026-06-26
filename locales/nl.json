@@ -59,7 +59,10 @@
         "removeProgress": "Voortgang verwijderen",
         "rateTitle": "Beoordelen",
         "closeRating": "Beoordeling sluiten",
-        "done": "Klaar"
+        "done": "Klaar",
+        "clearSearch": "Zoekopdracht wissen",
+        "closeSearch": "Zoekopdracht sluiten",
+        "ratingLabel": "{{label}}-beoordeling"
     },
     "settings": {
         "title": "Profiel en voorkeuren beheren",
@@ -214,7 +217,10 @@
         "resume": "Verderkijken: S{{season}} A{{episode}}",
         "more": "meer",
         "thisFilmIs": "Deze film is:",
-        "rate": "Beoordelen"
+        "rate": "Beoordelen",
+        "showMore": "Meer weergeven",
+        "showLess": "Minder weergeven",
+        "showMoreEpisodes": "Meer afleveringen weergeven"
     },
     "player": {
         "skipIntro": "Intro overslaan",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "Audio & ondertitels",
         "videoQualityTab": "Videokwaliteit",
         "serversTab": "Servers",
-        "playbackTab": "Afspeelinstelling"
+        "playbackTab": "Afspeelinstelling",
+        "pause": "Pauzeren",
+        "play": "Afspelen",
+        "skipCredits": "Aftiteling overslaan"
     },
     "playback": {
         "autoplayTitle": "Instellingen automatisch afspelen",

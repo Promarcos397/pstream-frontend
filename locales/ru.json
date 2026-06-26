@@ -59,7 +59,10 @@
         "removeProgress": "Удалить прогресс",
         "rateTitle": "Оценить",
         "closeRating": "Закрыть оценку",
-        "done": "Готово"
+        "done": "Готово",
+        "clearSearch": "Очистить поиск",
+        "closeSearch": "Закрыть поиск",
+        "ratingLabel": "Рейтинг {{label}}"
     },
     "settings": {
         "title": "Управление профилем и предпочтениями",
@@ -214,7 +217,10 @@
         "resume": "Продолжить: С{{season}} С{{episode}}",
         "more": "еще",
         "thisFilmIs": "О фильме:",
-        "rate": "Оценить"
+        "rate": "Оценить",
+        "showMore": "Показать больше",
+        "showLess": "Показать меньше",
+        "showMoreEpisodes": "Показать больше эпизодов"
     },
     "player": {
         "skipIntro": "Пропустить заставку",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "Аудио и субтитры",
         "videoQualityTab": "Качество видео",
         "serversTab": "Серверы",
-        "playbackTab": "Настройки воспроизведения"
+        "playbackTab": "Настройки воспроизведения",
+        "pause": "Пауза",
+        "play": "Воспроизвести",
+        "skipCredits": "Пропустить титры"
     },
     "playback": {
         "autoplayTitle": "Настройки автопроизведения",

@@ -59,7 +59,10 @@
         "removeProgress": "進捗を削除",
         "rateTitle": "評価する",
         "closeRating": "評価を閉じる",
-        "done": "完了"
+        "done": "完了",
+        "clearSearch": "検索をクリア",
+        "closeSearch": "検索を閉じる",
+        "ratingLabel": "{{label}} レーティング"
     },
     "settings": {
         "title": "プロフィールと設定の管理",
@@ -214,7 +217,10 @@
         "resume": "シーズン{{season}} エピソード{{episode}} から再開",
         "more": "もっと見る",
         "thisFilmIs": "作品の雰囲気:",
-        "rate": "評価"
+        "rate": "評価",
+        "showMore": "もっと見る",
+        "showLess": "折りたたむ",
+        "showMoreEpisodes": "さらにエピソードを表示"
     },
     "player": {
         "skipIntro": "イントロをスキップ",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "音声 & 字幕",
         "videoQualityTab": "映像品質",
         "serversTab": "サーバー",
-        "playbackTab": "再生設定"
+        "playbackTab": "再生設定",
+        "pause": "一時停止",
+        "play": "再生",
+        "skipCredits": "エンドクレジットをスキップ"
     },
     "playback": {
         "autoplayTitle": "自動再生の設定",

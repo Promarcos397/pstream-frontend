@@ -51,6 +51,12 @@ const resources = {
     hi: { translation: hi },
 };
 
+const RTL_LANGUAGES = new Set(['ar']);
+
+const applyDir = (lng: string) => {
+    document.documentElement.dir = RTL_LANGUAGES.has(lng) ? 'rtl' : 'ltr';
+};
+
 i18n
     .use(initReactI18next)
     .init({
@@ -58,8 +64,11 @@ i18n
         lng: getSavedLanguage(),
         fallbackLng: 'en',
         interpolation: {
-            escapeValue: false, // React already escapes
+            escapeValue: false,
         },
-    });
+    })
+    .then(() => applyDir(i18n.language));
+
+i18n.on('languageChanged', applyDir);
 
 export default i18n;

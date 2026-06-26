@@ -48,7 +48,6 @@
         "movie": "영화",
         "season": "시즌",
         "cast": "출연:",
-        "modal.genres": "장르:",
         "maturity": {
             "rated": "등급",
             "adultDesc": "폭력, 언어, 유혈",
@@ -60,7 +59,10 @@
         "rateTitle": "평가하기",
         "closeRating": "평가 닫기",
         "done": "완료",
-        "genres": "장르:"
+        "genres": "장르:",
+        "clearSearch": "검색 지우기",
+        "closeSearch": "검색 닫기",
+        "ratingLabel": "{{label}} 등급"
     },
     "settings": {
         "title": "프로필 및 환경 설정 관리",
@@ -215,7 +217,10 @@
         "resume": "시즌 {{season}} {{episode}}화 이어보기",
         "more": "더 보기",
         "thisFilmIs": "작품 특징:",
-        "rate": "평점"
+        "rate": "평점",
+        "showMore": "더 보기",
+        "showLess": "접기",
+        "showMoreEpisodes": "에피소드 더 보기"
     },
     "player": {
         "skipIntro": "인트로 건너뛰기",
@@ -268,7 +273,10 @@
         "audioSubtitlesTab": "오디오 및 자막",
         "videoQualityTab": "영상 품질",
         "serversTab": "서버",
-        "playbackTab": "재생 설정"
+        "playbackTab": "재생 설정",
+        "pause": "일시정지",
+        "play": "재생",
+        "skipCredits": "엔딩 크레딧 건너뛰기"
     },
     "playback": {
         "autoplayTitle": "자동 재생 설정",

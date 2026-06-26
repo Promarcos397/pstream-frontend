@@ -59,7 +59,10 @@
         "removeProgress": "删除进度",
         "rateTitle": "评分",
         "closeRating": "关闭评分",
-        "done": "完成"
+        "done": "完成",
+        "clearSearch": "清除搜索",
+        "closeSearch": "关闭搜索",
+        "ratingLabel": "{{label}} 评级"
     },
     "settings": {
         "title": "管理个人资料与偏好",
@@ -214,7 +217,10 @@
         "resume": "续看第 {{season}} 季第 {{episode}} 集",
         "more": "更多",
         "thisFilmIs": "作品风格:",
-        "rate": "评分"
+        "rate": "评分",
+        "showMore": "显示更多",
+        "showLess": "显示更少",
+        "showMoreEpisodes": "显示更多剧集"
     },
     "player": {
         "skipIntro": "跳过片头",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "音频和字幕",
         "videoQualityTab": "视频质量",
         "serversTab": "服务器",
-        "playbackTab": "播放设置"
+        "playbackTab": "播放设置",
+        "pause": "暂停",
+        "play": "播放",
+        "skipCredits": "跳过片尾字幕"
     },
     "playback": {
         "autoplayTitle": "自动播放控制",

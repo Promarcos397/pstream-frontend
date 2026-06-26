@@ -851,7 +851,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         onTouchEnd={(e) => e.stopPropagation()}
                         className={`pointer-events-auto flex items-center justify-center text-white hover:text-white hover:scale-110 active:scale-90 transition-all`}
                         style={{ width: 50, height: 50 }}
-                        aria-label={isPlaying ? 'Pause' : 'Play'}
+                        aria-label={isPlaying ? t('player.pause') : t('player.play')}
                     >
                         {isPlaying ? <PauseIcon size={44} weight="fill" /> : <PlayIcon size={44} weight="fill" />}
                     </button>
@@ -945,7 +945,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                     onClick={(e) => { e.stopPropagation(); onSkipSegment(activeSkipSegment); }}
                                     className="px-5 py-2 md:py-2.5 bg-white text-black font-bold text-[13px] md:text-sm rounded-[4px] hover:bg-neutral-200 active:scale-95 transition-all flex items-center gap-2 uppercase tracking-wider shadow-lg"
                                 >
-                                    {activeSkipSegment.type === 'credits' ? 'Skip Credits' : 'Skip Intro'}
+                                    {activeSkipSegment.type === 'credits' ? t('player.skipCredits') : t('player.skipIntro')}
                                     <SkipForwardIcon size={18} weight="bold" />
                                 </button>
                             </div>

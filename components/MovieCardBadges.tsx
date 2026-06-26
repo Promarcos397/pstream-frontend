@@ -4,6 +4,7 @@
  * Import from here instead of defining inline in each component.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
 
 // ─── BBFC Maturity Rating Badge ───────────────────────────────────────────────
@@ -48,6 +49,7 @@ function resolveLabel(cert?: string, adult?: boolean, voteAverage?: number): str
 export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
   adult, voteAverage, certification, label, size = 'sm',
 }) => {
+  const { t } = useTranslation();
   const lbl = label || resolveLabel(certification, adult, voteAverage);
   const cfg = BBFC[lbl] ?? { fill: '#E65100', shape: 'circle' as const };
 
@@ -72,7 +74,7 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
         width={px}
         height={Math.round(px * 100 / 110)}
         viewBox="0 0 110 100"
-        aria-label={`${lbl} rating`}
+        aria-label={t('common.ratingLabel', { label: lbl })}
         className="flex-shrink-0"
         style={{ display: 'inline-block' }}
       >
@@ -106,7 +108,7 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
       width={px}
       height={px}
       viewBox="0 0 100 100"
-      aria-label={`${lbl} rating`}
+      aria-label={t('common.ratingLabel', { label: lbl })}
       className="flex-shrink-0"
       style={{ display: 'inline-block' }}
     >

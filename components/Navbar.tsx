@@ -159,7 +159,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
               onMouseEnter={() => preloadPage('settings')}
               className="w-8 h-8 rounded overflow-hidden shadow-md transition-all flex items-center justify-center relative focus-visible:outline-none"
               style={{ background: '#E50914' }}
-              aria-label="Account settings"
+              aria-label={t('nav.accountSettings')}
             >
               <span className="text-white font-bold text-sm absolute">{avatarInitial}</span>
               {avatarUrl && (

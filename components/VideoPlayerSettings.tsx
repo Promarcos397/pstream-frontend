@@ -595,7 +595,7 @@ export const EpisodeExplorer: React.FC<{
                                             )}
                                             <div className="flex-1 flex flex-col justify-center">
                                                 <p className="text-[13px] text-white/70 leading-relaxed line-clamp-4">
-                                                    {ep.overview || 'No description available.'}
+                                                    {ep.overview || t('common.noDesc')}
                                                 </p>
                                                 {ep.runtime && (
                                                     <span className="text-[11px] text-white/40 mt-1.5 font-medium">{ep.runtime}m</span>

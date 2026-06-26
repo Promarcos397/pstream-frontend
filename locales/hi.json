@@ -59,7 +59,10 @@
         "removeProgress": "प्रगति हटाएं",
         "rateTitle": "रेटिंग दें",
         "closeRating": "रेटिंग बंद करें",
-        "done": "हो गया"
+        "done": "हो गया",
+        "clearSearch": "खोज साफ़ करें",
+        "closeSearch": "खोज बंद करें",
+        "ratingLabel": "{{label}} रेटिंग"
     },
     "settings": {
         "title": "प्रोफाइल और पसंद मैनेज करें",
@@ -214,7 +217,10 @@
         "resume": "सीजन {{season}} एपिसोड {{episode}} से जारी रखें",
         "more": "और",
         "thisFilmIs": "फ़िल्म की खासियत:",
-        "rate": "रेटिंग दें"
+        "rate": "रेटिंग दें",
+        "showMore": "और दिखाएं",
+        "showLess": "कम दिखाएं",
+        "showMoreEpisodes": "और एपिसोड दिखाएं"
     },
     "player": {
         "skipIntro": "इंट्रो छोड़ें",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "ऑडियो और सबटाइटल",
         "videoQualityTab": "वीडियो गुणवत्ता",
         "serversTab": "सर्वर",
-        "playbackTab": "प्लेबैक सेटिंग्स"
+        "playbackTab": "प्लेबैक सेटिंग्स",
+        "pause": "रोकें",
+        "play": "चलाएं",
+        "skipCredits": "क्रेडिट छोड़ें"
     },
     "playback": {
         "autoplayTitle": "ऑटोप्ले कंट्रोल",

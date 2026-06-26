@@ -59,7 +59,10 @@
         "removeProgress": "Usuń postęp",
         "rateTitle": "Oceń",
         "closeRating": "Zamknij ocenę",
-        "done": "Gotowe"
+        "done": "Gotowe",
+        "clearSearch": "Wyczyść wyszukiwanie",
+        "closeSearch": "Zamknij wyszukiwanie",
+        "ratingLabel": "Ocena {{label}}"
     },
     "settings": {
         "title": "Zarządzaj profilem i preferencjami",
@@ -214,7 +217,10 @@
         "resume": "Wznów: S{{season}} O{{episode}}",
         "more": "więcej",
         "thisFilmIs": "Cechy filmu:",
-        "rate": "Oceń"
+        "rate": "Oceń",
+        "showMore": "Pokaż więcej",
+        "showLess": "Pokaż mniej",
+        "showMoreEpisodes": "Pokaż więcej odcinków"
     },
     "player": {
         "skipIntro": "Pomiń wstęp",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "Audio i napisy",
         "videoQualityTab": "Jakość wideo",
         "serversTab": "Serwery",
-        "playbackTab": "Ustawienia odtwarzania"
+        "playbackTab": "Ustawienia odtwarzania",
+        "pause": "Pauza",
+        "play": "Odtwórz",
+        "skipCredits": "Pomiń napisy końcowe"
     },
     "playback": {
         "autoplayTitle": "Sterowanie autoodtwarzaniem",

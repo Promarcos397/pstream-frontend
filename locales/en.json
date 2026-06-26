@@ -59,7 +59,10 @@
         "removeContinue": "Remove from Continue Watching",
         "removeProgress": "Remove Progress",
         "rateTitle": "Rate",
-        "closeRating": "Close rating"
+        "closeRating": "Close rating",
+        "clearSearch": "Clear search",
+        "closeSearch": "Close search",
+        "ratingLabel": "{{label}} rating"
     },
     "settings": {
         "title": "Manage profile and preferences",
@@ -214,7 +217,10 @@
         "resume": "Resume S{{season}} E{{episode}}",
         "more": "more",
         "thisFilmIs": "This film is:",
-        "rate": "Rate"
+        "rate": "Rate",
+        "showMore": "Show more",
+        "showLess": "Show less",
+        "showMoreEpisodes": "Show more episodes"
     },
     "player": {
         "skipIntro": "Skip Intro",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "Audio & Subtitles",
         "videoQualityTab": "Video Quality",
         "serversTab": "Servers",
-        "playbackTab": "Playback Settings"
+        "playbackTab": "Playback Settings",
+        "pause": "Pause",
+        "play": "Play",
+        "skipCredits": "Skip Credits"
     },
     "playback": {
         "autoplayTitle": "Autoplay Controls",

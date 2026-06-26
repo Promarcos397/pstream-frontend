@@ -59,7 +59,10 @@
         "removeProgress": "İlerlemeyi kaldır",
         "rateTitle": "Puan ver",
         "closeRating": "Puanı kapat",
-        "done": "Tamam"
+        "done": "Tamam",
+        "clearSearch": "Aramayı temizle",
+        "closeSearch": "Aramayı kapat",
+        "ratingLabel": "{{label}} derecelendirmesi"
     },
     "settings": {
         "title": "Profil ve Tercih Yönetimi",
@@ -214,7 +217,10 @@
         "resume": "Devam Et: S{{season}} B{{episode}}",
         "more": "daha fazla",
         "thisFilmIs": "Bu film şöyledir:",
-        "rate": "Puanla"
+        "rate": "Puanla",
+        "showMore": "Daha fazla göster",
+        "showLess": "Daha az göster",
+        "showMoreEpisodes": "Daha fazla bölüm göster"
     },
     "player": {
         "skipIntro": "Girişi Atla",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "Ses ve altyazı",
         "videoQualityTab": "Video kalitesi",
         "serversTab": "Sunucular",
-        "playbackTab": "Oynatma ayarları"
+        "playbackTab": "Oynatma ayarları",
+        "pause": "Duraklat",
+        "play": "Oynat",
+        "skipCredits": "Jeneriği atla"
     },
     "playback": {
         "autoplayTitle": "Otomatik Oynatma Kontrolleri",

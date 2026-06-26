@@ -58,7 +58,7 @@ export const LoginWall: React.FC = () => {
               value={email}
               onChange={e => setEmail(e.target.value)}
               className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-red-500 transition-colors"
-              placeholder="name@example.com"
+              placeholder={t('auth.emailPlaceholder')}
             />
           </div>
           <div>
@@ -70,7 +70,7 @@ export const LoginWall: React.FC = () => {
               value={password}
               onChange={e => setPassword(e.target.value)}
               className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-red-500 transition-colors"
-              placeholder="••••••••"
+              placeholder={t('auth.passwordPlaceholder')}
             />
           </div>
 

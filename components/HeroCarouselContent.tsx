@@ -105,7 +105,7 @@ const HeroCarouselContent: React.FC<HeroCarouselContentProps> = ({
                         <button
                             onClick={onMuteButtonClick}
                             className="w-9 h-9 border-[1.8px] border-white/70 rounded-full flex items-center justify-center transition-colors duration-200 hover:bg-white/15"
-                            aria-label={hasVideoEnded ? 'Replay' : globalMute ? 'Unmute' : 'Mute'}
+                            aria-label={hasVideoEnded ? t('hero.replay') : globalMute ? t('hero.unmute') : t('hero.mute')}
                         >
                             {hasVideoEnded
                                 ? <ArrowCounterClockwiseIcon size={20} className="text-white" />

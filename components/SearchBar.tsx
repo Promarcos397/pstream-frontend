@@ -192,7 +192,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery, onAc
           <button
             onMouseDown={searchQuery ? handleClear : closeSearch}
             className="text-white/70 hover:text-white cursor-pointer mx-1 flex-shrink-0 transition-all duration-200 hover:scale-125 active:scale-95"
-            aria-label={searchQuery ? 'Clear search' : 'Close search'}
+            aria-label={searchQuery ? t('common.clearSearch') : t('common.closeSearch')}
           >
             <XIcon size={20} />
           </button>

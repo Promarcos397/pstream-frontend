@@ -16,6 +16,7 @@ interface RecCardProps {
 
 const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
     const { myList, toggleList } = useGlobalContext();
+    const { t } = useTranslation();
 
     // Three-state logo: null=loading | ''=not found | 'url'=found
     const [logoPath, setLogoPath] = useState<string | null>(null);
@@ -160,7 +161,7 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
 
                 {/* Overview — white/80, readable */}
                 <p className="text-white/80 text-[12px] leading-relaxed line-clamp-5 min-h-[72px]">
-                    {rec.overview || 'No description available.'}
+                    {rec.overview || t('common.noDesc')}
                 </p>
             </div>
         </div>
@@ -218,7 +219,7 @@ const InfoModalRecommendations: React.FC<InfoModalRecommendationsProps> = ({
                                 setVisibleCount(BATCH_REC);
                             }
                         }}
-                        title={hasMore ? 'Show more' : 'Show less'}
+                        title={hasMore ? t('modal.showMore') : t('modal.showLess')}
                         className="w-10 h-10 rounded-full border border-white/20 bg-[#2a2a2a] hover:border-white/50 hover:bg-[#3a3a3a] flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 group/btn"
                     >
                         {hasMore

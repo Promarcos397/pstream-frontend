@@ -59,7 +59,10 @@
         "removeProgress": "إزالة التقدم",
         "rateTitle": "تقييم",
         "closeRating": "إغلاق التقييم",
-        "done": "تم"
+        "done": "تم",
+        "clearSearch": "مسح البحث",
+        "closeSearch": "إغلاق البحث",
+        "ratingLabel": "تصنيف {{label}}"
     },
     "settings": {
         "title": "إدارة الملف الشخصي والتفضيلات",
@@ -179,13 +182,13 @@
         "trueStoriesDocuseries": "قصص حقيقية ووثائقيات",
         "basedOnRealLife": "مستوحى من الواقع",
         "recommendedForYou": "موصى به لك",
-        "hiddenDisliked": "المخفية & غير المعجبة"
+        "hiddenDisliked": "المخفية و غير المعجبة"
     },
     "sort": {
         "dateAdded": "أضيفت حديثًا",
         "releaseDate": "تاريخ الإصدار",
         "rating": "الأعلى تقييمًا",
-        "title": "العنوان (A-Z)"
+        "title": "العنوان (أ-ي)"
     },
     "list": {
         "all": "الكل",
@@ -214,7 +217,10 @@
         "resume": "متابعة م{{season}} ح{{episode}}",
         "more": "المزيد",
         "thisFilmIs": "هذا الفيلم:",
-        "rate": "تقييم"
+        "rate": "تقييم",
+        "showMore": "عرض المزيد",
+        "showLess": "عرض أقل",
+        "showMoreEpisodes": "عرض المزيد من الحلقات"
     },
     "player": {
         "skipIntro": "تخطي المقدمة",
@@ -232,7 +238,7 @@
         "exitPlayer": "خروج من المشغل",
         "tapToUnmute": "انقر لإلغاء كتم الصوت",
         "youreWatching": "أنت تشاهد",
-        "paused": "مؤقتًا",
+        "paused": "متوقف",
         "closePlayer": "إغلاق المشغّل",
         "rewind10s": "رجوع 10 ثوانٍ",
         "fastForward10s": "تقديم 10 ثوانٍ",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "الصوت والترجمة",
         "videoQualityTab": "جودة الفيديو",
         "serversTab": "الخوادم",
-        "playbackTab": "إعدادات التشغيل"
+        "playbackTab": "إعدادات التشغيل",
+        "pause": "إيقاف مؤقت",
+        "play": "تشغيل",
+        "skipCredits": "تخطي التتر"
     },
     "playback": {
         "autoplayTitle": "عناصر التحكم في التشغيل التلقائي",

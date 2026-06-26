@@ -59,7 +59,10 @@
         "removeProgress": "Ta bort framsteg",
         "rateTitle": "Betygsätt",
         "closeRating": "Stäng betyg",
-        "done": "Klar"
+        "done": "Klar",
+        "clearSearch": "Rensa sökning",
+        "closeSearch": "Stäng sökning",
+        "ratingLabel": "{{label}}-betyg"
     },
     "settings": {
         "title": "Hantera profil och inställningar",
@@ -214,7 +217,10 @@
         "resume": "Fortsätt: S{{season}} A{{episode}}",
         "more": "mer",
         "thisFilmIs": "Denna film är:",
-        "rate": "Betygsätt"
+        "rate": "Betygsätt",
+        "showMore": "Visa mer",
+        "showLess": "Visa mindre",
+        "showMoreEpisodes": "Visa fler avsnitt"
     },
     "player": {
         "skipIntro": "Hoppa över intro",
@@ -267,7 +273,10 @@
         "audioSubtitlesTab": "Ljud & undertexter",
         "videoQualityTab": "Videokvalitet",
         "serversTab": "Servrar",
-        "playbackTab": "Uppspelningsinställningar"
+        "playbackTab": "Uppspelningsinställningar",
+        "pause": "Pausa",
+        "play": "Spela",
+        "skipCredits": "Hoppa över eftertextning"
     },
     "playback": {
         "autoplayTitle": "Inställningar för automatisk uppspelning",
