@@ -771,7 +771,7 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
             {/* ── TOP: Back + title (mobile) ── */}
             {isMobile && (
                 <div
-                    className={`absolute top-0 left-0 right-0 z-40 flex items-center gap-3 transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                    className={`relative absolute top-0 left-0 right-0 z-40 flex items-center transition-opacity duration-300 ${showUI ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                     style={{
                         paddingTop: `max(env(safe-area-inset-top, 0px), 16px)`,
                         paddingLeft: `max(${safeLeft}, 16px)`,
@@ -790,13 +790,18 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                     >
                         <ArrowLeftIcon size={40} weight="bold" />
                     </button>
-                    <PlayerTitle
-                        title={title}
-                        episodeNumber={episodeNumber}
-                        episodeName={episodeName}
-                        mediaType={mediaType}
-                        className="text-white text-sm line-clamp-1 drop-shadow-md"
-                    />
+
+                    {/* Title — absolutely centred so it's always mid-screen regardless of button widths */}
+                    <div className="absolute inset-x-0 flex justify-center items-center pointer-events-none px-14">
+                        <PlayerTitle
+                            title={title}
+                            episodeNumber={episodeNumber}
+                            episodeName={episodeName}
+                            mediaType={mediaType}
+                            className="text-white text-sm line-clamp-1 drop-shadow-md text-center"
+                        />
+                    </div>
+
                     <div className="flex-1" />
                     {onToggleFit && !isEmbedFallback && (
                         <button
@@ -1146,8 +1151,11 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                     </div>
 
                                     {/* CENTER: Title (desktop only) */}
-                                    <div className="flex justify-center px-4 text-center items-center pointer-events-none min-w-0" style={{ flex: '2 1 0%', maxWidth: '50%', transform: 'translateX(-20px)' }}>
-                                        <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[21px] drop-shadow-lg line-clamp-2" />
+                                    <div className="flex justify-center px-4 text-center items-center pointer-events-none min-w-0 overflow-hidden" style={{ flex: '2 1 0%', maxWidth: '50%', transform: 'translateX(-20px)' }}>
+                                        {/* Block wrapper so line-clamp-2 works on a proper box (spans can't -webkit-box clamp) */}
+                                        <div className="line-clamp-2 overflow-hidden text-center w-full">
+                                            <PlayerTitle title={title} episodeNumber={episodeNumber} episodeName={episodeName} mediaType={mediaType} className="text-white/80 text-[21px] drop-shadow-lg" />
+                                        </div>
                                     </div>
 
                                     {/* RIGHT GROUP */}
