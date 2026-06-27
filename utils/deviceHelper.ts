@@ -28,8 +28,9 @@ export const getOptimizedImageUrl = (
 
   switch (type) {
     case 'backdrop':
-      // Desktop backdrops need higher crispness (w1280), mobile screen is small enough for w780
-      return `${TMDB_IMG_BASE}/${isMobile ? 'w780' : 'w1280'}${path}`;
+      // Row cards are ~200px wide, popup is ~341px — w500 covers both on desktop.
+      // Mobile cards are ~150px — w300 covers even 2× retina screens.
+      return `${TMDB_IMG_BASE}/${isMobile ? 'w300' : 'w500'}${path}`;
     case 'poster':
       // Desktop posters match w500, mobile posters fit perfectly in w342
       return `${TMDB_IMG_BASE}/${isMobile ? 'w342' : 'w500'}${path}`;

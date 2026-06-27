@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { Movie } from '../types';
 import { getMovieDetails, getMovieCredits, getRecommendations, getMovieImages } from '../services/api';
 
+interface CachedMovieData {
+    detailedMovie: Movie;
+    cast: string[];
+    recommendations: Movie[];
+    logoUrl: string | null;
+}
+const _movieDataCache = new Map<string, CachedMovieData>();
+
 interface UseMovieDataReturn {
     detailedMovie: Movie | null;
     cast: string[];
@@ -15,7 +23,7 @@ export const useMovieData = (movie: Movie | null): UseMovieDataReturn => {
     const [cast, setCast] = useState<string[]>([]);
     const [recommendations, setRecommendations] = useState<Movie[]>([]);
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(!!movie);
 
     useEffect(() => {
         if (!movie) {
@@ -26,14 +34,25 @@ export const useMovieData = (movie: Movie | null): UseMovieDataReturn => {
             return;
         }
 
+        const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+        const cacheKey = `${movie.id}-${mediaType}`;
+
+        const cached = _movieDataCache.get(cacheKey);
+        if (cached) {
+            setDetailedMovie(cached.detailedMovie);
+            setCast(cached.cast);
+            setRecommendations(cached.recommendations);
+            setLogoUrl(cached.logoUrl);
+            setIsLoading(false);
+            return;
+        }
+
         // Clear previous state to prevent ghosting when switching movies
         setDetailedMovie(null);
         setCast([]);
         setRecommendations([]);
         setLogoUrl(null);
         setIsLoading(true);
-
-        const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
         const fetchData = async () => {
             try {
@@ -45,30 +64,18 @@ export const useMovieData = (movie: Movie | null): UseMovieDataReturn => {
                     getMovieImages(movie.id, mediaType)
                 ]);
 
-                if (details) setDetailedMovie(details);
+                const castList = credits?.length > 0 ? credits.slice(0, 5).map((c: any) => c.name) : [];
+                const recsList = recs ? recs.slice(0, 12) : [];
+                const logo = images?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
+                const logoUrl = logo ? `https://image.tmdb.org/t/p/w500${logo.file_path}` : null;
 
-                if (credits && credits.length > 0) {
-                    setCast(credits.slice(0, 5).map((c: any) => c.name));
-                } else {
-                    setCast([]);
+                if (details) {
+                    _movieDataCache.set(cacheKey, { detailedMovie: details, cast: castList, recommendations: recsList, logoUrl });
+                    setDetailedMovie(details);
                 }
-
-                if (recs) {
-                    setRecommendations(recs.slice(0, 12));
-                } else {
-                    setRecommendations([]);
-                }
-
-                if (images && images.logos) {
-                    const logo = images.logos.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null);
-                    if (logo) {
-                        setLogoUrl(`https://image.tmdb.org/t/p/w500${logo.file_path}`);
-                    } else {
-                        setLogoUrl(null);
-                    }
-                } else {
-                    setLogoUrl(null);
-                }
+                setCast(castList);
+                setRecommendations(recsList);
+                setLogoUrl(logoUrl);
 
             } catch (error) {
                 console.error("Error fetching movie data:", error);

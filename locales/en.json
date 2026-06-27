@@ -62,7 +62,8 @@
         "closeRating": "Close rating",
         "clearSearch": "Clear search",
         "closeSearch": "Close search",
-        "ratingLabel": "{{label}} rating"
+        "ratingLabel": "{{label}} rating",
+        "episode": "Episode"
     },
     "settings": {
         "title": "Manage profile and preferences",

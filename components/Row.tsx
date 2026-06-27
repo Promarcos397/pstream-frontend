@@ -41,7 +41,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
   const canViewAll = !!(onViewAll && rowKey && fetchUrl);
   // Start movies as empty unless data is provided
   const [movies, setMovies] = useState<Movie[]>([]);
-  const [initialLoad, setInitialLoad] = useState(!data && !!fetchUrl);
+  const [initialLoad, setInitialLoad] = useState(() => !data && !!fetchUrl && !isUrlCached(fetchUrl));
   const [isHidden, setIsHidden] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false); // Add this line
   const [isFetching, setIsFetching] = useState(false);
@@ -171,16 +171,17 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
           setInitialLoad(false);
           registerSeenIds(firstFrame.map(m => Number(m.id)));
 
-          // Check logos for the first viewport-worth of cards and push logo-less ones past the visible area
-          const LOGO_CHECK = Math.min(firstFrame.length, 10);
-          Promise.all(
-            firstFrame.slice(0, LOGO_CHECK).map(async m => {
-              const mt = (m.media_type || (m.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-              const data = await getMovieImages(String(m.id), mt);
-              const hasLogo = !!(data?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null));
-              return { id: String(m.id), hasLogo };
-            })
-          ).then(results => {
+          // Start getMovieImages for ALL first-frame cards immediately so _dataCache is
+          // warm before MovieCard's own IntersectionObserver fires — logos appear instantly.
+          // Only wait on the first 6 for the logo-ordering step; the rest run as fire-and-forget.
+          const LOGO_CHECK = Math.min(firstFrame.length, 6);
+          const allLogoPromises = firstFrame.map(async m => {
+            const mt = (m.media_type || (m.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+            const data = await getMovieImages(String(m.id), mt);
+            const hasLogo = !!(data?.logos?.find((l: any) => l.iso_639_1 === 'en' || l.iso_639_1 === null));
+            return { id: String(m.id), hasLogo };
+          });
+          Promise.all(allLogoPromises.slice(0, LOGO_CHECK)).then(results => {
             if (!isMounted) return;
             const noLogoIds = new Set(results.filter(r => !r.hasLogo).map(r => r.id));
             if (noLogoIds.size === 0) return;
@@ -191,14 +192,18 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
             });
           }).catch(() => {});
 
-          // Phase 2: append pages 3–8 in the background, no re-shuffle
+          // Phase 2: append pages 3–8 in parallel pairs in the background
           let gathered = [...initial];
-          for (let p = 3; gathered.length < 120 && p <= 8; p++) {
-            const results = await fetchData(buildPageUrl(p));
+          for (let p = 3; gathered.length < 120 && p <= 8; p += 2) {
+            const [ra, rb] = await Promise.all([
+              fetchData(buildPageUrl(p)),
+              p + 1 <= 8 ? fetchData(buildPageUrl(p + 1)) : Promise.resolve(null),
+            ]);
             if (!isMounted) return;
-            if (!results || results.length === 0) break;
+            const combined = [...(ra || []), ...(rb || [])];
+            if (combined.length === 0) break;
 
-            const fresh = filterBatch(results).filter(m => !gatheredIds.has(m.id));
+            const fresh = filterBatch(combined).filter(m => !gatheredIds.has(m.id));
             if (fresh.length > 0) {
               fresh.forEach(m => gatheredIds.add(m.id));
               gathered.push(...fresh);

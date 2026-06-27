@@ -62,7 +62,8 @@
         "done": "完了",
         "clearSearch": "検索をクリア",
         "closeSearch": "検索を閉じる",
-        "ratingLabel": "{{label}} レーティング"
+        "ratingLabel": "{{label}} レーティング",
+        "episode": "エピソード"
     },
     "settings": {
         "title": "プロフィールと設定の管理",

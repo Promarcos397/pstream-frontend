@@ -585,8 +585,14 @@ class HeroEngineService {
 
   private preloadBackdrop(backdropPath?: string) {
     if (!backdropPath || typeof window === 'undefined') return;
-    const img = new window.Image();
-    img.src = `https://image.tmdb.org/t/p/w780${backdropPath}`;
+    const url = `https://image.tmdb.org/t/p/w1280${backdropPath}`;
+    if (document.querySelector(`link[rel="preload"][href="${url}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = url;
+    link.setAttribute('fetchpriority', 'high');
+    document.head.appendChild(link);
   }
 
   getCachedHero(pageTypeOrKey: string, genreId?: number): HeroPackage | undefined {

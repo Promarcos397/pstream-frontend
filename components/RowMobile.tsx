@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Movie } from '../types';
-import { fetchData } from '../services/api';
+import { fetchData, isUrlCached } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
 import { SHADOW_BANNED_IDS } from '../constants';
 import MovieCardTouch from './MovieCardTouch';
@@ -28,7 +28,7 @@ const RowMobile: React.FC<RowMobileProps> = ({
 }) => {
   const { pageSeenIds, registerSeenIds } = useGlobalContext();
   const [movies, setMovies] = useState<Movie[]>([]);
-  const [initialLoad, setInitialLoad] = useState(!data && !!fetchUrl);
+  const [initialLoad, setInitialLoad] = useState(() => !data && !!fetchUrl && !isUrlCached(fetchUrl));
   const [isHidden, setIsHidden] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);

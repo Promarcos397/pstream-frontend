@@ -62,7 +62,8 @@
         "done": "تم",
         "clearSearch": "مسح البحث",
         "closeSearch": "إغلاق البحث",
-        "ratingLabel": "تصنيف {{label}}"
+        "ratingLabel": "تصنيف {{label}}",
+        "episode": "حلقة"
     },
     "settings": {
         "title": "إدارة الملف الشخصي والتفضيلات",

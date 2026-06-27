@@ -155,24 +155,58 @@ export const useDynamicManifest = (
 
     // ── 2. NEW & POPULAR PAGE ─────────────────────────────────────────────────
     if (pageType === 'new_popular') {
-      manifest.push({ key: 'top10-movies',   title: 'Top 10 Films in the UK Today',     fetchUrl: REQUESTS.fetchTrendingMovies,  type: 'top10' });
-      manifest.push({ key: 'top10-tv',       title: 'Top 10 Series in the UK Today',    fetchUrl: REQUESTS.fetchTrendingTV,      type: 'top10' });
-      manifest.push({ key: 'new-releases',   title: 'Newly Added to the Collection',    fetchUrl: REQUESTS.fetchNewReleases });
-      manifest.push({ key: 'worth-wait',     title: 'Worth the Wait',                   fetchUrl: REQUESTS.fetchUpcoming + '&page=2' });
-      manifest.push({ key: 'rising-stars',   title: 'Rising Stars: Under the Radar',    fetchUrl: REQUESTS.fetchByGenre('movie', 28, 'vote_average.desc', '&vote_count.gte=25&vote_count.lte=250') });
-      manifest.push({ key: 'new-this-year',  title: `The Best of ${year} So Far`,        fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', `&release_date.gte=${year}-01-01&vote_count.gte=12`) });
+      // Full pool — everything shuffled together daily
+      const npPool: SmartRow[] = [
+        { key: 'top10-movies', title: 'Top 10 Films in the UK Today',  fetchUrl: REQUESTS.fetchTrendingMovies, type: 'top10' },
+        { key: 'top10-tv',     title: 'Top 10 Series in the UK Today', fetchUrl: REQUESTS.fetchTrendingTV,     type: 'top10' },
+        { key: 'new-releases',  title: 'Newly Added to the Collection',           fetchUrl: REQUESTS.fetchNewReleases },
+        { key: 'worth-wait',    title: 'Worth the Wait',                           fetchUrl: REQUESTS.fetchUpcoming + '&page=2' },
+        { key: 'rising-stars',  title: 'Rising Stars: Under the Radar',            fetchUrl: REQUESTS.fetchByGenre('movie', 28, 'vote_average.desc', '&vote_count.gte=25&vote_count.lte=250') },
+        { key: 'new-this-year', title: `The Best of ${year} So Far`,               fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', `&release_date.gte=${year}-01-01&vote_count.gte=12`) },
+        { key: 'new-tv-year',   title: 'New Series Everyone Is Watching',          fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'vote_average.desc', `&first_air_date.gte=${year}-01-01&vote_count.gte=8`) },
+        { key: 'internet-buzz', title: "The Shows the Internet Can't Stop Talking About", fetchUrl: REQUESTS.fetchTrendingTV + '&page=2' },
+        { key: 'films-buzz',    title: 'The Films Everyone Is Discussing',         fetchUrl: REQUESTS.fetchTrendingMovies + '&page=2' },
+        { key: 'np-upcoming',   title: 'Coming to the Collection Soon',            fetchUrl: REQUESTS.fetchUpcoming },
+        { key: 'np-acclaimed',  title: 'New and Acclaimed',                        fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', `&release_date.gte=${year - 1}-01-01&vote_count.gte=80`) },
+        { key: 'np-series-new', title: 'Series Picking Up Steam',                  fetchUrl: REQUESTS.fetchByGenre('tv', 10765, 'popularity.desc', `&first_air_date.gte=${year - 1}-01-01`) },
+        { key: 'np-drama-new',  title: 'New Dramas With Something to Say',         fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'popularity.desc', `&first_air_date.gte=${year}-01-01`) },
+        { key: 'np-hidden',     title: 'Flying Under the Radar',                   fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', '&vote_count.gte=25&vote_count.lte=200') },
+        { key: 'np-intl',       title: 'International Discoveries',                fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'popularity.desc') + '&without_original_language=en' },
+      ];
 
-      // new-tv-year - need to fix this
-      manifest.push({ key: 'new-tv-year',    title: `New Series Everyone Is Watching`,  fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'vote_average.desc', `&first_air_date.gte=${year}-01-01&vote_count.gte=8`) });
-      manifest.push({ key: 'internet-buzz',  title: "The Shows the Internet Can't Stop Talking About", fetchUrl: REQUESTS.fetchTrendingTV + '&page=2' });
-      manifest.push({ key: 'films-buzz',     title: 'The Films Everyone Is Discussing', fetchUrl: REQUESTS.fetchTrendingMovies + '&page=2' });
-      manifest.push({ key: 'np-upcoming',    title: 'Coming to the Collection Soon',    fetchUrl: REQUESTS.fetchUpcoming });
-      manifest.push({ key: 'np-acclaimed',   title: 'New and Acclaimed',                fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', `&release_date.gte=${year - 1}-01-01&vote_count.gte=80`) });
-      manifest.push({ key: 'np-series-new',  title: 'Series Picking Up Steam',          fetchUrl: REQUESTS.fetchByGenre('tv', 10765, 'popularity.desc', `&first_air_date.gte=${year - 1}-01-01`) });
-      manifest.push({ key: 'np-drama-new',   title: 'New Dramas With Something to Say', fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'popularity.desc', `&first_air_date.gte=${year}-01-01`) });
-      manifest.push({ key: 'np-hidden',      title: 'Flying Under the Radar',           fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'vote_average.desc', '&vote_count.gte=25&vote_count.lte=200') });
-      manifest.push({ key: 'np-intl',        title: 'International Discoveries',        fetchUrl: REQUESTS.fetchByGenre('movie', 18, 'popularity.desc') + '&without_original_language=en' });
-      return manifest;
+      // Genre spotlight pool — 1 or 2 appear daily, picked by hash
+      const spotlightPool: SmartRow[] = [
+        { key: 'spot-action',    title: 'Top in Action',       fetchUrl: REQUESTS.fetchByGenre('movie', 28, 'popularity.desc') },
+        { key: 'spot-comedy',    title: 'Top in Comedy',       fetchUrl: REQUESTS.fetchByGenre('movie', 35, 'popularity.desc') },
+        { key: 'spot-thriller',  title: 'Top in Thriller',     fetchUrl: REQUESTS.fetchByGenre('movie', 53, 'popularity.desc') },
+        { key: 'spot-horror',    title: 'Top in Horror',       fetchUrl: REQUESTS.fetchByGenre('movie', 27, 'popularity.desc') },
+        { key: 'spot-scifi',     title: 'Top in Sci-Fi',       fetchUrl: REQUESTS.fetchByGenre('movie', 878, 'popularity.desc') },
+        { key: 'spot-crime',     title: 'Top in Crime',        fetchUrl: REQUESTS.fetchByGenre('movie', 80, 'popularity.desc') },
+        { key: 'spot-animation', title: 'Top in Animation',    fetchUrl: REQUESTS.fetchByGenre('tv', 16, 'popularity.desc') },
+        { key: 'spot-romance',   title: 'Top in Romance',      fetchUrl: REQUESTS.fetchByGenre('movie', 10749, 'popularity.desc') },
+        { key: 'spot-adventure', title: 'Top in Adventure',    fetchUrl: REQUESTS.fetchByGenre('movie', 12, 'popularity.desc') },
+        { key: 'spot-mystery',   title: 'Top in Mystery',      fetchUrl: REQUESTS.fetchByGenre('movie', 9648, 'popularity.desc') },
+        { key: 'spot-fantasy',   title: 'Top in Fantasy',      fetchUrl: REQUESTS.fetchByGenre('movie', 14, 'popularity.desc') },
+        { key: 'spot-drama-tv',  title: 'Top Drama Series',    fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'popularity.desc') },
+      ];
+
+      // Shuffle everything daily
+      const shuffled = seededShuffle(npPool, hash);
+
+      // Pick 1 spotlight most days, 2 on roughly every third day
+      const spotCount = (hash % 3 === 0) ? 2 : 1;
+      const pickedSpotlights = seededShuffle(spotlightPool, hash ^ 0x9e3779b9).slice(0, spotCount);
+
+      // Insert spotlights at varied positions within the shuffled pool
+      const result = [...shuffled];
+      const pos1 = 2 + (hash % 3);
+      result.splice(Math.min(pos1, result.length), 0, pickedSpotlights[0]);
+      if (spotCount === 2) {
+        const pos2 = 8 + ((hash >> 4) % 3);
+        result.splice(Math.min(pos2, result.length), 0, pickedSpotlights[1]);
+      }
+
+      return result;
     }
 
     // ── 3. DYNAMIC HOME MANIFEST & PERSONALIZATION ENGINE ─────────────────────
@@ -238,10 +272,11 @@ export const useDynamicManifest = (
     return manifest;
   }, [pageType, selectedGenreId, selectedGenreName, continueWatching, myList, user, getLikedMovies, t]);
 
-  // Prefetch the first 8 rows while the hero is loading so they're cache-hot on mount.
+  // Prefetch ALL rows (page 1 + page 2) at manifest-build time so Row components
+  // join in-flight requests instead of starting new ones when they mount.
   // Also kick off background hero fetches for all page types so switching pages is instant.
   useEffect(() => {
-    rows.slice(0, 8).forEach(row => {
+    rows.forEach(row => {
       if (!row.fetchUrl) return;
       fetchData(row.fetchUrl);
       const p2 = row.fetchUrl.includes('page=')

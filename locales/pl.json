@@ -62,7 +62,8 @@
         "done": "Gotowe",
         "clearSearch": "Wyczyść wyszukiwanie",
         "closeSearch": "Zamknij wyszukiwanie",
-        "ratingLabel": "Ocena {{label}}"
+        "ratingLabel": "Ocena {{label}}",
+        "episode": "Odcinek"
     },
     "settings": {
         "title": "Zarządzaj profilem i preferencjami",

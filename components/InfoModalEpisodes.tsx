@@ -135,6 +135,8 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
                                             }
                                             className="w-full h-full object-cover group-hover:brightness-50 transition duration-200"
                                             alt={ep.name}
+                                            loading="lazy"
+                                            decoding="async"
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-gray-600">{t('common.noImage')}</div>

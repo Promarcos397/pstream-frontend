@@ -217,6 +217,26 @@ const _imageCache = new Map<string, any>();
 const _pending    = new Map<string, Promise<any>>();
 const _dataCache  = new Map<string, any>();
 
+// Limit concurrent TMDB fetches so we never burst past rate limits and the
+// first visible rows always get their slots before off-screen rows do.
+class _Semaphore {
+  private q: Array<() => void> = [];
+  private active = 0;
+  constructor(private limit: number) {}
+  acquire(): Promise<void> {
+    return new Promise(resolve => {
+      if (this.active < this.limit) { this.active++; resolve(); }
+      else this.q.push(resolve);
+    });
+  }
+  release() {
+    this.active--;
+    const next = this.q.shift();
+    if (next) { this.active++; next(); }
+  }
+}
+const _sem = new _Semaphore(6);
+
 export const getCachedMovieImages = (id: number | string, type: 'movie' | 'tv') => {
   const url = `/${type}/${id}/images`;
   return _dataCache.get(url) || null;
@@ -224,6 +244,10 @@ export const getCachedMovieImages = (id: number | string, type: 'movie' | 'tv') 
 
 export const isUrlCached = (url: string): boolean => {
   return _dataCache.has(url);
+};
+
+export const getCachedData = (url: string): any => {
+  return _dataCache.get(url) ?? null;
 };
 
 // ─── Fetch functions ──────────────────────────────────────────────────────────
@@ -244,38 +268,48 @@ export const getMovieImages = async (id: number | string, type: 'movie' | 'tv') 
 };
 
 export const getMovieDetails = async (id: number | string, type: 'movie' | 'tv') => {
-  try {
-    const appendKey = type === 'movie' ? 'release_dates' : 'content_ratings';
-    const { data } = await tmdb.get(`/${type}/${id}`, { params: { append_to_response: appendKey } });
-    if (isBlacklisted(data, 'hard')) {
-      console.warn(`[TMDB] Details request blocked for blacklisted content: ${id}`);
-      return null;
-    }
+  const appendKey = type === 'movie' ? 'release_dates' : 'content_ratings';
+  const url = `/${type}/${id}?append=${appendKey}`;
+  if (_dataCache.has(url)) return _dataCache.get(url);
+  if (_pending.has(url)) return _pending.get(url);
 
-    // Extract certification — prefer GB (BBFC), fall back to US
-    let certification: string | undefined;
-    if (type === 'movie' && data.release_dates?.results) {
-      const regions: any[] = data.release_dates.results;
-      const pick = (iso: string) => regions.find((r) => r.iso_3166_1 === iso);
-      const region = pick('GB') || pick('US');
-      if (region?.release_dates?.length) {
-        const dates: any[] = region.release_dates;
-        // Prefer theatrical (type 3), then any entry with a cert
-        const cert = (dates.find((d) => d.type === 3 && d.certification) || dates.find((d) => d.certification))?.certification;
-        if (cert) certification = cert;
+  const promise = (async () => {
+    try {
+      const { data } = await tmdb.get(`/${type}/${id}`, { params: { append_to_response: appendKey } });
+      if (isBlacklisted(data, 'hard')) {
+        console.warn(`[TMDB] Details request blocked for blacklisted content: ${id}`);
+        return null;
       }
-    } else if (type === 'tv' && data.content_ratings?.results) {
-      const regions: any[] = data.content_ratings.results;
-      const pick = (iso: string) => regions.find((r) => r.iso_3166_1 === iso);
-      certification = pick('GB')?.rating || pick('US')?.rating;
-    }
 
-    if (certification) data.certification = certification;
-    return data;
-  } catch (e) {
-    console.error(`[TMDB] Details ${type}/${id}:`, e);
-    return null;
-  }
+      let certification: string | undefined;
+      if (type === 'movie' && data.release_dates?.results) {
+        const regions: any[] = data.release_dates.results;
+        const pick = (iso: string) => regions.find((r) => r.iso_3166_1 === iso);
+        const region = pick('GB') || pick('US');
+        if (region?.release_dates?.length) {
+          const dates: any[] = region.release_dates;
+          const cert = (dates.find((d: any) => d.type === 3 && d.certification) || dates.find((d: any) => d.certification))?.certification;
+          if (cert) certification = cert;
+        }
+      } else if (type === 'tv' && data.content_ratings?.results) {
+        const regions: any[] = data.content_ratings.results;
+        const pick = (iso: string) => regions.find((r) => r.iso_3166_1 === iso);
+        certification = pick('GB')?.rating || pick('US')?.rating;
+      }
+
+      if (certification) data.certification = certification;
+      _dataCache.set(url, data);
+      return data;
+    } catch (e) {
+      console.error(`[TMDB] Details ${type}/${id}:`, e);
+      return null;
+    } finally {
+      _pending.delete(url);
+    }
+  })();
+
+  _pending.set(url, promise);
+  return promise;
 };
 
 export const getMovieVideos = async (id: number | string, type: 'movie' | 'tv') => {
@@ -293,18 +327,34 @@ export const getMovieVideos = async (id: number | string, type: 'movie' | 'tv') 
 
 
 export const getMovieCredits = async (id: number | string, type: 'movie' | 'tv') => {
-  try {
-    const { data } = await tmdb.get(`/${type}/${id}/credits`);
-    return data.cast || [];
-  } catch (e) {
-    console.error(`[TMDB] Credits ${type}/${id}:`, e);
-    return [];
-  }
+  const url = `/${type}/${id}/credits`;
+  if (_dataCache.has(url)) return _dataCache.get(url);
+  if (_pending.has(url)) return _pending.get(url);
+
+  const promise = (async () => {
+    try {
+      const { data } = await tmdb.get(url);
+      const cast = data.cast || [];
+      _dataCache.set(url, cast);
+      return cast;
+    } catch (e) {
+      console.error(`[TMDB] Credits ${type}/${id}:`, e);
+      return [];
+    } finally {
+      _pending.delete(url);
+    }
+  })();
+
+  _pending.set(url, promise);
+  return promise;
 };
 
 export const getSeasonDetails = async (id: number | string, seasonNumber: number) => {
+  const url = `/tv/${id}/season/${seasonNumber}`;
+  if (_dataCache.has(url)) return _dataCache.get(url);
   try {
-    const { data } = await tmdb.get(`/tv/${id}/season/${seasonNumber}`);
+    const { data } = await tmdb.get(url);
+    _dataCache.set(url, data);
     return data;
   } catch (e) {
     console.error(`[TMDB] Season ${seasonNumber} tv/${id}:`, e);
@@ -326,14 +376,26 @@ export const getExternalIds = async (id: number | string, type: 'movie' | 'tv') 
 };
 
 export const getRecommendations = async (id: number | string, type: 'movie' | 'tv') => {
-  try {
-    const { data } = await tmdb.get(`/${type}/${id}/recommendations`);
-    const results = data.results || [];
-    return results.filter((item: any) => !isBlacklisted(item, 'any'));
-  } catch (e) {
-    console.error(`[TMDB] Recommendations ${type}/${id}:`, e);
-    return [];
-  }
+  const url = `/${type}/${id}/recommendations`;
+  if (_dataCache.has(url)) return _dataCache.get(url);
+  if (_pending.has(url)) return _pending.get(url);
+
+  const promise = (async () => {
+    try {
+      const { data } = await tmdb.get(url);
+      const results = (data.results || []).filter((item: any) => !isBlacklisted(item, 'any'));
+      _dataCache.set(url, results);
+      return results;
+    } catch (e) {
+      console.error(`[TMDB] Recommendations ${type}/${id}:`, e);
+      return [];
+    } finally {
+      _pending.delete(url);
+    }
+  })();
+
+  _pending.set(url, promise);
+  return promise;
 };
 
 export const getMovieKeywords = async (id: number | string, type: 'movie' | 'tv') => {
@@ -433,6 +495,7 @@ export const fetchData = async (url: string) => {
   if (_pending.has(url)) return _pending.get(url);
 
   const promise = (async () => {
+    await _sem.acquire();
     try {
       const { data } = await tmdb.get(url);
       const results = data.results || [];
@@ -443,6 +506,7 @@ export const fetchData = async (url: string) => {
       console.error('[TMDB] fetchData error:', e);
       return [];
     } finally {
+      _sem.release();
       _pending.delete(url);
     }
   })();

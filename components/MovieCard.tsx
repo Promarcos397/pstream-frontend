@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence } from 'framer-motion';
 import { useGlobalContext } from '../context/GlobalContext';
 import { LOGO_SIZE } from '../constants';
 import { getMovieImages } from '../services/api';
@@ -350,9 +351,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           src={imageSrc}
           onLoad={() => setImageLoaded(true)}
           className={`w-full h-full object-cover rounded-sm backdrop-pop ${isBook && !isGrid ? 'object-[50%_30%]' : 'object-center'}`}
-          style={{ opacity: imageLoaded ? 1 : 0, transition: 'opacity 0.6s ease-out' }}
+          style={{ opacity: imageLoaded ? 1 : 0, transition: 'opacity 0.25s ease-out' }}
           alt={movie.name || movie.title}
-          loading="lazy"
+          loading={preload ? 'eager' : 'lazy'}
+          decoding="async"
           draggable={false}
         />
 
@@ -383,6 +385,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
                     onLoad={handleLogoLoad}
                     className={`relative w-auto object-contain z-[1] ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
                     style={{ filter: 'drop-shadow(0 12px 25px rgba(0,0,0,0.5)) drop-shadow(0 4px 5px rgba(0,0,0,0.35))' }}
+                    decoding="async"
                     draggable={false}
                   />
                 </div>
@@ -400,34 +403,36 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
       {!isHovered && renderProgressBar()}
 
       {createPortal(
-        isHovered && prefersHover && hoveredRect ? (
-          <MovieCardPopup
-            ref={popupRef}
-            movie={movie}
-            hoveredRect={hoveredRect}
-            hoverPosition={hoverPosition}
-            initialScroll={initialScroll}
-            imageSrc={imageSrc}
-            logoUrl={logoUrl ?? ''}
-            logoDim={logoDim}
-            logoFaded={logoFaded}
-            imgFailed={imgFailed}
-            setImgFailed={setImgFailed}
-            isBook={isBook}
-            isCinemaOnly={isCinemaOnly}
-            isActuallyPlaying={isActuallyPlaying}
-            setIsActuallyPlaying={setIsActuallyPlaying}
-            hasVideoEnded={hasVideoEnded}
-            setHasVideoEnded={setHasVideoEnded}
-            replayCount={replayCount}
-            setReplayCount={setReplayCount}
-            cardPlayerRef={cardPlayerRef}
-            cardTrailerTimeRef={cardTrailerTimeRef}
-            onOpenModal={handleOpenModal}
-            onMouseLeave={handleMouseLeave}
-            onMouseEnter={handleCancelClose}
-          />
-        ) : null,
+        <AnimatePresence>
+          {isHovered && prefersHover && hoveredRect && (
+            <MovieCardPopup
+              ref={popupRef}
+              movie={movie}
+              hoveredRect={hoveredRect}
+              hoverPosition={hoverPosition}
+              initialScroll={initialScroll}
+              imageSrc={imageSrc}
+              logoUrl={logoUrl ?? ''}
+              logoDim={logoDim}
+              logoFaded={logoFaded}
+              imgFailed={imgFailed}
+              setImgFailed={setImgFailed}
+              isBook={isBook}
+              isCinemaOnly={isCinemaOnly}
+              isActuallyPlaying={isActuallyPlaying}
+              setIsActuallyPlaying={setIsActuallyPlaying}
+              hasVideoEnded={hasVideoEnded}
+              setHasVideoEnded={setHasVideoEnded}
+              replayCount={replayCount}
+              setReplayCount={setReplayCount}
+              cardPlayerRef={cardPlayerRef}
+              cardTrailerTimeRef={cardTrailerTimeRef}
+              onOpenModal={handleOpenModal}
+              onMouseLeave={handleMouseLeave}
+              onMouseEnter={handleCancelClose}
+            />
+          )}
+        </AnimatePresence>,
         document.getElementById('popup-root') ?? document.body,
       )}
     </div>

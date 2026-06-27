@@ -62,7 +62,8 @@
         "done": "Fertig",
         "clearSearch": "Suche löschen",
         "closeSearch": "Suche schließen",
-        "ratingLabel": "{{label}}-Bewertung"
+        "ratingLabel": "{{label}}-Bewertung",
+        "episode": "Folge"
     },
     "settings": {
         "title": "Profil und Einstellungen verwalten",

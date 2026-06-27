@@ -18,6 +18,7 @@ export {
   getMovieImages,
   getCachedMovieImages,
   isUrlCached,
+  getCachedData,
   getMovieDetails,
   getMovieVideos,
   getMovieCredits,

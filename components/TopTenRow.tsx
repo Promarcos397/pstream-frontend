@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, animate } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -13,8 +13,10 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import CinemaPlayButton from './CinemaPlayButton';
 import { GENRES, LOGO_SIZE } from '../constants';
-import { getMovieImages, fetchData } from '../services/api';
+import { getMovieImages, fetchData, getSeasonDetails, getCachedData } from '../services/api';
 import { Movie } from '../types';
+
+const _epNameCache = new Map<string, string>();
 import { preloadTrailer } from '../hooks/useTrailer';
 import { TrailerPlayer } from './TrailerPlayer';
 import {
@@ -263,7 +265,19 @@ const TopTenCard: React.FC<{
   const [hasVideoEnded, setHasVideoEnded] = useState(false);
   const [replayCount, setReplayCount] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const [popupMounted, setPopupMounted] = useState(false); // For fade-in effect
+  const [popupMounted, setPopupMounted] = useState(false);
+  const epFetchedRef = useRef(false);
+  const _isTVCard = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+  const _watchedEpCard = _isTVCard ? getLastWatchedEpisode(movie.id) : null;
+  const _epCardS = _watchedEpCard?.season ?? 1;
+  const _epCardE = _watchedEpCard?.episode ?? 1;
+  const [episodeName, setEpisodeName] = useState<string | null>(() => {
+    if (!_isTVCard) return null;
+    const cached = getCachedData(`/tv/${movie.id}/season/${_epCardS}`);
+    const ep = cached?.episodes?.find((e: any) => e.episode_number === _epCardE);
+    if (ep?.name) { _epNameCache.set(`${movie.id}-s${_epCardS}e${_epCardE}`, ep.name); return ep.name; }
+    return _epNameCache.get(`${movie.id}-s${_epCardS}e${_epCardE}`) ?? null;
+  });
 
   const isCinemaOnly = useIsInTheaters(movie);
   const leaveTimerRef = useRef<any>(null);
@@ -308,6 +322,23 @@ const TopTenCard: React.FC<{
     fetchLogo();
     return () => { isMounted = false; };
   }, [isVisible, movie.id, movie.media_type, movie.title]);
+
+  useEffect(() => {
+    if (!_isTVCard || episodeName) return;
+    const cacheKey = `${movie.id}-s${_epCardS}e${_epCardE}`;
+    if (_epNameCache.has(cacheKey)) { setEpisodeName(_epNameCache.get(cacheKey)!); return; }
+    if (epFetchedRef.current) return;
+    epFetchedRef.current = true;
+    let cancelled = false;
+    getSeasonDetails(movie.id, _epCardS)
+      .then((data: any) => {
+        if (cancelled) return;
+        const ep = data?.episodes?.find((e: any) => e.episode_number === _epCardE);
+        if (ep?.name) { _epNameCache.set(cacheKey, ep.name); setEpisodeName(ep.name); }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [movie.id, movie.media_type, movie.title, getLastWatchedEpisode]);
 
   useEffect(() => {
     if (preload && settings.autoplayPreviews) {
@@ -417,7 +448,7 @@ const TopTenCard: React.FC<{
 
   const getPopupFixedStyle = (): React.CSSProperties => {
     if (!hoveredRect) return { display: 'none' };
-    const POPUP_W = 342;
+    const POPUP_W = 341;
     const TOP_OFFSET = -88;
     let left: number;
     if (hoverPosition === 'left') {
@@ -607,7 +638,7 @@ const TopTenCard: React.FC<{
                 transition={{ duration: 0.05, ease: [0.25, 1, 0.5, 1], opacity: { duration: 0.05 } }}
                 style={{ willChange: 'transform, opacity' }}
               >
-                <div className="relative w-full h-[200px] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
+                <div className="relative w-full aspect-[16/9] bg-[#141414] overflow-hidden rounded-t-md" onClick={handleOpenModal}>
                   {(!isBook && settings.autoplayPreviews) ? (
                     <>
                       <img
@@ -661,8 +692,8 @@ const TopTenCard: React.FC<{
                       className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-800/80 flex items-center justify-center transition-colors duration-150 hover:bg-white/15 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
                     >
                       {hasVideoEnded
-                        ? <ArrowCounterClockwiseIcon size={24} className="text-white" />
-                        : globalMute ? <SpeakerSlashIcon size={24} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
+                        ? <ArrowCounterClockwiseIcon size={20} weight="bold" className="text-white" />
+                        : globalMute ? <SpeakerSlashIcon size={20} className="text-white" /> : <SpeakerHighIcon size={18} className="text-white" />
                       }
                     </button>
                   )}
@@ -767,7 +798,7 @@ const TopTenCard: React.FC<{
                       const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
                       if (isTV) {
                         const s = movie.number_of_seasons;
-                        return <span className="text-white/70">{s ? `${s} ${s === 1 ? 'Season' : 'Seasons'}` : 'TV Series'}</span>;
+                        return <span className="text-white/70">{s ? `${s} ${s === 1 ? t('common.season') : t('common.season') + 's'}` : 'TV'}</span>;
                       }
                       if (!movie.runtime) return null;
                       const h = Math.floor(movie.runtime / 60);
@@ -778,11 +809,26 @@ const TopTenCard: React.FC<{
                     {!isBook && <span className="border border-gray-300 text-gray-200 px-1 py-[2px] text-[14px] font-bold rounded-[2px] ml-3">HD</span>}
                   </div>
 
-                  {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? (
-                    <div className="pt-0.5 pb-1">
-                      <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
-                    </div>
-                  ) : (
+                  {(() => {
+                    const watchPct = getWatchData(movie, getLastWatchedEpisode, getVideoState).pct;
+                    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+                    if (isTV && !isBook) {
+                      return (
+                        <div className="space-y-1">
+                          <p className="text-white text-[15px] font-semibold truncate">
+                            S{_epCardS} E{_epCardE}{episodeName ? ` · ${episodeName}` : ''}
+                          </p>
+                          {watchPct > 0 && <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />}
+                        </div>
+                      );
+                    }
+                    if (watchPct > 0 && !isBook) {
+                      return <div className="pt-0.5 pb-1"><HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} /></div>;
+                    }
+                    return null;
+                  })()}
+
+                  {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? null : (
                     <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
                       {getGenreNames().map((genreName, idx, arr) => {
                         if (!genreName) return null;
@@ -835,6 +881,20 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({ left: false, right: false });
   const [isInView, setIsInView] = useState(!!data || index < 6);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const shouldLoop = useMemo(() => {
+    if (movies.length === 0) return false;
+    if (windowWidth >= 1024) return movies.length >= 6;
+    if (windowWidth >= 768) return movies.length >= 5;
+    return movies.length >= 3;
+  }, [movies.length, windowWidth]);
 
   useEffect(() => {
     if (data || index < 6) {
@@ -928,13 +988,14 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       ? container.scrollLeft + amount
       : container.scrollLeft - amount;
 
-    if (direction === 'left' && rawTarget < 0) {
-      container.scrollLeft += oneSetWidth;
-      rawTarget += oneSetWidth;
-    }
-    else if (direction === 'right' && rawTarget > oneSetWidth * 2) {
-      container.scrollLeft -= oneSetWidth;
-      rawTarget -= oneSetWidth;
+    if (shouldLoop) {
+      if (direction === 'left' && rawTarget < 0) {
+        container.scrollLeft += oneSetWidth;
+        rawTarget += oneSetWidth;
+      } else if (direction === 'right' && rawTarget > oneSetWidth * 2) {
+        container.scrollLeft -= oneSetWidth;
+        rawTarget -= oneSetWidth;
+      }
     }
 
     const target = Math.round(rawTarget / step) * step;
@@ -969,10 +1030,12 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       }
     }
 
-    if (container.scrollLeft > oneSetWidth * 1.5) {
-      container.scrollLeft -= oneSetWidth;
-    } else if (hasEngagedInfinite.current && container.scrollLeft < oneSetWidth / 2) {
-      container.scrollLeft += oneSetWidth;
+    if (shouldLoop) {
+      if (container.scrollLeft > oneSetWidth * 1.5) {
+        container.scrollLeft -= oneSetWidth;
+      } else if (hasEngagedInfinite.current && container.scrollLeft < oneSetWidth / 2) {
+        container.scrollLeft += oneSetWidth;
+      }
     }
 
     updateScrollState();
@@ -1009,7 +1072,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
       transition={{ duration: 0.8, delay: Math.min(index * 0.1, 0.4), ease: [0.16, 1, 0.3, 1] }}
       className="group relative my-4 md:my-6 space-y-2 z-10"
     >
-      <h2 className="px-[var(--app-x)] text-[20px] sm:text-[22px] md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
+      <h2 className="px-[var(--app-x)] text-sm sm:text-base md:text-lg font-bold text-[#e5e5e5] hover:text-white transition cursor-pointer flex items-center group/title w-fit">
         {title}
         <span className="text-xs text-cyan-500 ml-2 opacity-0 group-hover/title:opacity-100 transition-opacity duration-300 flex items-center font-semibold">
           {t('rows.exploreAll')} <CaretRightIcon size={14} className="ml-1" />
@@ -1043,12 +1106,12 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
               </div>
             ))
             : (() => {
-              const tripleList = [...movies, ...movies, ...movies];
-              return tripleList.map((movie, index) => {
-                const totalCount = tripleList.length;
+              const listSource = shouldLoop ? [...movies, ...movies, ...movies] : movies;
+              return listSource.map((movie, index) => {
+                const totalCount = listSource.length;
                 const leftIdx = (index - 1 + totalCount) % totalCount;
                 const rightIdx = (index + 1) % totalCount;
-                const neighbors = [tripleList[leftIdx], tripleList[rightIdx]];
+                const neighbors = [listSource[leftIdx], listSource[rightIdx]];
 
                 return (
                   <TopTenCard

@@ -18,6 +18,7 @@ const MovieCardTouch: React.FC<MovieCardTouchProps> = ({ movie, onSelect, onPlay
     top10TV, top10Movies
   } = useGlobalContext();
   const [imgFailed, setImgFailed] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -109,8 +110,11 @@ const MovieCardTouch: React.FC<MovieCardTouchProps> = ({ movie, onSelect, onPlay
         src={imageSrc}
         alt={movie.title || movie.name}
         className="w-full h-full object-cover select-none"
+        style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.2s ease-out' }}
         loading="lazy"
+        decoding="async"
         draggable={false}
+        onLoad={() => setImgLoaded(true)}
         onError={() => setImgFailed(true)}
       />
 

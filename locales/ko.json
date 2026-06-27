@@ -62,7 +62,8 @@
         "genres": "장르:",
         "clearSearch": "검색 지우기",
         "closeSearch": "검색 닫기",
-        "ratingLabel": "{{label}} 등급"
+        "ratingLabel": "{{label}} 등급",
+        "episode": "에피소드"
     },
     "settings": {
         "title": "프로필 및 환경 설정 관리",

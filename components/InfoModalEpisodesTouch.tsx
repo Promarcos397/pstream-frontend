@@ -137,6 +137,7 @@ const InfoModalEpisodesTouch: React.FC<InfoModalEpisodesTouchProps> = ({
                                                     className="w-full h-full object-cover"
                                                     alt={ep.name}
                                                     loading="lazy"
+                                                    decoding="async"
                                                 />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center bg-zinc-850 text-[10px] text-zinc-500 font-bold uppercase">{t('common.noImage')}</div>

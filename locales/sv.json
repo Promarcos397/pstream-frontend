@@ -62,7 +62,8 @@
         "done": "Klar",
         "clearSearch": "Rensa sökning",
         "closeSearch": "Stäng sökning",
-        "ratingLabel": "{{label}}-betyg"
+        "ratingLabel": "{{label}}-betyg",
+        "episode": "Avsnitt"
     },
     "settings": {
         "title": "Hantera profil och inställningar",

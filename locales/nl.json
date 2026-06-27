@@ -62,7 +62,8 @@
         "done": "Klaar",
         "clearSearch": "Zoekopdracht wissen",
         "closeSearch": "Zoekopdracht sluiten",
-        "ratingLabel": "{{label}}-beoordeling"
+        "ratingLabel": "{{label}}-beoordeling",
+        "episode": "Aflevering"
     },
     "settings": {
         "title": "Profiel en voorkeuren beheren",

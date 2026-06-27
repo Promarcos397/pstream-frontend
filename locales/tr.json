@@ -62,7 +62,8 @@
         "done": "Tamam",
         "clearSearch": "Aramayı temizle",
         "closeSearch": "Aramayı kapat",
-        "ratingLabel": "{{label}} derecelendirmesi"
+        "ratingLabel": "{{label}} derecelendirmesi",
+        "episode": "Bölüm"
     },
     "settings": {
         "title": "Profil ve Tercih Yönetimi",

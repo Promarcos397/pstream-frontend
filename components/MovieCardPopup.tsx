@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -8,7 +9,7 @@ import {
 import { useGlobalContext } from '../context/GlobalContext';
 import { GENRES } from '../constants';
 import { Movie } from '../types';
-import { fetchData } from '../services/api';
+import { fetchData, getMovieDetails, getMovieCredits, getRecommendations, getMovieImages, getSeasonDetails, getCachedData } from '../services/api';
 import { TrailerPlayer } from './TrailerPlayer';
 import { MaturityBadge, HoverProgressBar, getWatchData } from './MovieCardBadges';
 import CinemaPlayButton from './CinemaPlayButton';
@@ -40,6 +41,8 @@ interface MovieCardPopupProps {
   onMouseLeave: () => void;
   onMouseEnter: () => void;
 }
+
+const _episodeNameCache = new Map<string, string>();
 
 export const POPUP_W = 341;
 export const TOP_OFFSET = -88;
@@ -106,27 +109,56 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
     globalMute, setGlobalMute, settings,
   } = useGlobalContext();
   
-  const [mounted, setMounted] = useState(false);
+  const fetchedRef = useRef(false);
+
+  // Pre-warm the modal data cache while the popup is visible so InfoModal opens instantly.
+  // Season 1 is also fetched here so the episode name is in _dataCache synchronously.
+  useEffect(() => {
+    const mt = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+    getMovieDetails(movie.id, mt);
+    getMovieCredits(movie.id, mt);
+    getRecommendations(movie.id, mt);
+    getMovieImages(String(movie.id), mt);
+    if (mt === 'tv') getSeasonDetails(movie.id, 1);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+  const _watchedEp = isTV ? getLastWatchedEpisode(movie.id) : null;
+  const _epS = _watchedEp?.season ?? 1;
+  const _epE = _watchedEp?.episode ?? 1;
+
+  // Resolve episode name: try _dataCache synchronously first, then async fallback.
+  const [episodeName, setEpisodeName] = useState<string | null>(() => {
+    if (!isTV) return null;
+    const cached = getCachedData(`/tv/${movie.id}/season/${_epS}`);
+    const ep = cached?.episodes?.find((e: any) => e.episode_number === _epE);
+    if (ep?.name) {
+      _episodeNameCache.set(`${movie.id}-s${_epS}e${_epE}`, ep.name);
+      return ep.name;
+    }
+    const directKey = `${movie.id}-s${_epS}e${_epE}`;
+    return _episodeNameCache.get(directKey) ?? null;
+  });
 
   useEffect(() => {
-    let raf1: number, raf2: number;
-    raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => setMounted(true)); });
-    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
-  }, []);
-
-  const [episodeName, setEpisodeName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
-    if (!isTV) return;
-    const ep = getLastWatchedEpisode(movie.id);
-    if (!ep) return;
+    if (!isTV || episodeName) return;
+    const cacheKey = `${movie.id}-s${_epS}e${_epE}`;
+    if (_episodeNameCache.has(cacheKey)) { setEpisodeName(_episodeNameCache.get(cacheKey)!); return; }
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
     let cancelled = false;
-    fetchData(`/tv/${movie.id}/season/${ep.season}/episode/${ep.episode}`)
-      .then((data: any) => { if (!cancelled && data?.name) setEpisodeName(data.name); })
+    getSeasonDetails(movie.id, _epS)
+      .then((data: any) => {
+        if (cancelled) return;
+        const ep = data?.episodes?.find((e: any) => e.episode_number === _epE);
+        if (ep?.name) {
+          _episodeNameCache.set(cacheKey, ep.name);
+          setEpisodeName(ep.name);
+        }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [movie.id, movie.media_type, movie.title, getLastWatchedEpisode]);
+  }, [isTV, episodeName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const rating = getMovieRating(movie.id);
@@ -145,7 +177,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
       onClick={(e) => e.stopPropagation()}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`transition-[opacity,transform] duration-[50ms] ease-out ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.97]'}`}
+      className="pointer-events-auto"
       style={{
         position: 'absolute',
         top,
@@ -156,14 +188,21 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
         transformOrigin,
       }}
     >
-      <div className="bg-[#141414] rounded-md overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]">
+      <motion.div
+        className="bg-[#141414] rounded-md overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
+        initial={{ opacity: 0, y: 22, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 8, scale: 0.95 }}
+        transition={{ duration: 0.05, ease: [0.25, 1, 0.5, 1], opacity: { duration: 0.05 } }}
+        style={{ willChange: 'transform, opacity' }}
+      >
 
       <div className="relative w-full aspect-[16/9] bg-[#141414] overflow-hidden rounded-t-md" onClick={onOpenModal}>
         {!isBook && settings.autoplayPreviews ? (
           <>
             <img
               src={imageSrc}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 scale-[1.05] ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
+              className={`absolute inset-0 w-full h-full object-cover backdrop-pop transition-opacity duration-300 scale-[1.05] ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
               alt="preview"
             />
             <div className={`absolute inset-0 transition-opacity duration-300 overflow-hidden ${isActuallyPlaying ? 'opacity-100' : 'opacity-0'}`}>
@@ -187,7 +226,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
         ) : (
           <img
             src={imageSrc}
-            className="w-full h-full object-cover object-[50%_30%]"
+            className="w-full h-full object-cover backdrop-pop object-[50%_30%]"
             alt="preview"
           />
         )}
@@ -204,7 +243,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
                 setGlobalMute(!globalMute);
               }
             }}
-            className="absolute bottom-4 right-4 w-10 h-10 rounded-full border border-white/40 bg-zinc-800/80 flex items-center justify-center transition-colors duration-150 hover:bg-white/15 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
+            className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-800/80 flex items-center justify-center transition-colors duration-150 hover:bg-white/15 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
           >
             {hasVideoEnded
               ? <ArrowCounterClockwiseIcon size={20} weight="bold" className="text-white" />
@@ -309,7 +348,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
               const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
               if (isTV) {
                 const s = movie.number_of_seasons;
-                return <span className="text-white">{s ? `${s} ${s === 1 ? 'Season' : 'Seasons'}` : 'TV Series'}</span>;
+                return <span className="text-white">{s ? `${s} ${s === 1 ? t('common.season') : t('common.season') + 's'}` : 'TV'}</span>;
               }
               if (!movie.runtime) return null;
               const h = Math.floor(movie.runtime / 60);
@@ -321,47 +360,58 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
           </div>
         )}
 
-        {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? (
-          <div className="pt-0.5 pb-1 space-y-1.5">
-            {(() => {
-              const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
-              const ep = isTV ? getLastWatchedEpisode(movie.id) : null;
-              if (!ep) return null;
-              return (
-                <p className="text-white text-[12px] font-semibold truncate">
-                  S{ep.season}:E{ep.episode}{episodeName ? ` "${episodeName}"` : ''}
-                </p>
-              );
-            })()}
-            <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
-            {movie.genre_ids?.slice(0, 3).map((genreId, idx, arr) => {
-              const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
-              const genreName = t(`genres.${genreId}`, { defaultValue: GENRES[genreId] });
-              if (!genreName) return null;
-              return (
-                <span key={genreId} className="flex items-center">
-                  <span
-                    className="text-white/80 hover:text-white cursor-pointer transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMouseLeave();
-                      navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);
-                    }}
-                  >
-                    {genreName}
+        {(() => {
+          const watchPct = getWatchData(movie, getLastWatchedEpisode, getVideoState).pct;
+          if (!isTV || isBook) return null;
+          return (
+            <div className="space-y-1">
+              <p className="text-white text-[15px] font-semibold truncate">
+                S{_epS} E{_epE}{episodeName ? ` · ${episodeName}` : ''}
+              </p>
+              {watchPct > 0 && <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />}
+            </div>
+          );
+        })()}
+
+        {(() => {
+          const watchPct = getWatchData(movie, getLastWatchedEpisode, getVideoState).pct;
+          const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
+          // Movie in-progress: show progress bar (TV handles it inside the episode block)
+          if (watchPct > 0 && !isTV && !isBook) {
+            return (
+              <div className="pt-0.5 pb-1">
+                <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
+              </div>
+            );
+          }
+          if (watchPct > 0) return null;
+          return (
+            <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
+              {movie.genre_ids?.slice(0, 3).map((genreId, idx, arr) => {
+                const genreName = t(`genres.${genreId}`, { defaultValue: GENRES[genreId] });
+                if (!genreName) return null;
+                return (
+                  <span key={genreId} className="flex items-center">
+                    <span
+                      className="text-white/80 hover:text-white cursor-pointer transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMouseLeave();
+                        navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);
+                      }}
+                    >
+                      {genreName}
+                    </span>
+                    {idx < arr.length - 1 && <span className="text-white/30 mx-1.5 text-[16px] leading-none">•</span>}
                   </span>
-                  {idx < arr.length - 1 && <span className="text-white/30 mx-1.5 text-[16px] leading-none">•</span>}
-                </span>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
-      </div>
+      </motion.div>
     </div>
   );
 });

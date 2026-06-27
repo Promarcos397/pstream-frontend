@@ -279,6 +279,14 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         onClose();
     };
 
+    const handleCloseRef = useRef(handleClose);
+    handleCloseRef.current = handleClose;
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleCloseRef.current(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
+
     useEffect(() => {
         if (movie) {
             setImgFailed(false);
@@ -451,7 +459,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
 
     return (
         <div
-            className="fixed inset-0 z-[10000] bg-black/70 flex justify-center overflow-y-auto scrollbar-hide animate-fadeIn cursor-default"
+            className="fixed inset-0 z-[10000] bg-black/70 flex justify-center overflow-y-auto scrollbar-hide cursor-default"
             onClick={handleClose}
         >
             <div
@@ -480,8 +488,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                     ? (activeMovie.backdrop_path || activeMovie.poster_path)
                                     : `${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`
                             }
-                            className={`w-full h-full object-cover scale-[1.05] transition-opacity duration-400 ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
+                            className={`w-full h-full object-cover scale-[1.05] transition-opacity duration-300 ${isActuallyPlaying ? 'opacity-0' : 'opacity-100'}`}
                             alt="modal hero"
+                            fetchPriority="high"
+                            decoding="async"
                         />
                         {/* Video layer: hidden if backdrop is forced or video hasn't started */}
                         <div className={`absolute inset-0 transition-opacity duration-300 overflow-hidden ${isActuallyPlaying && !showBackdropOverlay ? 'opacity-100' : 'opacity-0'}`}>
@@ -518,7 +528,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 <div className="relative inline-flex items-end">
                                     <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(25px) brightness(0) opacity(0.55)', transform: 'translate(4px, 12px) scale(1.08)', pointerEvents: 'none', zIndex: 0 }} />
                                     <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(5px) brightness(0) opacity(0.35)', transform: 'translate(2px, 4px) scale(1.02)', pointerEvents: 'none', zIndex: 0 }} />
-                                    <img src={logoUrl} alt={activeMovie.title || activeMovie.name} style={{ position: 'relative', zIndex: 1, maxHeight: 'clamp(68px, 11vw, 120px)', maxWidth: '72%', objectFit: 'contain', objectPosition: 'bottom left' }} onError={() => setImgFailed(true)} />
+                                    <img src={logoUrl} alt={activeMovie.title || activeMovie.name} style={{ position: 'relative', zIndex: 1, maxHeight: 'clamp(68px, 11vw, 120px)', maxWidth: '72%', objectFit: 'contain', objectPosition: 'bottom left' }} decoding="async" onError={() => setImgFailed(true)} />
                                 </div>
                             ) : (
                                 <h2 className="text-3xl sm:text-4xl md:text-5xl font-black font-leaner text-white drop-shadow-xl leading-none tracking-wide">

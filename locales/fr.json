@@ -62,7 +62,8 @@
         "done": "Terminé",
         "clearSearch": "Effacer la recherche",
         "closeSearch": "Fermer la recherche",
-        "ratingLabel": "Classement {{label}}"
+        "ratingLabel": "Classement {{label}}",
+        "episode": "Épisode"
     },
     "settings": {
         "title": "Gérer le profil et les préférences",

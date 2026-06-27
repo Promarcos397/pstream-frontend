@@ -62,7 +62,8 @@
         "done": "Готово",
         "clearSearch": "Очистить поиск",
         "closeSearch": "Закрыть поиск",
-        "ratingLabel": "Рейтинг {{label}}"
+        "ratingLabel": "Рейтинг {{label}}",
+        "episode": "Эпизод"
     },
     "settings": {
         "title": "Управление профилем и предпочтениями",

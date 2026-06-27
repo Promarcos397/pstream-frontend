@@ -60,11 +60,12 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
     };
 
     const is404 = typeof rec.id === 'string' && rec.id.startsWith('dim');
-    // w780 backdrop for higher quality, poster fallback
+    const [imgLoaded, setImgLoaded] = useState(false);
+    // w342 covers these cards (max ~280px wide) at 2× retina
     const backdrop = rec.backdrop_path
-        ? (is404 ? rec.backdrop_path : `${TMDB_IMG}/w780${rec.backdrop_path}`)
+        ? (is404 ? rec.backdrop_path : `${TMDB_IMG}/w342${rec.backdrop_path}`)
         : rec.poster_path
-        ? (is404 ? rec.poster_path : `${TMDB_IMG}/w500${rec.poster_path}`)
+        ? (is404 ? rec.poster_path : `${TMDB_IMG}/w342${rec.poster_path}`)
         : null;
 
     const hasLogo = !logoLoading && logoPath && !logoFailed;
@@ -84,9 +85,10 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
                     <img
                         src={backdrop}
                         alt={title}
-                        // NO zoom animation, just a clean brightness lift on hover
-                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
+                        className={`w-full h-full object-cover transition-opacity duration-200 ${imgLoaded ? 'opacity-90 group-hover:opacity-100' : 'opacity-0'}`}
                         loading="lazy"
+                        decoding="async"
+                        onLoad={() => setImgLoaded(true)}
                     />
                 ) : (
                     <div className="w-full h-full bg-[#222]" />

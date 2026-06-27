@@ -385,8 +385,10 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                             ? (activeMovie.backdrop_path || activeMovie.poster_path)
                             : `${IMG_PATH}${activeMovie.backdrop_path || activeMovie.poster_path}`
                     }
-                    className={`w-full h-full object-cover transition-opacity duration-400 ${isActuallyPlaying && !showBackdropOverlay ? 'opacity-0' : 'opacity-100'}`}
+                    className={`w-full h-full object-cover transition-opacity duration-300 ${isActuallyPlaying && !showBackdropOverlay ? 'opacity-0' : 'opacity-100'}`}
                     alt="modal hero mobile"
+                    fetchPriority="high"
+                    decoding="async"
                 />
 
                 <div className={`absolute inset-0 transition-opacity duration-300 overflow-hidden ${isActuallyPlaying && !showBackdropOverlay ? 'opacity-100' : 'opacity-0'}`}>

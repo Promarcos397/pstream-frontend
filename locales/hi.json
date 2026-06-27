@@ -62,7 +62,8 @@
         "done": "हो गया",
         "clearSearch": "खोज साफ़ करें",
         "closeSearch": "खोज बंद करें",
-        "ratingLabel": "{{label}} रेटिंग"
+        "ratingLabel": "{{label}} रेटिंग",
+        "episode": "एपिसोड"
     },
     "settings": {
         "title": "प्रोफाइल और पसंद मैनेज करें",
