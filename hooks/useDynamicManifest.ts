@@ -57,7 +57,7 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
   return result;
 }
 
-// CW: random position 1–3; my-list: fixed row 5; top10: random after row 7, not last; total: 14–17
+// CW: random position 1–3; my-list: fixed row 5; top10: random after row 7, not last; total: 22–26
 function capAndShuffle(rows: SmartRow[], hash: number): SmartRow[] {
   const cwRow     = rows.find(r => r.key === 'continue-watching');
   const myListRow = rows.find(r => r.key === 'my-list');
@@ -65,8 +65,8 @@ function capAndShuffle(rows: SmartRow[], hash: number): SmartRow[] {
   const rest      = rows.filter(r => r.key !== 'continue-watching' && r.key !== 'my-list' && r.type !== 'top10');
   const shuffled  = seededShuffle(rest, hash);
 
-  // Total rows: 14–17 (use high bits of hash to avoid correlation with the shuffle seed)
-  const total  = 14 + ((hash >>> 16) % 4);
+  // Total rows: 22–26 (use high bits of hash to avoid correlation with the shuffle seed)
+  const total  = 22 + ((hash >>> 16) % 5);
   const budget = total - (cwRow ? 1 : 0) - (myListRow ? 1 : 0) - top10.length;
   let base: SmartRow[] = shuffled.slice(0, Math.max(0, budget));
 
