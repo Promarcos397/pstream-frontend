@@ -231,16 +231,21 @@ async function scoreSubtitleHead(url: string): Promise<number> {
 }
 
 async function pickBestCandidate(lang: string, candidates: any[]): Promise<SubtitleTrack> {
-    if (candidates.length === 1) {
-        return { url: candidates[0].url, lang, label: makeLabel(lang), provider: 'Stremio' };
+    // Guarantee: always return at least 1 track — never discard a language entirely.
+    // Even if all candidates score 0 (broken URLs, watermarks), we still include the
+    // first one so the language stays available in the subtitle selector.
+    const fallback = { url: candidates[0].url, lang, label: makeLabel(lang), provider: 'Stremio' };
+    if (candidates.length === 1) return fallback;
+
+    try {
+        const scores = await Promise.all(candidates.map(c => scoreSubtitleHead(c.url)));
+        const best = candidates.reduce((bi, _, i) => scores[i] > scores[bi] ? i : bi, 0);
+        console.log(`[Subtitles] ${lang} scores: ${scores.join(', ')} → picked #${best}`);
+        return { url: candidates[best].url, lang, label: makeLabel(lang), provider: 'Stremio' };
+    } catch {
+        // Scoring failed entirely — return first candidate rather than dropping the lang.
+        return fallback;
     }
-
-    // Score top candidates in parallel — only the first 3 KB each so it's fast
-    const scores = await Promise.all(candidates.map(c => scoreSubtitleHead(c.url)));
-    const best = candidates.reduce((bi, _, i) => scores[i] > scores[bi] ? i : bi, 0);
-
-    console.log(`[Subtitles] ${lang} scores: ${scores.join(', ')} → picked #${best}`);
-    return { url: candidates[best].url, lang, label: makeLabel(lang), provider: 'Stremio' };
 }
 
 async function fetchStremioTracks(
