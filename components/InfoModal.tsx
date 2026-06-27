@@ -16,6 +16,7 @@ import CinemaPlayButton from './CinemaPlayButton';
 import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
+import { preloadTrailer } from '../hooks/useTrailer';
 import { useTasteEngine } from '../hooks/useTasteEngine';
 import { useIsMobile } from '../hooks/useIsMobile';
 import InfoModalTouch from './InfoModalTouch';
@@ -300,9 +301,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             hasAppliedInitialSeek.current = false;
             modalTrailerTimeRef.current = 0;
 
-            import('../hooks/useTrailer').then(({ preloadTrailer }) => {
-                preloadTrailer(movie);
-            });
+            preloadTrailer(movie);
 
             const type = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
 
@@ -408,9 +407,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         setSelectedSeason(1);
         setReplayCount(c => c + 1);
 
-        import('../hooks/useTrailer').then(({ preloadTrailer }) => {
-            preloadTrailer(rec);
-        });
+        preloadTrailer(rec);
 
         const type = rec.media_type || (rec.title ? 'movie' : 'tv');
         navigate(`/title/${type}/${rec.id}${location.search}`, {

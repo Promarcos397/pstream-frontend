@@ -9,6 +9,7 @@ import HeroCarouselContent from './HeroCarouselContent';
 import { Movie } from '../types';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
 import HeroSkeleton from './HeroSkeleton';
+import { preloadTrailer } from '../hooks/useTrailer';
 
 interface HeroCarouselProps {
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
@@ -145,9 +146,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl,
       setMovie(pkg.movie);
       if (pkg.logoUrl) setLogoUrl(pkg.logoUrl);
       if (pkg.movie) {
-        import('../hooks/useTrailer').then(({ preloadTrailer }) => {
-          preloadTrailer(pkg.movie);
-        });
+        preloadTrailer(pkg.movie);
       }
     };
 

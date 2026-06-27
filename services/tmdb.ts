@@ -315,14 +315,21 @@ export const getMovieDetails = async (id: number | string, type: 'movie' | 'tv')
 export const getMovieVideos = async (id: number | string, type: 'movie' | 'tv') => {
   const url = `/${type}/${id}/videos`;
   if (_dataCache.has(url)) return _dataCache.get(url);
-  try {
-    const { data } = await tmdb.get(url);
-    _dataCache.set(url, data);
-    return data;
-  } catch (e) {
-    console.error(`[TMDB] Videos ${type}/${id}:`, e);
-    return null;
-  }
+  if (_pending.has(url)) return _pending.get(url);
+  const promise = (async () => {
+    try {
+      const { data } = await tmdb.get(url);
+      _dataCache.set(url, data);
+      return data;
+    } catch (e) {
+      console.error(`[TMDB] Videos ${type}/${id}:`, e);
+      return null;
+    } finally {
+      _pending.delete(url);
+    }
+  })();
+  _pending.set(url, promise);
+  return promise;
 };
 
 

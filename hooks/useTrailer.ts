@@ -92,16 +92,30 @@ export const preloadTrailer = async (movie: Movie | null): Promise<{ videoId: st
 
 /** Fetches and caches the best trailer for a movie, with teaser detection. */
 export const useTrailer = (movie: Movie | null) => {
-    const [videoId, setVideoId] = useState<string | null>(null);
-    const [isTeaser, setIsTeaser] = useState(false);
-    const [isDirect, setIsDirect] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    // Read synchronously from cache on mount — no async round-trip on repeat hovers
+    const _cached = movie ? trailerCache[String(movie.id)] : undefined;
+
+    const [videoId, setVideoId] = useState<string | null>(_cached?.videoId ?? null);
+    const [isTeaser, setIsTeaser] = useState(_cached?.isTeaser ?? false);
+    const [isDirect, setIsDirect] = useState(_cached?.isDirect ?? false);
+    const [isLoading, setIsLoading] = useState(!_cached && !!movie);
 
     useEffect(() => {
         if (!movie) {
             setVideoId(null);
             setIsTeaser(false);
             setIsDirect(false);
+            setIsLoading(false);
+            return;
+        }
+
+        const key = String(movie.id);
+        const hit = trailerCache[key];
+        if (hit) {
+            setVideoId(hit.videoId);
+            setIsTeaser(hit.isTeaser);
+            setIsDirect(hit.isDirect);
+            setIsLoading(false);
             return;
         }
 

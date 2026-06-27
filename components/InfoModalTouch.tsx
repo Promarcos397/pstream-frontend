@@ -12,6 +12,7 @@ import InfoModalRecommendationsTouch from './InfoModalRecommendationsTouch';
 import { useMovieData } from '../hooks/useMovieData';
 import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
+import { preloadTrailer } from '../hooks/useTrailer';
 import { useTasteEngine } from '../hooks/useTasteEngine';
 import { MaturityBadge } from './MovieCardBadges';
 import { dimensionsAsMovies, get404Episodes } from '../data/notFoundDimensions';
@@ -130,9 +131,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
             setIsDescExpanded(false);
             setIsEpTitleExpanded(false);
 
-            import('../hooks/useTrailer').then(({ preloadTrailer }) => {
-                preloadTrailer(movie);
-            });
+            preloadTrailer(movie);
 
             if (mediaType === 'tv') {
                 const getLastWatched = getLastWatchedEpisode(movie.id);
@@ -236,9 +235,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
         setIsDescExpanded(false);
         setIsEpTitleExpanded(false);
 
-        import('../hooks/useTrailer').then(({ preloadTrailer }) => {
-            preloadTrailer(rec);
-        });
+        preloadTrailer(rec);
 
         const type = rec.media_type || (rec.title ? 'movie' : 'tv');
         navigate(`/title/${type}/${rec.id}${location.search}`, {
