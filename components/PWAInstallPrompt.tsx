@@ -72,8 +72,8 @@ export default function PWAInstallPrompt() {
     if (!visible) return null;
 
     return (
-        <div className="fixed bottom-20 left-0 right-0 z-[200] flex justify-center px-4 pointer-events-none">
-            <div className="pointer-events-auto w-full max-w-sm bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3">
+        <div className="fixed bottom-28 left-0 right-0 z-[200] flex justify-center px-4 pointer-events-none">
+            <div className="pointer-events-auto w-full max-w-sm bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 mb-[env(safe-area-inset-bottom)]">
                 <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shrink-0">
                     <img src="/icons/icon-192.png" alt="Pstream" className="w-8 h-8 rounded-lg" />
                 </div>
