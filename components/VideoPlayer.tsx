@@ -193,6 +193,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
     const lastSavedTimeRef = useRef<number>(0);
     const hasAutoFullscreenedRef = useRef(false);
+    const wasInFullscreenRef = useRef(false);
+    const [showFullscreenRestore, setShowFullscreenRestore] = useState(false);
     const [bufferedAmount, setBufferedAmount] = useState<number>(0);
 
     const [isPlaying, setIsPlaying] = useState(false);
@@ -1034,6 +1036,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
                 saveProgressImmediately(true);
+                wasInFullscreenRef.current = !!document.fullscreenElement;
+            } else if (document.visibilityState === 'visible') {
+                if (wasInFullscreenRef.current && isMobile && !document.fullscreenElement) {
+                    setShowFullscreenRestore(true);
+                }
             }
         };
         const handleUnload = () => {
@@ -1760,6 +1767,29 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                             {t('player.exitPlayer', { defaultValue: 'Exit Player' })}
                         </button>
                     </div>
+                </div>
+            )}
+
+            {isMobile && showFullscreenRestore && (
+                <div
+                    className="absolute inset-0 z-[90] flex flex-col items-center justify-center bg-black/70 cursor-pointer"
+                    onClick={() => {
+                        setShowFullscreenRestore(false);
+                        const elem = containerRef.current;
+                        if (!elem) return;
+                        elem.requestFullscreen?.()
+                            .then(() => {
+                                (screen.orientation as any)?.lock?.('landscape').catch(() => {});
+                            })
+                            .catch(() => {});
+                    }}
+                >
+                    <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-4">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                            <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                        </svg>
+                    </div>
+                    <p className="text-white text-base font-medium">{t('player.tapToFullscreen', { defaultValue: 'Tap to resume fullscreen' })}</p>
                 </div>
             )}
 

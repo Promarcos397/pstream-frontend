@@ -40,6 +40,7 @@ const pageTransition = {
 
 // Components (always needed — eager)
 import Layout from './components/Layout';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import InfoModal from './components/InfoModal';
 import LoginPage from './pages/LoginPage';
 import { dimensionsAsMovies } from './data/notFoundDimensions';
@@ -503,6 +504,8 @@ const App: React.FC = () => {
         id="popup-root"
         style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}
       />
+
+      {isMobile && <PWAInstallPrompt />}
     </div>
   );
 }
