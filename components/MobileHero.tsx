@@ -403,7 +403,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
 
   return (
     <div 
-      className="relative z-0 overflow-visible w-full px-4 pt-[calc(122px+env(safe-area-inset-top))] pb-6 flex flex-col items-center justify-center transition-all duration-700 ease-in-out"
+      className="relative z-0 overflow-visible w-full px-4 pt-[calc(122px+env(safe-area-inset-top))] pb-5 flex flex-col items-center justify-center transition-all duration-700 ease-in-out"
     >
       {/* ── Layer 1: Deep background wash ── */}
       <div 
@@ -442,7 +442,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
       {/* Poster/Backdrop Card (Floating, centered card layout for both mobile and tablet) */}
       <div 
         onClick={() => onSelect(movie)}
-        className="w-[94%] max-w-[400px] min-[500px]:w-full min-[500px]:max-w-[740px] aspect-[2/3] min-[500px]:aspect-[4/3] relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] transition-all duration-200"
+        className="w-[94%] max-w-[400px] min-[500px]:w-full min-[500px]:max-w-[740px] aspect-[2/3] min-[500px]:aspect-[4/3] relative rounded-2xl overflow-hidden border border-white/[0.15] shadow-[0_20px_60px_rgba(0,0,0,0.95)] cursor-pointer active:scale-[0.98] transition-all duration-200"
       >
         {/* High-Resolution Resolved Image */}
         <img 
@@ -453,8 +453,10 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           draggable={false}
         />
 
-        {/* Bottom Vignette overlay for excellent text/buttons contrast */}
+        {/* Bottom vignette */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none" />
+        {/* Left-to-right darkening gradient */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent pointer-events-none" />
 
         {/* Details Container (Centered vertically and horizontally on all screen sizes) */}
         <div className="absolute inset-x-0 bottom-0 px-4 sm:px-6 pb-4 sm:pb-6 pt-12 sm:pt-16 flex flex-col items-center text-center z-10 w-full">

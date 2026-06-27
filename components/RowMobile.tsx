@@ -86,8 +86,8 @@ const RowMobile: React.FC<RowMobileProps> = ({
           let currentPage = 1;
           let keepFetching = true;
 
-          // Loop up to 3 pages to compile at least 5 unique, valid movies on mobile
-          while (keepFetching && gatheredMovies.length < 5 && currentPage <= 3) {
+          // Loop up to 6 pages to compile at least 8 unique, valid movies on mobile
+          while (keepFetching && gatheredMovies.length < 8 && currentPage <= 6) {
             let targetUrl = fetchUrl;
             if (currentPage > 1) {
               if (targetUrl.includes('page=')) {

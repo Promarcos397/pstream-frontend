@@ -402,7 +402,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
         ref={containerRef}
         className="
           fixed bottom-[calc(10px+env(safe-area-inset-bottom))] left-8 right-8 z-[10020] mx-auto max-w-[340px] sm:max-w-[400px] w-auto
-          bg-[#1d1d1d]/60 backdrop-blur-lg border border-white/10 rounded-[100px] py-3 sm:py-4 px-2 sm:px-3
+          bg-[#1d1d1d]/30 backdrop-blur-lg border border-white/10 rounded-[100px] py-3 sm:py-4 px-2 sm:px-3
           shadow-[0_12px_40px_rgba(0,0,0,0.65)]
         "
       >
