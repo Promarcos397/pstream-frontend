@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useGlobalContext } from '../context/GlobalContext';
+import { useUIStore } from '../store/useUIStore';
 import { LOGO_SIZE } from '../constants';
 import { getMovieImages } from '../services/api';
 import { Movie } from '../types';
@@ -57,10 +58,13 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const {
     getVideoState, getEpisodeProgress, getLastWatchedEpisode,
     top10TV, top10Movies,
-    activeVideoId, setActiveVideoId,
-    activePopupId, setActivePopupId,
     settings,
   } = useGlobalContext();
+
+  const activeVideoId = useUIStore(s => s.activeVideoId);
+  const setActiveVideoId = useUIStore(s => s.setActiveVideoId);
+  const activePopupId = useUIStore(s => s.activePopupId);
+  const setActivePopupId = useUIStore(s => s.setActivePopupId);
 
   const [isHovered, setIsHovered] = useState(false);
   const isHoveredRef = useRef(false);

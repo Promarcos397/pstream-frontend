@@ -43,10 +43,6 @@ interface GlobalContextType {
   syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
   heroVideoState: { movieId?: number | string; videoId?: string; time: number; movie?: Movie | null; };
   setHeroVideoState: (state: Partial<GlobalContextType['heroVideoState']>) => void;
-  activeVideoId: string | null;
-  setActiveVideoId: React.Dispatch<React.SetStateAction<string | null>>;
-  activePopupId: string | null;
-  setActivePopupId: React.Dispatch<React.SetStateAction<string | null>>;
   globalMute: boolean;
   setGlobalMute: (mute: boolean) => void;
   isKidsMode: boolean;
@@ -96,8 +92,6 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const [top10TV, setTop10TV] = useState<number[]>([]);
   const [top10Movies, setTop10Movies] = useState<number[]>([]);
-  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
-  const [activePopupId, setActivePopupId] = useState<string | null>(null);
   const [heroVideoState, _setHeroVideoState] = useState<GlobalContextType['heroVideoState']>({ time: 0, movie: null });
   const setHeroVideoState = useCallback((state: Partial<GlobalContextType['heroVideoState']>) => {
     _setHeroVideoState(prev => ({ ...prev, ...state }));
@@ -239,16 +233,15 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       .map(r => ({ movie: r.movieData as Movie, rating: r.rating }));
   }, [libraryRatings]);
 
-  const login = async (email: string, password?: string, isSignUp?: boolean) => {
-    // This is handled by AuthWall now, but we keep signature for backwards compatibility
+  const login = useCallback(async (_email: string, _password?: string, _isSignUp?: boolean) => {
     return { success: true };
-  };
+  }, []);
 
   const logout = useCallback(() => {
     signOut();
   }, [signOut]);
-  const deleteAccountData = async () => { return true; };
-  const importProfileData = async (data: any) => { return true; };
+  const deleteAccountData = useCallback(async () => { return true; }, []);
+  const importProfileData = useCallback(async (_data: any) => { return true; }, []);
 
   return (
     <GlobalContext.Provider value={{
@@ -257,8 +250,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       updateEpisodeProgress, getEpisodeProgress, getLastWatchedEpisode,
       top10TV, top10Movies, rateMovie, getMovieRating, getLikedMovies,
       user, login, logout, deleteAccountData, importProfileData, syncStatus: 'synced',
-      heroVideoState, setHeroVideoState, activeVideoId, setActiveVideoId,
-      activePopupId, setActivePopupId,
+      heroVideoState, setHeroVideoState,
       globalMute, setGlobalMute, isKidsMode: false, pageSeenIds, registerSeenIds, clearSeenIds,
       isAppReady, setIsAppReady
     }}>

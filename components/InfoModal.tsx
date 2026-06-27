@@ -17,6 +17,7 @@ import { MaturityBadge } from './MovieCardBadges';
 import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
 import { preloadTrailer } from '../hooks/useTrailer';
+import { useUIStore } from '../store/useUIStore';
 import { useTasteEngine } from '../hooks/useTasteEngine';
 import { useIsMobile } from '../hooks/useIsMobile';
 import InfoModalTouch from './InfoModalTouch';
@@ -192,10 +193,11 @@ const InfoModalRatingPill: React.FC<{ rating: MovieRating | undefined; onRate: (
 const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, onPlay, trailerId }) => {
     const {
         myList, toggleList, updateVideoState, heroVideoState,
-        globalMute, setGlobalMute, getVideoState, setActiveVideoId,
+        globalMute, setGlobalMute, getVideoState,
         getLastWatchedEpisode, rateMovie, getMovieRating, getEpisodeProgress,
         clearVideoState
     } = useGlobalContext();
+    const setActiveVideoId = useUIStore(s => s.setActiveVideoId);
     const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();

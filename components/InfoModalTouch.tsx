@@ -13,6 +13,7 @@ import { useMovieData } from '../hooks/useMovieData';
 import { triggerSearch } from '../utils/search';
 import { TrailerPlayer } from './TrailerPlayer';
 import { preloadTrailer } from '../hooks/useTrailer';
+import { useUIStore } from '../store/useUIStore';
 import { useTasteEngine } from '../hooks/useTasteEngine';
 import { MaturityBadge } from './MovieCardBadges';
 import { dimensionsAsMovies, get404Episodes } from '../data/notFoundDimensions';
@@ -36,10 +37,11 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     trailerId,
 }) => {
     const {
-        myList, toggleList, globalMute, setGlobalMute, 
-        getVideoState, setActiveVideoId, getLastWatchedEpisode, 
+        myList, toggleList, globalMute, setGlobalMute,
+        getVideoState, getLastWatchedEpisode,
         rateMovie, getMovieRating, getEpisodeProgress, clearVideoState
     } = useGlobalContext();
+    const setActiveVideoId = useUIStore(s => s.setActiveVideoId);
     const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();

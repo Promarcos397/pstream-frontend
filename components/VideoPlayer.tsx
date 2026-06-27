@@ -4,6 +4,7 @@ import { getSeasonDetails, getMovieDetails, getExternalIds } from '../services/a
 import ISO6391 from 'iso-639-1';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
+import { useUIStore } from '../store/useUIStore';
 import { useSubtitleStyle } from '../hooks/useSubtitleStyle';
 import { useTitle } from '../context/TitleContext';
 import { streamCache } from '../utils/streamCache';
@@ -181,7 +182,8 @@ function requestMobileLandscapeFullscreen(el: HTMLElement) {
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 1, resumeTime = 0, onClose, onEpisodeChange }) => {
     const HIDE_CUSTOM_UI = false; 
     const { t } = useTranslation();
-    const { user, settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState, setActiveVideoId } = useGlobalContext();
+    const { user, settings, updateEpisodeProgress, getEpisodeProgress, updateVideoState, addToHistory, getVideoState } = useGlobalContext();
+    const setActiveVideoId = useUIStore(s => s.setActiveVideoId);
     const { setPageTitle } = useTitle();
     const isMobile = useIsMobile();
     const { overlayStyle, enabled: subsEnabled } = useSubtitleStyle();

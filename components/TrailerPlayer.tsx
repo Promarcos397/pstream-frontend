@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import YouTube from 'react-youtube';
 import { useTrailer } from '../hooks/useTrailer';
 import { useGlobalContext } from '../context/GlobalContext';
+import { useUIStore } from '../store/useUIStore';
 import { Movie } from '../types';
 
 const YouTubePlayer = (YouTube as any).default || YouTube;
@@ -86,7 +87,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         } catch {}
     }, [globalMute]);
 
-    const { activeVideoId } = useGlobalContext();
+    const activeVideoId = useUIStore(s => s.activeVideoId);
     
     // Global Player Syncing — Reactive Pause/Play (no artificial delay)
     useEffect(() => {

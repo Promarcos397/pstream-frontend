@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { MaturityBadge } from './MovieCardBadges';
 import { Movie } from '../types';
 import { useGlobalContext } from '../context/GlobalContext';
+import { useUIStore } from '../store/useUIStore';
 import { getMovieImages } from '../services/api';
 import { TrailerPlayer } from './TrailerPlayer';
 import { preloadTrailer } from '../hooks/useTrailer';
@@ -75,7 +76,9 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
     nextMovie,
 }) => {
     const { t } = useTranslation();
-    const { myList, toggleList, activeVideoId, setActiveVideoId, globalMute, setGlobalMute, settings } = useGlobalContext();
+    const { myList, toggleList, globalMute, setGlobalMute, settings } = useGlobalContext();
+    const activeVideoId = useUIStore(s => s.activeVideoId);
+    const setActiveVideoId = useUIStore(s => s.setActiveVideoId);
     const isAdded = myList.some(m => String(m.id) === String(movie.id));
 
     const cardRef = useRef<HTMLDivElement>(null);

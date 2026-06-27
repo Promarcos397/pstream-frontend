@@ -10,6 +10,7 @@ import { Movie } from '../types';
 import { HeroEngine, HeroPackage } from '../services/HeroEngine';
 import HeroSkeleton from './HeroSkeleton';
 import { preloadTrailer } from '../hooks/useTrailer';
+import { useUIStore } from '../store/useUIStore';
 
 interface HeroCarouselProps {
   onSelect: (movie: Movie, time?: number, videoId?: string) => void;
@@ -32,7 +33,9 @@ const resolveHeroCacheKey = (url: string, explicitType?: string, gid?: number): 
 };
 
 const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelect, onPlay, fetchUrl, heroMovie, genreId, pageType: explicitPageType }) => {
-  const { activeVideoId, setActiveVideoId, globalMute, setGlobalMute, clearVideoState, setIsAppReady, settings } = useGlobalContext();
+  const { globalMute, setGlobalMute, clearVideoState, setIsAppReady, settings } = useGlobalContext();
+  const activeVideoId = useUIStore(s => s.activeVideoId);
+  const setActiveVideoId = useUIStore(s => s.setActiveVideoId);
   const networkQuality = useNetworkQuality();
   const isMobile = useIsMobile();
 

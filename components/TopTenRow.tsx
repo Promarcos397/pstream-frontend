@@ -18,6 +18,7 @@ import { Movie } from '../types';
 
 const _epNameCache = new Map<string, string>();
 import { preloadTrailer } from '../hooks/useTrailer';
+import { useUIStore } from '../store/useUIStore';
 import { TrailerPlayer } from './TrailerPlayer';
 import {
   MaturityBadge, BadgeOverlay, HoverProgressBar,
@@ -245,9 +246,13 @@ const TopTenCard: React.FC<{
 
   const {
     myList, toggleList, rateMovie, getMovieRating, getVideoState,
-    getLastWatchedEpisode, top10TV, top10Movies, activeVideoId, setActiveVideoId,
-    activePopupId, setActivePopupId, globalMute, setGlobalMute, clearVideoState, settings
+    getLastWatchedEpisode, top10TV, top10Movies, globalMute, setGlobalMute, clearVideoState, settings
   } = useGlobalContext();
+
+  const activeVideoId = useUIStore(s => s.activeVideoId);
+  const setActiveVideoId = useUIStore(s => s.setActiveVideoId);
+  const activePopupId = useUIStore(s => s.activePopupId);
+  const setActivePopupId = useUIStore(s => s.setActivePopupId);
 
   const [isHovered, setIsHovered] = useState(false);
   const isHoveredRef = useRef(false);
@@ -863,6 +868,8 @@ const TopTenCard: React.FC<{
   );
 };
 
+const TopTenCardMemo = React.memo(TopTenCard);
+
 // ─── TopTenRow ───────────────────────────────────────────────────────────────
 interface TopTenRowProps {
   title: string;
@@ -1114,7 +1121,7 @@ const TopTenRow: React.FC<TopTenRowProps> = ({ title, fetchUrl, data, onSelect, 
                 const neighbors = [listSource[leftIdx], listSource[rightIdx]];
 
                 return (
-                  <TopTenCard
+                  <TopTenCardMemo
                     key={`${movie.id}-${index}`}
                     movie={movie}
                     index={index % movies.length}
