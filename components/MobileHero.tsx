@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, Plus, Check, House } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
+import { useHeroColor } from '../context/HeroColorContext';
 import { GENRES } from '../constants';
 import { Movie } from '../types';
 import { getMovieImages, getCachedMovieImages } from '../services/api';
@@ -17,6 +18,7 @@ interface MobileHeroProps {
 const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPlay }) => {
   const { t } = useTranslation();
   const { myList, toggleList } = useGlobalContext();
+  const { setHeroColor } = useHeroColor();
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const is404 = typeof movie.id === 'string' && movie.id.startsWith('dim');
   const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
@@ -274,7 +276,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   useEffect(() => {
     if (!bgImageSrc) {
       setAccentRGB(null);
-      delete document.documentElement.dataset.heroRgb;
+      setHeroColor(null);
       return;
     }
 
@@ -354,8 +356,7 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           }
 
           setAccentRGB({ r: avgR, g: avgG, b: avgB });
-          document.documentElement.dataset.heroRgb = `${avgR},${avgG},${avgB}`;
-          window.dispatchEvent(new Event('pstream:theme-update'));
+          setHeroColor(`${avgR},${avgG},${avgB}`);
         } else {
           let fallbackR = 0, fallbackG = 0, fallbackB = 0;
           const total = imgData.length / 4;
@@ -368,26 +369,22 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           const fg = Math.round(fallbackG / total);
           const fb = Math.round(fallbackB / total);
           setAccentRGB({ r: fr, g: fg, b: fb });
-          document.documentElement.dataset.heroRgb = `${fr},${fg},${fb}`;
-          window.dispatchEvent(new Event('pstream:theme-update'));
+          setHeroColor(`${fr},${fg},${fb}`);
         }
-      } catch (err) {
+      } catch {
         setAccentRGB({ r: 80, g: 80, b: 120 });
-        document.documentElement.dataset.heroRgb = '80,80,120';
-        window.dispatchEvent(new Event('pstream:theme-update'));
+        setHeroColor('80,80,120');
       }
     };
     img.onerror = () => {
       if (isMounted) {
         setAccentRGB({ r: 80, g: 80, b: 120 });
-        document.documentElement.dataset.heroRgb = '80,80,120';
-        window.dispatchEvent(new Event('pstream:theme-update'));
+        setHeroColor('80,80,120');
       }
     };
 
     return () => {
       isMounted = false;
-      delete document.documentElement.dataset.heroRgb;
     };
   }, [bgImageSrc]);
 

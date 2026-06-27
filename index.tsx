@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { GlobalProvider } from './context/GlobalContext';
 import { TitleProvider } from './context/TitleContext';
+import { HeroColorProvider } from './context/HeroColorContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import './i18n';
@@ -23,6 +24,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <TitleProvider>
+    <HeroColorProvider>
     <GlobalProvider>
       <ErrorBoundary>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -30,6 +32,7 @@ root.render(
         </BrowserRouter>
       </ErrorBoundary>
     </GlobalProvider>
+    </HeroColorProvider>
   </TitleProvider>
 );
 

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useSpring, useVelocity, useTransform } from 'framer-motion';
 import { useGlobalContext } from '../context/GlobalContext';
+import { useHeroColor } from '../context/HeroColorContext';
 import { DEFAULT_AVATAR } from '../constants';
 import { useAvatarReady } from '../hooks/useAvatarReady';
 import pLogoSymbol from '../assets/logos/p-pstream-logo.svg';
@@ -98,6 +99,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const { heroColor } = useHeroColor();
   const { settings, user } = useGlobalContext();
   const {
     isChromecastAvailable,
@@ -206,46 +208,28 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   }, [activeIndex]);
 
   useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (!meta) return;
 
-    const update = () => {
-      const scroll = window.scrollY;
-      setScrollY(scroll);
+    const heroPages = ['/', '/browse', '/browse/series', '/browse/films', '/latest'];
+    const isSearch = searchParams.get('search') === 'true' || !!searchParams.get('q');
+    const isModal = (window as any).__modal_active;
 
-      if (!meta) return;
+    if (!isSearch && !isModal && heroColor && heroPages.includes(location.pathname)) {
+      const [r, g, b] = heroColor.split(',').map(Number);
+      meta.content = `rgb(${r},${g},${b})`;
+    } else {
+      meta.content = '#000000';
+    }
 
-      if ((window as any).__modal_active) {
-        meta.content = '#000000';
-        return;
-      }
-
-      if (searchParams.get('search') === 'true' || !!searchParams.get('q')) {
-        meta.content = '#000000';
-        return;
-      }
-
-      const heroRgb = document.documentElement.dataset.heroRgb;
-      const heroPages = ['/', '/browse', '/browse/series', '/browse/films', '/latest'];
-      if (heroRgb && heroPages.includes(location.pathname)) {
-        const [r, g, b] = heroRgb.split(',').map(Number);
-        // Always show the full hero accent colour — no scroll-based fade.
-        // The 30 px threshold was exceeded by Chrome's address-bar collapsing alone.
-        meta.content = `rgb(${r},${g},${b})`;
-      } else {
-        meta.content = '#000000';
-      }
-    };
-
-    window.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('pstream:theme-update', update);
-    update();
-
-    return () => {
-      window.removeEventListener('scroll', update);
-      window.removeEventListener('pstream:theme-update', update);
-      if (meta) meta.content = '#000000';
-    };
-  }, [location.pathname, searchParams.get('search'), searchParams.get('q')]);
+    return () => { meta.content = '#000000'; };
+  }, [heroColor, location.pathname, searchParams.get('search'), searchParams.get('q')]);
 
   // Speculatively preload all page chunks once the app is idle so every tab
   // switch thereafter skips the lazy-load network round-trip entirely.
