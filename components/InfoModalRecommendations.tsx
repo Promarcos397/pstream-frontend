@@ -4,7 +4,8 @@ import { PlusIcon, CheckIcon, PlayIcon, CaretDownIcon, CaretUpIcon } from '@phos
 import { Movie } from '../types';
 import { getMovieImages } from '../services/api';
 import { MaturityBadge } from './MovieCardBadges';
-import { useGlobalContext } from '../context/GlobalContext';
+import { useLibraryStore } from '../store/useLibraryStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p';
 
@@ -15,7 +16,8 @@ interface RecCardProps {
 }
 
 const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
-    const { myList, toggleList } = useGlobalContext();
+    const myList = useLibraryStore(useShallow(s => s.getListArray()));
+    const toggleList = useLibraryStore(s => s.toggleMyList);
     const { t } = useTranslation();
 
     // Three-state logo: null=loading | ''=not found | 'url'=found

@@ -1,8 +1,8 @@
 import React, { useRef, useEffect } from 'react';
 import YouTube from 'react-youtube';
 import { useTrailer } from '../hooks/useTrailer';
-import { useGlobalContext } from '../context/GlobalContext';
 import { useUIStore } from '../store/useUIStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { Movie } from '../types';
 
 const YouTubePlayer = (YouTube as any).default || YouTube;
@@ -35,7 +35,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     onPlayerReady,
     initialSeekTime,
 }) => {
-    const { globalMute } = useGlobalContext();
+    const globalMute = useSettingsStore(s => s.globalMute);
     const { videoId, isTeaser } = useTrailer(movie);
 
     const containerRef = useRef<HTMLDivElement>(null);

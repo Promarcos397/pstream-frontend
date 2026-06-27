@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useGlobalContext } from '../context/GlobalContext';
+import { useLibraryStore } from '../store/useLibraryStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Movie } from '../types';
 import MovieCard from '../components/MovieCard';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
@@ -18,7 +19,8 @@ interface PageProps {
 }
 
 const MyListPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) => {
-  const { myList, isKidsMode } = useGlobalContext();
+  const myList = useLibraryStore(useShallow(s => s.getListArray()));
+  const isKidsMode = false;
   const { t } = useTranslation();
   const location = useLocation();
   const stateGenre = location.state?.genre as Genre | null;

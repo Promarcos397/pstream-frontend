@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useGlobalContext } from '../context/GlobalContext';
+import { useSettingsStore } from '../store/useSettingsStore';
 import type { CSSProperties } from 'react';
 import { AppSettings } from '../types';
 import { SUBTITLE_FONTS, SUBTITLE_COLORS, SUBTITLE_SIZES, SUBTITLE_EDGES } from '../constants';
@@ -18,7 +18,7 @@ export function useSubtitleStyle(customSettings?: AppSettings): {
   lang: string;
   enabled: boolean;
 } {
-  const { settings: globalSettings } = useGlobalContext();
+  const globalSettings = useSettingsStore(s => s.settings);
   const settings = customSettings || globalSettings;
 
   return useMemo(() => {

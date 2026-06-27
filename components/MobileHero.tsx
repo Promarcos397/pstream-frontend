@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Plus, Check, House } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
-import { useGlobalContext } from '../context/GlobalContext';
+import { useLibraryStore } from '../store/useLibraryStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useHeroColor } from '../context/HeroColorContext';
 import { GENRES } from '../constants';
 import { Movie } from '../types';
@@ -17,7 +18,8 @@ interface MobileHeroProps {
 
 const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPlay }) => {
   const { t } = useTranslation();
-  const { myList, toggleList } = useGlobalContext();
+  const myList = useLibraryStore(useShallow(s => s.getListArray()));
+  const toggleList = useLibraryStore(s => s.toggleMyList);
   const { setHeroColor } = useHeroColor();
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const is404 = typeof movie.id === 'string' && movie.id.startsWith('dim');

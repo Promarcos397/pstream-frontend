@@ -3,7 +3,8 @@ import { House, Bookmark, AirplayIcon, ScreencastIcon } from '@phosphor-icons/re
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useSpring, useVelocity, useTransform } from 'framer-motion';
-import { useGlobalContext } from '../context/GlobalContext';
+import { useSettingsStore } from '../store/useSettingsStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { useHeroColor } from '../context/HeroColorContext';
 import { DEFAULT_AVATAR } from '../constants';
 import { useAvatarReady } from '../hooks/useAvatarReady';
@@ -100,7 +101,8 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { heroColor } = useHeroColor();
-  const { settings, user } = useGlobalContext();
+  const settings = useSettingsStore(s => s.settings);
+  const user = useAuthStore(s => s.user);
   const {
     isChromecastAvailable,
     isChromecastConnected,

@@ -217,7 +217,7 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
             })
             .catch(() => {});
         return () => { mounted = false; };
-    }, [movie.id]);
+    }, [movie.id, movie.backdrop_path]);
 
     // ── IntersectionObserver: playback trigger + scroll darkness ──────────────
     useEffect(() => {
