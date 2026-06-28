@@ -11,74 +11,8 @@ import { useAvatarReady } from '../hooks/useAvatarReady';
 import pLogoSymbol from '../assets/logos/p-pstream-logo.svg';
 import { useCastStore } from '../store/useCastStore';
 // removing red pulsing underline from Nav
-// ─── Liquid Displacement Map Generator ────────────────────────────────────────
-// Generates a pill-shaped SVG displacement map for the liquid glass refraction effect.
-// Only called on iOS/iPadOS where backdrop-filter supports SVG filter references.
-const generatePillMap = (width: number, height: number): string => {
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(width));
-  canvas.height = Math.max(1, Math.round(height));
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return '';
-  const imgData = ctx.createImageData(canvas.width, canvas.height);
-
-  const r = height / 2;
-  const cx1 = r;
-  const cx2 = width - r;
-  const cy = r;
-
-  for (let y = 0; y < canvas.height; y++) {
-    for (let x = 0; x < canvas.width; x++) {
-      let dx = 0;
-      let dy = y - cy;
-      let dist = 0;
-
-      if (x < cx1) {
-        dx = x - cx1;
-        dist = Math.sqrt(dx * dx + dy * dy);
-      } else if (x > cx2) {
-        dx = x - cx2;
-        dist = Math.sqrt(dx * dx + dy * dy);
-      } else {
-        dx = 0;
-        dist = Math.abs(dy);
-      }
-
-      let rCol = 128;
-      let gCol = 128;
-
-      if (dist < r) {
-        const normalizedDist = dist / r;
-        let magnitude = 0;
-        const edgeStart = 0.4;
-        if (normalizedDist > edgeStart) {
-          const t = (normalizedDist - edgeStart) / (1 - edgeStart);
-          magnitude = Math.pow(t, 3) * 1.8;
-        } else {
-          magnitude = -0.05 * Math.sin(normalizedDist * Math.PI);
-        }
-        magnitude = Math.max(-1.2, Math.min(1.2, magnitude));
-        const dirX = dist === 0 ? 0 : dx / dist;
-        const dirY = dist === 0 ? 0 : dy / dist;
-        rCol = Math.min(255, Math.max(0, 128 + dirX * magnitude * 100));
-        gCol = Math.min(255, Math.max(0, 128 + dirY * magnitude * 100));
-      }
-
-      const index = (y * canvas.width + x) * 4;
-      imgData.data[index]     = rCol;
-      imgData.data[index + 1] = gCol;
-      imgData.data[index + 2] = 128;
-      imgData.data[index + 3] = 255;
-    }
-  }
-
-  ctx.putImageData(imgData, 0, 0);
-  return canvas.toDataURL('image/png');
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 interface NavbarMobileProps {
-  isScrolled: boolean;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   activeTab: string;
@@ -86,7 +20,6 @@ interface NavbarMobileProps {
 }
 
 const NavbarMobile: React.FC<NavbarMobileProps> = ({
-  isScrolled,
   searchQuery,
   setSearchQuery,
   activeTab,
@@ -96,7 +29,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   const [isSearchActive, setIsSearchActive] = useState(() => {
     return searchParams.get('search') === 'true' || !!searchParams.get('q');
   });
-  const [scrollY, setScrollY] = useState(0);
+  const [scrollY, setScrollY] = useState(() => (typeof window !== 'undefined' ? window.scrollY : 0));
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -116,10 +49,9 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   // --- LIQUID BUBBLE STATE ---
   const containerRef = useRef<HTMLDivElement>(null);
   const navRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const mapCache = useRef(new Map<string, string>());
   // Tracks the very first render so we teleport the bubble instead of animating it in
   const isFirstRender = useRef(true);
-  const [bubbleState, setBubbleState] = useState({ opacity: 0, width: 0, height: 0, mapUrl: '' });
+  const [bubbleState, setBubbleState] = useState({ opacity: 0, width: 0, height: 0 });
 
   // Tab order: Home=0, List=1, Search=2, Settings=3
   const activeIndex = isSearchActive ? 2 : activeTab === 'list' ? 1 : activeTab === 'settings' ? 3 : 0;
@@ -192,7 +124,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
         activeHeight.set(bubbleHeight);
       }
 
-      setBubbleState({ opacity: 1, width: bubbleWidth, height: bubbleHeight, mapUrl: '' });
+      setBubbleState({ opacity: 1, width: bubbleWidth, height: bubbleHeight });
     };
 
     // Fire immediately, then at 50 ms and 250 ms as fallbacks.
@@ -211,6 +143,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY);
+    onScroll(); // sync immediately in case page mounted already scrolled
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -452,10 +385,10 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
               setSearchParams(p, { replace: true });
               handleMobileTabClick('home');
             }}
-            className={getTabClass(activeTab === 'home' && !isSearchActive)}
+            className={getTabClass(['home', 'tv', 'movies', 'new', 'language'].includes(activeTab) && !isSearchActive)}
           >
 
-            <div className={getPillClass(activeTab === 'home' && !isSearchActive)}>
+            <div className={getPillClass(['home', 'tv', 'movies', 'new', 'language'].includes(activeTab) && !isSearchActive)}>
               <House size={22} weight="regular" className="sm:w-[26px] sm:h-[26px] transition-transform group-hover:scale-105 duration-200" />
               <span className="text-[8px] sm:text-[9px] mt-0.5 font-extralight tracking-wide whitespace-nowrap">{t('nav.home', { defaultValue: 'Home' })}</span>
             </div>

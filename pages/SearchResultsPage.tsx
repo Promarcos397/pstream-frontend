@@ -110,14 +110,14 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
 
   if (query.trim().length === 0) {
     return (
-      <div className="pt-[calc(6rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 pb-12 min-h-screen bg-black md:bg-[#121212]" />
+      <div className="pt-[calc(6rem+env(safe-area-inset-top))] md:pt-28 px-[var(--app-x)] pb-12 min-h-screen bg-black md:bg-[#121212]" />
     );
   }
 
   // Removed aggressive localized prefetching for search results
 
   return (
-    <div className={`pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 pb-12 min-h-screen bg-black md:bg-transparent ${isMobile ? '' : 'px-6 md:px-14 lg:px-20 sm:pl-[calc(72px+1.5rem)]'}`}>
+    <div className={`pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 pb-12 min-h-screen bg-black md:bg-transparent ${isMobile ? '' : 'px-[var(--app-x)]'}`}>
 
       {!isMobile && (
         <div className="mb-8">
@@ -145,7 +145,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4 animate-pulse">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-2.5 gap-y-6 animate-pulse">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="aspect-video bg-[#1e1e1e] rounded-sm overflow-hidden relative border border-white/[0.04]">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" style={{ animationDelay: `${(i % 6) * 0.1}s` }} />
@@ -182,7 +182,7 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-2.5 gap-y-6">
             {results.map(movie => {
               if (!movie.backdrop_path && !movie.poster_path) return null;
               return <MovieCard key={movie.id} movie={movie} onSelect={onSelectMovie} onPlay={onPlay} isGrid={true} />;

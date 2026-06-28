@@ -28,7 +28,7 @@ const BBFC: Record<string, { fill: string; shape: 'triangle' | 'circle' }> = {
   'R18': { fill: '#6A0D83', shape: 'circle'   }, // BBFC purple
 };
 
-function resolveLabel(cert?: string, adult?: boolean, voteAverage?: number): string {
+function resolveLabel(cert?: string, adult?: boolean): string | null {
   if (cert) {
     const u = cert.trim().toUpperCase();
     if (BBFC[u]) return u;
@@ -42,15 +42,15 @@ function resolveLabel(cert?: string, adult?: boolean, voteAverage?: number): str
     if (!isNaN(n)) return n >= 18 ? '18' : n >= 15 ? '15' : n >= 12 ? '12' : n >= 7 ? 'PG' : 'U';
   }
   if (adult) return '18';
-  if ((voteAverage ?? 0) >= 7) return '15';
-  return '12';
+  return null;
 }
 
 export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
   adult, voteAverage, certification, label, size = 'sm',
 }) => {
   const { t } = useTranslation();
-  const lbl = label || resolveLabel(certification, adult, voteAverage);
+  const lbl = label || resolveLabel(certification, adult);
+  if (!lbl) return null;
   const cfg = BBFC[lbl] ?? { fill: '#E65100', shape: 'circle' as const };
 
   // px sizes: xs=20, sm=30, md=40
@@ -61,14 +61,13 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
   // Outer white triangle then inner coloured triangle create the border effect.
   // Text sits in the lower ~40% of the inner triangle.
   if (cfg.shape === 'triangle') {
-    // font-size scales with label length — large enough to dominate the triangle
-    const fs = lbl.length === 1 ? 40 : 28;
-    // outer / inner triangle verts
-    const OX1 = 55, OY1 = 2;          // apex
-    const OX2 = 2,  OY2 = 100;        // bottom-left
-    const OX3 = 108, OY3 = 100;       // bottom-right
-    const IY1 = 5, IY2 = 97, IY3 = 97;
-    const IX1 = 55, IX2 = 4, IX3 = 106;
+    const fs = lbl.length === 1 ? 46 : 34;
+    // Both triangles use quadratic bezier curves at each corner for rounded look.
+    // Outer (white) is 5% smaller than the original sharp triangle.
+    // Inner (coloured) is inset from the outer to form the white stroke border.
+    // Path order: apex → bottom-right → bottom-left (clockwise).
+    const outerPath = "M48.3,17.7 Q55,5.3 61.7,17.7 L98.7,86 Q105.4,98.4 91.4,98.4 L18.6,98.4 Q4.6,98.4 11.3,86 Z";
+    const innerPath = "M50.2,17.8 Q55,9 59.8,17.8 L97.2,85.7 Q102,94.5 92,94.5 L18,94.5 Q8,94.5 12.8,85.7 Z";
     return (
       <svg
         width={px}
@@ -78,17 +77,14 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
         className="flex-shrink-0"
         style={{ display: 'inline-block' }}
       >
-        {/* white border layer */}
-        <polygon points={`${OX1},${OY1} ${OX2},${OY2} ${OX3},${OY3}`} fill="white" />
-        {/* coloured fill */}
-        <polygon points={`${IX1},${IY1} ${IX2},${IY2} ${IX3},${IY3}`} fill={cfg.fill} />
-        {/* label — vertically centred in lower 2/3 of inner triangle */}
+        <path d={outerPath} fill="white" />
+        <path d={innerPath} fill={cfg.fill} />
         <text
           x="55"
-          y="80"
+          y="79"
           textAnchor="middle"
           fontSize={fs}
-          fontWeight="900"
+          fontWeight="600"
           fontFamily="'Arial Black', Arial, sans-serif"
           fill="white"
           letterSpacing={lbl.length >= 2 ? '-2' : '0'}
@@ -102,7 +98,7 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
   // ── Circle (12A / 12 / 15 / 18 / R18) ────────────────────────────────
   // viewBox 0 0 100 100. Outer white circle (r=49) → coloured fill (r=42).
   // large font so text fills the circle — 12A needs tighter spacing
-  const fs = lbl.length >= 3 ? 36 : lbl.length === 2 ? 44 : 52;
+  const fs = lbl.length >= 3 ? 42 : lbl.length === 2 ? 50 : 59;
   return (
     <svg
       width={px}
@@ -115,7 +111,7 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
       {/* white border ring */}
       <circle cx="50" cy="50" r="49" fill="white" />
       {/* coloured fill */}
-      <circle cx="50" cy="50" r="47" fill={cfg.fill} />
+      <circle cx="50" cy="50" r="44" fill={cfg.fill} />
       {/* label */}
       <text
         x="50"
@@ -123,7 +119,7 @@ export const MaturityBadge: React.FC<MaturityBadgeProps> = ({
         textAnchor="middle"
         dominantBaseline="central"
         fontSize={fs}
-        fontWeight="900"
+        fontWeight="700"
         fontFamily="'Arial Black', Arial, sans-serif"
         fill="white"
         letterSpacing={lbl.length >= 3 ? '-2' : lbl.length === 2 ? '-1' : '0'}
@@ -142,10 +138,11 @@ interface BadgeOverlayProps {
 }
 
 export const BadgeOverlay: React.FC<BadgeOverlayProps> = React.memo(({ badge, isBook }) => {
+  const { t } = useTranslation();
   if (isBook) {
     return (
       <div className="absolute top-2 left-2 bg-black/50 border border-white/40 text-white px-2 py-0.5 text-[10px] font-medium uppercase backdrop-blur-sm">
-        Comic
+        {t('badge.comic', { defaultValue: 'Comic' })}
       </div>
     );
   }
@@ -163,10 +160,13 @@ export const BadgeOverlay: React.FC<BadgeOverlayProps> = React.memo(({ badge, is
     );
   }
   if (badge.type === 'new') {
+    const label = badge.text === 'New Episodes'
+      ? t('badges.newEpisodes')
+      : t('badges.recentlyAdded');
     return (
       <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center">
         <div className="bg-[#E50914] text-white text-[8px] font-bold px-3 py-[3px] tracking-wider uppercase leading-none">
-          {badge.text}
+          {label}
         </div>
       </div>
     );
@@ -175,7 +175,7 @@ export const BadgeOverlay: React.FC<BadgeOverlayProps> = React.memo(({ badge, is
     return (
       <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center">
         <div className="bg-black/70 border border-white/30 text-white text-[8px] font-bold px-3 py-[3px] tracking-wider uppercase leading-none backdrop-blur-sm">
-          {badge.text}
+          {t('badges.comingSoon')}
         </div>
       </div>
     );
@@ -240,6 +240,7 @@ export const ProgressIndicator: React.FC<ProgressProps> = React.memo(({ movie, g
 // ─── HoverProgressBar ─────────────────────────────────────────────────────────
 // Flat bar with "11 of 43m" text — rendered inside the hover popup
 export const HoverProgressBar: React.FC<ProgressProps> = React.memo(({ movie, getLastWatchedEpisode, getVideoState }) => {
+  const { t } = useTranslation();
   const { pct, watchMins, totalMins } = getWatchData(movie, getLastWatchedEpisode, getVideoState);
   if (pct <= 0) return null;
   return (
@@ -251,8 +252,8 @@ export const HoverProgressBar: React.FC<ProgressProps> = React.memo(({ movie, ge
         />
       </div>
       {totalMins > 0 && (
-        <span className="text-gray-100 text-[16px] whitespace-nowrap flex-shrink-0 font-medium ">
-          {watchMins} of {totalMins}m
+        <span className="text-gray-100 text-[16px] whitespace-nowrap flex-shrink-0 font-medium">
+          {t('common.watchProgress', { watched: watchMins, total: totalMins, defaultValue: '{{watched}} of {{total}}m' })}
         </span>
       )}
     </div>

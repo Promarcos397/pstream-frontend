@@ -13,7 +13,7 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { useIsInTheaters } from '../hooks/useIsInTheaters';
 import CinemaPlayButton from './CinemaPlayButton';
 import { GENRES, LOGO_SIZE } from '../constants';
-import { getMovieImages, fetchData, getSeasonDetails, getCachedData } from '../services/api';
+import { getMovieImages, fetchData, getSeasonDetails, getCachedData, getMovieDetails } from '../services/api';
 import { Movie } from '../types';
 
 const _epNameCache = new Map<string, string>();
@@ -271,6 +271,7 @@ const TopTenCard: React.FC<{
   const [replayCount, setReplayCount] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [popupMounted, setPopupMounted] = useState(false);
+  const [cert, setCert] = useState<string | undefined>(movie.certification);
   const epFetchedRef = useRef(false);
   const _isTVCard = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
   const _watchedEpCard = _isTVCard ? getLastWatchedEpisode(movie.id) : null;
@@ -313,9 +314,9 @@ const TopTenCard: React.FC<{
   useEffect(() => {
     if (!isVisible) return;
     let isMounted = true;
+    const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
     const fetchLogo = async () => {
       try {
-        const mediaType = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
         const data = await getMovieImages(String(movie.id), mediaType);
         if (!isMounted) return;
         if (data?.logos) {
@@ -325,6 +326,7 @@ const TopTenCard: React.FC<{
       } catch (e) { }
     };
     fetchLogo();
+    getMovieDetails(movie.id, mediaType).then((d: any) => { if (isMounted && d?.certification) setCert(d.certification); });
     return () => { isMounted = false; };
   }, [isVisible, movie.id, movie.media_type, movie.title]);
 
@@ -644,7 +646,7 @@ const TopTenCard: React.FC<{
               }}
             >
               <motion.div
-                className="bg-[#141414] rounded-md overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
+                className="bg-[#181818] rounded-md overflow-hidden shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
                 initial={{ opacity: 0, y: 22, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.95 }}
@@ -806,14 +808,14 @@ const TopTenCard: React.FC<{
                     </TooltipWrapper>
                   </div>
 
-                  <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
-                    <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={movie.certification} />
+                  <div className="flex items-center flex-wrap gap-1.5 text-[15px] font-medium">
+                    <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={cert} />
                     {(() => {
-                      if (isBook) return <span className="text-white/70">{movie.media_type === 'series' ? 'Series' : 'Comic'}</span>;
+                      if (isBook) return <span className="text-white/70">{movie.media_type === 'series' ? t('common.series', { defaultValue: 'Series' }) : t('badge.comic', { defaultValue: 'Comic' })}</span>;
                       const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
                       if (isTV) {
                         const s = movie.number_of_seasons;
-                        return <span className="text-white/70">{s ? `${s} ${s === 1 ? t('common.season') : t('common.season') + 's'}` : 'TV'}</span>;
+                        return <span className="text-white/70">{s ? t('common.seasonCount', { count: s }) : t('common.tv', { defaultValue: 'TV' })}</span>;
                       }
                       if (!movie.runtime) return null;
                       const h = Math.floor(movie.runtime / 60);
@@ -844,7 +846,7 @@ const TopTenCard: React.FC<{
                   })()}
 
                   {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? null : (
-                    <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
+                    <div className="flex flex-wrap items-center gap-y-0.5 text-[15.5px] font-medium">
                       {getGenreNames().map((genreName, idx, arr) => {
                         if (!genreName) return null;
                         const genreId = movie.genre_ids?.[idx];
@@ -852,7 +854,7 @@ const TopTenCard: React.FC<{
                         return (
                           <span key={genreId ?? idx} className="flex items-center">
                             <span
-                              className="text-gray-400 hover:text-white cursor-pointer transition-colors"
+                              className="text-white cursor-pointer"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleMouseLeave();

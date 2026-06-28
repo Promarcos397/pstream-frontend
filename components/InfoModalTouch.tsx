@@ -221,7 +221,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     const duration = activeMovie.runtime
         ? `${Math.floor(activeMovie.runtime / 60)}${t('common.hour')} ${activeMovie.runtime % 60}${t('common.minute')}`
         : totalSeasons
-            ? `${totalSeasons} ${t('common.season')}${totalSeasons > 1 ? 's' : ''}`
+            ? t('common.seasonCount', { count: totalSeasons })
             : "";
 
     const handleRecommendationClick = (rec: Movie) => {
@@ -353,9 +353,7 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
     const epName = currentEpData ? currentEpData.name : 'Pilot';
 
     const remainingMins = totalMins - watchMins;
-    const remainingText = remainingMins > 0 ? `${remainingMins}m remaining` : `${totalMins || 20}m remaining`;
-
-    const ageRating = activeMovie.adult ? '18' : (activeMovie.vote_average ?? 0) >= 7.5 ? '16' : '13';
+    const remainingText = remainingMins > 0 ? `${remainingMins}m remaining` : `${totalMins}m remaining`;
 
     return (
         <div className="fixed inset-0 z-[10000] bg-black overflow-y-auto scrollbar-hide flex flex-col w-full h-full select-none cursor-default pb-[calc(96px+env(safe-area-inset-bottom))]">
@@ -529,8 +527,6 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
 
                     <span className="text-white/70 font-normal">{duration}</span>
                     
-                    {/* High-contrast HD badge with background */}
-                    <span className="border-[1.5px] border-white/90 bg-white/15 px-1.5 py-0.5 text-[12px] rounded-[2px] text-white font-bold leading-none tracking-wider shrink-0 select-none shadow-[0_1px_3px_rgba(0,0,0,0.4)]">HD</span>
                 </div>
 
                 {/* Primary CTA Play/Resume Button — bigger, less rounded, matching margins */}
@@ -565,15 +561,17 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                         </h3>
                         
                         {/* Linear progress bar and remaining minutes inline row */}
+                        {watchPct > 0 && (
                         <div className="flex items-center gap-x-3.5 w-full">
                             <div className="flex-1 h-[3px] bg-white/20 rounded-full overflow-hidden">
-                                <div 
+                                <div
                                     className="h-full bg-[#e50914] rounded-full transition-all duration-300"
-                                    style={{ width: `${watchPct || 35}%` }} 
+                                    style={{ width: `${watchPct}%` }}
                                 />
                             </div>
                             <span className="text-white/80 text-[15px] font-medium shrink-0 leading-none">{remainingText}</span>
                         </div>
+                        )}
                     </div>
                 )}
 
@@ -605,10 +603,12 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
                                 </React.Fragment>
                             ))}
                         </div>
+                        {mediaType === 'tv' && activeMovie.created_by && activeMovie.created_by.length > 0 && (
                         <div className="text-white/70">
                             <span className="font-medium mr-1">{t('infoModal.creators', { defaultValue: 'Creators:' })}</span>
-                            <span className="font-normal">{t('infoModal.creatorsList', { defaultValue: 'Daniel J. Goor, Michael Schur' })}</span>
+                            <span className="font-normal">{activeMovie.created_by.map(c => c.name).join(', ')}</span>
                         </div>
+                        )}
                     </div>
                 )}
 

@@ -20,7 +20,7 @@ interface MovieCardPopupProps {
   movie: Movie;
   hoveredRect: DOMRect;
   hoverPosition: 'center' | 'left' | 'right';
-  initialScroll: { x: number; y: number }; // NEW PROP
+  initialScroll: { x: number; y: number };
   imageSrc: string;
   logoUrl: string | null;
   logoDim: { ratio: number; isSquare: boolean };
@@ -112,12 +112,18 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
   } = useGlobalContext();
   
   const fetchedRef = useRef(false);
+  const [cert, setCert] = useState<string | undefined>(movie.certification);
+  const [runtime, setRuntime] = useState<number | undefined>(movie.runtime);
 
   // Pre-warm the modal data cache while the popup is visible so InfoModal opens instantly.
   // Season 1 is also fetched here so the episode name is in _dataCache synchronously.
   useEffect(() => {
     const mt = (movie.media_type || (movie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
-    getMovieDetails(movie.id, mt);
+    getMovieDetails(movie.id, mt).then((d: any) => {
+      if (d?.certification) setCert(d.certification);
+      const rt = d?.runtime || d?.episode_run_time?.[0];
+      if (rt) setRuntime(rt);
+    });
     getMovieCredits(movie.id, mt);
     getRecommendations(movie.id, mt);
     getMovieImages(String(movie.id), mt);
@@ -164,6 +170,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
 
   const isAdded = myList.some(m => String(m.id) === String(movie.id));
   const rating = getMovieRating(movie.id);
+  const watchPct = getWatchData(movie, getLastWatchedEpisode, getVideoState).pct;
 
   const transformOrigin =
     hoverPosition === 'left' ? 'top left'
@@ -191,7 +198,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
       }}
     >
       <motion.div
-        className="bg-[#141414] rounded-md overflow-hidden ring-1 ring-zinc-700/50 shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
+        className="bg-[#181818] rounded-md overflow-hidden shadow-[0_2px_20px_rgba(0,0,0,0.65)]"
         initial={{ opacity: 0, y: 22, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 8, scale: 0.95 }}
@@ -317,7 +324,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
 
             <RatingPill rating={rating} onRate={(r) => rateMovie(movie, r)} />
 
-            {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 && (
+            {watchPct > 0 && (
               <TooltipWrapper label={t('common.removeContinue')}>
                 <button
                   onClick={(e) => {
@@ -343,43 +350,43 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
           </TooltipWrapper>
         </div>
 
-        {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct <= 0 && (
-          <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-medium">
-            <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={movie.certification} />
+        {watchPct <= 0 && (
+          <div className="flex items-center flex-wrap gap-1.5 text-[15px] font-medium">
+            <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={cert} />
 
             {(() => {
-              if (isBook) return <span className="text-white">{movie.media_type === 'series' ? 'Series' : 'Comic'}</span>;
+              const fmtRuntime = (mins: number) => {
+                const h = Math.floor(mins / 60), m = mins % 60;
+                return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
+              };
+              if (isBook) return <span className="text-white">{movie.media_type === 'series' ? t('common.series', { defaultValue: 'Series' }) : t('badge.comic', { defaultValue: 'Comic' })}</span>;
               const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
               if (isTV) {
                 const s = movie.number_of_seasons;
-                return <span className="text-white">{s ? `${s} ${s === 1 ? t('common.season') : t('common.season') + 's'}` : 'TV'}</span>;
+                return <>
+                  <span className="text-white">{s ? t('common.seasonCount', { count: s }) : t('common.tv', { defaultValue: 'TV' })}</span>
+                  {runtime && <span className="text-white/70">{fmtRuntime(runtime)}</span>}
+                </>;
               }
-              if (!movie.runtime) return null;
-              const h = Math.floor(movie.runtime / 60);
-              const m = movie.runtime % 60;
-              return <span className="text-white">{h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`}</span>;
+              if (!runtime) return null;
+              return <span className="text-white">{fmtRuntime(runtime)}</span>;
             })()}
-
-            {!isBook && <span className="border border-white text-white px-1.5 py-0 text-[10px] font-bold rounded-[2px] ml-3 leading-[1.3]">HD</span>}
           </div>
         )}
 
         {(() => {
-          const watchPct = getWatchData(movie, getLastWatchedEpisode, getVideoState).pct;
-          if (!isTV || isBook) return null;
+          if (!isTV || isBook || watchPct <= 0) return null;
           return (
             <div className="space-y-1">
-              <p className="text-white text-[15px] font-semibold truncate">
-                S{_epS} E{_epE}{episodeName ? ` · ${episodeName}` : ''}
+              <p className="text-white text-[17px] font-medium truncate">
+                {t('player.episodeCode', { season: _epS, episode: _epE })}{episodeName ? ` "${episodeName}"` : ''}
               </p>
-              {watchPct > 0 && <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />}
+              <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
             </div>
           );
         })()}
 
         {(() => {
-          const watchPct = getWatchData(movie, getLastWatchedEpisode, getVideoState).pct;
-          const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
           // Movie in-progress: show progress bar (TV handles it inside the episode block)
           if (watchPct > 0 && !isTV && !isBook) {
             return (
@@ -390,14 +397,14 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
           }
           if (watchPct > 0) return null;
           return (
-            <div className="flex flex-wrap items-center gap-y-0.5 text-[12.5px] font-medium">
+            <div className="flex flex-wrap items-center gap-y-0.5 text-[15.5px] font-medium">
               {movie.genre_ids?.slice(0, 3).map((genreId, idx, arr) => {
                 const genreName = t(`genres.${genreId}`, { defaultValue: GENRES[genreId] });
                 if (!genreName) return null;
                 return (
                   <span key={genreId} className="flex items-center">
                     <span
-                      className="text-white/80 hover:text-white cursor-pointer transition-colors"
+                      className="text-white cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         onMouseLeave();

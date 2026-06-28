@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import { useSettingsStore, DEFAULT_SETTINGS } from './useSettingsStore';
 import { useWatchStore } from './useWatchStore';
 import { useLibraryStore } from './useLibraryStore';
+import { getSeasonDetails } from '../services/api';
 
 interface AuthStore {
   user: any | null;
@@ -309,6 +310,24 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
           updatedAt: new Date(w.updated_at).getTime()
         }));
         useWatchStore.getState().syncFromCloud(mappedHistory);
+
+        // Prefetch episode names for all in-progress TV shows so popup shows
+        // the title instantly instead of fetching on hover.
+        const seen = new Set<string>();
+        const tvEntries = mappedHistory.filter(h => h.type === 'tv' && h.season);
+        const prefetch = () => {
+          for (const entry of tvEntries) {
+            const key = `${entry.tmdbId}-${entry.season}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            getSeasonDetails(Number(entry.tmdbId), entry.season!).catch(() => {});
+          }
+        };
+        if ('requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(prefetch, { timeout: 4000 });
+        } else {
+          setTimeout(prefetch, 2000);
+        }
       }
 
       // 3. Sync Ratings and List

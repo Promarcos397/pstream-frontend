@@ -63,7 +63,8 @@
         "clearSearch": "清除搜索",
         "closeSearch": "关闭搜索",
         "ratingLabel": "{{label}} 评级",
-        "episode": "剧集"
+        "episode": "剧集",
+        "seasonCount_other": "{{count}} 季"
     },
     "settings": {
         "title": "管理个人资料与偏好",
@@ -277,7 +278,10 @@
         "playbackTab": "播放设置",
         "pause": "暂停",
         "play": "播放",
-        "skipCredits": "跳过片尾字幕"
+        "skipCredits": "跳过片尾字幕",
+        "seasons": "季",
+        "normalSpeed": "正常",
+        "episodeCode": "第{{season}}季第{{episode}}集"
     },
     "playback": {
         "autoplayTitle": "自动播放控制",

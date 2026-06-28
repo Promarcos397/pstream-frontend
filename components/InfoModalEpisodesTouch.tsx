@@ -189,7 +189,7 @@ const InfoModalEpisodesTouch: React.FC<InfoModalEpisodesTouchProps> = ({
                                 onClick={() => setVisibleCount(c => c + BATCH_SIZE)}
                                 className="w-full h-11 bg-[#2a2a2a] hover:bg-[#333333] border border-white/5 text-white rounded-[4px] text-[13.5px] font-extrabold transition active:scale-[0.98] mt-2"
                             >
-                                Show More Episodes
+                                {t('modal.showMoreEpisodes')}
                             </button>
                         )}
                     </>

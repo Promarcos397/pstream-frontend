@@ -63,7 +63,9 @@
         "clearSearch": "Rensa sökning",
         "closeSearch": "Stäng sökning",
         "ratingLabel": "{{label}}-betyg",
-        "episode": "Avsnitt"
+        "episode": "Avsnitt",
+        "seasonCount_one": "{{count}} Säsong",
+        "seasonCount_other": "{{count}} Säsonger"
     },
     "settings": {
         "title": "Hantera profil och inställningar",
@@ -277,7 +279,10 @@
         "playbackTab": "Uppspelningsinställningar",
         "pause": "Pausa",
         "play": "Spela",
-        "skipCredits": "Hoppa över eftertextning"
+        "skipCredits": "Hoppa över eftertextning",
+        "seasons": "Säsonger",
+        "normalSpeed": "Normal",
+        "episodeCode": "S{{season}}:A{{episode}}"
     },
     "playback": {
         "autoplayTitle": "Inställningar för automatisk uppspelning",

@@ -63,7 +63,11 @@
         "clearSearch": "Wyczyść wyszukiwanie",
         "closeSearch": "Zamknij wyszukiwanie",
         "ratingLabel": "Ocena {{label}}",
-        "episode": "Odcinek"
+        "episode": "Odcinek",
+        "seasonCount_one": "{{count}} Sezon",
+        "seasonCount_few": "{{count}} Sezony",
+        "seasonCount_many": "{{count}} Sezonów",
+        "seasonCount_other": "{{count}} Sezonu"
     },
     "settings": {
         "title": "Zarządzaj profilem i preferencjami",
@@ -277,7 +281,10 @@
         "playbackTab": "Ustawienia odtwarzania",
         "pause": "Pauza",
         "play": "Odtwórz",
-        "skipCredits": "Pomiń napisy końcowe"
+        "skipCredits": "Pomiń napisy końcowe",
+        "seasons": "Sezony",
+        "normalSpeed": "Normalnie",
+        "episodeCode": "S{{season}}:Odc{{episode}}"
     },
     "playback": {
         "autoplayTitle": "Sterowanie autoodtwarzaniem",

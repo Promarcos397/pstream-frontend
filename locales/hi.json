@@ -63,7 +63,9 @@
         "clearSearch": "खोज साफ़ करें",
         "closeSearch": "खोज बंद करें",
         "ratingLabel": "{{label}} रेटिंग",
-        "episode": "एपिसोड"
+        "episode": "एपिसोड",
+        "seasonCount_one": "{{count}} सीज़न",
+        "seasonCount_other": "{{count}} सीज़न"
     },
     "settings": {
         "title": "प्रोफाइल और पसंद मैनेज करें",
@@ -277,7 +279,10 @@
         "playbackTab": "प्लेबैक सेटिंग्स",
         "pause": "रोकें",
         "play": "चलाएं",
-        "skipCredits": "क्रेडिट छोड़ें"
+        "skipCredits": "क्रेडिट छोड़ें",
+        "seasons": "सीज़न",
+        "normalSpeed": "सामान्य",
+        "episodeCode": "S{{season}}:E{{episode}}"
     },
     "playback": {
         "autoplayTitle": "ऑटोप्ले कंट्रोल",

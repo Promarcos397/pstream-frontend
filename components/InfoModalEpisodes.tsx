@@ -55,7 +55,6 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
 
     const visibleEpisodes = episodes.slice(0, visibleCount);
     const hasMore = visibleCount < episodes.length;
-    const remaining = episodes.length - visibleCount;
 
     return (
         <div className="mt-8">
@@ -206,4 +205,4 @@ const InfoModalEpisodes: React.FC<InfoModalEpisodesProps> = ({
     );
 };
 
-export default InfoModalEpisodes;
+export default React.memo(InfoModalEpisodes);

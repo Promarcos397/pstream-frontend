@@ -63,7 +63,9 @@
         "clearSearch": "Zoekopdracht wissen",
         "closeSearch": "Zoekopdracht sluiten",
         "ratingLabel": "{{label}}-beoordeling",
-        "episode": "Aflevering"
+        "episode": "Aflevering",
+        "seasonCount_one": "{{count}} Seizoen",
+        "seasonCount_other": "{{count}} Seizoenen"
     },
     "settings": {
         "title": "Profiel en voorkeuren beheren",
@@ -277,7 +279,10 @@
         "playbackTab": "Afspeelinstelling",
         "pause": "Pauzeren",
         "play": "Afspelen",
-        "skipCredits": "Aftiteling overslaan"
+        "skipCredits": "Aftiteling overslaan",
+        "seasons": "Seizoenen",
+        "normalSpeed": "Normaal",
+        "episodeCode": "S{{season}}:Afl{{episode}}"
     },
     "playback": {
         "autoplayTitle": "Instellingen automatisch afspelen",

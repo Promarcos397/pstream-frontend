@@ -551,7 +551,7 @@ export const EpisodeExplorerTouch: React.FC<{
                 onTouchStart={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
-                    <span className="text-white text-lg font-bold uppercase tracking-wider">{activePanel === 'seasons' ? (showTitle || 'Seasons') : `Season ${selectedSeason}`}</span>
+                    <span className="text-white text-lg font-bold uppercase tracking-wider">{activePanel === 'seasons' ? (showTitle || t('player.seasons')) : `${t('player.season')} ${selectedSeason}`}</span>
                     <button
                         onClick={(e) => { e.stopPropagation(); if (onClose) onClose(); else setActivePanel('none'); }}
                         onTouchStart={(e) => e.stopPropagation()}

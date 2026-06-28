@@ -281,6 +281,7 @@ const SpeedPopup: React.FC<{
     onClose: () => void;
     isMobile: boolean;
 }> = ({ playbackSpeed, onPlaybackSpeedChange, onClose, isMobile }) => {
+    const { t } = useTranslation();
     const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
     return (
@@ -314,7 +315,7 @@ const SpeedPopup: React.FC<{
                             } ${isSelected ? 'bg-white/5' : ''}`}
                         >
                             <span className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-white/70'}`}>
-                                {speed === 1.0 ? 'Normal' : `${speed}x`}
+                                {speed === 1.0 ? t('player.normalSpeed', { defaultValue: 'Normal' }) : `${speed}x`}
                             </span>
                             <div
                                 className={`w-[13px] h-[13px] rounded-full border-[1.5px] flex items-center justify-center transition-colors flex-shrink-0 ${
@@ -340,6 +341,7 @@ const NextEpisodePopup: React.FC<{
     onPlay: () => void;
     onInteraction?: () => void;
 }> = ({ data, isMobile, onPlay, onInteraction }) => {
+    const { t } = useTranslation();
     const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w780';
     const imgSrc = data.stillPath ? `${TMDB_IMAGE_BASE}${data.stillPath}` : null;
 
@@ -375,7 +377,7 @@ const NextEpisodePopup: React.FC<{
                 textTransform: 'uppercase',
                 letterSpacing: '1px',
             }}>
-                Next episode
+                {t('player.nextEpisode')}
             </div>
 
             <div style={{ display: 'flex', padding: isMobile ? 14 : 22, gap: isMobile ? 12 : 22, alignItems: 'flex-start' }}>

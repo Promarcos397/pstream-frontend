@@ -63,7 +63,13 @@
         "clearSearch": "مسح البحث",
         "closeSearch": "إغلاق البحث",
         "ratingLabel": "تصنيف {{label}}",
-        "episode": "حلقة"
+        "episode": "حلقة",
+        "seasonCount_zero": "{{count}} موسم",
+        "seasonCount_one": "موسم واحد",
+        "seasonCount_two": "موسمان",
+        "seasonCount_few": "{{count}} مواسم",
+        "seasonCount_many": "{{count}} موسمًا",
+        "seasonCount_other": "{{count}} موسم"
     },
     "settings": {
         "title": "إدارة الملف الشخصي والتفضيلات",
@@ -277,7 +283,10 @@
         "playbackTab": "إعدادات التشغيل",
         "pause": "إيقاف مؤقت",
         "play": "تشغيل",
-        "skipCredits": "تخطي التتر"
+        "skipCredits": "تخطي التتر",
+        "seasons": "المواسم",
+        "normalSpeed": "عادي",
+        "episodeCode": "م{{season}}:ح{{episode}}"
     },
     "playback": {
         "autoplayTitle": "عناصر التحكم في التشغيل التلقائي",

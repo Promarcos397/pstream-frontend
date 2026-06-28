@@ -15,7 +15,7 @@ interface RecCardProps {
     onOpenModal: (rec: Movie) => void;
 }
 
-const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
+const RecCard: React.FC<RecCardProps> = React.memo(({ rec, onPlay, onOpenModal }) => {
     const myList = useLibraryStore(useShallow(s => s.getListArray()));
     const toggleList = useLibraryStore(s => s.toggleMyList);
     const { t } = useTranslation();
@@ -136,10 +136,6 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
                 <div className="flex items-center justify-between gap-2 mb-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
                         <MaturityBadge adult={rec.adult} voteAverage={rec.vote_average} certification={rec.certification} size="sm" />
-                        {/* HD tag — matches InfoModal's badge style */}
-                        <span className="border border-gray-400 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-300 h-fit leading-none font-extrabold">
-                            HD
-                        </span>
                         {year && (
                             <span className="text-gray-300 text-xs font-medium px-0.5">{year}</span>
                         )}
@@ -170,7 +166,7 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onPlay, onOpenModal }) => {
             </div>
         </div>
     );
-};
+});
 
 /* ─── Main section ────────────────────────────────────────────── */
 

@@ -37,6 +37,7 @@ export interface Movie {
   popularity?: number;
   certification?: string;
   content_descriptors?: string[];
+  created_by?: { id: number; name: string }[];
 }
 
 export interface Episode {

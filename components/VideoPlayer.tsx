@@ -526,9 +526,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
         const notificationTitle = showTitle;
         const notificationArtist = mediaType === 'tv' && epName
-            ? `S${playingSeasonNumber} E${currentEpisode} — ${epName}`
+            ? `${t('player.episodeCode', { season: playingSeasonNumber, episode: currentEpisode })} — ${epName}`
             : (movie.release_date || movie.first_air_date || '').slice(0, 4) || 'Pstream';
-        const notificationAlbum = mediaType === 'tv' ? `Season ${playingSeasonNumber}` : 'Movie';
+        const notificationAlbum = mediaType === 'tv'
+            ? `${t('player.season')} ${playingSeasonNumber}`
+            : t('common.movie');
 
         const backdropUrl = movie.backdrop_path
             ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`

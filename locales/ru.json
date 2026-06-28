@@ -63,7 +63,11 @@
         "clearSearch": "Очистить поиск",
         "closeSearch": "Закрыть поиск",
         "ratingLabel": "Рейтинг {{label}}",
-        "episode": "Эпизод"
+        "episode": "Эпизод",
+        "seasonCount_one": "{{count}} Сезон",
+        "seasonCount_few": "{{count}} Сезона",
+        "seasonCount_many": "{{count}} Сезонов",
+        "seasonCount_other": "{{count}} Сезона"
     },
     "settings": {
         "title": "Управление профилем и предпочтениями",
@@ -277,7 +281,10 @@
         "playbackTab": "Настройки воспроизведения",
         "pause": "Пауза",
         "play": "Воспроизвести",
-        "skipCredits": "Пропустить титры"
+        "skipCredits": "Пропустить титры",
+        "seasons": "Сезоны",
+        "normalSpeed": "Обычная",
+        "episodeCode": "С{{season}}:Э{{episode}}"
     },
     "playback": {
         "autoplayTitle": "Настройки автопроизведения",

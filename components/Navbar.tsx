@@ -95,7 +95,6 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   if (isMobile) {
     return (
       <NavbarMobile
-        isScrolled={isScrolled}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         activeTab={activeTab}

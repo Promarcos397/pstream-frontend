@@ -63,7 +63,9 @@
         "clearSearch": "Cancella ricerca",
         "closeSearch": "Chiudi ricerca",
         "ratingLabel": "Classificazione {{label}}",
-        "episode": "Episodio"
+        "episode": "Episodio",
+        "seasonCount_one": "{{count}} Stagione",
+        "seasonCount_other": "{{count}} Stagioni"
     },
     "settings": {
         "title": "Gestione profilo e preferenze",
@@ -277,7 +279,10 @@
         "playbackTab": "Impostazioni di riproduzione",
         "pause": "Pausa",
         "play": "Riproduci",
-        "skipCredits": "Salta i titoli di coda"
+        "skipCredits": "Salta i titoli di coda",
+        "seasons": "Stagioni",
+        "normalSpeed": "Normale",
+        "episodeCode": "St{{season}}:Ep{{episode}}"
     },
     "playback": {
         "autoplayTitle": "Controlli di riproduzione automatica",

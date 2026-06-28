@@ -1,5 +1,6 @@
 import React from 'react';
 import { PlayIcon } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
 
 interface AutoplayCountdownProps {
     showAutoplayCountdown: boolean;
@@ -14,6 +15,7 @@ export const AutoplayCountdown: React.FC<AutoplayCountdownProps> = ({
     onPlayNextNow,
     isMobile,
 }) => {
+    const { t } = useTranslation();
     if (!showAutoplayCountdown || !onCancelAutoplay || !onPlayNextNow) return null;
 
     return (
@@ -27,7 +29,7 @@ export const AutoplayCountdown: React.FC<AutoplayCountdownProps> = ({
                     }}
                     className="flex items-center justify-center px-5 sm:px-6 h-[39px] md:h-[50px] bg-black/60 hover:bg-black/80 backdrop-blur-md text-white font-bold text-[15px] md:text-[17px] rounded-[4px] transition-colors shadow-lg active:scale-95 border border-white/10"
                 >
-                    Watch credits
+                    {t('player.skipCredits')}
                 </button>
             )}
 
@@ -41,7 +43,7 @@ export const AutoplayCountdown: React.FC<AutoplayCountdownProps> = ({
                 } bg-neutral-200 hover:bg-white text-black font-bold rounded-[4px] shadow-lg active:scale-95 transition-colors`}
             >
                 <PlayIcon size={isMobile ? 15 : 25} weight="fill" className="text-black" />
-                Next episode
+                {t('player.nextEpisode')}
             </button>
         </div>
     );

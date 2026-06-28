@@ -63,7 +63,8 @@
         "clearSearch": "Aramayı temizle",
         "closeSearch": "Aramayı kapat",
         "ratingLabel": "{{label}} derecelendirmesi",
-        "episode": "Bölüm"
+        "episode": "Bölüm",
+        "seasonCount_other": "{{count}} Sezon"
     },
     "settings": {
         "title": "Profil ve Tercih Yönetimi",
@@ -277,7 +278,10 @@
         "playbackTab": "Oynatma ayarları",
         "pause": "Duraklat",
         "play": "Oynat",
-        "skipCredits": "Jeneriği atla"
+        "skipCredits": "Jeneriği atla",
+        "seasons": "Sezonlar",
+        "normalSpeed": "Normal",
+        "episodeCode": "S{{season}}:B{{episode}}"
     },
     "playback": {
         "autoplayTitle": "Otomatik Oynatma Kontrolleri",

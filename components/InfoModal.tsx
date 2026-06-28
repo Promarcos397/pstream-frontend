@@ -395,7 +395,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
     const duration = activeMovie.runtime
         ? `${Math.floor(activeMovie.runtime / 60)}${t('common.hour')} ${activeMovie.runtime % 60}${t('common.minute')}`
         : totalSeasons
-            ? `${totalSeasons} ${t('common.season')}${totalSeasons > 1 ? 's' : ''}`
+            ? t('common.seasonCount', { count: totalSeasons })
             : "";
 
     const handleRecommendationClick = (rec: Movie) => {
@@ -524,11 +524,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                     <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 space-y-3 md:space-y-4 z-20 pointer-events-auto">
                         <div className={`inline-flex flex-col max-w-[80%] transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
                             {logoUrl && !imgFailed ? (
-                                <div className="relative inline-flex items-end">
-                                    <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(25px) brightness(0) opacity(0.55)', transform: 'translate(4px, 12px) scale(1.08)', pointerEvents: 'none', zIndex: 0 }} />
-                                    <img src={logoUrl} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'blur(5px) brightness(0) opacity(0.35)', transform: 'translate(2px, 4px) scale(1.02)', pointerEvents: 'none', zIndex: 0 }} />
-                                    <img src={logoUrl} alt={activeMovie.title || activeMovie.name} style={{ position: 'relative', zIndex: 1, maxHeight: 'clamp(68px, 11vw, 120px)', maxWidth: '72%', objectFit: 'contain', objectPosition: 'bottom left' }} decoding="async" onError={() => setImgFailed(true)} />
-                                </div>
+                                <img src={logoUrl} alt={activeMovie.title || activeMovie.name} style={{ maxHeight: 'clamp(68px, 11vw, 120px)', maxWidth: '72%', objectFit: 'contain', objectPosition: 'bottom left', filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.85))' }} decoding="async" onError={() => setImgFailed(true)} />
                             ) : (
                                 <h2 className="text-3xl sm:text-4xl md:text-5xl font-black font-leaner text-white drop-shadow-xl leading-none tracking-wide">
                                     {activeMovie.title || activeMovie.name}
@@ -632,7 +628,6 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                                 )}
                                 <span className="text-white tracking-wide">{year}</span>
                                 <span className="text-white tracking-wide">{duration}</span>
-                                <span className="border border-gray-400 px-1.5 py-0.5 text-[10px] rounded-[2px] text-gray-300 h-fit leading-none font-extrabold">HD</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} certification={activeMovie.certification} size="md" />

@@ -63,7 +63,8 @@
         "clearSearch": "検索をクリア",
         "closeSearch": "検索を閉じる",
         "ratingLabel": "{{label}} レーティング",
-        "episode": "エピソード"
+        "episode": "エピソード",
+        "seasonCount_other": "{{count}}シーズン"
     },
     "settings": {
         "title": "プロフィールと設定の管理",
@@ -277,7 +278,10 @@
         "playbackTab": "再生設定",
         "pause": "一時停止",
         "play": "再生",
-        "skipCredits": "エンドクレジットをスキップ"
+        "skipCredits": "エンドクレジットをスキップ",
+        "seasons": "シーズン",
+        "normalSpeed": "標準",
+        "episodeCode": "S{{season}}:E{{episode}}"
     },
     "playback": {
         "autoplayTitle": "自動再生の設定",

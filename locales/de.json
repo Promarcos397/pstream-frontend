@@ -63,7 +63,9 @@
         "clearSearch": "Suche löschen",
         "closeSearch": "Suche schließen",
         "ratingLabel": "{{label}}-Bewertung",
-        "episode": "Folge"
+        "episode": "Folge",
+        "seasonCount_one": "{{count}} Staffel",
+        "seasonCount_other": "{{count}} Staffeln"
     },
     "settings": {
         "title": "Profil und Einstellungen verwalten",
@@ -277,7 +279,10 @@
         "playbackTab": "Wiedergabeeinstellungen",
         "pause": "Pause",
         "play": "Abspielen",
-        "skipCredits": "Abspann überspringen"
+        "skipCredits": "Abspann überspringen",
+        "seasons": "Staffeln",
+        "normalSpeed": "Normal",
+        "episodeCode": "S{{season}}:F{{episode}}"
     },
     "playback": {
         "autoplayTitle": "Autoplay-Steuerung",

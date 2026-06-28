@@ -63,7 +63,9 @@
         "clearSearch": "Clear search",
         "closeSearch": "Close search",
         "ratingLabel": "{{label}} rating",
-        "episode": "Episode"
+        "episode": "Episode",
+        "seasonCount_one": "{{count}} Season",
+        "seasonCount_other": "{{count}} Seasons"
     },
     "settings": {
         "title": "Manage profile and preferences",
@@ -277,7 +279,10 @@
         "playbackTab": "Playback Settings",
         "pause": "Pause",
         "play": "Play",
-        "skipCredits": "Skip Credits"
+        "skipCredits": "Skip Credits",
+        "seasons": "Seasons",
+        "normalSpeed": "Normal",
+        "episodeCode": "S{{season}}:E{{episode}}"
     },
     "playback": {
         "autoplayTitle": "Autoplay Controls",

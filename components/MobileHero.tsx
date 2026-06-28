@@ -87,7 +87,6 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
   const [isHighResLoaded, setIsHighResLoaded] = useState<boolean>(!!cachedImages);
   const [isLogoLoaded, setIsLogoLoaded] = useState<boolean>(!!initialLogo);
   const [bgImageSrc, setBgImageSrc] = useState<string>(initialBg);
-  const [fallbackBg, setFallbackBg] = useState<string>(initialBg);
   const [hasBakedInText, setHasBakedInText] = useState<boolean>(initialHasBakedText);
   const [logoImgFailed, setLogoImgFailed] = useState<boolean>(false);
   const [accentRGB, setAccentRGB] = useState<{r:number;g:number;b:number} | null>(null);
@@ -137,7 +136,6 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
 
     setLocalLogoUrl(resolvedLogo);
     setBgImageSrc(resolvedBg);
-    setFallbackBg(resolvedBg);
     setIsHighResLoaded(!!cachedImages);
     setIsLogoLoaded(!!resolvedLogo);
     setHasBakedInText(bakedInText);
@@ -465,36 +463,11 @@ const MobileHero: React.FC<MobileHeroProps> = ({ movie, logoUrl, onSelect, onPla
           {!hasBakedInText && (
             localLogoUrl && !logoImgFailed ? (
               <div className="relative inline-flex items-end mb-4 max-w-[75%] sm:max-w-[80%] max-h-[75px] sm:max-h-[95px] w-full justify-center">
-                {/* Premium dual-layer drop shadow for maximum readability */}
-                <img
-                  src={localLogoUrl}
-                  aria-hidden
-                  className="absolute object-contain object-bottom"
-                  style={{
-                    filter: 'blur(20px) brightness(0) opacity(0.7)',
-                    transform: 'translate(2px, 6px) scale(1.05)',
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                    width: '100%', height: '100%', inset: 0
-                  }}
-                />
-                <img
-                  src={localLogoUrl}
-                  aria-hidden
-                  className="absolute object-contain object-bottom"
-                  style={{
-                    filter: 'blur(3px) brightness(0) opacity(0.5)',
-                    transform: 'translate(1px, 2px) scale(1.01)',
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                    width: '100%', height: '100%', inset: 0
-                  }}
-                />
                 <img
                   src={localLogoUrl}
                   alt={movie.title || movie.name}
                   className="relative object-contain object-bottom max-h-[70px] sm:max-h-[85px] w-auto transition-opacity duration-300"
-                  style={{ zIndex: 1 }}
+                  style={{ filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.9)) drop-shadow(0 4px 20px rgba(0,0,0,0.7))' }}
                   onError={() => setLogoImgFailed(true)}
                 />
               </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Movie } from '../types';
 
-const RecTouchCard: React.FC<{ src: string; alt: string; onClick: () => void }> = ({ src, alt, onClick }) => {
+const RecTouchCard: React.FC<{ src: string; alt: string; onClick: () => void }> = React.memo(({ src, alt, onClick }) => {
     const [loaded, setLoaded] = useState(false);
     return (
         <div
@@ -18,7 +18,7 @@ const RecTouchCard: React.FC<{ src: string; alt: string; onClick: () => void }> 
             />
         </div>
     );
-};
+});
 
 interface InfoModalRecommendationsTouchProps {
     recommendations: Movie[];

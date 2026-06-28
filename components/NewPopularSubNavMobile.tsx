@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 type NewTab = 'watching' | 'justlanded' | 'top10movies' | 'top10series' | 'comingsoon';
 // removing tablet and ipad styles and sidebar
@@ -9,18 +10,18 @@ interface NewPopularSubNavMobileProps {
     onTabChange: (tab: NewTab) => void;
 }
 
-const TABS: { id: NewTab; label: string }[] = [
-    { id: 'watching',    label: "Everyone's Watching" },
-    { id: 'justlanded',  label: 'Just Landed' },
-    { id: 'top10movies', label: 'Top 10 Movies' },
-    { id: 'top10series', label: 'Top 10 Series' },
-    { id: 'comingsoon',  label: 'Coming Soon' },
-];
-
 const NewPopularSubNavMobile: React.FC<NewPopularSubNavMobileProps> = ({
     activeTab,
     onTabChange,
 }) => {
+    const { t } = useTranslation();
+    const TABS: { id: NewTab; label: string }[] = [
+        { id: 'watching',    label: t('newPopular.everyoneWatching', { defaultValue: "Everyone's Watching" }) },
+        { id: 'justlanded',  label: t('newPopular.justLanded',       { defaultValue: 'Just Landed' }) },
+        { id: 'top10movies', label: t('newPopular.top10Movies',      { defaultValue: 'Top 10 Movies' }) },
+        { id: 'top10series', label: t('newPopular.top10Series',      { defaultValue: 'Top 10 Series' }) },
+        { id: 'comingsoon',  label: t('newPopular.comingSoon',       { defaultValue: 'Coming Soon' }) },
+    ];
     const [scrollY, setScrollY] = useState(0);
     const [subNavVisible, setSubNavVisible] = useState(false);
     const lastScrollY = useRef(0);

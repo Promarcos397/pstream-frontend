@@ -501,7 +501,7 @@ export const EpisodeExplorer: React.FC<{
             {activePanel === 'seasons' && (
                 <div className="flex flex-col h-full">
                     <div className="flex items-center px-7 py-5 border-b-2 border-white bg-[#262626] flex-shrink-0">
-                        <span className="text-[22px] font-bold">{showTitle || 'Seasons'}</span>
+                        <span className="text-[22px] font-bold">{showTitle || t('player.seasons')}</span>
                     </div>
                     <div className="overflow-y-auto scroll-list flex-1">
                         {seasonList.map(s => (
@@ -622,7 +622,7 @@ export const EpisodeExplorer: React.FC<{
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between px-6 py-4 border-b-2 border-white flex-shrink-0">
-                        <span className="text-white text-lg font-bold uppercase">{activePanel === 'seasons' ? 'Seasons' : `Season ${selectedSeason}`}</span>
+                        <span className="text-white text-lg font-bold uppercase">{activePanel === 'seasons' ? t('player.seasons') : `${t('player.season')} ${selectedSeason}`}</span>
                         <button onClick={() => onClose ? onClose() : setActivePanel('none')} className="w-10 h-10 flex items-center justify-center text-white active:text-white/50"><XIcon size={28} weight="bold" /></button>
                     </div>
                     <div className="overflow-y-auto flex-1">{innerContent}</div>
