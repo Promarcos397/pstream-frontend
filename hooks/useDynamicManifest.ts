@@ -190,8 +190,12 @@ export const useDynamicManifest = (
         { key: 'spot-drama-tv',  title: 'Top Drama Series',    fetchUrl: REQUESTS.fetchByGenre('tv', 18, 'popularity.desc') },
       ];
 
-      // Shuffle everything daily
-      const shuffled = seededShuffle(npPool, hash);
+      // Separate top10 rows so they can be placed independently (avoid adjacency)
+      const top10Rows = npPool.filter(r => r.type === 'top10');
+      const nonTop10  = npPool.filter(r => r.type !== 'top10');
+
+      // Shuffle only the non-top10 rows
+      const shuffled = seededShuffle(nonTop10, hash);
 
       // Pick 1 spotlight most days, 2 on roughly every third day
       const spotCount = (hash % 3 === 0) ? 2 : 1;
@@ -204,6 +208,16 @@ export const useDynamicManifest = (
       if (spotCount === 2) {
         const pos2 = 8 + ((hash >> 4) % 3);
         result.splice(Math.min(pos2, result.length), 0, pickedSpotlights[1]);
+      }
+
+      // Insert each top10 row into its own slice so they're never adjacent.
+      // top10Rows[0] → first half, top10Rows[1] → second half.
+      for (let i = 0; i < top10Rows.length; i++) {
+        const sliceStart = Math.floor(i * result.length / top10Rows.length);
+        const sliceEnd   = Math.floor((i + 1) * result.length / top10Rows.length);
+        const range      = Math.max(1, sliceEnd - sliceStart);
+        const at         = sliceStart + (Math.abs((hash * (i + 7) * 1664525) | 0) % range);
+        result.splice(at, 0, top10Rows[i]);
       }
 
       return result;

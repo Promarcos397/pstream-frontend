@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Movie } from '../types';
 import MovieCard from '../components/MovieCard';
 import MovieCardTouch from '../components/MovieCardTouch';
@@ -27,6 +27,8 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
   const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const seedMovies: Movie[] | undefined = (location.state as any)?.seedMovies;
 
   const [items, setItems] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,19 +58,50 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
 
   const MIN_VOTE_COUNT = 50;
 
-  const loadPage = useCallback(async (pageNum: number, reset = false) => {
+  const loadPage = useCallback(async (pageNum: number, reset = false, seed?: Movie[]) => {
   if (!fetchUrl) return;
   pageNum === 1 ? setLoading(true) : setIsLoadingMore(true);
 
+  // If we have seed movies from the row, show them immediately and start fetching extras from page 4
+  if (reset && seed && seed.length > 0) {
+    const seedSeen = new Set(seed.map(m => Number(m.id)));
+    setItems(seed);
+
+    // Fetch pages 3-4 in background to extend, deduping against the seed
+    const sep = fetchUrl.includes('?') ? '&' : '?';
+    try {
+      const results = await Promise.all(
+        [3, 4].map(p => fetchData(`${fetchUrl}${sep}page=${p}`))
+      );
+      const raw: Movie[] = results.flatMap((res: any) =>
+        Array.isArray(res) ? res : (res?.results ?? [])
+      );
+      const extra = raw.filter((m: Movie) => {
+        if (seedSeen.has(Number(m.id))) return false;
+        seedSeen.add(Number(m.id));
+        return (m.backdrop_path || m.poster_path) && (!m.vote_count || m.vote_count >= MIN_VOTE_COUNT);
+      });
+      if (extra.length > 0) setItems(prev => [...prev, ...extra]);
+      setHasMore(extra.length >= 10);
+      setPage(4);
+    } catch (e) {
+      console.error('[BrowseGridPage] fetch error', e);
+      setHasMore(false);
+    }
+    setLoading(false);
+    setIsLoadingMore(false);
+    return;
+  }
+
   try {
     const sep = fetchUrl.includes('?') ? '&' : '?';
-    
-    // On first load, fetch 3 pages in parallel to fill the grid
+
+    // On first load without seed, fetch 3 pages in parallel to fill the grid
     const pagesToFetch = reset ? [1, 2, 3] : [pageNum];
     const results = await Promise.all(
       pagesToFetch.map(p => fetchData(`${fetchUrl}${sep}page=${p}`))
     );
-    
+
     const raw: Movie[] = results.flatMap((res: any) =>
       Array.isArray(res) ? res : (res?.results ?? [])
     );
@@ -92,7 +125,7 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
 
     // If we got less than 15 even after 3 pages, there simply isn't more
     setHasMore(filtered.length >= 15);
-    
+
     // Next "load more" starts at page 4
     if (reset) setPage(3);
 
@@ -107,7 +140,7 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
   useEffect(() => {
     setPage(1);
     setItems([]);
-    loadPage(1, true);
+    loadPage(1, true, seedMovies);
   }, [rowKey, fetchUrl]);
 
   const handleLoadMore = () => {
@@ -117,14 +150,14 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
   };
 
   return (
-    <div className="bg-black md:bg-[#141414] min-h-screen pb-16 pt-[calc(4rem+env(safe-area-inset-top))] md:pt-28">
-      <div className="px-4 md:px-10 lg:px-14 pt-0">
+    <div className="bg-black md:bg-[#141414] min-h-screen pb-16 pt-[calc(4rem+env(safe-area-inset-top))] md:pt-20">
+      <div className="px-4 md:px-10 lg:px-14">
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-12">
+        <div className="flex items-center gap-3 mt-2 mb-16">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center justify-center text-white/70 hover:text-white hover:scale-110 transition-all p-1 shrink-0"
+            className="flex items-center justify-center text-white p-1 shrink-0"
             aria-label={t('common.goBack', { defaultValue: 'Go back' })}
           >
             <ArrowLeftIcon size={28} weight="bold" />
@@ -134,7 +167,7 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
 
         {/* Loading skeleton — matches mobile aspect ratio */}
         {loading ? (
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-2.5 gap-y-6">
             {Array.from({ length: 24 }).map((_, i) => (
               isMobile ? (
                 <div key={i} className="aspect-[2/3] bg-zinc-900 rounded-[6px] overflow-hidden relative border border-white/[0.04]">
@@ -166,7 +199,7 @@ const BrowseGridPage: React.FC<BrowseGridPageProps> = ({ onSelectMovie, onPlay }
               </div>
             ) : (
               /* gap-y-10 gives space beneath each card for the hover popup overflow */
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-2.5 gap-y-6">
                 {items.map(movie => (
                   isMobile ? (
                     <MovieCardTouch

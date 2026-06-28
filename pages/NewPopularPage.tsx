@@ -40,6 +40,7 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll 
         ) : (
           <>
             {/* Taste Engine Personalization — surfaced at top */}
+            {/* Recommended For You row — temporarily disabled
             {topGenres.length > 0 && (
               <Row
                 title={t('taste.recommended', { defaultValue: 'Recommended For You' })}
@@ -49,7 +50,7 @@ const NewPopularPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll 
                 rowKey="taste-recommended"
                 onViewAll={onViewAll}
               />
-            )}
+            )} */}
 
             {/* Dynamic Manifest Rows — rendered in manifest order, no manual slicing */}
             {rows.map(row => (

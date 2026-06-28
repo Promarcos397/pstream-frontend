@@ -233,4 +233,4 @@ const InfoModalRecommendations: React.FC<InfoModalRecommendationsProps> = ({
     );
 };
 
-export default InfoModalRecommendations;
+export default React.memo(InfoModalRecommendations);

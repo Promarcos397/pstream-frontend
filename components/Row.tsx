@@ -35,7 +35,7 @@ const Row: React.FC<RowProps & { index?: number }> = ({ title, fetchUrl, data, o
 
   const handleViewAll = () => {
     if (onViewAll && rowKey && fetchUrl) {
-      onViewAll(rowKey, fetchUrl, title);
+      onViewAll(rowKey, fetchUrl, title, movies);
     }
   };
   const canViewAll = !!(onViewAll && rowKey && fetchUrl);

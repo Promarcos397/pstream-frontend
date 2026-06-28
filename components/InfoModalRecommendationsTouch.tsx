@@ -58,4 +58,4 @@ const InfoModalRecommendationsTouch: React.FC<InfoModalRecommendationsTouchProps
     );
 };
 
-export default InfoModalRecommendationsTouch;
+export default React.memo(InfoModalRecommendationsTouch);

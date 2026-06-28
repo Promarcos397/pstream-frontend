@@ -272,6 +272,7 @@ const TopTenCard: React.FC<{
   const [isVisible, setIsVisible] = useState(false);
   const [popupMounted, setPopupMounted] = useState(false);
   const [cert, setCert] = useState<string | undefined>(movie.certification);
+  const [runtime, setRuntime] = useState<number | undefined>(movie.runtime);
   const epFetchedRef = useRef(false);
   const _isTVCard = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
   const _watchedEpCard = _isTVCard ? getLastWatchedEpisode(movie.id) : null;
@@ -326,7 +327,12 @@ const TopTenCard: React.FC<{
       } catch (e) { }
     };
     fetchLogo();
-    getMovieDetails(movie.id, mediaType).then((d: any) => { if (isMounted && d?.certification) setCert(d.certification); });
+    getMovieDetails(movie.id, mediaType).then((d: any) => {
+      if (!isMounted) return;
+      if (d?.certification) setCert(d.certification);
+      const rt = d?.runtime || d?.episode_run_time?.[0];
+      if (rt) setRuntime(rt);
+    });
     return () => { isMounted = false; };
   }, [isVisible, movie.id, movie.media_type, movie.title]);
 
@@ -596,7 +602,7 @@ const TopTenCard: React.FC<{
 
   const posterSrc = (movie.poster_path?.startsWith('http') || movie.poster_path?.startsWith('comic://'))
     ? movie.poster_path
-    : `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+    : `https://image.tmdb.org/t/p/w185${movie.poster_path}`;
 
   const imageSrc = (movie.poster_path?.startsWith('http') || movie.backdrop_path?.startsWith('http') || movie.poster_path?.startsWith('comic://') || movie.backdrop_path?.startsWith('comic://'))
     ? (movie.backdrop_path || movie.poster_path)
@@ -808,67 +814,71 @@ const TopTenCard: React.FC<{
                     </TooltipWrapper>
                   </div>
 
-                  <div className="flex items-center flex-wrap gap-1.5 text-[15px] font-medium">
-                    <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={cert} />
-                    {(() => {
-                      if (isBook) return <span className="text-white/70">{movie.media_type === 'series' ? t('common.series', { defaultValue: 'Series' }) : t('badge.comic', { defaultValue: 'Comic' })}</span>;
-                      const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
-                      if (isTV) {
-                        const s = movie.number_of_seasons;
-                        return <span className="text-white/70">{s ? t('common.seasonCount', { count: s }) : t('common.tv', { defaultValue: 'TV' })}</span>;
-                      }
-                      if (!movie.runtime) return null;
-                      const h = Math.floor(movie.runtime / 60);
-                      const m = movie.runtime % 60;
-                      const label = h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
-                      return <span className="text-white/70">{label}</span>;
-                    })()}
-                    {!isBook && <span className="border border-gray-300 text-gray-200 px-1 py-[2px] text-[14px] font-bold rounded-[2px] ml-3">HD</span>}
-                  </div>
-
                   {(() => {
                     const watchPct = getWatchData(movie, getLastWatchedEpisode, getVideoState).pct;
                     const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
-                    if (isTV && !isBook) {
-                      return (
-                        <div className="space-y-1">
-                          <p className="text-white text-[15px] font-semibold truncate">
-                            S{_epCardS} E{_epCardE}{episodeName ? ` · ${episodeName}` : ''}
-                          </p>
-                          {watchPct > 0 && <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />}
-                        </div>
-                      );
-                    }
-                    if (watchPct > 0 && !isBook) {
-                      return <div className="pt-0.5 pb-1"><HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} /></div>;
-                    }
-                    return null;
-                  })()}
+                    const fmtRuntime = (mins: number) => {
+                      const h = Math.floor(mins / 60), m = mins % 60;
+                      return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
+                    };
+                    return (
+                      <>
+                        {watchPct <= 0 && (
+                          <div className="flex items-center flex-wrap gap-1.5 text-[15px] font-medium">
+                            <MaturityBadge adult={movie.adult} voteAverage={movie.vote_average} certification={cert} />
+                            {isBook
+                              ? <span className="text-white">{movie.media_type === 'series' ? t('common.series', { defaultValue: 'Series' }) : t('badge.comic', { defaultValue: 'Comic' })}</span>
+                              : isTV
+                                ? <>
+                                    <span className="text-white">{movie.number_of_seasons ? t('common.seasonCount', { count: movie.number_of_seasons }) : t('common.tv', { defaultValue: 'TV' })}</span>
+                                    {runtime && <span className="text-white/70">{fmtRuntime(runtime)}</span>}
+                                  </>
+                                : runtime
+                                  ? <span className="text-white">{fmtRuntime(runtime)}</span>
+                                  : null
+                            }
+                          </div>
+                        )}
 
-                  {getWatchData(movie, getLastWatchedEpisode, getVideoState).pct > 0 ? null : (
-                    <div className="flex flex-wrap items-center gap-y-0.5 text-[15.5px] font-medium">
-                      {getGenreNames().map((genreName, idx, arr) => {
-                        if (!genreName) return null;
-                        const genreId = movie.genre_ids?.[idx];
-                        const isTV = movie.media_type === 'tv' || (!movie.media_type && !movie.title);
-                        return (
-                          <span key={genreId ?? idx} className="flex items-center">
-                            <span
-                              className="text-white cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMouseLeave();
-                                navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);
-                              }}
-                            >
-                              {genreName}
-                            </span>
-                            {idx < arr.length - 1 && <span className="text-gray-500 mx-1.5 text-[16px] leading-none">•</span>}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+                        {!isBook && isTV && watchPct > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-white text-[17px] font-medium truncate">
+                              {t('player.episodeCode', { season: _epCardS, episode: _epCardE })}{episodeName ? ` "${episodeName}"` : ''}
+                            </p>
+                            <HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} />
+                          </div>
+                        )}
+
+                        {!isBook && !isTV && watchPct > 0 && (
+                          <div className="pt-0.5 pb-1"><HoverProgressBar movie={movie} getLastWatchedEpisode={getLastWatchedEpisode} getVideoState={getVideoState} /></div>
+                        )}
+
+                        {watchPct <= 0 && (
+                          <div className="flex flex-wrap items-center gap-y-0.5 text-[15.5px] font-medium">
+                            {getGenreNames().map((genreName, idx, arr) => {
+                              if (!genreName) return null;
+                              const genreId = movie.genre_ids?.[idx];
+                              return (
+                                <span key={genreId ?? idx} className="flex items-center">
+                                  <span
+                                    className="text-white cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMouseLeave();
+                                      navigate(`/browse/genre-${genreId}?title=${encodeURIComponent(genreName)}&url=${encodeURIComponent(`/discover/${isTV ? 'tv' : 'movie'}?with_genres=${genreId}&sort_by=popularity.desc`)}`);
+                                    }}
+                                  >
+                                    {genreName}
+                                  </span>
+                                  {idx < arr.length - 1 && <span className="text-white/30 mx-1.5 text-[16px] leading-none">•</span>}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </motion.div>
             </div>

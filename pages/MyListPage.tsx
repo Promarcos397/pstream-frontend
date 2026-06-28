@@ -187,9 +187,10 @@ const MyListPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =
       </div>
 
       <div className="px-6 md:px-14 lg:px-20 pb-16 space-y-8">
+        {/* Recommended For You row — temporarily disabled
         {topGenres.length > 0 && (
           <Row title={t('rows.recommendedForYou')} fetchUrl={REQUESTS.fetchByGenre('movie', topGenres[0])} onSelect={onSelectMovie} onPlay={onPlay} rowKey="mylist-taste-recommended" onViewAll={onViewAll} />
-        )}
+        )} */}
         {dislikedMovies.length > 0 && (
           <Row title={t('rows.hiddenDisliked')} data={dislikedMovies} onSelect={onSelectMovie} onPlay={onPlay} rowKey="mylist-disliked" />
         )}

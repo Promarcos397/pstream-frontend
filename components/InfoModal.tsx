@@ -387,6 +387,25 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
         };
     }, [movie, setActiveVideoId]);
 
+    const handleRecommendationClick = useCallback((rec: Movie) => {
+        setOverrideMovie(rec);
+        setImgFailed(false);
+        setIsPlayingTrailer(false);
+        setIsActuallyPlaying(false);
+        setHasVideoEnded(false);
+        setLoadingEpisodes(true);
+        setEpisodes([]);
+        setSelectedSeason(1);
+        setReplayCount(c => c + 1);
+        preloadTrailer(rec);
+        const type = rec.media_type || (rec.title ? 'movie' : 'tv');
+        navigate(`/title/${type}/${rec.id}${location.search}`, { state: location.state, replace: true });
+        setActiveVideoId(`modal-${rec.id}`);
+        if (modalRef.current) {
+            modalRef.current.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [navigate, location, setActiveVideoId]);
+
     if (!movie) return null;
     const activeMovie = detailedMovie || activeMovieProp;
     const isAdded = myList.some(m => String(m.id) === String(activeMovieProp.id));
@@ -398,46 +417,18 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
             ? t('common.seasonCount', { count: totalSeasons })
             : "";
 
-    const handleRecommendationClick = (rec: Movie) => {
-        setOverrideMovie(rec);
-        setImgFailed(false);
-        setIsPlayingTrailer(false);
-        setIsActuallyPlaying(false);
-        setHasVideoEnded(false);
-        setLoadingEpisodes(true);
-        setEpisodes([]);
-        setSelectedSeason(1);
-        setReplayCount(c => c + 1);
-
-        preloadTrailer(rec);
-
-        const type = rec.media_type || (rec.title ? 'movie' : 'tv');
-        navigate(`/title/${type}/${rec.id}${location.search}`, {
-            state: location.state,
-            replace: true
-        });
-        setActiveVideoId(`modal-${rec.id}`);
-        if (modalRef.current) {
-            modalRef.current.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    };
-
     const savedMovieState = getVideoState(activeMovieProp.id);
     const lastEp = mediaType === 'tv' ? getLastWatchedEpisode(activeMovieProp.id) : null;
 
-    let watchPct = 0, watchMins = 0, totalMins = 0;
+    let watchPct = 0;
     if (mediaType === 'movie' && savedMovieState?.time && savedMovieState?.duration) {
         watchPct = Math.min(100, (savedMovieState.time / savedMovieState.duration) * 100);
         if (watchPct < 5) watchPct = 0;
-        watchMins = Math.round(savedMovieState.time / 60);
-        totalMins = Math.round(savedMovieState.duration / 60);
     } else if (mediaType === 'tv' && lastEp) {
         const epProg = getEpisodeProgress(movie.id, lastEp.season, lastEp.episode);
         if (epProg?.duration) {
             watchPct = Math.min(100, (epProg.time / epProg.duration) * 100);
             if (watchPct < 5) watchPct = 0;
-            watchMins = Math.round(epProg.time / 60);
-            totalMins = Math.round(epProg.duration / 60);
         }
     }
 
@@ -700,7 +691,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                         <InfoModalRecommendations
                             recommendations={recommendations}
                             onRecommendationClick={handleRecommendationClick}
-                            onPlay={(rec) => onPlay(rec)}
+                            onPlay={onPlay}
                         />
                     </div>
 

@@ -205,6 +205,9 @@ const App: React.FC = () => {
   const [infoInitialTime, setInfoInitialTime] = useState(0);
   const [infoVideoId, setInfoVideoId] = useState<string | undefined>(undefined);
 
+  const selectedMovieRef = React.useRef<Movie | null>(null);
+  selectedMovieRef.current = selectedMovie;
+
   const handleSelectMovie = useCallback((movie: Movie, time?: number, videoId?: string) => {
     setInfoInitialTime(time || 0);
     setInfoVideoId(videoId);
@@ -220,25 +223,26 @@ const App: React.FC = () => {
   const handleCloseModal = useCallback((finalTime?: number) => {
     setSelectedMovie(null);
     setInfoVideoId(undefined);
+    const movie = selectedMovieRef.current;
     if (finalTime && finalTime > 0) {
       setHeroSeekTime(finalTime);
-      if (selectedMovie) {
+      if (movie) {
         updateProgress({
-          tmdbId: String(selectedMovie.id),
-          type: selectedMovie.media_type === 'tv' || selectedMovie.name ? 'tv' : 'movie',
+          tmdbId: String(movie.id),
+          type: movie.media_type === 'tv' || movie.name ? 'tv' : 'movie',
           watchedTime: finalTime,
           duration: 0
         });
       }
     }
-    
+
     if (location.state?.backgroundLocation) {
       navigate(-1);
     } else {
       const searchStr = location.search;
       navigate(`/${searchStr}`, { replace: true });
     }
-  }, [location, navigate, selectedMovie, updateProgress]);
+  }, [location, navigate, updateProgress]);
 
   const handlePlay = useCallback((movie: Movie, season?: number, episode?: number) => {
     let finalSeason = season;
@@ -352,9 +356,9 @@ const App: React.FC = () => {
     setSearchParams(newParams, { replace: true });
   }, [setQuery, setSearchParams]);
 
-  const handleViewAll = useCallback((rowKey: string, fetchUrl: string, title: string) => {
+  const handleViewAll = useCallback((rowKey: string, fetchUrl: string, title: string, movies?: Movie[]) => {
     const params = new URLSearchParams({ url: fetchUrl, title });
-    navigate(`/browse/${rowKey}?${params.toString()}`);
+    navigate(`/browse/${rowKey}?${params.toString()}`, { state: { seedMovies: movies } });
   }, [navigate]);
 
 // -------------------------------------------------------------

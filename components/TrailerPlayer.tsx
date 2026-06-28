@@ -7,6 +7,15 @@ import { Movie } from '../types';
 
 const YouTubePlayer = (YouTube as any).default || YouTube;
 
+const DEFAULT_CROP: Record<string, number> = { card: 1.35, hero: 1.15, modal: 1.35 };
+
+const IS_WEBKIT =
+  typeof window !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    /^((?!chrome|android).)*safari/i.test(navigator.userAgent));
+
+const ARTIFICIAL_SCALE = IS_WEBKIT ? 2.2 : 5;
+
 interface TrailerPlayerProps {
     movie: Movie | null;
     variant?: 'card' | 'hero' | 'modal';
@@ -38,31 +47,18 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     const globalMute = useSettingsStore(s => s.globalMute);
     const { videoId, isTeaser } = useTrailer(movie);
 
-    const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<any>(null);
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Card/modal: fixed zoom for fixed aspect-ratio containers
-    const DEFAULT_CROP: Record<string, number> = { card: 1.35, hero: 1.15, modal: 1.35 };
     const zoomFactor = cropFactor ?? DEFAULT_CROP[variant] ?? 1.35;
 
-    // Artificial inflation shrinks YouTube chrome to make it unobtrusive.
-    // We use a safe scaling factor (2.2 for WebKit/Safari, 2.5 for others) to stay well 
-    // under GPU texture limits and prevent process crashes on iOS.
-    const isWebKit = typeof window !== 'undefined' && 
-        (/iPad|iPhone|iPod/.test(navigator.userAgent) || /^((?!chrome|android).)*safari/i.test(navigator.userAgent));
-    const artificialScale = isWebKit ? 2.2 : 5;
-
-    // Unified scaling logic for all variants
-    const getSizingStyle = (): React.CSSProperties => {
-        return {
-            width: `${artificialScale * 115}%`,
-            height: `${artificialScale * 115}%`,
-            transform: `translate(-50%, -50%) scale(${zoomFactor / artificialScale})`,
-            transformOrigin: 'center center',
-            willChange: 'transform',
-        };
-    };
+    const sizingStyle = React.useMemo<React.CSSProperties>(() => ({
+        width: `${ARTIFICIAL_SCALE * 115}%`,
+        height: `${ARTIFICIAL_SCALE * 115}%`,
+        transform: `translate(-50%, -50%) scale(${zoomFactor / ARTIFICIAL_SCALE})`,
+        transformOrigin: 'center center',
+        willChange: 'transform',
+    }), [zoomFactor]);
 
     const [isLoaded, setIsLoaded] = React.useState(false);
 
@@ -247,42 +243,37 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     const isDirectVideo = videoId.startsWith('http');
 
     return (
-        <div
-            ref={containerRef}
-            className={`absolute inset-0 overflow-hidden bg-black pointer-events-none transition-opacity duration-300 ease-in-out ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-        >
-            <div className="relative w-full h-full">
-                <div
-                    className="absolute left-1/2 top-1/2 flex-shrink-0"
-                    style={getSizingStyle()}
-                >
-                    {isDirectVideo ? (
-                        <video
-                            ref={playerRef}
-                            src={videoId}
-                            autoPlay
-                            muted={globalMute}
-                            loop
-                            playsInline
-                            className="w-full h-full object-cover"
-                            onPlay={() => { onPlay?.(); setIsLoaded(true); }}
-                            onEnded={() => onEnded?.()}
-                            onError={() => onErrored?.()}
-                            onLoadedData={() => setIsLoaded(true)}
-                        />
-                    ) : (
-                        <YouTubePlayer
-                            videoId={videoId}
-                            host="https://www.youtube-nocookie.com"
-                            className="w-full h-full flex items-center justify-center"
-                            onReady={handleReady}
-                            onStateChange={handleStateChange}
-                            onEnd={handleEnd}
-                            onError={handleError}
-                            opts={{ ...playerOpts, width: '100%', height: '100%' }}
-                        />
-                    )}
-                </div>
+        <div className={`absolute inset-0 overflow-hidden bg-black pointer-events-none transition-opacity duration-300 ease-in-out ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
+            <div
+                className="absolute left-1/2 top-1/2 flex-shrink-0"
+                style={sizingStyle}
+            >
+                {isDirectVideo ? (
+                    <video
+                        ref={playerRef}
+                        src={videoId}
+                        autoPlay
+                        muted={globalMute}
+                        loop
+                        playsInline
+                        className="w-full h-full object-cover"
+                        onPlay={() => { onPlay?.(); setIsLoaded(true); }}
+                        onEnded={() => onEnded?.()}
+                        onError={() => onErrored?.()}
+                        onLoadedData={() => setIsLoaded(true)}
+                    />
+                ) : (
+                    <YouTubePlayer
+                        videoId={videoId}
+                        host="https://www.youtube-nocookie.com"
+                        className="w-full h-full flex items-center justify-center"
+                        onReady={handleReady}
+                        onStateChange={handleStateChange}
+                        onEnd={handleEnd}
+                        onError={handleError}
+                        opts={playerOpts}
+                    />
+                )}
             </div>
         </div>
     );

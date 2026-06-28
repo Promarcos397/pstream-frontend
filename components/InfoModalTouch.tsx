@@ -19,6 +19,12 @@ import { MaturityBadge } from './MovieCardBadges';
 import { dimensionsAsMovies, get404Episodes } from '../data/notFoundDimensions';
 import { _modalTrailerCache } from './InfoModal';
 import { DoubleThumbsUpIcon } from './MovieCard';
+const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+};
+
 // removing tablet and ipad styles and sidebar
 
 interface InfoModalTouchProps {
@@ -213,6 +219,24 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
         };
     }, [movie, setActiveVideoId]);
 
+    const handleRecommendationClick = useCallback((rec: Movie) => {
+        setOverrideMovie(rec);
+        setIsPlayingTrailer(false);
+        setIsActuallyPlaying(false);
+        setHasVideoEnded(false);
+        setLoadingEpisodes(true);
+        setEpisodes([]);
+        setSelectedSeason(1);
+        setReplayCount(c => c + 1);
+        setIsDescExpanded(false);
+        setIsEpTitleExpanded(false);
+        preloadTrailer(rec);
+        const type = rec.media_type || (rec.title ? 'movie' : 'tv');
+        navigate(`/title/${type}/${rec.id}${location.search}`, { state: location.state, replace: true });
+        setActiveVideoId(`modal-${rec.id}`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [navigate, location, setActiveVideoId]);
+
     if (!movie) return null;
     const activeMovie = detailedMovie || activeMovieProp;
     const isAdded = myList.some(m => String(m.id) === String(activeMovieProp.id));
@@ -223,30 +247,6 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
         : totalSeasons
             ? t('common.seasonCount', { count: totalSeasons })
             : "";
-
-    const handleRecommendationClick = (rec: Movie) => {
-        setOverrideMovie(rec);
-        setIsPlayingTrailer(false);
-        setIsActuallyPlaying(false);
-        setHasVideoEnded(false);
-        setLoadingEpisodes(true);
-        setEpisodes([]);
-        setSelectedSeason(1);
-        setReplayCount(c => c + 1);
-
-        setIsDescExpanded(false);
-        setIsEpTitleExpanded(false);
-
-        preloadTrailer(rec);
-
-        const type = rec.media_type || (rec.title ? 'movie' : 'tv');
-        navigate(`/title/${type}/${rec.id}${location.search}`, {
-            state: location.state,
-            replace: true
-        });
-        setActiveVideoId(`modal-${rec.id}`);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
 
     const handleClose = () => {
         // Save InfoModalTouch's own trailer position before closing
@@ -315,12 +315,6 @@ const InfoModalTouch: React.FC<InfoModalTouchProps> = ({
         const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
         try { playerInstanceRef.current.seekTo(pct * durationSec, true); } catch {}
         openControls();
-    };
-
-    const fmtTime = (s: number) => {
-        const m = Math.floor(s / 60);
-        const sec = Math.floor(s % 60);
-        return `${m}:${sec.toString().padStart(2, '0')}`;
     };
 
     const savedMovieState = getVideoState(activeMovieProp.id);
