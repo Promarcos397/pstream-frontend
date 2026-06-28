@@ -1,5 +1,5 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-23 18:08:58
+# Generated: 2026-06-28 13:13:19
 # Root: D:\coding-projects\streaming-app\pstream-frontend
 
 pstream-frontend/
@@ -73,6 +73,7 @@ pstream-frontend/
 │   ├── Layout.tsx
 │   ├── LoginWall.tsx
 │   ├── ManifestSkeleton.tsx
+│   ├── MediaListItem.tsx
 │   ├── MobileHero.tsx
 │   ├── MovieCard.tsx
 │   ├── MovieCardBadges.tsx
@@ -82,6 +83,7 @@ pstream-frontend/
 │   ├── Navbar.tsx
 │   ├── NavbarMobile.tsx
 │   ├── NewPopularSubNavMobile.tsx
+│   ├── PWAInstallPrompt.tsx
 │   ├── Row.tsx
 │   ├── RowMobile.tsx
 │   ├── SearchBar.tsx
@@ -96,6 +98,7 @@ pstream-frontend/
 │   └── VideoPlayerSettingsTouch.tsx
 ├── context
 │   ├── GlobalContext.tsx
+│   ├── HeroColorContext.tsx
 │   └── TitleContext.tsx
 ├── data
 │   ├── avatars.ts
@@ -110,6 +113,7 @@ pstream-frontend/
 │   ├── useAudioSilenceDetector.ts
 │   ├── useAvatarReady.ts
 │   ├── useDynamicManifest.ts
+│   ├── useEmbedLayout.ts
 │   ├── useHls.ts
 │   ├── useIsInTheaters.ts
 │   ├── useIsMobile.ts
@@ -306,6 +310,7 @@ pstream-frontend/
 │   ├── useCastStore.ts
 │   ├── useLibraryStore.ts
 │   ├── useSettingsStore.ts
+│   ├── useUIStore.ts
 │   └── useWatchStore.ts
 ├── test-results
 │   └── .last-run.json
@@ -335,7 +340,6 @@ pstream-frontend/
 ├── App.tsx
 ├── client_secret_432066495032-1s1qo2tifqgldir2tf37bh2b50joisnv.apps.googleusercontent.com.json
 ├── constants.ts
-├── diff_output.md
 ├── download (1).zip
 ├── download.zip
 ├── file_tree_frondend.txt
@@ -358,4 +362,4 @@ pstream-frontend/
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 30 directories, 324 files
+# 30 directories, 328 files
