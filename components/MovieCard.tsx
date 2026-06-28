@@ -79,13 +79,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
   const [hasVideoEnded, setHasVideoEnded] = useState(false);
   const [logoFaded, setLogoFaded] = useState(false);
 
+  const [isMediaHovered, setIsMediaHovered] = useState(false);
+
   useEffect(() => {
-    if (isActuallyPlaying && !hasVideoEnded) {
+    if (isActuallyPlaying && !hasVideoEnded && !isMediaHovered) {
       const t = setTimeout(() => setLogoFaded(true), 3500);
       return () => clearTimeout(t);
     }
     setLogoFaded(false);
-  }, [isActuallyPlaying, hasVideoEnded]);
+  }, [isActuallyPlaying, hasVideoEnded, isMediaHovered]);
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
@@ -94,6 +96,29 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
     const { naturalWidth, naturalHeight } = e.currentTarget;
     const ratio = naturalWidth / naturalHeight;
     setLogoDim({ ratio, isSquare: ratio < 1.35 });
+  };
+
+  const getLogoSizeClass = (ratio: number) => {
+    if (ratio > 6)    return 'max-h-7 max-w-[155px]';
+    if (ratio > 5)    return 'max-h-[30px] max-w-[150px]';
+    if (ratio > 4)    return 'max-h-8 max-w-[135px]';
+    if (ratio > 3.5)  return 'max-h-[34px] max-w-[122px]';
+    if (ratio > 3)    return 'max-h-9 max-w-[110px]';
+    if (ratio > 2.5)  return 'max-h-[38px]';
+    if (ratio > 2)    return 'max-h-10';
+    if (ratio > 1.7)  return 'max-h-11';
+    if (ratio > 1.35) return 'max-h-12';
+    if (ratio > 1.1)  return 'max-h-[52px]';
+    if (ratio > 0.8)  return 'max-h-14';
+    if (ratio > 0.6)  return 'max-h-[60px]';
+    return 'max-h-16';
+  };
+
+  const getLogoContainerClass = (ratio: number) => {
+    if (ratio > 4) return 'absolute inset-x-0 bottom-0 flex items-end justify-center pb-3 px-3';
+    if (ratio > 2) return 'absolute inset-x-0 bottom-0 flex items-end justify-start pb-3 px-3';
+    if (ratio > 1) return 'absolute inset-x-0 top-[38%] bottom-0 flex items-center justify-start px-3';
+    return 'absolute inset-x-0 top-[20%] bottom-[20%] flex items-center justify-start px-3';
   };
 
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -362,42 +387,24 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
           draggable={false}
         />
 
-        {isGrid && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none rounded-sm" />
-        )}
-
         {!isHovered && (
           <>
-            <div className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-3 px-3">
+            <div className={getLogoContainerClass(logoDim.ratio)}>
               {logoUrl ? (
-                <div className="relative inline-flex items-center justify-center">
-                  <img
-                    src={logoUrl}
-                    aria-hidden
-                    className={`absolute w-auto object-contain ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
-                    style={{ filter: 'blur(4px) brightness(0) opacity(0.8)', transform: 'translate(1px, 2px) scale(1.01)', zIndex: 0 }}
-                  />
-                  <img
-                    src={logoUrl}
-                    aria-hidden
-                    className={`absolute w-auto object-contain ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
-                    style={{ filter: 'blur(20px) brightness(0) opacity(0.5)', transform: 'scale(1.05)', zIndex: 0 }}
-                  />
-                  <img
-                    src={logoUrl}
-                    alt={movie.title || movie.name}
-                    onLoad={handleLogoLoad}
-                    className={`relative w-auto object-contain z-[1] ${logoDim.isSquare ? 'max-h-16' : 'max-h-11'}`}
-                    style={{ filter: 'drop-shadow(0 12px 25px rgba(0,0,0,0.5)) drop-shadow(0 4px 5px rgba(0,0,0,0.35))' }}
-                    decoding="async"
-                    draggable={false}
-                  />
-                </div>
-              ) : (
-                <h3 className={`text-white font-leaner text-center tracking-wide leading-tight drop-shadow-[0_3px_9px_rgba(0,0,0,0.85)] line-clamp-3 mb-2 w-full px-1 ${isBook ? 'text-2xl' : 'text-xl'}`}>
+                <img
+                  src={logoUrl}
+                  alt={movie.title || movie.name}
+                  onLoad={handleLogoLoad}
+                  className={`w-auto object-contain ${logoDim.ratio > 4 ? 'origin-bottom' : logoDim.ratio > 1 ? 'origin-bottom-left' : 'origin-left'} ${getLogoSizeClass(logoDim.ratio)}`}
+                  style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.6))' }}
+                  decoding="async"
+                  draggable={false}
+                />
+              ) : (movie.title || movie.name) ? (
+                <h3 className={`text-white font-leaner text-center tracking-wide leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,1)] line-clamp-2 w-full px-1 ${isBook ? 'text-2xl' : 'text-[15px]'}`}>
                   {movie.title || movie.name}
                 </h3>
-              )}
+              ) : null}
             </div>
             <BadgeOverlay badge={badge} isBook={isBook} />
           </>
@@ -434,6 +441,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onSelect, onPlay, isGrid =
               onOpenModal={handleOpenModal}
               onMouseLeave={handleMouseLeave}
               onMouseEnter={handleCancelClose}
+              onMediaHoverChange={setIsMediaHovered}
             />
           )}
         </AnimatePresence>,

@@ -169,6 +169,13 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [backgroundLocation.pathname]);
 
+  // Also scroll to top when search activates (query params change, not pathname)
+  useEffect(() => {
+    if (isMobileSearchActive) {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    }
+  }, [isMobileSearchActive]);
+
   useEffect(() => {
     const path = backgroundLocation.pathname;
     if (path.startsWith('/watch')) return;

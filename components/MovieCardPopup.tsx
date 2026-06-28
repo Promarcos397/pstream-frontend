@@ -40,6 +40,7 @@ interface MovieCardPopupProps {
   onOpenModal: () => void;
   onMouseLeave: () => void;
   onMouseEnter: () => void;
+  onMediaHoverChange: (hovered: boolean) => void;
 }
 
 const _episodeNameCache = new Map<string, string>();
@@ -98,6 +99,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
     onOpenModal,
     onMouseLeave,
     onMouseEnter,
+    onMediaHoverChange,
   },
   ref,
 ) => {
@@ -197,7 +199,7 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
         style={{ willChange: 'transform, opacity' }}
       >
 
-      <div className="relative w-full aspect-[16/9] bg-[#141414] overflow-hidden rounded-t-md" onClick={onOpenModal}>
+      <div className="relative w-full aspect-[16/9] bg-[#141414] overflow-hidden rounded-t-md" onClick={() => { const mt = movie.media_type === 'tv' || (!movie.media_type && !movie.title) ? 'tv' : 'movie'; navigate(`/watch/${mt}/${movie.id}`); }} onMouseEnter={() => onMediaHoverChange(true)} onMouseLeave={() => onMediaHoverChange(false)}>
         {!isBook && settings.autoplayPreviews ? (
           <>
             <img
@@ -243,13 +245,14 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
                 setGlobalMute(!globalMute);
               }
             }}
-            className="absolute bottom-4 right-4 w-9 h-9 rounded-full border border-white/40 bg-zinc-800/80 flex items-center justify-center transition-colors duration-150 hover:bg-white/15 hover:border-white z-50 pointer-events-auto cursor-pointer shadow-lg"
+            className={`absolute bottom-3 right-3 w-7 h-7 rounded-full border border-white/40 flex items-center justify-center hover:bg-white/20 hover:border-white/70 z-50 pointer-events-auto cursor-pointer ${logoFaded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+            style={{ transition: 'background-color 150ms, border-color 150ms, opacity 1000ms' }}
           >
             {hasVideoEnded
-              ? <ArrowCounterClockwiseIcon size={20} weight="bold" className="text-white" />
+              ? <ArrowCounterClockwiseIcon size={15} weight="bold" className="text-white" />
               : globalMute
-                ? <SpeakerSlashIcon size={20} className="text-white" />
-                : <SpeakerHighIcon size={18} className="text-white" />}
+                ? <SpeakerSlashIcon size={15} className="text-white" />
+                : <SpeakerHighIcon size={14} className="text-white" />}
           </button>
         )}
 
@@ -257,26 +260,27 @@ const MovieCardPopup = React.forwardRef<HTMLDivElement, MovieCardPopupProps>((
 
         <div className={`absolute bottom-3 left-4 right-12 pointer-events-none z-20 transition-opacity duration-1000 ${logoFaded ? 'opacity-0' : 'opacity-100'}`}>
           {logoUrl && !imgFailed ? (
-            <div className="relative inline-flex items-end max-w-[260px]">
-              <img
-                src={logoUrl}
-                aria-hidden
-                className={`absolute w-auto max-w-[260px] object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
-                style={{ filter: 'blur(4px) brightness(0) opacity(0.8)', transform: 'translate(1px, 2px) scale(1.01)', zIndex: 0 }}
-              />
-              <img
-                src={logoUrl}
-                aria-hidden
-                className={`absolute w-auto max-w-[260px] object-contain origin-bottom-left ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
-                style={{ filter: 'blur(20px) brightness(0) opacity(0.5)', transform: 'translate(2px, 4px) scale(1.06)', zIndex: 0 }}
-              />
-              <img
-                src={logoUrl}
-                alt={movie.title || movie.name}
-                className={`relative w-auto max-w-[260px] object-contain origin-bottom-left z-[1] ${logoDim.isSquare ? 'h-14 md:h-20' : 'h-10 md:h-12'}`}
-                onError={() => setImgFailed(true)}
-              />
-            </div>
+            <img
+              src={logoUrl}
+              alt={movie.title || movie.name}
+              className={`w-auto h-auto object-contain origin-bottom-left max-w-[210px] ${
+                logoDim.ratio > 6    ? 'max-h-[24px]' :
+                logoDim.ratio > 5    ? 'max-h-[27px]' :
+                logoDim.ratio > 4    ? 'max-h-[30px]' :
+                logoDim.ratio > 3.5  ? 'max-h-[33px]' :
+                logoDim.ratio > 3    ? 'max-h-[36px]' :
+                logoDim.ratio > 2.5  ? 'max-h-[39px]' :
+                logoDim.ratio > 2    ? 'max-h-[43px]' :
+                logoDim.ratio > 1.7  ? 'max-h-[47px]' :
+                logoDim.ratio > 1.35 ? 'max-h-[51px]' :
+                logoDim.ratio > 1.1  ? 'max-h-[55px]' :
+                logoDim.ratio > 0.8  ? 'max-h-[59px]' :
+                logoDim.ratio > 0.6  ? 'max-h-[63px]' :
+                                       'max-h-[67px]'
+              }`}
+              style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.6))' }}
+              onError={() => setImgFailed(true)}
+            />
           ) : (
             <h4 className="text-white font-leaner text-4xl line-clamp-2 drop-shadow-md tracking-wide text-center mb-2 leading-none">
               {movie.title || movie.name}

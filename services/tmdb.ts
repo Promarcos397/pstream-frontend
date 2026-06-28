@@ -288,8 +288,16 @@ export const getMovieDetails = async (id: number | string, type: 'movie' | 'tv')
         const region = pick('GB') || pick('US');
         if (region?.release_dates?.length) {
           const dates: any[] = region.release_dates;
-          const cert = (dates.find((d: any) => d.type === 3 && d.certification) || dates.find((d: any) => d.certification))?.certification;
+          const certEntry = dates.find((d: any) => d.type === 3 && d.certification) || dates.find((d: any) => d.certification);
+          const cert = certEntry?.certification;
           if (cert) certification = cert;
+          const descriptors: string[] = (certEntry?.descriptors?.length ? certEntry.descriptors : null)
+            ?? dates.find((d: any) => (d.descriptors as any[])?.length)?.descriptors
+            ?? [];
+          if (descriptors.length) {
+            data.content_descriptors = descriptors;
+            console.log(`[TMDB] Descriptors for ${type}/${id}:`, descriptors);
+          }
         }
       } else if (type === 'tv' && data.content_ratings?.results) {
         const regions: any[] = data.content_ratings.results;

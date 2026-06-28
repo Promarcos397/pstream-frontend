@@ -3,11 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
 import { useNavigate } from 'react-router-dom';
 import MovieCard from '../components/MovieCard';
-import MovieCardTouch from '../components/MovieCardTouch';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { SearchMode } from '../hooks/useSearch';
 import ExploreSuggestions from '../components/ExploreSuggestions';
 import { triggerSearch } from '../utils/search';
+import MediaListItem from '../components/MediaListItem';
 
 interface SearchResultsPageProps {
   query: string;
@@ -117,11 +117,11 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
   // Removed aggressive localized prefetching for search results
 
   return (
-    <div className="pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 px-6 md:px-14 lg:px-20 sm:pl-[calc(72px+1.5rem)] pb-12 min-h-screen bg-black md:bg-transparent">
+    <div className={`pt-[calc(5rem+env(safe-area-inset-top))] md:pt-28 pb-12 min-h-screen bg-black md:bg-transparent ${isMobile ? '' : 'px-6 md:px-14 lg:px-20 sm:pl-[calc(72px+1.5rem)]'}`}>
 
       {!isMobile && (
         <div className="mb-8">
-          <ExploreSuggestions 
+          <ExploreSuggestions
             label={t('search.moreToExplore', { defaultValue: 'More to explore:' })}
             items={suggestions}
             onItemClick={(title) => triggerSearch(navigate, title)}
@@ -130,13 +130,23 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
       )}
 
       {isLoading ? (
-        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4 animate-pulse">
-          {Array.from({ length: 12 }).map((_, i) => (
-            isMobile ? (
-              <div key={i} className="aspect-[2/3] bg-zinc-900 rounded-[6px] border border-white/[0.04] relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
+        isMobile ? (
+          /* Mobile skeleton — horizontal list items */
+          <div className="animate-pulse">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-[148px] h-[83px] rounded-[7px] bg-[#1c1c1c] flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-white/[0.08] rounded-full w-3/4" />
+                  <div className="h-2.5 bg-white/[0.05] rounded-full w-1/2" />
+                </div>
+                <div className="w-[48px] h-[48px] rounded-full border-[2px] border-white/20 flex-shrink-0" />
               </div>
-            ) : (
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4 animate-pulse">
+            {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="aspect-video bg-[#1e1e1e] rounded-sm overflow-hidden relative border border-white/[0.04]">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" style={{ animationDelay: `${(i % 6) * 0.1}s` }} />
                 <div className="absolute inset-0 bg-gradient-to-b from-[#252525] via-[#1e1e1e] to-[#181818]" />
@@ -145,23 +155,42 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
                   <div className="h-1.5 bg-white/[0.05] rounded-full" style={{ width: `${28 + (i % 3) * 10}px` }} />
                 </div>
               </div>
-            )
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       ) : results.length > 0 ? (
-        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4">
-          {results.map(movie => {
-            const hasImage = movie.backdrop_path || movie.poster_path;
-            if (!hasImage) return null;
-            return isMobile ? (
-              <MovieCardTouch key={movie.id} movie={movie} onSelect={onSelectMovie} onPlay={onPlay} isGrid={true} />
-            ) : (
-              <MovieCard key={movie.id} movie={movie} onSelect={onSelectMovie} onPlay={onPlay} isGrid={true} />
-            );
-          })}
-        </div>
+        isMobile ? (
+          /* Mobile — list layout matching My List design */
+          <div className="animate-fadeIn">
+            {results.map(movie => {
+              if (!movie.backdrop_path && !movie.poster_path) return null;
+              return (
+                <MediaListItem
+                  key={movie.id}
+                  movie={movie}
+                  onSelect={onSelectMovie}
+                  onPlay={onPlay}
+                />
+              );
+            })}
+            <div className="mt-8 px-4">
+              <ExploreSuggestions
+                label={t('search.moreToExplore', { defaultValue: 'More to explore:' })}
+                items={suggestions}
+                onItemClick={(title) => triggerSearch(navigate, title)}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2.5 gap-y-4">
+            {results.map(movie => {
+              if (!movie.backdrop_path && !movie.poster_path) return null;
+              return <MovieCard key={movie.id} movie={movie} onSelect={onSelectMovie} onPlay={onPlay} isGrid={true} />;
+            })}
+          </div>
+        )
       ) : (
-        <div className="flex flex-col items-center justify-center mt-20 text-center">
+        <div className={`flex flex-col items-center justify-center mt-20 text-center ${isMobile ? 'px-6' : ''}`}>
           <div className="text-xl text-white mb-2">{t('search.noMatches', { query })}</div>
           <div className="text-gray-400 text-sm">{t('search.suggestions')}</div>
           <ul className="text-gray-400 text-sm list-disc list-inside mt-2 text-left">
@@ -169,16 +198,6 @@ const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, results, o
             <li>{t('search.tip2')}</li>
             <li>{t('search.tip3')}</li>
           </ul>
-        </div>
-      )}
-
-      {isMobile && (
-        <div className="mt-8">
-          <ExploreSuggestions 
-            label={t('search.moreToExplore', { defaultValue: 'More to explore:' })}
-            items={suggestions}
-            onItemClick={(title) => triggerSearch(navigate, title)}
-          />
         </div>
       )}
     </div>

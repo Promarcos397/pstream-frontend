@@ -36,6 +36,7 @@ export interface Movie {
   vote_count?: number;
   popularity?: number;
   certification?: string;
+  content_descriptors?: string[];
 }
 
 export interface Episode {

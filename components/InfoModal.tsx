@@ -636,7 +636,11 @@ const InfoModal: React.FC<InfoModalProps> = ({ movie, initialTime = 0, onClose, 
                             </div>
                             <div className="flex items-center gap-3">
                                 <MaturityBadge adult={activeMovie.adult} voteAverage={activeMovie.vote_average} certification={activeMovie.certification} size="md" />
-                                <span className="text-sm font-semibold text-gray-200">{activeMovie.adult ? t('common.maturity.adultDesc') : t('common.maturity.teenDesc')}</span>
+                                {activeMovie.content_descriptors?.length ? (
+                                  <span className="text-sm font-semibold text-gray-200">
+                                    {activeMovie.content_descriptors.map((d: string) => d.toLowerCase()).join(', ')}
+                                  </span>
+                                ) : null}
                             </div>
                             <p className="text-white font-normal text-[14px] md:text-[15px] leading-[1.65] pt-1">{activeMovie.overview}</p>
                         </div>
