@@ -489,6 +489,7 @@ export const searchTrailers = async (
 // Format: "tmdb-ID": "URL"
 export const PREMIUM_OVERRIDES: Record<string, string> = {
     "tmdb-4586": "https://res.cloudinary.com/dadwuvdhr/video/upload/v1778862129/1923066622425686017_1_hoiud9.mp4", // Gilmore Girls
+    "tmdb-5920": "https://res.cloudinary.com/dadwuvdhr/video/upload/v1783016275/1978299785509948672_lwjrbr.mp4", // The Mentalist
     "tmdb-32415": "-34DiCjl_no", // Conan TV show
     "tmdb-615": "nwrvZhkhZZ0", // Futuram
     "tmdb-7515": "NGOKBrtdYKU", // London (2005)
