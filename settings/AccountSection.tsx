@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
     SignOutIcon, KeyIcon, TranslateIcon, SubtitlesIcon,
-    PlayCircleIcon, ClockIcon, CaretRightIcon
+    PlayCircleIcon, ClockIcon, CaretRightIcon, UsersThreeIcon
 } from '@phosphor-icons/react';
 import { DEFAULT_AVATAR } from '../constants';
 
 const AccountSection: React.FC = () => {
-    const { user, logout, settings } = useGlobalContext();
+    const { user, logout, settings, profiles, switchProfile } = useGlobalContext();
     const { t } = useTranslation();
     const navigate = useNavigate();
 
@@ -68,6 +68,15 @@ const AccountSection: React.FC = () => {
                     title={profileName}
                     subtitle={t('settings.editPersonalContact', { defaultValue: 'Edit personal and contact information' })}
                     onClick={() => navigate('/settings/profile/edit')}
+                />
+                <SettingsRow
+                    icon={<UsersThreeIcon size={26} className="text-white/70 md:text-gray-800" />}
+                    title={t('profiles.manageProfiles', { defaultValue: 'Manage Profiles' })}
+                    subtitle={t('profiles.manageProfilesSub', {
+                        defaultValue: '{{count}} profile(s) · Continue Watching and My List are per-profile',
+                        count: profiles.length,
+                    })}
+                    onClick={() => switchProfile(null)}
                 />
                 <SettingsRow
                     icon={<KeyIcon size={26} className="text-white/70 md:text-gray-800" />}

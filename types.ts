@@ -113,6 +113,17 @@ export interface AppSettings {
   isKidsMode?: boolean;     // Account-wide kids mode
 }
 
+// A viewing profile under an account ("Who's Watching?").
+// Continue Watching, My List and ratings are all scoped to the active profile.
+export interface Profile {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  isKids: boolean;
+  pin?: string | null;   // 4-digit profile lock; null/undefined = no lock
+  sortOrder: number;
+}
+
 // Streaming types
 export interface StreamSource {
   url: string;

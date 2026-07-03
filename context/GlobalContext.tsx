@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, useContext, ReactNode } from 'react';
-import { Movie, AppSettings } from '../types';
+import { Movie, AppSettings, Profile } from '../types';
 import { setApiLanguage, fetchData } from '../services/api';
 import { REQUESTS } from '../constants';
 import i18n from '../i18n';
@@ -8,7 +8,8 @@ import { useSettingsStore, DEFAULT_SETTINGS } from '../store/useSettingsStore';
 export { DEFAULT_SETTINGS };
 import { useWatchStore } from '../store/useWatchStore';
 import { useLibraryStore } from '../store/useLibraryStore';
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore, activateProfile } from '../store/useAuthStore';
+import { useProfileStore } from '../store/useProfileStore';
 
 // We keep the types for backwards compatibility
 interface VideoState { time: number; duration?: number; videoId?: string; }
@@ -46,6 +47,9 @@ interface GlobalContextType {
   globalMute: boolean;
   setGlobalMute: (mute: boolean) => void;
   isKidsMode: boolean;
+  activeProfile: Profile | undefined;
+  profiles: Profile[];
+  switchProfile: (profileId: string | null) => void;
   pageSeenIds: number[];
   registerSeenIds: (ids: number[]) => void;
   isAppReady: boolean;
@@ -76,6 +80,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const user = useAuthStore(s => s.user);
   const signOut = useAuthStore(s => s.signOut);
+
+  const profiles = useProfileStore(s => s.profiles);
+  const activeProfileId = useProfileStore(s => s.activeProfileId);
+  const activeProfile = profiles.find(p => p.id === activeProfileId);
+  const switchProfile = useCallback((profileId: string | null) => {
+    activateProfile(profileId);
+  }, []);
 
   const [isAppReady, setIsAppReady] = useState(false);
 
@@ -251,7 +262,9 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       top10TV, top10Movies, rateMovie, getMovieRating, getLikedMovies,
       user, login, logout, deleteAccountData, importProfileData, syncStatus: 'synced',
       heroVideoState, setHeroVideoState,
-      globalMute, setGlobalMute, isKidsMode: false, pageSeenIds, registerSeenIds, clearSeenIds,
+      globalMute, setGlobalMute, isKidsMode: !!activeProfile?.isKids,
+      activeProfile, profiles, switchProfile,
+      pageSeenIds, registerSeenIds, clearSeenIds,
       isAppReady, setIsAppReady
     }}>
       {children}

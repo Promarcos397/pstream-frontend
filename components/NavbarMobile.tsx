@@ -5,6 +5,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useSpring, useVelocity, useTransform } from 'framer-motion';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useProfileStore } from '../store/useProfileStore';
 import { useHeroColor } from '../context/HeroColorContext';
 import { DEFAULT_AVATAR } from '../constants';
 import { useAvatarReady } from '../hooks/useAvatarReady';
@@ -208,8 +209,11 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     });
   };
 
-  const avatarUrl     = settings.avatarUrl || DEFAULT_AVATAR;
-  const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
+  const activeProfileId = useProfileStore(s => s.activeProfileId);
+  const profiles = useProfileStore(s => s.profiles);
+  const activeProfile = profiles.find(p => p.id === activeProfileId);
+  const avatarUrl     = activeProfile?.avatarUrl || settings.avatarUrl || DEFAULT_AVATAR;
+  const avatarInitial = (activeProfile?.name?.[0] || settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
   const avatarLoaded  = useAvatarReady(avatarUrl);
 
   // Tab wrapper class (handles text color + active state)

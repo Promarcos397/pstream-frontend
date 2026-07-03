@@ -7,8 +7,10 @@ import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from './store/useAuthStore';
 import { useWatchStore } from './store/useWatchStore';
+import { useProfileStore } from './store/useProfileStore';
 import { LoginWall } from './components/LoginWall';
 import { useCastStore } from './store/useCastStore';
+import WhosWatchingGate from './components/profiles/WhosWatchingGate';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const TAB_ORDER = ['home', 'tv', 'movies', 'new', 'list', 'language', 'settings'];
@@ -108,6 +110,22 @@ const App: React.FC = () => {
   const { isInitialized, user, initializeAuth } = useAuthStore();
   const { updateProgress, getProgress } = useWatchStore();
   const { initializeCast } = useCastStore();
+  const profilesLoaded = useProfileStore(s => s.isLoaded);
+  const migrationApplied = useProfileStore(s => s.migrationApplied);
+  const activeProfileId = useProfileStore(s => s.activeProfileId);
+  const unlockedProfileIds = useProfileStore(s => s.unlockedProfileIds);
+  const profiles = useProfileStore(s => s.profiles);
+  const activeProfile = profiles.find(p => p.id === activeProfileId);
+  // Show the "Who's watching?" gate when: the profiles migration has been
+  // applied to the database AND (profiles haven't finished loading yet, or no
+  // profile is selected, or the selected profile is PIN-locked and hasn't been
+  // unlocked this session). If the migration isn't applied yet, never gate —
+  // every existing account would otherwise be locked out with an empty picker.
+  const needsProfileGate =
+    migrationApplied &&
+    (!profilesLoaded ||
+      !activeProfileId ||
+      (!!activeProfile?.pin && !unlockedProfileIds.includes(activeProfileId)));
 
   useEffect(() => {
     initializeAuth();
@@ -428,6 +446,10 @@ const App: React.FC = () => {
 
   if (!user) {
     return <LoginPage />;
+  }
+
+  if (needsProfileGate) {
+    return <WhosWatchingGate />;
   }
 
   const innerRoutes = (

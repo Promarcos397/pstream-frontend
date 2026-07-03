@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../services/supabaseClient';
 import { Movie } from '../types';
 import { useAuthStore } from './useAuthStore';
+import { isProfileScopingReady, getActiveProfileId } from './profileScope';
 
 export interface UserRating {
   tmdbId: string;
@@ -47,15 +48,19 @@ export const useLibraryStore = create<LibraryStore>()((set, get) => ({
     }));
     const user = useAuthStore.getState().user;
     if (user) {
+      const migrated = isProfileScopingReady();
+      const payload: Record<string, any> = {
+        user_id: user.id,
+        tmdb_id: key,
+        type,
+        rating,
+        movie_data: movieData || null,
+        updated_at: new Date(updatedAt).toISOString()
+      };
+      if (migrated) payload.profile_id = getActiveProfileId();
+
       supabase.from('user_ratings')
-        .upsert({
-          user_id: user.id,
-          tmdb_id: key,
-          type,
-          rating,
-          movie_data: movieData || null,
-          updated_at: new Date(updatedAt).toISOString()
-        }, { onConflict: 'user_id,tmdb_id' })
+        .upsert(payload, { onConflict: migrated ? 'user_id,profile_id,tmdb_id' : 'user_id,tmdb_id' })
         .then(({ error }) => {
           if (error) console.error('[Sync] Rating sync error:', error.message);
         });
@@ -70,8 +75,11 @@ export const useLibraryStore = create<LibraryStore>()((set, get) => ({
       return { ratings: next };
     });
     const user = useAuthStore.getState().user;
+    const profileId = getActiveProfileId();
     if (user) {
-      supabase.from('user_ratings').delete().eq('user_id', user.id).eq('tmdb_id', key).then();
+      let q = supabase.from('user_ratings').delete().eq('user_id', user.id).eq('tmdb_id', key);
+      if (profileId) q = q.eq('profile_id', profileId);
+      q.then();
     }
   },
 
@@ -91,17 +99,24 @@ export const useLibraryStore = create<LibraryStore>()((set, get) => ({
     });
     const user = useAuthStore.getState().user;
     if (user) {
+      const profileId = getActiveProfileId();
       if (isPresent) {
-        supabase.from('user_list').delete().eq('user_id', user.id).eq('tmdb_id', key).then();
+        let q = supabase.from('user_list').delete().eq('user_id', user.id).eq('tmdb_id', key);
+        if (profileId) q = q.eq('profile_id', profileId);
+        q.then();
       } else {
+        const migrated = isProfileScopingReady();
+        const payload: Record<string, any> = {
+          user_id: user.id,
+          tmdb_id: key,
+          type: movie.name ? 'tv' : 'movie',
+          movie_data: movie,
+          added_at: new Date().toISOString()
+        };
+        if (migrated) payload.profile_id = profileId;
+
         supabase.from('user_list')
-          .upsert({
-            user_id: user.id,
-            tmdb_id: key,
-            type: movie.name ? 'tv' : 'movie',
-            movie_data: movie,
-            added_at: new Date().toISOString()
-          }, { onConflict: 'user_id,tmdb_id' })
+          .upsert(payload, { onConflict: migrated ? 'user_id,profile_id,tmdb_id' : 'user_id,tmdb_id' })
           .then(({ error }) => {
             if (error) console.error('[Sync] List sync error:', error.message);
           });

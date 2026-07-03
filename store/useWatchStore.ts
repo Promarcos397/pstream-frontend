@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../services/supabaseClient';
 import { Movie } from '../types';
 import { useAuthStore } from './useAuthStore';
+import { isProfileScopingReady, getActiveProfileId } from './profileScope';
 
 export interface WatchProgress {
   tmdbId: string;
@@ -62,19 +63,29 @@ export const useWatchStore = create<WatchStore>()((set, get) => ({
     const syncToCloud = () => {
       const user = useAuthStore.getState().user;
       if (user) {
+        // Only reference profile_id once the migration has actually landed —
+        // the column and its unique constraint don't exist before that.
+        const migrated = isProfileScopingReady();
+        const payload: Record<string, any> = {
+          user_id: user.id,
+          tmdb_id: String(data.tmdbId),
+          type: data.type,
+          season: data.season || null,
+          episode: data.episode || null,
+          watched_time: data.watchedTime,
+          duration: data.duration,
+          percentage,
+          movie_data: movieData || null,
+          updated_at: new Date(updatedAt).toISOString()
+        };
+        if (migrated) payload.profile_id = getActiveProfileId();
+
         supabase.from('watch_history')
-          .upsert({
-            user_id: user.id,
-            tmdb_id: String(data.tmdbId),
-            type: data.type,
-            season: data.season || null,
-            episode: data.episode || null,
-            watched_time: data.watchedTime,
-            duration: data.duration,
-            percentage,
-            movie_data: movieData || null,
-            updated_at: new Date(updatedAt).toISOString()
-          }, { onConflict: 'user_id,tmdb_id,season,episode' })
+          .upsert(payload, {
+            onConflict: migrated
+              ? 'user_id,profile_id,tmdb_id,season,episode'
+              : 'user_id,tmdb_id,season,episode'
+          })
           .then(({ error }) => {
             if (error) console.error('[Sync] Watch history sync error:', error.message);
           });
@@ -140,11 +151,13 @@ export const useWatchStore = create<WatchStore>()((set, get) => ({
     });
 
     const user = useAuthStore.getState().user;
+    const profileId = getActiveProfileId();
     if (user) {
       let query = supabase.from('watch_history')
         .delete()
         .eq('user_id', user.id)
         .eq('tmdb_id', String(tmdbId));
+      if (profileId) query = query.eq('profile_id', profileId);
       if (season && episode) query = query.eq('season', season).eq('episode', episode);
       query.then();
     }

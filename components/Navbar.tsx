@@ -2,13 +2,11 @@ import React, { useEffect, useState, startTransition } from 'react';
 import { useTranslation } from 'react-i18next';
 import SearchBar from './SearchBar';
 import pstreamWordmark from '../assets/logos/pstream-logo.svg';
-import { useSettingsStore } from '../store/useSettingsStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { DEFAULT_AVATAR } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { useAvatarReady } from '../hooks/useAvatarReady';
 import NavbarMobile from './NavbarMobile';
+import NavbarProfileMenu from './profiles/NavbarProfileMenu';
 
 interface NavbarProps {
   isScrolled: boolean;
@@ -25,15 +23,11 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const settings = useSettingsStore(s => s.settings);
   const user = useAuthStore(s => s.user);
   const isSettings = location.pathname.startsWith('/settings');
   const isMobile = useIsMobile();
-  const avatarUrl = settings.avatarUrl || DEFAULT_AVATAR;
-  const avatarInitial = (settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
 
   const [navScrollY, setNavScrollY] = useState(0);
-  const avatarLoaded = useAvatarReady(avatarUrl);
 
   useEffect(() => {
     if (isMobile) return;
@@ -155,24 +149,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
               {t('nav.signIn')}
             </button>
           ) : (
-            <button
-              onClick={() => handleTabClick('settings')}
-              onMouseEnter={() => preloadPage('settings')}
-              className="w-8 h-8 rounded overflow-hidden shadow-md transition-all flex items-center justify-center relative focus-visible:outline-none"
-              style={{ background: '#E50914' }}
-              aria-label={t('nav.accountSettings')}
-            >
-              <span className="text-white font-bold text-sm absolute">{avatarInitial}</span>
-              {avatarUrl && (
-                <img
-                  src={avatarUrl}
-                  alt="Profile"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-300 ${avatarLoaded ? 'opacity-100' : 'opacity-0'}`}
-                />
-              )}
-            </button>
+            <NavbarProfileMenu />
           )}
         </div>
       </div>
