@@ -98,6 +98,28 @@ where not exists (
   select 1 from public.profiles p where p.user_id = u.user_id
 );
 
+-- Every account also gets a default Kids profile (mirrors the app's client-side
+-- auto-create in useProfileStore.loadProfiles(), so the DB stays consistent even
+-- for users who haven't opened the app since this change). Idempotent: guarded on
+-- "no is_kids profile yet" and skipped at the 5-profile cap so it can never evict
+-- an existing profile. sort_order is placed after all of a user's current
+-- profiles so it never becomes the "default" target the stamping step below
+-- picks (that step orders by sort_order asc, then created_at asc).
+insert into public.profiles (user_id, name, is_kids, sort_order)
+select
+  p.user_id,
+  'Kids',
+  true,
+  coalesce((select max(p2.sort_order) + 1 from public.profiles p2 where p2.user_id = p.user_id), 0)
+from (select distinct user_id from public.profiles) p
+where not exists (
+  select 1 from public.profiles k where k.user_id = p.user_id and k.is_kids = true
+)
+and (
+  select count(*) from public.profiles c where c.user_id = p.user_id
+) < 5
+on conflict (user_id, lower(name)) do nothing;
+
 -- Stamp existing rows with that user's (lowest sort_order, oldest) default profile.
 with default_profile as (
   select distinct on (user_id) user_id, id

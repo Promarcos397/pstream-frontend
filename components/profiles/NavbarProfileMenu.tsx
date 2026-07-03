@@ -9,11 +9,19 @@ import {
 import { useGlobalContext } from '../../context/GlobalContext';
 import { useProfileStore } from '../../store/useProfileStore';
 import { DEFAULT_AVATAR } from '../../constants';
+import KidsAvatar from './KidsAvatar';
 
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23bbb'/%3E%3Cellipse cx='50' cy='85' rx='28' ry='22' fill='%23bbb'/%3E%3C/svg%3E";
 
-const MenuAvatar: React.FC<{ src?: string; size: number }> = ({ src, size }) => {
+const MenuAvatar: React.FC<{ src?: string; size: number; isKids?: boolean }> = ({ src, size, isKids }) => {
   const [failed, setFailed] = useState(false);
+  if (isKids && !src) {
+    return (
+      <div style={{ width: size, height: size }} className="rounded-[4px] overflow-hidden block shrink-0">
+        <KidsAvatar size={size} />
+      </div>
+    );
+  }
   return (
     <img
       src={failed || !src ? FALLBACK_AVATAR : src}
@@ -80,7 +88,7 @@ const NavbarProfileMenu: React.FC = () => {
 
   useEffect(() => () => { if (closeTimer.current) window.clearTimeout(closeTimer.current); }, []);
 
-  const avatarUrl = activeProfile?.avatarUrl || DEFAULT_AVATAR;
+  const avatarUrl = activeProfile?.isKids ? activeProfile.avatarUrl : (activeProfile?.avatarUrl || DEFAULT_AVATAR);
   const otherProfiles = profiles.filter(p => p.id !== activeProfile?.id);
 
   const manageProfiles = () => {
@@ -103,7 +111,7 @@ const NavbarProfileMenu: React.FC = () => {
         className="flex items-center gap-2 group focus-visible:outline-none"
       >
         <div className="w-8 h-8 rounded-[4px] overflow-hidden shadow-md">
-          <MenuAvatar src={avatarUrl} size={32} />
+          <MenuAvatar src={avatarUrl} size={32} isKids={activeProfile?.isKids} />
         </div>
         <CaretDownIcon
           size={13}
@@ -136,7 +144,7 @@ const NavbarProfileMenu: React.FC = () => {
                         onClick={() => { setOpen(false); switchProfile(p.id); }}
                         className="w-full flex items-center gap-3 px-3 py-[6px] text-left group/row"
                       >
-                        <MenuAvatar src={p.avatarUrl} size={32} />
+                        <MenuAvatar src={p.avatarUrl} size={32} isKids={p.isKids} />
                         <span className="text-[#e5e5e5] text-[13px] truncate group-hover/row:underline">{p.name}</span>
                       </button>
                     ))}

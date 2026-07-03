@@ -29,6 +29,9 @@ export {
   searchMovies,
   fetchData,
   isBlacklisted,
+  isKidsSafe,
+  setGlobalKidsMode,
+  isGlobalKidsModeActive,
   setTmdbLanguage as setApiLanguage,
   default,
 } from './tmdb';

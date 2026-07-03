@@ -43,8 +43,13 @@ interface ProfileStore {
   unlockedProfileIds: string[];
   // One-shot flag: "Manage Profiles" opens the Who's Watching gate in edit mode.
   gateEditMode: boolean;
+  // Timestamp of the last time the app was known to be in use. Persisted so
+  // it survives a closed tab/browser — compared against on the next load to
+  // decide whether to re-show the "Who's watching?" gate after a long absence.
+  lastActiveAt: number;
 
   setGateEditMode: (v: boolean) => void;
+  touchActivity: () => void;
   loadProfiles: () => Promise<Profile[]>;
   setActiveProfile: (id: string | null) => void;
   markUnlocked: (id: string) => void;
@@ -70,8 +75,10 @@ export const useProfileStore = create<ProfileStore>()(
       migrationApplied: true, // optimistic until proven otherwise
       unlockedProfileIds: [],
       gateEditMode: false,
+      lastActiveAt: Date.now(),
 
       setGateEditMode: (v) => set({ gateEditMode: v }),
+      touchActivity: () => set({ lastActiveAt: Date.now() }),
 
       getActiveProfile: () => {
         const { profiles, activeProfileId } = get();
@@ -119,6 +126,14 @@ export const useProfileStore = create<ProfileStore>()(
             avatarUrl: user.user_metadata?.avatar_url as string | undefined,
           });
           profiles = created ? [created] : [];
+        }
+
+        // Every account gets a default Kids profile alongside the primary one —
+        // both for brand-new accounts and existing ones that predate this change.
+        // Skipped once at the profile cap so we never displace an existing profile.
+        if (profiles.length > 0 && profiles.length < MAX_PROFILES && !profiles.some(p => p.isKids)) {
+          const kids = await get().createProfile({ name: 'Kids', isKids: true });
+          if (kids) profiles = sortProfiles([...profiles, kids]);
         }
 
         preloadAvatars(profiles.map(p => p.avatarUrl).filter(Boolean) as string[]);
@@ -243,9 +258,10 @@ export const useProfileStore = create<ProfileStore>()(
     }),
     {
       name: 'pstream-profile-store',
-      // Only the chosen profile persists across reloads; the list is always
-      // re-fetched fresh, and unlocks reset each browser session for safety.
-      partialize: (state) => ({ activeProfileId: state.activeProfileId }),
+      // Only the chosen profile (+ its last-active timestamp) persists across
+      // reloads; the list is always re-fetched fresh, and unlocks reset each
+      // browser session for safety.
+      partialize: (state) => ({ activeProfileId: state.activeProfileId, lastActiveAt: state.lastActiveAt }),
     }
   )
 );

@@ -1,12 +1,15 @@
 import React, { useEffect, useState, startTransition } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ArrowSquareOutIcon } from '@phosphor-icons/react';
 import SearchBar from './SearchBar';
 import pstreamWordmark from '../assets/logos/pstream-logo.svg';
 import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useGlobalContext } from '../context/GlobalContext';
 import NavbarMobile from './NavbarMobile';
 import NavbarProfileMenu from './profiles/NavbarProfileMenu';
+import KidsBadge from './profiles/KidsBadge';
 
 interface NavbarProps {
   isScrolled: boolean;
@@ -24,6 +27,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore(s => s.user);
+  const { isKidsMode, switchProfile } = useGlobalContext();
   const isSettings = location.pathname.startsWith('/settings');
   const isMobile = useIsMobile();
 
@@ -51,13 +55,17 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
     ? navScrollY / 80
     : Math.min(1, 0.5 + (navScrollY - 40) / 160);
 
+  // Kids mode keeps Home/Series/Films/New & Popular (Netflix Kids keeps its
+  // equivalent "New & Hot" tab too — content is already filtered by the
+  // profile's kids mode) but drops cross-language browsing, which has no
+  // Kids-mode equivalent.
   const navItems = [
     { id: 'home',     label: t('nav.home',              { defaultValue: 'Home' }) },
     { id: 'tv',       label: t('nav.shows',             { defaultValue: 'Series' }) },
     { id: 'movies',   label: t('nav.movies',            { defaultValue: 'Films' }) },
     { id: 'new',      label: t('nav.newPopular',        { defaultValue: 'New & Popular' }) },
     { id: 'list',     label: t('nav.myList',            { defaultValue: 'My List' }) },
-    { id: 'language', label: t('nav.browseByLanguage',  { defaultValue: 'Browse by Language' }) },
+    ...(isKidsMode ? [] : [{ id: 'language', label: t('nav.browseByLanguage', { defaultValue: 'Browse by Language' }) }]),
   ];
 
   const preloadPage = (tabId: string) => {
@@ -114,6 +122,8 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
           onClick={() => handleTabClick('home')}
         />
 
+        {isKidsMode && <KidsBadge size={16} className="ml-3" />}
+
         {!isSettings && (
           <ul className="flex items-center gap-5 ml-8 text-[14px] tracking-[-0.2px] font-normal text-[#e5e5e5]">
             {navItems.map((item) => (
@@ -149,7 +159,18 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
               {t('nav.signIn')}
             </button>
           ) : (
-            <NavbarProfileMenu />
+            <>
+              {isKidsMode && (
+                <button
+                  onClick={() => switchProfile(null)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-white/25 text-white/85 text-[13px] font-medium hover:bg-white/10 hover:text-white transition-colors active:scale-95"
+                >
+                  <ArrowSquareOutIcon size={15} />
+                  {t('profiles.exitKids', { defaultValue: 'Exit Kids' })}
+                </button>
+              )}
+              <NavbarProfileMenu />
+            </>
           )}
         </div>
       </div>

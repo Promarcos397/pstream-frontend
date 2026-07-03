@@ -112,7 +112,7 @@ export const BLACKLIST = {
 
 export function isBlacklisted(item: any, type: 'hard' | 'soft' | 'any' = 'any'): boolean {
   if (!item) return false;
-  
+
   // Hard blacklist adult flag check
   if (item.adult === true && (type === 'hard' || type === 'any')) {
     return true;
@@ -136,8 +136,60 @@ export function isBlacklisted(item: any, type: 'hard' | 'soft' | 'any' = 'any'):
   return false;
 }
 
+// ─── Kids Mode Content Filter ────────────────────────────────────────────────
+// TMDB genre ids that skew mature. Any of these on an item disqualifies it
+// from a Kids profile regardless of what else is tagged.
+const KIDS_UNSAFE_GENRE_IDS = new Set<number>([
+  27,    // Horror
+  53,    // Thriller
+  80,    // Crime
+  10752, // War (movie)
+  10768, // War & Politics (tv)
+  9648,  // Mystery
+  10749, // Romance
+  10763, // News (tv)
+  10766, // Soap (tv)
+  10767, // Talk (tv)
+  37,    // Western
+]);
 
+// At least one of these must be present — a positive "this is generally
+// family-appropriate" signal — since list endpoints don't expose certification.
+const KIDS_FRIENDLY_GENRE_IDS = new Set<number>([
+  10751, // Kids & Family (movie)
+  10762, // Kids (tv)
+  16,    // Animation
+  12,    // Adventure (movie)
+  10759, // Action & Adventure (tv)
+  35,    // Comedy
+  14,    // Fantasy
+  10765, // Sci-Fi & Fantasy (tv)
+  10402, // Music & Musicals
+  99,    // Documentary
+]);
 
+/** Pure genre-safety check — does not consult global kids-mode state. */
+export function isKidsSafe(item: any): boolean {
+  if (!item || item.adult === true) return false;
+  const genreIds: number[] = item.genre_ids || item.genres?.map((g: any) => g.id) || [];
+  if (genreIds.length === 0) return false; // fail closed — can't verify safety
+  if (genreIds.some((id) => KIDS_UNSAFE_GENRE_IDS.has(id))) return false;
+  return genreIds.some((id) => KIDS_FRIENDLY_GENRE_IDS.has(id));
+}
+
+let _kidsModeActive = false;
+/** Called reactively whenever the active profile's isKids flag changes. */
+export function setGlobalKidsMode(active: boolean) {
+  _kidsModeActive = active;
+}
+export function isGlobalKidsModeActive(): boolean {
+  return _kidsModeActive;
+}
+
+/** Applies the live kids filter only when kids mode is currently active. */
+function applyKidsFilter<T>(items: T[]): T[] {
+  return _kidsModeActive ? items.filter((item) => isKidsSafe(item)) : items;
+}
 
 // ─── Axios instance ───────────────────────────────────────────────────────────
 
@@ -390,7 +442,7 @@ export const getExternalIds = async (id: number | string, type: 'movie' | 'tv') 
   }
 };
 
-export const getRecommendations = async (id: number | string, type: 'movie' | 'tv') => {
+const _getRecommendationsRaw = async (id: number | string, type: 'movie' | 'tv') => {
   const url = `/${type}/${id}/recommendations`;
   if (_dataCache.has(url)) return _dataCache.get(url);
   if (_pending.has(url)) return _pending.get(url);
@@ -411,6 +463,11 @@ export const getRecommendations = async (id: number | string, type: 'movie' | 't
 
   _pending.set(url, promise);
   return promise;
+};
+
+export const getRecommendations = async (id: number | string, type: 'movie' | 'tv') => {
+  const results = await _getRecommendationsRaw(id, type);
+  return applyKidsFilter(results);
 };
 
 export const getMovieKeywords = async (id: number | string, type: 'movie' | 'tv') => {
@@ -498,14 +555,17 @@ export const searchMovies = async (query: string) => {
       }
     });
 
-    return finalResults;
+    return applyKidsFilter(finalResults);
   } catch (e) {
     console.error('[TMDB] Search error:', e);
     return [];
   }
 };
 
-export const fetchData = async (url: string) => {
+// Cache/dedup layer only ever stores the blacklist-filtered (not kids-filtered)
+// results, so switching profiles never serves a stale, wrongly-scoped array —
+// the kids filter is re-applied fresh on every read in `fetchData` below.
+const _fetchDataRaw = async (url: string) => {
   if (_dataCache.has(url)) return _dataCache.get(url);
   if (_pending.has(url)) return _pending.get(url);
 
@@ -528,6 +588,11 @@ export const fetchData = async (url: string) => {
 
   _pending.set(url, promise);
   return promise;
+};
+
+export const fetchData = async (url: string) => {
+  const results = await _fetchDataRaw(url);
+  return applyKidsFilter(results);
 };
 
 export default tmdb;

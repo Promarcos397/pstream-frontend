@@ -10,6 +10,7 @@ import { useWatchStore } from '../store/useWatchStore';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useAuthStore, activateProfile } from '../store/useAuthStore';
 import { useProfileStore } from '../store/useProfileStore';
+import { setGlobalKidsMode } from '../services/api';
 
 // We keep the types for backwards compatibility
 interface VideoState { time: number; duration?: number; videoId?: string; }
@@ -89,6 +90,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const [isAppReady, setIsAppReady] = useState(false);
+
+  // Every TMDB fetch funnels through services/tmdb.ts, which consults this
+  // global flag live — flipping it here is what actually makes Home/Search/
+  // Hero/Recommendations adapt to Kids mode across the whole app.
+  useEffect(() => {
+    setGlobalKidsMode(!!activeProfile?.isKids);
+  }, [activeProfile?.isKids]);
 
   const setGlobalMute = useCallback((mute: boolean) => {
     setGlobalMuteState(mute);

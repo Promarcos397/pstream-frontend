@@ -8,6 +8,8 @@ import { useProfileStore } from '../../store/useProfileStore';
 import { activateProfile } from '../../store/useAuthStore';
 import AddEditProfileModal from './AddEditProfileModal';
 import ProfilePinPrompt from './ProfilePinPrompt';
+import KidsAvatar from './KidsAvatar';
+import KidsBadge from './KidsBadge';
 
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23bbb'/%3E%3Cellipse cx='50' cy='85' rx='28' ry='22' fill='%23bbb'/%3E%3C/svg%3E";
 
@@ -25,13 +27,20 @@ const ProfileTile: React.FC<{
       className="flex flex-col items-center gap-3 group w-[110px] sm:w-[140px]"
     >
       <div className="relative w-[110px] h-[110px] sm:w-[140px] sm:h-[140px] rounded-md overflow-hidden shadow-lg transition-transform group-hover:scale-[1.04] group-active:scale-[0.98]">
-        <img
-          src={failed || !profile.avatarUrl ? FALLBACK_AVATAR : profile.avatarUrl}
-          alt=""
-          className="w-full h-full object-cover"
-          onError={() => setFailed(true)}
-          referrerPolicy="no-referrer"
-        />
+        {profile.isKids && !profile.avatarUrl ? (
+          <KidsAvatar size={110} />
+        ) : (
+          <img
+            src={failed || !profile.avatarUrl ? FALLBACK_AVATAR : profile.avatarUrl}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={() => setFailed(true)}
+            referrerPolicy="no-referrer"
+          />
+        )}
+        {profile.isKids && profile.avatarUrl && (
+          <KidsBadge size={11} className="absolute bottom-1.5 left-1.5" />
+        )}
         {editMode && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <PencilSimpleIcon size={32} weight="fill" className="text-white" />

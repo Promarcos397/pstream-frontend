@@ -5,7 +5,7 @@ import useSearch from './hooks/useSearch';
 import { useTitle } from './context/TitleContext';
 import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
-import { useAuthStore } from './store/useAuthStore';
+import { useAuthStore, activateProfile } from './store/useAuthStore';
 import { useWatchStore } from './store/useWatchStore';
 import { useProfileStore } from './store/useProfileStore';
 import { LoginWall } from './components/LoginWall';
@@ -131,6 +131,40 @@ const App: React.FC = () => {
     initializeAuth();
     initializeCast();
   }, [initializeAuth, initializeCast]);
+
+  // Netflix-style: re-show the "Who's watching?" gate after a few hours away
+  // from the app (tab closed, or backgrounded and forgotten) — without signing
+  // the account out. `lastActiveAt` is persisted, so this also catches a tab
+  // that was closed entirely and reopened later.
+  useEffect(() => {
+    const INACTIVITY_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+    const checkInactivity = () => {
+      const { activeProfileId: currentId, lastActiveAt, touchActivity } = useProfileStore.getState();
+      if (currentId && Date.now() - lastActiveAt > INACTIVITY_THRESHOLD_MS) {
+        activateProfile(null);
+      }
+      touchActivity();
+    };
+
+    checkInactivity(); // on mount — catches a fully closed/reopened tab
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') checkInactivity();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    // Keeps lastActiveAt fresh during active use so only genuine backgrounded
+    // time (tab hidden/closed) counts toward the threshold.
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState === 'visible') checkInactivity();
+    }, 60_000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearInterval(heartbeat);
+    };
+  }, []);
 
   useEffect(() => {
     (window as any).reactNavigate = navigate;

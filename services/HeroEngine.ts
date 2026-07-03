@@ -1,6 +1,6 @@
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
-import { getMovieImages, getExternalIds, fetchData, isBlacklisted } from './api';
+import { getMovieImages, getExternalIds, fetchData, isBlacklisted, isKidsSafe, isGlobalKidsModeActive } from './api';
 import tmdb from './tmdb';
 
 /**
@@ -394,6 +394,12 @@ class HeroEngineService {
     this.cacheLoaded  = true;
   }
 
+  // Kids and adult profiles must never share a cached hero — suffix the key so
+  // switching profiles can't surface a hero curated under the other mode.
+  private modeKey(baseKey: string): string {
+    return isGlobalKidsModeActive() ? `${baseKey}::kids` : baseKey;
+  }
+
   private fromCache(cacheKey: string): HeroPackage | null {
     this.ensureCacheLoaded();
     const entry = this.sessionCache[cacheKey];
@@ -423,7 +429,7 @@ class HeroEngineService {
   }
 
   async getHero(pageType: string, fetchUrl?: string, genreId?: number): Promise<HeroPackage | null> {
-    const cacheKey = genreId ? `${pageType}_${genreId}` : pageType;
+    const cacheKey = this.modeKey(genreId ? `${pageType}_${genreId}` : pageType);
 
     // 1. Check live in-memory cache
     if (this.live.has(cacheKey)) return this.live.get(cacheKey)!;
@@ -488,19 +494,22 @@ class HeroEngineService {
         const VOTE_CEILING = allowPopular ? Infinity : 8000;
         const AVG_FLOOR    = allowPopular ? 0         : 6.8;
 
+        const kidsGate = (m: any) => !isGlobalKidsModeActive() || isKidsSafe(m);
+
         const results = (response.data.results || []).filter(
           (m: any) =>
             m.backdrop_path &&
             m.vote_count  >= VOTE_FLOOR   &&
             m.vote_count  <= VOTE_CEILING  &&
             m.vote_average >= AVG_FLOOR    &&
-            !isBlacklisted(m, 'any')
+            !isBlacklisted(m, 'any') &&
+            kidsGate(m)
         );
 
         // Fallback: relax ceiling if niche filter was too tight
         const fallbackResults = results.length < 3
           ? (response.data.results || []).filter(
-              (m: any) => m.backdrop_path && m.vote_count >= VOTE_FLOOR && !isBlacklisted(m, 'any')
+              (m: any) => m.backdrop_path && m.vote_count >= VOTE_FLOOR && !isBlacklisted(m, 'any') && kidsGate(m)
             )
           : results;
 
@@ -596,7 +605,7 @@ class HeroEngineService {
   }
 
   getCachedHero(pageTypeOrKey: string, genreId?: number): HeroPackage | undefined {
-    const key = (genreId !== undefined) ? `${pageTypeOrKey}_${genreId}` : pageTypeOrKey;
+    const key = this.modeKey((genreId !== undefined) ? `${pageTypeOrKey}_${genreId}` : pageTypeOrKey);
     return this.live.get(key) ?? (this.fromCache(key) || undefined);
   }
 
@@ -621,7 +630,7 @@ class HeroEngineService {
 
   /** Clear genre-scoped hero cache (e.g. home_28 when switching Home genres). */
   invalidateGenreHero(pageType: string, genreId?: number) {
-    const key = genreId !== undefined ? `${pageType}_${genreId}` : pageType;
+    const key = this.modeKey(genreId !== undefined ? `${pageType}_${genreId}` : pageType);
     this.live.delete(key);
     this.initializing.delete(key);
     this.ensureCacheLoaded();
