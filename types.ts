@@ -120,6 +120,9 @@ export interface Profile {
   name: string;
   avatarUrl?: string;
   isKids: boolean;
+  // Ships-with-the-account profile (the built-in Kids one). Cannot be deleted
+  // and cannot stop being a kids profile — enforced in the store and by RLS.
+  isDefault?: boolean;
   pin?: string | null;   // 4-digit profile lock; null/undefined = no lock
   sortOrder: number;
 }

@@ -16,6 +16,7 @@ import ProfileTransferSection from './ProfileTransferSection';
 import { AppSettings } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
+import ProfileManager from '../components/profiles/ProfileManager';
 import { DEFAULT_AVATAR } from '../constants';
 import pstreamLogo from '../assets/logos/pstream-logo.svg';
 
@@ -29,7 +30,7 @@ interface SettingsLayoutProps {
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23bbb'/%3E%3Cellipse cx='50' cy='85' rx='28' ry='22' fill='%23bbb'/%3E%3C/svg%3E";
 
 /* ── Sidebar navigation items ──────────────────────────────── */
-type SettingsView = 'overview' | 'profiles' | 'profile-edit' | 'profile-avatar' | 'language' | 'subtitle' | 'playback' | 'activity' | 'privacy' | 'transfer';
+type SettingsView = 'overview' | 'manage' | 'profiles' | 'profile-edit' | 'profile-avatar' | 'language' | 'subtitle' | 'playback' | 'activity' | 'privacy' | 'transfer';
 
 interface NavItem {
     id: SettingsView;
@@ -90,8 +91,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
         else currentView = 'profile-edit';
     } else if (segments.length >= 1 && segments[0]) {
         const viewMap: Record<string, SettingsView> = {
-            'profiles': 'profile-edit', 
-            'language': 'language', 
+            'profiles': 'manage',
+            'language': 'language',
             'subtitle': 'subtitle',
             'playback': 'playback', 
             'activity': 'activity', 
@@ -127,6 +128,14 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
     };
 
     const { title } = getTitle();
+
+    // Manage Profiles is a full-screen, self-contained multi-level flow
+    // (list → add/edit → choose icon) that owns its own header + back stack,
+    // so it renders outside the standard settings chrome. Guests fall through
+    // to the normal (login-gated) content below.
+    if (currentView === 'manage' && user) {
+        return <ProfileManager />;
+    }
 
     /* ── Render page content ──────────────────────────────────── */
     const renderContent = () => {
@@ -199,40 +208,55 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
 
 /* ═══════════════════════════════════════════════════════════════
    PROFILE EDIT PAGE — Large avatar + name input
+   Edits the ACTIVE PROFILE (multi-profile system); the legacy
+   account-wide settings fields are kept in sync as a fallback for
+   pre-migration databases and older UI paths that still read them.
    ═══════════════════════════════════════════════════════════════ */
 import { AVATAR_CATEGORIES, ALL_AVATARS } from '../constants';
 import { preloadAvatars } from '../utils/avatarCache';
+import { useProfileStore } from '../store/useProfileStore';
+import KidsAvatar from '../components/profiles/KidsAvatar';
 
 const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Partial<AppSettings>) => void }> = ({ settings, updateSettings }) => {
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const { user } = useGlobalContext();
-    
-    // Resolve a sensible non-empty name from fallback properties
-    const resolvedFallback = settings.displayName || 
-                             user?.display_name || 
-                             user?.user_metadata?.display_name || 
-                             user?.user_metadata?.full_name || 
+    const { user, activeProfile } = useGlobalContext();
+    const updateProfile = useProfileStore(s => s.updateProfile);
+
+    // Active profile first; legacy account fields only as fallback.
+    const resolvedFallback = activeProfile?.name ||
+                             settings.displayName ||
+                             user?.display_name ||
+                             user?.user_metadata?.display_name ||
+                             user?.user_metadata?.full_name ||
                              (user?.email ? user.email.split('@')[0] : '');
 
     const [displayName, setDisplayName] = useState(resolvedFallback);
     const [imgFailed, setImgFailed] = useState(false);
-    const avatarSrc = imgFailed ? FALLBACK_AVATAR : (settings.avatarUrl || DEFAULT_AVATAR);
+    const currentAvatarUrl = activeProfile ? activeProfile.avatarUrl : settings.avatarUrl;
+    const showKidsTile = !!activeProfile?.isKids && !activeProfile?.avatarUrl;
+    const avatarSrc = imgFailed ? FALLBACK_AVATAR : (currentAvatarUrl || DEFAULT_AVATAR);
 
-    // Sync displayName if user or settings load asynchronously
+    // Sync displayName if user, settings, or profiles load asynchronously
     useEffect(() => {
-        const currentFallback = settings.displayName || 
-                                user?.display_name || 
-                                user?.user_metadata?.display_name || 
-                                user?.user_metadata?.full_name || 
+        const currentFallback = activeProfile?.name ||
+                                settings.displayName ||
+                                user?.display_name ||
+                                user?.user_metadata?.display_name ||
+                                user?.user_metadata?.full_name ||
                                 (user?.email ? user.email.split('@')[0] : '');
         if (currentFallback && !displayName) {
             setDisplayName(currentFallback);
         }
-    }, [settings.displayName, user]);
+    }, [activeProfile?.name, settings.displayName, user]);
 
     const handleSaveName = async () => {
         const trimmed = displayName.trim();
+        if (!trimmed) return;
+        if (activeProfile) {
+            await updateProfile(activeProfile.id, { name: trimmed });
+        }
+        // Legacy account-wide field stays in sync (pre-migration fallback).
         updateSettings({ displayName: trimmed });
     };
 
@@ -245,11 +269,15 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
                     className="relative cursor-pointer w-[120px] h-[120px] rounded-md overflow-hidden bg-white/10 md:bg-gray-200 shrink-0 shadow-sm group hover:ring-4 hover:ring-white/20 md:hover:ring-gray-100 transition-all active:scale-95"
                     onClick={() => navigate('/settings/profile/avatar')}
                 >
-                    <img
-                        src={avatarSrc} alt=""
-                        className="w-full h-full object-cover block"
-                        onError={() => setImgFailed(true)}
-                    />
+                    {showKidsTile ? (
+                        <KidsAvatar size={120} />
+                    ) : (
+                        <img
+                            src={avatarSrc} alt=""
+                            className="w-full h-full object-cover block"
+                            onError={() => setImgFailed(true)}
+                        />
+                    )}
                     {/* Pencil overlay */}
                     <div className="absolute bottom-2 left-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <PencilSimpleIcon size={14} weight="bold" className="text-white" />
@@ -304,10 +332,18 @@ const ProfileEditPage: React.FC<{ settings: AppSettings; updateSettings: (s: Par
 const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: Partial<AppSettings>) => void }> = ({ settings, updateSettings }) => {
     const navigate = useNavigate();
     const { t } = useTranslation();
+    const { activeProfile } = useGlobalContext();
+    const updateProfile = useProfileStore(s => s.updateProfile);
 
     useEffect(() => { preloadAvatars(ALL_AVATARS); }, []);
 
+    const currentAvatarUrl = activeProfile ? activeProfile.avatarUrl : settings.avatarUrl;
+
     const handleSelectAvatar = (url: string) => {
+        if (activeProfile) {
+            updateProfile(activeProfile.id, { avatarUrl: url });
+        }
+        // Legacy account-wide field stays in sync (pre-migration fallback).
         updateSettings({ avatarUrl: url });
         navigate('/settings/profile/edit');
     };
@@ -315,16 +351,16 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
     return (
         <div className="text-white md:text-gray-900 max-w-[1100px] w-full animate-fadeIn pb-20">
             {/* Current avatar — "History" row */}
-            {settings.avatarUrl && (
+            {currentAvatarUrl && (
                 <div className="mb-12">
                     <h3 className="text-xl md:text-2xl font-bold text-white md:text-gray-900 mb-4 px-1">
                         {t('settings.history', { defaultValue: 'History' })}
                     </h3>
                     <div className="px-1">
-                        <div 
+                        <div
                             className="w-[114px] h-[114px] rounded-md overflow-hidden border-[3px] border-white md:border-gray-900 bg-white/10 md:bg-gray-200 shadow-md"
                         >
-                            <SafeImage src={settings.avatarUrl} className="w-full h-full object-cover block" />
+                            <SafeImage src={currentAvatarUrl} className="w-full h-full object-cover block" />
                         </div>
                     </div>
                 </div>
@@ -344,7 +380,7 @@ const ProfileAvatarPage: React.FC<{ settings: AppSettings; updateSettings: (s: P
                             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                         >
                             {category.avatars.map((avatar) => {
-                                const isSelected = settings.avatarUrl === avatar.url;
+                                const isSelected = currentAvatarUrl === avatar.url;
                                 return (
                                     <div
                                         key={avatar.url}

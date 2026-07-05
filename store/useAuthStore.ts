@@ -446,11 +446,28 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
  * @param profileId  target profile id, or null to exit to the "Who's Watching?" screen
  */
 export const activateProfile = async (profileId: string | null) => {
-  const { setActiveProfile } = useProfileStore.getState();
+  const { setActiveProfile, setSwitchingProfile, profiles } = useProfileStore.getState();
+
+  // Netflix-style transition: the chosen avatar sits alone on black while the
+  // per-profile stores swap over. Held for a minimum beat so it never flashes.
+  const target = profileId ? profiles.find(p => p.id === profileId) : undefined;
+  const MIN_OVERLAY_MS = 900;
+  const shownAt = Date.now();
+  if (target) setSwitchingProfile(target);
+
   useWatchStore.getState().clearHistory();
   useLibraryStore.getState().clearLibrary();
   setActiveProfile(profileId);
   if (profileId) {
-    await useAuthStore.getState().syncFromCloud();
+    try {
+      await useAuthStore.getState().syncFromCloud();
+    } finally {
+      if (target) {
+        const remaining = Math.max(0, MIN_OVERLAY_MS - (Date.now() - shownAt));
+        setTimeout(() => useProfileStore.getState().setSwitchingProfile(null), remaining);
+      }
+    }
+  } else {
+    setSwitchingProfile(null);
   }
 };

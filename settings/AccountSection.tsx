@@ -7,9 +7,10 @@ import {
     PlayCircleIcon, ClockIcon, CaretRightIcon, UsersThreeIcon
 } from '@phosphor-icons/react';
 import { DEFAULT_AVATAR } from '../constants';
+import KidsAvatar from '../components/profiles/KidsAvatar';
 
 const AccountSection: React.FC = () => {
-    const { user, logout, settings, profiles, switchProfile } = useGlobalContext();
+    const { user, logout, settings, profiles, activeProfile } = useGlobalContext();
     const { t } = useTranslation();
     const navigate = useNavigate();
 
@@ -30,8 +31,9 @@ const AccountSection: React.FC = () => {
         );
     }
 
-    const avatarSrc = settings.avatarUrl || DEFAULT_AVATAR;
-    const profileName = settings.displayName || user.display_name || user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || user.id.slice(0, 12);
+    // Active profile first; legacy account-wide fields as pre-migration fallback.
+    const avatarSrc = activeProfile?.avatarUrl || settings.avatarUrl || DEFAULT_AVATAR;
+    const profileName = activeProfile?.name || settings.displayName || user.display_name || user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || user.id.slice(0, 12);
 
     const SettingsRow: React.FC<{
         icon: React.ReactNode;
@@ -64,7 +66,15 @@ const AccountSection: React.FC = () => {
             {/* Section 1: Profile Information */}
             <div className="border border-white/10 md:border-gray-200 rounded-lg bg-white/5 md:bg-white overflow-hidden shadow-sm">
                 <SettingsRow
-                    icon={<img src={avatarSrc} className="w-10 h-10 rounded-md object-cover ring-1 ring-white/10 md:ring-black/5" alt="" />}
+                    icon={
+                        activeProfile?.isKids && !activeProfile?.avatarUrl ? (
+                            <div className="w-10 h-10 rounded-md overflow-hidden ring-1 ring-white/10 md:ring-black/5">
+                                <KidsAvatar size={40} />
+                            </div>
+                        ) : (
+                            <img src={avatarSrc} className="w-10 h-10 rounded-md object-cover ring-1 ring-white/10 md:ring-black/5" alt="" />
+                        )
+                    }
                     title={profileName}
                     subtitle={t('settings.editPersonalContact', { defaultValue: 'Edit personal and contact information' })}
                     onClick={() => navigate('/settings/profile/edit')}
@@ -76,7 +86,7 @@ const AccountSection: React.FC = () => {
                         defaultValue: '{{count}} profile(s) · Continue Watching and My List are per-profile',
                         count: profiles.length,
                     })}
-                    onClick={() => switchProfile(null)}
+                    onClick={() => navigate('/settings/profiles')}
                 />
                 <SettingsRow
                     icon={<KeyIcon size={26} className="text-white/70 md:text-gray-800" />}
@@ -135,7 +145,7 @@ const AccountSection: React.FC = () => {
             <div className="border border-white/10 md:border-gray-200 rounded-lg bg-white/5 md:bg-white overflow-hidden shadow-sm">
                 <SettingsRow
                     icon={<SignOutIcon size={26} className="text-red-500" />}
-                    title={t('nav.signOut')}
+                    title={t('nav.signOut', { defaultValue: 'Sign Out' })}
                     onClick={() => { logout(); navigate('/'); }}
                     isLast={true}
                 />

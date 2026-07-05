@@ -25,13 +25,15 @@ interface AddEditProfileModalProps {
   initial?: Profile;
   onSave: (input: { name: string; avatarUrl?: string; isKids: boolean; pin?: string | null }) => Promise<void> | void;
   onDelete?: () => Promise<void> | void;
+  /** Shown in the delete slot when the profile is protected (no onDelete). */
+  protectedHint?: string | null;
   onCancel: () => void;
   saving?: boolean;
   errorMessage?: string | null;
 }
 
 const AddEditProfileModal: React.FC<AddEditProfileModalProps> = ({
-  mode, initial, onSave, onDelete, onCancel, saving, errorMessage,
+  mode, initial, onSave, onDelete, protectedHint, onCancel, saving, errorMessage,
 }) => {
   const { t } = useTranslation();
   const [name, setName] = useState(initial?.name || '');
@@ -50,7 +52,8 @@ const AddEditProfileModal: React.FC<AddEditProfileModalProps> = ({
     onSave({
       name: name.trim(),
       avatarUrl,
-      isKids,
+      // The built-in Kids profile can never stop being a kids profile.
+      isKids: initial?.isDefault ? true : isKids,
       pin: pinEnabled ? pin : null,
     });
   };
@@ -112,20 +115,23 @@ const AddEditProfileModal: React.FC<AddEditProfileModalProps> = ({
         </div>
 
         <div className="border-t border-white/10 pt-5 mb-5">
-          <label className="flex items-center justify-between gap-4 cursor-pointer">
+          <label className={`flex items-center justify-between gap-4 ${initial?.isDefault ? '' : 'cursor-pointer'}`}>
             <div>
               <span className="text-white font-semibold text-[15px]">
                 {t('profiles.kidsProfile', { defaultValue: 'Kids profile' })}
               </span>
               <p className="text-white/40 text-[13px] mt-0.5">
-                {t('profiles.kidsProfileDesc', { defaultValue: 'Only see child-friendly series and films' })}
+                {initial?.isDefault
+                  ? t('profiles.kidsProfileBuiltIn', { defaultValue: "This is the account's built-in Kids profile — it always stays kid-safe." })
+                  : t('profiles.kidsProfileDesc', { defaultValue: 'Only see child-friendly series and films' })}
               </p>
             </div>
             <input
               type="checkbox"
-              checked={isKids}
+              checked={initial?.isDefault ? true : isKids}
+              disabled={!!initial?.isDefault}
               onChange={(e) => setIsKids(e.target.checked)}
-              className="w-5 h-5 accent-[#e50914] shrink-0"
+              className="w-5 h-5 accent-[#e50914] shrink-0 disabled:opacity-50"
             />
           </label>
         </div>
@@ -190,6 +196,12 @@ const AddEditProfileModal: React.FC<AddEditProfileModalProps> = ({
             {t('common.cancel', { defaultValue: 'Cancel' })}
           </button>
         </div>
+
+        {mode === 'edit' && !onDelete && protectedHint && (
+          <div className="mt-6 pt-5 border-t border-white/10 text-center">
+            <p className="text-white/35 text-[13px]">{protectedHint}</p>
+          </div>
+        )}
 
         {mode === 'edit' && onDelete && (
           <div className="mt-6 pt-5 border-t border-white/10 text-center">

@@ -12,6 +12,8 @@ import ManifestSkeleton from '../components/ManifestSkeleton';
 import HeroSkeleton from '../components/HeroSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MOVIE_GENRES } from '../data/pageGenres';
+import { KIDS_MOVIE_GENRES, kidsHeroUrl } from '../hooks/kidsManifestBuilder';
+import { useGlobalContext } from '../context/GlobalContext';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -22,6 +24,7 @@ interface PageProps {
 
 const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onViewAll }) => {
   const { t } = useTranslation();
+  const { isKidsMode } = useGlobalContext();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const stateGenre = location.state?.genre as Genre | null;
@@ -43,7 +46,7 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
     <div className="relative">
         <CategorySubNav
           title={t('nav.movies', { defaultValue: 'Movies' })}
-          genres={MOVIE_GENRES}
+          genres={isKidsMode ? KIDS_MOVIE_GENRES : MOVIE_GENRES}
           selectedGenre={selectedGenre}
           onGenreSelect={handleGenreSelect}
         />
@@ -67,12 +70,16 @@ const MoviesPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onVi
 
       <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <HeroCarousel
-          key={`movies-${selectedGenre?.id || 'all'}`}
+          key={`movies-${isKidsMode ? 'kids-' : ''}${selectedGenre?.id || 'all'}`}
           onSelect={onSelectMovie}
           onPlay={onPlay}
-          fetchUrl={selectedGenre 
-            ? REQUESTS.fetchByGenre('movie', selectedGenre.id, 'popularity.desc') 
-            : REQUESTS.fetchTopRated}
+          fetchUrl={
+            isKidsMode
+              ? kidsHeroUrl('movie', selectedGenre?.id)
+              : selectedGenre
+                ? REQUESTS.fetchByGenre('movie', selectedGenre.id, 'popularity.desc')
+                : REQUESTS.fetchTopRated
+          }
           seekTime={seekTime}
           genreId={selectedGenre?.id}
           pageType="movie"

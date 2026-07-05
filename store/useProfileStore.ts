@@ -13,6 +13,7 @@ interface ProfileRow {
   name: string;
   avatar_url: string | null;
   is_kids: boolean;
+  is_default?: boolean; // optional: predates the column on not-yet-remigrated DBs
   pin: string | null;
   sort_order: number;
 }
@@ -22,6 +23,7 @@ const rowToProfile = (r: ProfileRow): Profile => ({
   name: r.name,
   avatarUrl: r.avatar_url || undefined,
   isKids: !!r.is_kids,
+  isDefault: !!r.is_default,
   pin: r.pin,
   sortOrder: r.sort_order ?? 0,
 });
@@ -47,15 +49,22 @@ interface ProfileStore {
   // it survives a closed tab/browser — compared against on the next load to
   // decide whether to re-show the "Who's watching?" gate after a long absence.
   lastActiveAt: number;
+  // While switching profiles, the target profile — drives the Netflix-style
+  // avatar-on-black transition overlay. Cleared when the switch settles.
+  switchingProfile: Profile | null;
 
   setGateEditMode: (v: boolean) => void;
   touchActivity: () => void;
+  setSwitchingProfile: (p: Profile | null) => void;
   loadProfiles: () => Promise<Profile[]>;
   setActiveProfile: (id: string | null) => void;
   markUnlocked: (id: string) => void;
-  createProfile: (input: { name: string; avatarUrl?: string; isKids?: boolean; pin?: string | null }) => Promise<Profile | null>;
+  createProfile: (input: { name: string; avatarUrl?: string; isKids?: boolean; isDefault?: boolean; pin?: string | null }) => Promise<Profile | null>;
   updateProfile: (id: string, patch: Partial<Pick<Profile, 'name' | 'avatarUrl' | 'isKids' | 'pin'>>) => Promise<void>;
-  deleteProfile: (id: string) => Promise<void>;
+  /** Refuses to delete protected profiles; returns why so the UI can explain. */
+  deleteProfile: (id: string) => Promise<{ ok: boolean; reason?: 'default_kids' | 'last_adult' }>;
+  /** True when this profile may be deleted (not the built-in Kids, not the last adult). */
+  isDeletable: (id: string) => boolean;
   upsertFromRealtime: (row: ProfileRow) => void;
   removeFromRealtime: (id: string) => void;
   reset: () => void;
@@ -76,9 +85,11 @@ export const useProfileStore = create<ProfileStore>()(
       unlockedProfileIds: [],
       gateEditMode: false,
       lastActiveAt: Date.now(),
+      switchingProfile: null,
 
       setGateEditMode: (v) => set({ gateEditMode: v }),
       touchActivity: () => set({ lastActiveAt: Date.now() }),
+      setSwitchingProfile: (p) => set({ switchingProfile: p }),
 
       getActiveProfile: () => {
         const { profiles, activeProfileId } = get();
@@ -115,8 +126,10 @@ export const useProfileStore = create<ProfileStore>()(
 
         let profiles = sortProfiles((data as ProfileRow[]).map(rowToProfile));
 
-        // Brand-new user with zero profiles (e.g. signed up after migration and
-        // has no data yet): create their first profile automatically.
+        // Brand-new user with zero profiles (fresh signup): create their first
+        // profile automatically and remember it as the one to auto-enter — no
+        // point showing a "Who's watching?" picker with a single fresh profile.
+        let freshSignupProfileId: string | null = null;
         if (profiles.length === 0) {
           const created = await get().createProfile({
             name:
@@ -126,24 +139,28 @@ export const useProfileStore = create<ProfileStore>()(
             avatarUrl: user.user_metadata?.avatar_url as string | undefined,
           });
           profiles = created ? [created] : [];
+          freshSignupProfileId = created?.id ?? null;
         }
 
-        // Every account gets a default Kids profile alongside the primary one —
-        // both for brand-new accounts and existing ones that predate this change.
-        // Skipped once at the profile cap so we never displace an existing profile.
+        // Every account ships with a built-in, undeletable Kids profile (the
+        // striped tile) — created here for brand-new accounts and for existing
+        // ones that predate this change. Skipped at the profile cap so we never
+        // displace an existing profile.
         if (profiles.length > 0 && profiles.length < MAX_PROFILES && !profiles.some(p => p.isKids)) {
-          const kids = await get().createProfile({ name: 'Kids', isKids: true });
+          const kids = await get().createProfile({ name: 'Kids', isKids: true, isDefault: true });
           if (kids) profiles = sortProfiles([...profiles, kids]);
         }
 
         preloadAvatars(profiles.map(p => p.avatarUrl).filter(Boolean) as string[]);
 
-        // Keep the active id valid; don't auto-select (the picker does that).
+        // Keep the active id valid; don't auto-select (the picker does that) —
+        // except right after signup, where we drop straight into the new profile.
         const activeStillValid = profiles.some(p => p.id === get().activeProfileId);
         set({
           profiles,
           isLoaded: true,
-          activeProfileId: activeStillValid ? get().activeProfileId : null,
+          activeProfileId: freshSignupProfileId ?? (activeStillValid ? get().activeProfileId : null),
+          lastActiveAt: Date.now(),
         });
         return profiles;
       },
@@ -160,30 +177,48 @@ export const useProfileStore = create<ProfileStore>()(
         );
       },
 
-      createProfile: async ({ name, avatarUrl, isKids = false, pin = null }) => {
+      createProfile: async ({ name, avatarUrl, isKids = false, isDefault = false, pin = null }) => {
         const user = useAuthStore.getState().user;
         if (!user) return null;
         if (!get().canAddMore()) return null;
 
         const sortOrder = get().profiles.reduce((m, p) => Math.max(m, p.sortOrder), -1) + 1;
-        const { data, error } = await supabase
+        // Untyped record: the generated supabase types predate is_default, and
+        // the column may genuinely be absent on not-yet-remigrated databases
+        // (handled by the retry below).
+        const basePayload: Record<string, any> = {
+          user_id: user.id,
+          name: name.trim() || 'Profile',
+          avatar_url: avatarUrl || null,
+          is_kids: isKids,
+          pin: pin || null,
+          sort_order: sortOrder,
+        };
+
+        let { data, error } = await supabase
           .from('profiles')
-          .insert({
-            user_id: user.id,
-            name: name.trim() || 'Profile',
-            avatar_url: avatarUrl || null,
-            is_kids: isKids,
-            pin: pin || null,
-            sort_order: sortOrder,
-          })
+          .insert(isDefault ? { ...basePayload, is_default: true } : basePayload)
           .select()
           .single();
+
+        // Databases migrated with the earlier revision of the SQL lack the
+        // is_default column — retry without it rather than failing the create.
+        if (error && isDefault && /is_default/i.test(error.message || '')) {
+          ({ data, error } = await supabase
+            .from('profiles')
+            .insert(basePayload)
+            .select()
+            .single());
+        }
 
         if (error || !data) {
           console.error('[Profiles] create failed:', error?.message);
           return null;
         }
         const profile = rowToProfile(data as ProfileRow);
+        // Preserve the intent locally even on the no-column fallback path, so
+        // the UI guards still treat the built-in Kids profile as protected.
+        if (isDefault) profile.isDefault = true;
         set(state => ({ profiles: sortProfiles([...state.profiles, profile]) }));
         if (profile.avatarUrl) preloadAvatars([profile.avatarUrl]);
         return profile;
@@ -191,6 +226,13 @@ export const useProfileStore = create<ProfileStore>()(
 
       updateProfile: async (id, patch) => {
         const user = useAuthStore.getState().user;
+        // The built-in Kids profile always stays a kids profile — strip any
+        // attempt to flip it (name/avatar/pin edits remain allowed).
+        const target = get().profiles.find(p => p.id === id);
+        if (target?.isDefault && patch.isKids === false) {
+          const { isKids: _ignored, ...rest } = patch;
+          patch = rest;
+        }
         // Optimistic local update.
         set(state => ({
           profiles: sortProfiles(
@@ -214,8 +256,25 @@ export const useProfileStore = create<ProfileStore>()(
         if (error) console.error('[Profiles] update failed:', error.message);
       },
 
+      isDeletable: (id) => {
+        const { profiles } = get();
+        const target = profiles.find(p => p.id === id);
+        if (!target) return false;
+        // The built-in Kids profile ships with the account and never leaves.
+        if (target.isDefault) return false;
+        // Deleting the last non-kids profile would strand the account with
+        // only the Kids profile (or nothing) — always keep at least one adult.
+        if (!target.isKids && profiles.filter(p => !p.isKids).length <= 1) return false;
+        return true;
+      },
+
       deleteProfile: async (id) => {
         const user = useAuthStore.getState().user;
+        const target = get().profiles.find(p => p.id === id);
+        if (target?.isDefault) return { ok: false, reason: 'default_kids' as const };
+        if (target && !target.isKids && get().profiles.filter(p => !p.isKids).length <= 1) {
+          return { ok: false, reason: 'last_adult' as const };
+        }
         set(state => {
           const profiles = state.profiles.filter(p => p.id !== id);
           return {
@@ -224,7 +283,7 @@ export const useProfileStore = create<ProfileStore>()(
             unlockedProfileIds: state.unlockedProfileIds.filter(u => u !== id),
           };
         });
-        if (!user) return;
+        if (!user) return { ok: true };
         // Child rows cascade-delete via FK.
         const { error } = await supabase
           .from('profiles')
@@ -232,6 +291,7 @@ export const useProfileStore = create<ProfileStore>()(
           .eq('id', id)
           .eq('user_id', user.id);
         if (error) console.error('[Profiles] delete failed:', error.message);
+        return { ok: true };
       },
 
       upsertFromRealtime: (row) => {
@@ -253,7 +313,18 @@ export const useProfileStore = create<ProfileStore>()(
       },
 
       reset: () => {
-        set({ profiles: [], activeProfileId: null, isLoaded: false, unlockedProfileIds: [] });
+        // Full sign-out hygiene: nothing profile-related survives into the
+        // next account — no leaked picker, no stale unlocks, no inherited
+        // inactivity window, no half-finished switch overlay or edit mode.
+        set({
+          profiles: [],
+          activeProfileId: null,
+          isLoaded: false,
+          unlockedProfileIds: [],
+          gateEditMode: false,
+          switchingProfile: null,
+          lastActiveAt: Date.now(),
+        });
       },
     }),
     {

@@ -11,6 +11,7 @@ import { useProfileStore } from './store/useProfileStore';
 import { LoginWall } from './components/LoginWall';
 import { useCastStore } from './store/useCastStore';
 import WhosWatchingGate from './components/profiles/WhosWatchingGate';
+import ProfileSwitchOverlay from './components/profiles/ProfileSwitchOverlay';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const TAB_ORDER = ['home', 'tv', 'movies', 'new', 'list', 'language', 'settings'];
@@ -483,7 +484,12 @@ const App: React.FC = () => {
   }
 
   if (needsProfileGate) {
-    return <WhosWatchingGate />;
+    return (
+      <>
+        <WhosWatchingGate />
+        <ProfileSwitchOverlay />
+      </>
+    );
   }
 
   const innerRoutes = (
@@ -571,6 +577,9 @@ const App: React.FC = () => {
         id="popup-root"
         style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}
       />
+
+      {/* Avatar-on-black transition while switching profiles */}
+      <ProfileSwitchOverlay />
 
       {isMobile && <PWAInstallPrompt />}
     </div>

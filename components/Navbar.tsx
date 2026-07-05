@@ -1,6 +1,5 @@
 import React, { useEffect, useState, startTransition } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowSquareOutIcon } from '@phosphor-icons/react';
 import SearchBar from './SearchBar';
 import pstreamWordmark from '../assets/logos/pstream-logo.svg';
 import { useAuthStore } from '../store/useAuthStore';
@@ -9,7 +8,6 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { useGlobalContext } from '../context/GlobalContext';
 import NavbarMobile from './NavbarMobile';
 import NavbarProfileMenu from './profiles/NavbarProfileMenu';
-import KidsBadge from './profiles/KidsBadge';
 
 interface NavbarProps {
   isScrolled: boolean;
@@ -122,8 +120,6 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
           onClick={() => handleTabClick('home')}
         />
 
-        {isKidsMode && <KidsBadge size={16} className="ml-3" />}
-
         {!isSettings && (
           <ul className="flex items-center gap-5 ml-8 text-[14px] tracking-[-0.2px] font-normal text-[#e5e5e5]">
             {navItems.map((item) => (
@@ -160,16 +156,16 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
             </button>
           ) : (
             <>
+              {/* Reference order: search → kids tile (profile menu) → red Exit Kids */}
+              <NavbarProfileMenu />
               {isKidsMode && (
                 <button
                   onClick={() => switchProfile(null)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-white/25 text-white/85 text-[13px] font-medium hover:bg-white/10 hover:text-white transition-colors active:scale-95"
+                  className="px-4 py-1.5 rounded bg-[#e50914] hover:bg-[#f40612] text-white text-[13px] font-bold transition-colors shadow-lg active:scale-95"
                 >
-                  <ArrowSquareOutIcon size={15} />
                   {t('profiles.exitKids', { defaultValue: 'Exit Kids' })}
                 </button>
               )}
-              <NavbarProfileMenu />
             </>
           )}
         </div>

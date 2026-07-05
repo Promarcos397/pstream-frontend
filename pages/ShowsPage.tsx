@@ -12,6 +12,8 @@ import HeroSkeleton from '../components/HeroSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
 import { TV_GENRES } from '../data/pageGenres';
+import { KIDS_TV_GENRES, kidsHeroUrl } from '../hooks/kidsManifestBuilder';
+import { useGlobalContext } from '../context/GlobalContext';
 import { HeroEngine } from '../services/HeroEngine';
 
 interface PageProps {
@@ -22,6 +24,7 @@ interface PageProps {
 
 const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) => {
   const { t } = useTranslation();
+  const { isKidsMode } = useGlobalContext();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const stateGenre = location.state?.genre as Genre | null;
@@ -51,7 +54,7 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
     <div className="relative">
         <CategorySubNav
           title={t('nav.shows', { defaultValue: 'Series' })}
-          genres={TV_GENRES}
+          genres={isKidsMode ? KIDS_TV_GENRES : TV_GENRES}
           selectedGenre={selectedGenre}
           onGenreSelect={handleGenreSelect}
         />
@@ -74,8 +77,14 @@ const ShowsPage: React.FC<PageProps> = ({ onSelectMovie, onPlay, onViewAll }) =>
 
       <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <HeroCarousel
-          key={`shows-${selectedGenre?.id || 'all'}`}
-          fetchUrl={selectedGenre ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc') : REQUESTS.fetchTrendingTV}
+          key={`shows-${isKidsMode ? 'kids-' : ''}${selectedGenre?.id || 'all'}`}
+          fetchUrl={
+            isKidsMode
+              ? kidsHeroUrl('tv', selectedGenre?.id)
+              : selectedGenre
+                ? REQUESTS.fetchByGenre('tv', selectedGenre.id, 'popularity.desc')
+                : REQUESTS.fetchTrendingTV
+          }
           onSelect={onSelectMovie}
           onPlay={onPlay}
           genreId={selectedGenre?.id}

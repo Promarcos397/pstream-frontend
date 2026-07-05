@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { XIcon } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
 import { Profile } from '../../types';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface ProfilePinPromptProps {
   profile: Profile;
@@ -12,6 +13,7 @@ interface ProfilePinPromptProps {
 
 const ProfilePinPrompt: React.FC<ProfilePinPromptProps> = ({ profile, onUnlock, onCancel }) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [digits, setDigits] = useState<string[]>(['', '', '', '']);
   const [shake, setShake] = useState(false);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
@@ -49,6 +51,55 @@ const ProfilePinPrompt: React.FC<ProfilePinPromptProps> = ({ profile, onUnlock, 
     }
   };
 
+  /* ── Mobile: compact centered dialog over a dim scrim, native numeric
+        keyboard, dash-style digits — per the reference screenshot. ─────────── */
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center px-8">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.18 }}
+          className="w-full max-w-[360px] bg-[#404040] rounded-[6px] px-6 pt-7 pb-4 shadow-2xl"
+        >
+          <p className="text-white text-[19px] font-medium text-center leading-snug mb-7">
+            {t('profiles.enterPinShort', { defaultValue: 'Enter your PIN to access this profile.' })}
+          </p>
+
+          <motion.div
+            animate={shake ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }}
+            transition={{ duration: 0.4 }}
+            className="flex items-center justify-center gap-4 mb-8"
+          >
+            {digits.map((d, i) => (
+              <input
+                key={i}
+                ref={(el) => { inputs.current[i] = el; }}
+                type="password"
+                inputMode="numeric"
+                maxLength={1}
+                value={d}
+                onChange={(e) => handleChange(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
+                className="w-8 h-10 bg-transparent border-0 border-b-2 border-white/80 focus:border-white rounded-none text-center text-white text-2xl font-bold outline-none transition-colors caret-white"
+              />
+            ))}
+          </motion.div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={onCancel}
+              className="px-3 py-2 text-white text-[17px] font-medium active:opacity-70"
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  /* ── Desktop: full-screen Netflix-web style ─────────────────────────────── */
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center px-6">
       <button

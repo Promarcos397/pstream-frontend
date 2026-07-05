@@ -6,14 +6,15 @@ import { DownloadSimpleIcon, UploadSimpleIcon, CheckCircleIcon } from '@phosphor
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23bbb'/%3E%3Cellipse cx='50' cy='85' rx='28' ry='22' fill='%23bbb'/%3E%3C/svg%3E";
 
 const ProfileTransferSection: React.FC = () => {
-    const { user, settings, importProfileData } = useGlobalContext();
+    const { user, settings, importProfileData, activeProfile } = useGlobalContext();
     const { t } = useTranslation();
     const [imgFailed, setImgFailed] = useState(false);
     const [importing, setImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const avatarSrc = imgFailed ? FALLBACK_AVATAR : (settings.avatarUrl || FALLBACK_AVATAR);
-    const profileName = user?.display_name || (user ? t('settings.user', { defaultValue: 'User' }) : t('settings.guest', { defaultValue: 'Guest Profile' }));
+    // Active profile first; legacy account-wide fields as fallback.
+    const avatarSrc = imgFailed ? FALLBACK_AVATAR : (activeProfile?.avatarUrl || settings.avatarUrl || FALLBACK_AVATAR);
+    const profileName = activeProfile?.name || user?.display_name || (user ? t('settings.user', { defaultValue: 'User' }) : t('settings.guest', { defaultValue: 'Guest Profile' }));
 
     const handleDownloadBackup = () => {
         const data = {

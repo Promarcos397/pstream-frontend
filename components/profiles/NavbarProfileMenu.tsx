@@ -7,7 +7,6 @@ import {
   IdentificationCardIcon, UserIcon,
 } from '@phosphor-icons/react';
 import { useGlobalContext } from '../../context/GlobalContext';
-import { useProfileStore } from '../../store/useProfileStore';
 import { DEFAULT_AVATAR } from '../../constants';
 import KidsAvatar from './KidsAvatar';
 
@@ -58,7 +57,6 @@ const NavbarProfileMenu: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { activeProfile, profiles, switchProfile, logout } = useGlobalContext();
-  const setGateEditMode = useProfileStore(s => s.setGateEditMode);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
@@ -93,9 +91,19 @@ const NavbarProfileMenu: React.FC = () => {
 
   const manageProfiles = () => {
     setOpen(false);
-    setGateEditMode(true);   // gate opens straight into edit (pencil) mode
-    switchProfile(null);
+    navigate('/settings/profiles');   // native in-app management, not the gate
   };
+
+  // In Kids mode the navbar avatar is completely inert — no dropdown, no hover,
+  // no click. Kids can't switch or manage profiles from here; the only way out
+  // is the red "Exit Kids" button. Rendered as a plain, non-interactive tile.
+  if (activeProfile?.isKids) {
+    return (
+      <div className="w-8 h-8 rounded-[4px] overflow-hidden shadow-md select-none pointer-events-none" aria-hidden="true">
+        <MenuAvatar src={avatarUrl} size={32} isKids />
+      </div>
+    );
+  }
 
   return (
     <div

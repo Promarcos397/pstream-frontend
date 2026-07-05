@@ -44,11 +44,16 @@ create table if not exists public.profiles (
   name        text        not null,
   avatar_url  text,
   is_kids     boolean     not null default false,
+  is_default  boolean     not null default false, -- ships-with-the-account profile (the Kids one); undeletable
   pin         text,                              -- 4-digit profile lock; null = no lock
   sort_order  integer     not null default 0,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- Idempotency: if an earlier revision of this migration already created the
+-- table without is_default, add it in place.
+alter table public.profiles add column if not exists is_default boolean not null default false;
 
 create index if not exists profiles_user_id_idx on public.profiles (user_id);
 
@@ -105,11 +110,12 @@ where not exists (
 -- an existing profile. sort_order is placed after all of a user's current
 -- profiles so it never becomes the "default" target the stamping step below
 -- picks (that step orders by sort_order asc, then created_at asc).
-insert into public.profiles (user_id, name, is_kids, sort_order)
+insert into public.profiles (user_id, name, is_kids, is_default, sort_order)
 select
   p.user_id,
   'Kids',
   true,
+  true, -- ships with the account; the delete RLS policy below refuses to remove it
   coalesce((select max(p2.sort_order) + 1 from public.profiles p2 where p2.user_id = p.user_id), 0)
 from (select distinct user_id from public.profiles) p
 where not exists (
@@ -242,9 +248,14 @@ begin
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='profiles_update_own') then
     create policy profiles_update_own on public.profiles for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
   end if;
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='profiles_delete_own') then
-    create policy profiles_delete_own on public.profiles for delete using (auth.uid() = user_id);
+  -- Delete excludes is_default rows: the account's built-in Kids profile can
+  -- never be removed, even by a hand-crafted API call. (Drop + recreate so a
+  -- re-run upgrades the policy from the earlier revision without the guard.)
+  if exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='profiles_delete_own') then
+    drop policy profiles_delete_own on public.profiles;
   end if;
+  create policy profiles_delete_own on public.profiles
+    for delete using (auth.uid() = user_id and not is_default);
 end $$;
 
 -- ---------------------------------------------------------------------------

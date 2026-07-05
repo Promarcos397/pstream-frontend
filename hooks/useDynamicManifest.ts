@@ -3,12 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
 import { useGlobalContext } from '../context/GlobalContext';
 import { REQUESTS } from '../constants';
+import { resolveGenreId } from '../data/pageGenres';
 import { getWatchData } from '../components/MovieCardBadges';
 import {
   buildHomeGenreManifest,
   buildMovieSubpageManifest,
   buildTvSubpageManifest,
 } from './genreManifestBuilder';
+import { buildKidsManifest } from './kidsManifestBuilder';
 import { HeroEngine } from '../services/HeroEngine';
 import { isUrlCached, fetchData } from '../services/api';
 
@@ -57,18 +59,50 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
   return result;
 }
 
-// CW: random position 1–3; my-list: fixed row 5; top10: random after row 7, not last; total: 22–26
-function capAndShuffle(rows: SmartRow[], hash: number): SmartRow[] {
+/** Personalized rows must never fall out of the daily budget slice. */
+const isPersonalRow = (r: SmartRow) =>
+  r.key.includes('-personal-') || r.key.startsWith('top-picks');
+
+// CW: random position 1–3; my-list: fixed row 5; personalized rows guaranteed
+// at a 3/7/11/15… rhythm; taste-matched rows favored for the budget cut;
+// top10: random after row 7, not last; total: 22–26
+function capAndShuffle(rows: SmartRow[], hash: number, tasteNames: string[] = []): SmartRow[] {
   const cwRow     = rows.find(r => r.key === 'continue-watching');
   const myListRow = rows.find(r => r.key === 'my-list');
   const top10     = rows.filter(r => r.type === 'top10');
-  const rest      = rows.filter(r => r.key !== 'continue-watching' && r.key !== 'my-list' && r.type !== 'top10');
+  const personal  = rows.filter(r => r.key !== 'continue-watching' && r.key !== 'my-list' && r.type !== 'top10' && isPersonalRow(r));
+  const rest      = rows.filter(r => r.key !== 'continue-watching' && r.key !== 'my-list' && r.type !== 'top10' && !isPersonalRow(r));
   const shuffled  = seededShuffle(rest, hash);
 
   // Total rows: 22–26 (use high bits of hash to avoid correlation with the shuffle seed)
   const total  = 22 + ((hash >>> 16) % 5);
-  const budget = total - (cwRow ? 1 : 0) - (myListRow ? 1 : 0) - top10.length;
-  let base: SmartRow[] = shuffled.slice(0, Math.max(0, budget));
+  const budget = total - (cwRow ? 1 : 0) - (myListRow ? 1 : 0) - top10.length - personal.length;
+
+  // Taste boost: up to a third of the budget goes to rows matching the
+  // profile's top genres, so the daily cut always reflects actual taste
+  // instead of pure chance.
+  let picked: SmartRow[];
+  if (tasteNames.length > 0 && budget > 0) {
+    const matchesTaste = (r: SmartRow) => tasteNames.some(n => r.title.includes(n));
+    const boosted   = shuffled.filter(matchesTaste);
+    const unboosted = shuffled.filter(r => !matchesTaste(r));
+    const boostKeep = boosted.slice(0, Math.min(boosted.length, Math.max(1, Math.floor(budget / 3))));
+    picked = [...boostKeep, ...unboosted.slice(0, Math.max(0, budget - boostKeep.length))];
+    if (picked.length < budget) {
+      picked = [...picked, ...boosted.slice(boostKeep.length, boostKeep.length + (budget - picked.length))];
+    }
+    picked = seededShuffle(picked, hash ^ 0x51ed);
+  } else {
+    picked = shuffled.slice(0, Math.max(0, budget));
+  }
+
+  let base: SmartRow[] = picked;
+
+  // Personalized rows land on a Netflix-like rhythm: rows 4, 8, 12, 16…
+  personal.forEach((row, i) => {
+    const at = Math.min(3 + i * 4, base.length);
+    base = [...base.slice(0, at), row, ...base.slice(at)];
+  });
 
   // Insert CW at row 1, 2, or 3 (index 0, 1, or 2)
   if (cwRow) {
@@ -94,6 +128,19 @@ function capAndShuffle(rows: SmartRow[], hash: number): SmartRow[] {
   return base;
 }
 
+// Genre-id → title-substring matchers used by the taste boost. Substrings are
+// deliberately loose ("Comed" hits Comedy/Comedies, "Animat" hits
+// Animated/Animation) so row titles written in natural language still match.
+const TASTE_MATCHERS: Record<number, string[]> = {
+  28: ['Action'], 12: ['Adventure'], 16: ['Anime', 'Animat'], 35: ['Comed'],
+  80: ['Crime', 'Heist'], 99: ['Documentar'], 18: ['Drama'], 10751: ['Family'],
+  14: ['Fantasy', 'Magic'], 36: ['Histor'], 27: ['Horror', 'Scary', 'Fright'],
+  10402: ['Music'], 9648: ['Myster'], 10749: ['Roman', 'Love'],
+  878: ['Sci-Fi', 'Science Fiction', 'Space'], 53: ['Thriller'], 10752: ['War'],
+  37: ['Western'], 10759: ['Action'], 10765: ['Sci-Fi', 'Fantasy'],
+  10764: ['Reality'], 10762: ['Kids', 'Family'],
+};
+
 // ─── useDynamicManifest ───────────────────────────────────────────────────────
 export const useDynamicManifest = (
   pageType: 'home' | 'movie' | 'tv' | 'new_popular',
@@ -102,7 +149,7 @@ export const useDynamicManifest = (
 ) => {
   const { t } = useTranslation();
   const {
-    continueWatching, myList, user,
+    continueWatching, myList, user, activeProfile, isKidsMode,
     getLikedMovies, clearSeenIds,
     getVideoState, getLastWatchedEpisode,
   } = useGlobalContext();
@@ -123,6 +170,24 @@ export const useDynamicManifest = (
 
     const hash = getDailyHash();
     const year = new Date().getFullYear();
+    const likedEntries = getLikedMovies();
+
+    // ── 0. TASTE PROFILE ──────────────────────────────────────────────────────
+    // Weighted genre scoring across everything the profile has touched:
+    // loves > likes > continue watching > my list. Drives the "Top Picks for
+    // {name}" row and biases the daily row cut toward the profile's taste.
+    const tasteScores: Record<number, number> = {};
+    const bumpTaste = (ids: number[] | undefined, w: number) =>
+      ids?.forEach(id => { tasteScores[id] = (tasteScores[id] || 0) + w; });
+    continueWatching.forEach(m => bumpTaste(m.genre_ids, 2));
+    myList.forEach(m => bumpTaste(m.genre_ids, 1));
+    likedEntries.forEach(e => bumpTaste(e.movie?.genre_ids, e.rating === 'love' ? 4 : 3));
+    const topTaste = Object.entries(tasteScores)
+      .map(([id, score]) => ({ id: Number(id), score }))
+      .filter(tst => TASTE_MATCHERS[tst.id])
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+    const tasteNames = topTaste.flatMap(tst => TASTE_MATCHERS[tst.id]);
 
     // ── 1. COMFORT ROWS ───────────────────────────────────────────────────────
     let continueWatchingRow: SmartRow | null = null;
@@ -137,8 +202,10 @@ export const useDynamicManifest = (
         ? activelyWatching.filter(m => m.genre_ids?.includes(selectedGenreId))
         : activelyWatching;
       if (filtered.length > 0) {
-        const title = user?.display_name
-          ? t('rows.continueWatchingUser', { name: user.display_name, defaultValue: `Here's Where You Left Off, ${user.display_name}` })
+        // Netflix titles this row per profile ("Continue watching for Julian").
+        const watcherName = activeProfile?.name || user?.display_name;
+        const title = watcherName
+          ? t('rows.continueWatchingUser', { name: watcherName, defaultValue: `Here's Where You Left Off, ${watcherName}` })
           : t('rows.continueWatching', { defaultValue: "Here's Where You Left Off" });
         continueWatchingRow = { key: 'continue-watching', title, data: filtered };
       }
@@ -151,6 +218,34 @@ export const useDynamicManifest = (
       if (selectedGenreId)      filteredList = filteredList.filter(m => m.genre_ids?.includes(selectedGenreId));
       if (filteredList.length > 0)
         myListRow = { key: 'my-list', title: t('rows.myList', { defaultValue: 'My List' }), data: filteredList };
+    }
+
+    // ── KIDS MODE ─────────────────────────────────────────────────────────────
+    // The standard pools are adult-leaning and get emptied by the kids content
+    // filter (blank Series/Films pages). Serve a dedicated kids catalog instead.
+    if (isKidsMode) {
+      return buildKidsManifest(pageType, {
+        year, continueWatchingRow, myListRow, selectedGenreId, selectedGenreName,
+        hash, continueWatching, profileName: activeProfile?.name,
+      });
+    }
+
+    // "Top Picks for {name}" — Netflix's signature taste row, built from the
+    // profile's strongest genre with a high quality floor. Guaranteed placement
+    // via capAndShuffle's personalized-row rhythm.
+    let topPicksRow: SmartRow | null = null;
+    if (topTaste.length > 0 && user && pageType !== 'new_popular') {
+      const media: 'movie' | 'tv' =
+        pageType === 'tv' ? 'tv' : pageType === 'movie' ? 'movie' : (hash % 2 === 0 ? 'movie' : 'tv');
+      const resolvedId = resolveGenreId(media, topTaste[0].id);
+      const pickName = activeProfile?.name || user?.display_name;
+      topPicksRow = {
+        key: 'top-picks-profile',
+        title: pickName
+          ? t('rows.topPicksFor', { name: pickName, defaultValue: `Top Picks for ${pickName}` })
+          : t('rows.topPicks', { defaultValue: 'Top Picks for You' }),
+        fetchUrl: REQUESTS.fetchByGenre(media, resolvedId, 'popularity.desc', '&vote_count.gte=200'),
+      };
     }
 
     // ── 2. NEW & POPULAR PAGE ─────────────────────────────────────────────────
@@ -235,12 +330,13 @@ export const useDynamicManifest = (
         addRow,
         continueWatching,
         myList,
-        likedEntries: getLikedMovies(),
+        likedEntries,
         continueWatchingRow,
         myListRow,
       });
 
-      return capAndShuffle(manifest, hash);
+      if (topPicksRow) manifest.push(topPicksRow);
+      return capAndShuffle(manifest, hash, tasteNames);
     }
 
     // ── 4. MOVIE SUBPAGE PERSONALIZATION ENGINE ───────────────────────────────
@@ -255,12 +351,13 @@ export const useDynamicManifest = (
         addRow,
         continueWatching,
         myList,
-        likedEntries: getLikedMovies(),
+        likedEntries,
         continueWatchingRow,
         myListRow,
       });
 
-      return capAndShuffle(manifest, hash);
+      if (topPicksRow) manifest.push(topPicksRow);
+      return capAndShuffle(manifest, hash, tasteNames);
     }
 
     // ── 5. TV SUBPAGE PERSONALIZATION ENGINE ──────────────────────────────────
@@ -275,16 +372,17 @@ export const useDynamicManifest = (
         addRow,
         continueWatching,
         myList,
-        likedEntries: getLikedMovies(),
+        likedEntries,
         continueWatchingRow,
         myListRow,
       });
 
-      return capAndShuffle(manifest, hash);
+      if (topPicksRow) manifest.push(topPicksRow);
+      return capAndShuffle(manifest, hash, tasteNames);
     }
 
     return manifest;
-  }, [pageType, selectedGenreId, selectedGenreName, continueWatching, myList, user, getLikedMovies, t]);
+  }, [pageType, selectedGenreId, selectedGenreName, continueWatching, myList, user, activeProfile, isKidsMode, getLikedMovies, t]);
 
   // Prefetch ALL rows (page 1 + page 2) at manifest-build time so Row components
   // join in-flight requests instead of starting new ones when they mount.
@@ -301,7 +399,7 @@ export const useDynamicManifest = (
     HeroEngine.prefetchAll();
   }, [rows]);
 
-  const cacheKey = `${pageType}-${selectedGenreId || 'all'}`;
+  const cacheKey = `${isKidsMode ? 'kids-' : ''}${pageType}-${selectedGenreId || 'all'}`;
   const alreadyVisited = useMemo(() => visitedCache.has(cacheKey), [cacheKey]);
 
   // Synchronously verify if hero and the first 3 rows' API responses are already cached

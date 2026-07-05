@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TranslateIcon, SubtitlesIcon, PlayCircleIcon, CaretRightIcon, ClockIcon, ShieldCheckIcon, IdentificationCardIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
+import KidsAvatar from '../components/profiles/KidsAvatar';
 
 export type SettingsView = 'menu' | 'profile' | 'appearance' | 'playback' | 'subtitle' | 'language' | 'account' | 'activity' | 'privacy' | 'transfer';
 
@@ -49,7 +50,11 @@ const MenuRow: React.FC<{
 
 const SettingsMenu: React.FC<SettingsMenuProps> = ({ onNavigate }) => {
     const { t } = useTranslation();
-    const { settings } = useGlobalContext();
+    const { settings, activeProfile } = useGlobalContext();
+
+    // Active profile first; legacy account-wide avatar as fallback.
+    const showKidsTile = !!activeProfile?.isKids && !activeProfile?.avatarUrl;
+    const avatarUrl = activeProfile?.avatarUrl || settings.avatarUrl;
 
     return (
         <div className="space-y-10 animate-fadeIn h-full pb-20">
@@ -60,9 +65,17 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onNavigate }) => {
                     onClick={() => onNavigate('account')}
                     className="w-full flex items-center gap-5 p-6 text-left transition-colors hover:bg-gray-50 group active:scale-[0.99]"
                 >
-                    <Avatar src={settings.avatarUrl} size={52} />
+                    {showKidsTile ? (
+                        <div className="rounded-md overflow-hidden shrink-0 border border-gray-100 shadow-sm" style={{ width: 52, height: 52 }}>
+                            <KidsAvatar size={52} />
+                        </div>
+                    ) : (
+                        <Avatar src={avatarUrl} size={52} />
+                    )}
                     <div className="flex-1">
-                        <span className="block text-base font-bold text-gray-900">{t('settings.manageAccount')}</span>
+                        <span className="block text-base font-bold text-gray-900">
+                            {activeProfile?.name || t('settings.manageAccount')}
+                        </span>
                         <span className="block text-[13px] text-gray-500 mt-1 font-medium">{t('settings.account')}</span>
                     </div>
                     <CaretRightIcon size={18} className="text-gray-300 group-hover:text-gray-600 transition-colors" weight="bold" />

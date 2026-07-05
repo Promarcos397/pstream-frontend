@@ -13,6 +13,8 @@ import { useCastStore } from '../store/useCastStore';
 import KidsBadge from './profiles/KidsBadge';
 import KidsAvatar from './profiles/KidsAvatar';
 import BottomNavMobile, { BottomNavItem } from './BottomNavMobile';
+import ProfileSheetMobile from './profiles/ProfileSheetMobile';
+import { CaretDownIcon } from '@phosphor-icons/react';
 // removing red pulsing underline from Nav
 // ─── Component ────────────────────────────────────────────────────────────────
 interface NavbarMobileProps {
@@ -124,6 +126,8 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   const avatarUrl     = activeProfile?.avatarUrl || settings.avatarUrl || DEFAULT_AVATAR;
   const avatarInitial = (activeProfile?.name?.[0] || settings.displayName?.[0] || user?.display_name?.[0] || 'P').toUpperCase();
   const avatarLoaded  = useAvatarReady(avatarUrl);
+  const [profileSheetOpen, setProfileSheetOpen] = useState(false);
+  const isSettingsPage = location.pathname.startsWith('/settings');
 
   if (location.pathname === '/login') return null;
 
@@ -256,23 +260,51 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
                   className="h-[38px] w-auto cursor-pointer select-none transition-transform active:scale-95"
                 />
               )}
-              <span className="text-[21px] font-[350] tracking-wide text-white select-none font-sans">
-                {(() => {
-                  const path = location.pathname;
-                  if (path === '/' || path === '/browse') return t('nav.home', { defaultValue: 'Home' });
+              {isSettingsPage && activeProfile ? (
+                /* Netflix "My Netflix" header: avatar + name + caret opens the profile sheet */
+                <button
+                  onClick={() => setProfileSheetOpen(true)}
+                  className="flex items-center gap-2.5 active:scale-[0.98] transition-transform"
+                >
+                  <div className="w-[30px] h-[30px] rounded-[8px] overflow-hidden shrink-0">
+                    {showKidsTile ? (
+                      <KidsAvatar size={30} />
+                    ) : (
+                      <img src={avatarUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    )}
+                  </div>
+                  <span className="text-[21px] font-bold text-white select-none">{activeProfile.name}</span>
+                  <CaretDownIcon size={14} weight="fill" className="text-white mt-0.5" />
+                </button>
+              ) : (() => {
+                const path = location.pathname;
+                const isHome = path === '/' || path === '/browse';
+                // Kids-mode HOME: the P emblem already sits to the left, so the
+                // header reads just "P kids" — no "Home" word, badge sized up.
+                if (isKidsMode && isHome) {
+                  return <KidsBadge size={22} />;
+                }
+                const titleText = (() => {
+                  if (isHome) return t('nav.home', { defaultValue: 'Home' });
                   if (path === '/browse/my-list') return t('nav.myList', { defaultValue: 'My List' });
                   if (path === '/browse/series') return t('nav.shows', { defaultValue: 'Series' });
                   if (path === '/browse/films') return t('nav.movies', { defaultValue: 'Films' });
                   if (path === '/latest') return t('nav.newPopular', { defaultValue: 'New & Hot' });
-                  if (path.startsWith('/settings')) return t('nav.profile', { defaultValue: 'Profile' });
                   if (activeTab === 'home') return t('nav.home', { defaultValue: 'Home' });
                   if (activeTab === 'list') return t('nav.myList', { defaultValue: 'My List' });
                   if (activeTab === 'settings') return t('nav.profile', { defaultValue: 'Profile' });
                   const segment = path.split('/').filter(Boolean)[0];
                   return segment ? segment.charAt(0).toUpperCase() + segment.slice(1) : '';
-                })()}
-              </span>
-              {isKidsMode && <KidsBadge size={13} />}
+                })();
+                return (
+                  <>
+                    <span className="text-[21px] font-[350] tracking-wide text-white select-none font-sans">
+                      {titleText}
+                    </span>
+                    {isKidsMode && <KidsBadge size={15} />}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Cast Icons */}
@@ -342,6 +374,9 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
       {/* ── Bottom Nav ──────────────────────────────────────────────────────── */}
       <BottomNavMobile items={bottomNavItems} activeId={activeBottomNavId} />
+
+      {/* ── Profile bottom sheet (opened from the settings-page header) ─────── */}
+      <ProfileSheetMobile open={profileSheetOpen} onClose={() => setProfileSheetOpen(false)} />
     </>
   );
 };

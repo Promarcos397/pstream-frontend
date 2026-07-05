@@ -18,6 +18,23 @@ const GENRE_NAMES: Record<number, string> = {
   10764: 'Reality', 10763: 'News', 10766: 'Soap', 10767: 'Talk', 10762: 'Kids',
 };
 
+/**
+ * Hash-rotated seed picker for "Because you watched/liked" rows: spreads the
+ * picks across the pool (not just the newest item) and rotates them with the
+ * daily hash, so the page recommends off different titles day to day while
+ * staying deterministic within a session.
+ */
+export const pickPersonalSeeds = <T,>(items: T[], hash: number, count: number): T[] => {
+  if (items.length === 0 || count <= 0) return [];
+  if (items.length <= count) return items.slice(0, count);
+  const step = Math.max(1, Math.floor(items.length / count));
+  const picked = new Set<T>();
+  for (let i = 0; i < count; i++) {
+    picked.add(items[(hash + i * step) % items.length]);
+  }
+  return [...picked];
+};
+
 
 export const sanitizeTmdbQuery = (extra: string, mediaType: 'movie' | 'tv'): string => {
   if (!extra) return extra;
@@ -1791,10 +1808,10 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
     personalRows.push({ row: continueWatchingRow, targetIndex: 1 });
   }
 
-  // “Because you watched” → row 4
-  continueWatching.forEach((m) => {
-    if (personalRows.some(p => p.row.key.startsWith('home-genre-personal-watched'))) return;
-    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
+  // “Because you watched” → up to 2 rows (4 and 8), seeds rotate daily
+  const watchedEligible = continueWatching.filter(m =>
+    !selectedGenreId || (m.genre_ids && m.genre_ids.includes(selectedGenreId)));
+  pickPersonalSeeds(watchedEligible, hash, 2).forEach((m, i) => {
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     const url = REQUESTS.fetchRecommendations(isTV ? 'tv' : 'movie', m.id);
     const sig = makeUrlSig(url);
@@ -1802,16 +1819,16 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
       usedUrls.add(sig);
       personalRows.push({
         row: { key: `home-genre-personal-watched-${m.id}`, title: `Because you watched ${m.title || m.name}`, fetchUrl: url },
-        targetIndex: 4,
+        targetIndex: i === 0 ? 4 : 8,
       });
     }
   });
 
-  // “Because you liked” → row 7
-  likedEntries.forEach((entry) => {
-    if (personalRows.some(p => p.row.key.startsWith('home-genre-personal-liked'))) return;
-    const m = entry.movie;
-    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
+  // “Because you liked” → up to 2 rows (7 and 13), seeds rotate daily
+  const likedEligible = likedEntries
+    .map(e => e.movie)
+    .filter((m: Movie) => m && (!selectedGenreId || (m.genre_ids && m.genre_ids.includes(selectedGenreId))));
+  pickPersonalSeeds(likedEligible, hash ^ 0x2f7c, 2).forEach((m: Movie, i: number) => {
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
     const url = REQUESTS.fetchRecommendations(isTV ? 'tv' : 'movie', m.id);
     const sig = makeUrlSig(url);
@@ -1819,7 +1836,7 @@ export const buildHomeGenreManifest = (opts: BuildHomeGenreManifestOpts): void =
       usedUrls.add(sig);
       personalRows.push({
         row: { key: `home-genre-personal-liked-${m.id}`, title: `Because you liked ${m.title || m.name}`, fetchUrl: url },
-        targetIndex: 7,
+        targetIndex: i === 0 ? 7 : 13,
       });
     }
   });
@@ -2214,17 +2231,16 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     CW_at_top = true;
   }
 
-  let watchRowsCount = 0;
-  continueWatching.forEach((m) => {
-    if (watchRowsCount >= 1) return;
+  // Up to 2 "Because you watched" rows, seeds rotating daily with the hash.
+  const watchedMovieSeeds = continueWatching.filter((m) => {
     const isMovie = m.media_type === 'movie' || (!m.media_type && !!m.title);
-    if (!isMovie) return;
-    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
-
+    if (!isMovie) return false;
+    return !selectedGenreId || (m.genre_ids && m.genre_ids.includes(selectedGenreId));
+  });
+  pickPersonalSeeds(watchedMovieSeeds, hash, 2).forEach((m) => {
     const url = REQUESTS.fetchRecommendations('movie', m.id);
-    const sig = makeUrlSig(url);
-    if (!usedUrls.has(sig)) {
-      watchRowsCount++;
+    // addRow dedups via usedUrls itself — no pre-add, or it would self-block.
+    if (!usedUrls.has(makeUrlSig(url))) {
       addRow({
         key: `movie-personal-watched-${m.id}`,
         title: `Because you watched ${m.title || m.name}`,
@@ -2237,18 +2253,20 @@ export const buildMovieSubpageManifest = (opts: BuildHomeGenreManifestOpts): voi
     addRow(filteredContinueWatchingRow);
   }
 
-  let likedRowsCount = 0;
-  likedEntries.forEach((entry) => {
-    if (likedRowsCount >= 1) return;
-    const m = entry.movie;
-    const isMovie = m.media_type === 'movie' || (!m.media_type && !!m.title);
-    if (!isMovie) return;
-    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
-
+  // Up to 2 "Because you liked" rows, offset-rotated so they differ from the
+  // watched seeds even when both pools overlap.
+  const likedMovieSeeds = likedEntries
+    .map(e => e.movie)
+    .filter((m: Movie) => {
+      if (!m) return false;
+      const isMovie = m.media_type === 'movie' || (!m.media_type && !!m.title);
+      if (!isMovie) return false;
+      return !selectedGenreId || (m.genre_ids && m.genre_ids.includes(selectedGenreId));
+    });
+  pickPersonalSeeds(likedMovieSeeds, hash ^ 0x2f7c, 2).forEach((m: Movie) => {
     const url = REQUESTS.fetchRecommendations('movie', m.id);
-    const sig = makeUrlSig(url);
-    if (!usedUrls.has(sig)) {
-      likedRowsCount++;
+    // addRow dedups via usedUrls itself — no pre-add, or it would self-block.
+    if (!usedUrls.has(makeUrlSig(url))) {
       addRow({
         key: `movie-personal-liked-${m.id}`,
         title: `Because you liked ${m.title || m.name}`,
@@ -2870,37 +2888,41 @@ export const buildTvSubpageManifest = (opts: BuildHomeGenreManifestOpts): void =
     personalRows.push({ row: filteredContinueWatchingRow, targetIndex: 1 });
   }
 
-  // Because you watched → row 4
-  continueWatching.forEach((m) => {
-    if (personalRows.some(p => p.row.key.startsWith('tv-personal-watched'))) return;
+  // Because you watched → up to 2 rows (4 and 8), seeds rotating daily
+  const watchedTvSeeds = continueWatching.filter((m) => {
     const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
-    if (!isTV) return;
-    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
+    if (!isTV) return false;
+    return !selectedGenreId || (m.genre_ids && m.genre_ids.includes(selectedGenreId));
+  });
+  pickPersonalSeeds(watchedTvSeeds, hash, 2).forEach((m, i) => {
     const url = REQUESTS.fetchRecommendations('tv', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
       usedUrls.add(sig);
       personalRows.push({
         row: { key: `tv-personal-watched-${m.id}`, title: `Because you watched ${m.title || m.name}`, fetchUrl: url },
-        targetIndex: 4,
+        targetIndex: i === 0 ? 4 : 8,
       });
     }
   });
 
-  // Because you liked → row 7
-  likedEntries.forEach((entry) => {
-    if (personalRows.some(p => p.row.key.startsWith('tv-personal-liked'))) return;
-    const m = entry.movie;
-    const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
-    if (!isTV) return;
-    if (selectedGenreId && (!m.genre_ids || !m.genre_ids.includes(selectedGenreId))) return;
+  // Because you liked → up to 2 rows (7 and 13), offset-rotated
+  const likedTvSeeds = likedEntries
+    .map(e => e.movie)
+    .filter((m: Movie) => {
+      if (!m) return false;
+      const isTV = m.media_type === 'tv' || (!m.media_type && !m.title);
+      if (!isTV) return false;
+      return !selectedGenreId || (m.genre_ids && m.genre_ids.includes(selectedGenreId));
+    });
+  pickPersonalSeeds(likedTvSeeds, hash ^ 0x2f7c, 2).forEach((m: Movie, i: number) => {
     const url = REQUESTS.fetchRecommendations('tv', m.id);
     const sig = makeUrlSig(url);
     if (!usedUrls.has(sig)) {
       usedUrls.add(sig);
       personalRows.push({
         row: { key: `tv-personal-liked-${m.id}`, title: `Because you liked ${m.title || m.name}`, fetchUrl: url },
-        targetIndex: 7,
+        targetIndex: i === 0 ? 7 : 13,
       });
     }
   });
