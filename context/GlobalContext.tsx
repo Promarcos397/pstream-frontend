@@ -65,6 +65,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const settings = useSettingsStore(s => s.settings);
   const globalMute = useSettingsStore(s => s.globalMute);
   const updateSettings = useSettingsStore(s => s.updateSettings);
+  const loadSettingsForProfile = useSettingsStore(s => s.loadSettingsForProfile);
   const setGlobalMuteState = useSettingsStore(s => s.setGlobalMute);
 
   const watchHistory = useWatchStore(s => s.history);
@@ -97,6 +98,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => {
     setGlobalKidsMode(!!activeProfile?.isKids);
   }, [activeProfile?.isKids]);
+
+  // Subtitle/playback/language prefs are scoped per profile — reload them
+  // whenever the active profile changes (falls back to whatever's already
+  // loaded if this profile has never saved its own).
+  useEffect(() => {
+    if (activeProfileId) loadSettingsForProfile(activeProfileId);
+  }, [activeProfileId, loadSettingsForProfile]);
 
   const setGlobalMute = useCallback((mute: boolean) => {
     setGlobalMuteState(mute);

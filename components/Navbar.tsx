@@ -8,6 +8,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { useGlobalContext } from '../context/GlobalContext';
 import NavbarMobile from './NavbarMobile';
 import NavbarProfileMenu from './profiles/NavbarProfileMenu';
+import NotificationsDropdown from './NotificationsDropdown';
 
 interface NavbarProps {
   isScrolled: boolean;
@@ -81,7 +82,7 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);
     startTransition(() => {
-      if (tabId === 'settings')  navigate('/settings');
+      if (tabId === 'settings')  navigate('/settings/overview');
       else if (tabId === 'home') navigate('/browse');
       else if (tabId === 'tv')   navigate('/browse/series');
       else if (tabId === 'movies') navigate('/browse/films');
@@ -156,7 +157,8 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled, searchQuery, setSearchQuery
             </button>
           ) : (
             <>
-              {/* Reference order: search → kids tile (profile menu) → red Exit Kids */}
+              {/* Reference order: search → bell (notifications) → profile menu → red Exit Kids */}
+              {!isKidsMode && <NotificationsDropdown />}
               <NavbarProfileMenu />
               {isKidsMode && (
                 <button

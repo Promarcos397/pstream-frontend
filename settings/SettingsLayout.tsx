@@ -10,6 +10,8 @@ import SubtitleSection from './SubtitleSection';
 import PlaybackSection from './PlaybackSection';
 import LanguageSection from './LanguageSection';
 import AccountSection from './AccountSection';
+import AccountDetailsSection from './AccountDetailsSection';
+import NotificationsSection from './NotificationsSection';
 import ViewingActivitySection from './ViewingActivitySection';
 import PrivacySection from './PrivacySection';
 import ProfileTransferSection from './ProfileTransferSection';
@@ -17,20 +19,24 @@ import { AppSettings } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useGlobalContext } from '../context/GlobalContext';
 import ProfileManager from '../components/profiles/ProfileManager';
+import MyNetflixSection from './MyNetflixSection';
 import { DEFAULT_AVATAR } from '../constants';
 import pstreamLogo from '../assets/logos/pstream-logo.svg';
+import { Movie } from '../types';
 
 interface SettingsLayoutProps {
     settings: AppSettings;
     updateSettings: (s: Partial<AppSettings>) => void;
     continueWatching: any[];
     onReset: () => void;
+    onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
+    onPlay: (movie: Movie) => void;
 }
 
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23bbb'/%3E%3Cellipse cx='50' cy='85' rx='28' ry='22' fill='%23bbb'/%3E%3C/svg%3E";
 
 /* ── Sidebar navigation items ──────────────────────────────── */
-type SettingsView = 'overview' | 'manage' | 'profiles' | 'profile-edit' | 'profile-avatar' | 'language' | 'subtitle' | 'playback' | 'activity' | 'privacy' | 'transfer';
+type SettingsView = 'my-netflix' | 'overview' | 'manage' | 'profiles' | 'profile-edit' | 'profile-avatar' | 'language' | 'subtitle' | 'playback' | 'activity' | 'privacy' | 'transfer' | 'account-details' | 'notifications';
 
 interface NavItem {
     id: SettingsView;
@@ -74,38 +80,47 @@ const Avatar: React.FC<{ src?: string; size?: number; className?: string; onClic
 import { useIsMobile } from '../hooks/useIsMobile';
 
 /* ── Main Settings Layout ──────────────────────────────────── */
-const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSettings, continueWatching }) => {
+const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSettings, continueWatching, onSelectMovie, onPlay }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { t } = useTranslation();
     const { user } = useGlobalContext();
     const isMobile = useIsMobile(1024); // Threshold for sidebar-like layout vs mobile stack
 
-    // Parse the current view from URL
+    // Parse the current view from URL. Bare /settings is the "My Netflix"
+    // activity feed (reached from the bottom nav's Profile tab); the real
+    // account/preferences page now lives one level deeper at /settings/overview,
+    // reached via that feed's "Edit Profile" entry point.
     const pathParts = location.pathname.replace(/\/$/, '').split('/');
     const segments = pathParts.slice(2); // after /settings/
-    let currentView: SettingsView = 'overview';
+    let currentView: SettingsView = 'my-netflix';
     if (segments.length >= 2 && segments[0] === 'profile') {
         if (segments[1] === 'edit' || segments[1] === 'profiles') currentView = 'profile-edit';
         else if (segments[1] === 'avatar') currentView = 'profile-avatar';
         else currentView = 'profile-edit';
     } else if (segments.length >= 1 && segments[0]) {
         const viewMap: Record<string, SettingsView> = {
+            'overview': 'overview',
             'profiles': 'manage',
             'language': 'language',
             'subtitle': 'subtitle',
-            'playback': 'playback', 
-            'activity': 'activity', 
+            'playback': 'playback',
+            'activity': 'activity',
             'privacy': 'privacy',
-            'transfer': 'transfer', 
-            'account': 'overview',
+            'transfer': 'transfer',
+            'account': 'account-details',
+            'notifications': 'notifications',
         };
-        currentView = viewMap[segments[0]] || 'overview';
+        currentView = viewMap[segments[0]] || 'my-netflix';
     }
 
     const handleBack = () => {
-        if (currentView === 'overview') {
+        if (currentView === 'my-netflix') {
             navigate('/');
+        } else if (currentView === 'overview') {
+            // My Netflix is a mobile-only concept (desktop has no bottom nav
+            // Profile tab) — on desktop, back from Account goes straight home.
+            navigate(isMobile ? '/settings' : '/');
         } else {
             navigate('/settings/overview');
         }
@@ -114,7 +129,10 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
     /* ── Page titles ──────────────────────────────────────────── */
     const getTitle = (): { title: string; subtitle: string | null } => {
         switch (currentView) {
+            case 'my-netflix': return { title: t('nav.myNetflix', { defaultValue: 'My Netflix' }), subtitle: null };
             case 'overview': return { title: t('settings.manageAccountPreferences', { defaultValue: 'Manage profile and preferences' }), subtitle: null };
+            case 'account-details': return { title: t('settings.account', { defaultValue: 'Account' }), subtitle: null };
+            case 'notifications': return { title: t('settings.notificationSettings', { defaultValue: 'Notification settings' }), subtitle: null };
             case 'profile-edit': return { title: t('settings.profile', { defaultValue: 'Profile' }), subtitle: t('settings.editProfile', { defaultValue: 'Edit profile' }) };
             case 'profile-avatar': return { title: t('settings.chooseIcon', { defaultValue: 'Choose profile icon' }), subtitle: null };
             case 'language': return { title: t('settings.languages', { defaultValue: 'Languages' }), subtitle: t('settings.languagesSub', { defaultValue: 'Set languages for display and audio' }) };
@@ -137,10 +155,18 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
         return <ProfileManager />;
     }
 
+    // "My Netflix" is a personalized activity feed reached from the mobile
+    // bottom nav's Profile tab — it owns its own mobile-styled layout.
+    // Desktop has no such tab and no bottom nav, so a desktop visitor
+    // landing on bare /settings (e.g. a stale link) sees Account instead.
+    if (currentView === 'my-netflix' && user && isMobile) {
+        return <MyNetflixSection onSelectMovie={onSelectMovie} onPlay={onPlay} />;
+    }
+
     /* ── Render page content ──────────────────────────────────── */
     const renderContent = () => {
         // Protection for guest users
-        const isProtected = ['profile-edit', 'profile-avatar', 'activity', 'privacy', 'transfer'].includes(currentView);
+        const isProtected = ['profile-edit', 'profile-avatar', 'activity', 'privacy', 'transfer', 'account-details'].includes(currentView);
         if (isProtected && !user) {
             return <AccountSection />;
         }
@@ -162,6 +188,10 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ settings, updateSetting
                 return <PrivacySection />;
             case 'transfer':
                 return <ProfileTransferSection />;
+            case 'account-details':
+                return <AccountDetailsSection />;
+            case 'notifications':
+                return <NotificationsSection settings={settings} updateSettings={updateSettings} />;
             case 'overview':
             default:
                 return <AccountSection />;

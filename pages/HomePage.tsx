@@ -12,6 +12,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CategorySubNav, { Genre } from '../components/CategorySubNav';
 import { HOME_MOBILE_GENRES, resolveGenreId, isTvOnlyGenreId, isMovieOnlyGenreId } from '../data/pageGenres';
 import { HeroEngine } from '../services/HeroEngine';
+import { useGlobalContext } from '../context/GlobalContext';
+import { kidsHeroUrl } from '../hooks/kidsManifestBuilder';
 
 interface PageProps {
   onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
@@ -32,6 +34,7 @@ const getDailyHash = (): number => {
 
 const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onViewAll }) => {
   const { t } = useTranslation();
+  const { isKidsMode } = useGlobalContext();
   const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
 
   const { rows, isLoading } = useDynamicManifest('home', selectedGenre?.id, selectedGenre?.name);
@@ -44,7 +47,14 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
     }
   }, [selectedGenre?.id]);
 
-  const heroFetchUrl = selectedGenre
+  // Kids mode never resolves the hero through HOME_MOBILE_GENRES (those are
+  // real adult TMDB genre ids with no kids-safe equivalent on Home yet) and
+  // never falls back to REQUESTS.fetchPopular — that's a raw all-audiences
+  // "popular movies" feed (Interstellar, etc.) with no kids filtering at the
+  // source. Kids mode always rotates through the validated kids catalog.
+  const heroFetchUrl = isKidsMode
+    ? (getDailyHash() % 2 === 0 ? kidsHeroUrl('tv') : kidsHeroUrl('movie'))
+    : selectedGenre
     ? (isTvOnlyGenreId(selectedGenre.id) ? REQUESTS.fetchByGenre('tv', resolveGenreId('tv', selectedGenre.id), 'popularity.desc')
         : isMovieOnlyGenreId(selectedGenre.id) ? REQUESTS.fetchByGenre('movie', resolveGenreId('movie', selectedGenre.id), 'popularity.desc')
         : (getDailyHash() % 2 === 0
@@ -58,7 +68,7 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
     <div className="relative">
       <CategorySubNav
         title={t('nav.home', { defaultValue: 'Home' })}
-        genres={HOME_MOBILE_GENRES}
+        genres={isKidsMode ? [] : HOME_MOBILE_GENRES}
         selectedGenre={selectedGenre}
         onGenreSelect={setSelectedGenre}
         hideGenresOnDesktop
@@ -83,7 +93,7 @@ const HomePage: React.FC<PageProps> = ({ onSelectMovie, onPlay, seekTime, onView
 
       <div className={`transition-opacity duration-300 ${showSkeleton ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <HeroCarousel
-          key={`home-${selectedGenre?.id || 'all'}`}
+          key={`home-${isKidsMode ? 'kids-' : ''}${selectedGenre?.id || 'all'}`}
           onSelect={onSelectMovie}
           onPlay={onPlay}
           fetchUrl={heroFetchUrl}

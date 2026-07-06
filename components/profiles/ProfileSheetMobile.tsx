@@ -1,25 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   XIcon, PlusIcon, PencilSimpleIcon, LockSimpleIcon, CaretRightIcon,
-  GearSixIcon, ClockCounterClockwiseIcon, ShieldCheckIcon, SignOutIcon,
+  GearSixIcon, UserIcon, QuestionIcon, SignOutIcon,
 } from '@phosphor-icons/react';
 import { Profile } from '../../types';
 import { useProfileStore } from '../../store/useProfileStore';
 import { useAuthStore, activateProfile } from '../../store/useAuthStore';
-import AddEditProfileModal from './AddEditProfileModal';
+import ProfileFormPageMobile from './ProfileFormPageMobile';
 import ProfilePinPrompt from './ProfilePinPrompt';
 import KidsAvatar from './KidsAvatar';
 
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23bbb'/%3E%3Cellipse cx='50' cy='85' rx='28' ry='22' fill='%23bbb'/%3E%3C/svg%3E";
 
-const SheetAvatar: React.FC<{ profile: Profile; size: number; radius?: number }> = ({ profile, size, radius = 16 }) => {
+const SheetAvatar: React.FC<{ profile: Profile; size: number; radius?: number; editing?: boolean }> = ({ profile, size, radius = 16, editing }) => {
   const [failed, setFailed] = useState(false);
   return (
     <div
-      className="overflow-hidden shrink-0"
+      className="overflow-hidden shrink-0 relative"
       style={{ width: size, height: size, borderRadius: radius }}
     >
       {profile.isKids && !profile.avatarUrl ? (
@@ -32,6 +32,12 @@ const SheetAvatar: React.FC<{ profile: Profile; size: number; radius?: number }>
           onError={() => setFailed(true)}
           referrerPolicy="no-referrer"
         />
+      )}
+      {/* Edit-mode pencil overlay, per the Netflix reference sheet */}
+      {editing && (
+        <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+          <PencilSimpleIcon size={Math.max(20, size * 0.34)} className="text-white drop-shadow" />
+        </div>
       )}
     </div>
   );
@@ -77,9 +83,13 @@ const ProfileSheetMobile: React.FC<ProfileSheetMobileProps> = ({ open, onClose }
   const otherProfiles = profiles.filter(p => p.id !== activeProfileId);
 
   const [modal, setModal] = useState<{ mode: 'add' | 'edit'; profile?: Profile } | null>(null);
+  const [editMode, setEditMode] = useState(false);
   const [pendingUnlock, setPendingUnlock] = useState<Profile | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Edit mode never survives a close/reopen of the sheet.
+  useEffect(() => { if (!open) setEditMode(false); }, [open]);
 
   const switchTo = (profile: Profile) => {
     if (profile.pin && !unlockedProfileIds.includes(profile.id)) {
@@ -180,13 +190,14 @@ const ProfileSheetMobile: React.FC<ProfileSheetMobileProps> = ({ open, onClose }
                 </button>
               </div>
 
-              {/* Current profile card */}
+              {/* Current profile card — the pencil toggles edit mode, per the
+                  Netflix sheet (pencil overlays on every tile + Finished pill) */}
               {activeProfile && (
                 <div className="relative bg-[#242424] rounded-2xl py-6 mb-6 flex flex-col items-center gap-3">
-                  <SheetAvatar profile={activeProfile} size={96} radius={20} />
+                  <SheetAvatar profile={activeProfile} size={96} radius={20} editing={editMode} />
                   <span className="text-white text-[20px] font-bold">{activeProfile.name}</span>
                   <button
-                    onClick={() => setModal({ mode: 'edit', profile: activeProfile })}
+                    onClick={() => setEditMode(v => !v)}
                     aria-label={t('profiles.editProfile', { defaultValue: 'Edit profile' })}
                     className="absolute top-5 right-5 text-white active:scale-90 transition-transform"
                   >
@@ -195,17 +206,18 @@ const ProfileSheetMobile: React.FC<ProfileSheetMobileProps> = ({ open, onClose }
                 </div>
               )}
 
-              {/* Other profiles + Add */}
+              {/* Other profiles + Add. In edit mode every tile deep-links into
+                  the native manager's edit form for that profile. */}
               <div className="flex justify-center gap-6 mb-7">
                 {otherProfiles.map(p => (
                   <button
                     key={p.id}
-                    onClick={() => switchTo(p)}
+                    onClick={() => (editMode ? manageProfiles() : switchTo(p))}
                     className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
                   >
                     <div className="relative">
-                      <SheetAvatar profile={p} size={64} radius={14} />
-                      {!!p.pin && (
+                      <SheetAvatar profile={p} size={64} radius={14} editing={editMode} />
+                      {!editMode && !!p.pin && (
                         <span className="absolute bottom-1 left-1 w-[16px] h-[16px] rounded-[4px] bg-black/60 backdrop-blur-[2px] flex items-center justify-center">
                           <LockSimpleIcon size={10} weight="fill" className="text-white" />
                         </span>
@@ -214,7 +226,7 @@ const ProfileSheetMobile: React.FC<ProfileSheetMobileProps> = ({ open, onClose }
                     <span className="text-white text-[14px]">{p.name}</span>
                   </button>
                 ))}
-                {canAddMore && (
+                {canAddMore && !editMode && (
                   <button
                     onClick={() => setModal({ mode: 'add' })}
                     className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
@@ -227,29 +239,38 @@ const ProfileSheetMobile: React.FC<ProfileSheetMobileProps> = ({ open, onClose }
                 )}
               </div>
 
-              {/* Manage Profiles pill */}
-              <button
-                onClick={manageProfiles}
-                className="block mx-auto mb-7 px-7 py-3 rounded-full bg-[#2f2f2f] text-white text-[16px] font-semibold active:scale-95 transition-transform"
-              >
-                {t('profiles.manageProfiles', { defaultValue: 'Manage Profiles' })}
-              </button>
+              {/* Edit mode: white Finished pill (Netflix). Normal mode: Manage Profiles pill. */}
+              {editMode ? (
+                <button
+                  onClick={() => setEditMode(false)}
+                  className="block mx-auto mb-7 px-9 py-3 rounded-full bg-white text-black text-[17px] font-bold active:scale-95 transition-transform"
+                >
+                  {t('common.finished', { defaultValue: 'Finished' })}
+                </button>
+              ) : (
+                <button
+                  onClick={manageProfiles}
+                  className="block mx-auto mb-7 px-7 py-3 rounded-full bg-[#2f2f2f] text-white text-[16px] font-semibold active:scale-95 transition-transform"
+                >
+                  {t('profiles.manageProfiles', { defaultValue: 'Manage Profiles' })}
+                </button>
+              )}
 
-              {/* Menu rows */}
+              {/* Menu rows — App Settings / Account / Help / Sign Out, like the reference */}
               <div className="space-y-3">
                 <MenuRow
                   icon={<GearSixIcon size={24} />}
                   label={t('profiles.appSettings', { defaultValue: 'App Settings' })}
-                  onClick={() => go('/settings/overview')}
+                  onClick={() => go('/settings/playback')}
                 />
                 <MenuRow
-                  icon={<ClockCounterClockwiseIcon size={24} />}
-                  label={t('settings.viewingActivity', { defaultValue: 'Viewing activity' })}
-                  onClick={() => go('/settings/activity')}
+                  icon={<UserIcon size={24} />}
+                  label={t('settings.account', { defaultValue: 'Account' })}
+                  onClick={() => go('/settings/account')}
                 />
                 <MenuRow
-                  icon={<ShieldCheckIcon size={24} />}
-                  label={t('settings.privacy', { defaultValue: 'Privacy and data settings' })}
+                  icon={<QuestionIcon size={24} />}
+                  label={t('settings.help', { defaultValue: 'Help' })}
                   onClick={() => go('/settings/privacy')}
                 />
                 <MenuRow
@@ -266,7 +287,8 @@ const ProfileSheetMobile: React.FC<ProfileSheetMobileProps> = ({ open, onClose }
       {/* Edit / Add modal + PIN prompt share the gate's components */}
       <AnimatePresence>
         {modal && (
-          <AddEditProfileModal
+          <ProfileFormPageMobile
+            open={!!modal}
             mode={modal.mode}
             initial={modal.profile}
             saving={saving}

@@ -111,6 +111,9 @@ export interface AppSettings {
   avatarUrl?: string;       // Custom profile avatar path
   displayName?: string;     // Custom profile display name
   isKidsMode?: boolean;     // Account-wide kids mode
+
+  // Notification settings (device-local; see settings/NotificationsSection.tsx)
+  showNewContentBadges: boolean; // "New Episodes" / "Recently Added" ribbons on cards
 }
 
 // A viewing profile under an account ("Who's Watching?").
@@ -125,6 +128,9 @@ export interface Profile {
   isDefault?: boolean;
   pin?: string | null;   // 4-digit profile lock; null/undefined = no lock
   sortOrder: number;
+  // Recently-used avatar icons for this profile, most recent first — powers
+  // the "History" row on the Choose Icon page.
+  avatarHistory?: string[];
 }
 
 // Streaming types

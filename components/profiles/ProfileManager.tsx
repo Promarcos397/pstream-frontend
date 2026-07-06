@@ -7,6 +7,7 @@ import { Profile } from '../../types';
 import { useProfileStore } from '../../store/useProfileStore';
 import { AVATAR_CATEGORIES, ALL_AVATARS, DEFAULT_AVATAR } from '../../constants';
 import { preloadAvatars } from '../../utils/avatarCache';
+import { ToggleSwitch } from '../../ui/SettingsUI';
 import KidsAvatar from './KidsAvatar';
 import KidsBadge from './KidsBadge';
 
@@ -220,14 +221,13 @@ const ProfileForm: React.FC<{
               {t('profiles.kidsProfileDesc', { defaultValue: 'Made for children 12 and under, but parents have all the control.' })}
             </span>
           </div>
-          <button
-            onClick={() => !isDefaultKids && setIsKids(v => !v)}
-            disabled={isDefaultKids}
-            className={`mt-1 w-[52px] h-[30px] rounded-full shrink-0 relative transition-colors ${isKids ? 'bg-[#2f80ff]' : 'bg-white/20 md:bg-gray-300'} ${isDefaultKids ? 'opacity-60' : ''}`}
-            aria-pressed={isKids}
-          >
-            <span className={`absolute top-[3px] w-6 h-6 rounded-full bg-white transition-all ${isKids ? 'left-[25px]' : 'left-[3px]'}`} />
-          </button>
+          <div className="mt-1">
+            <ToggleSwitch
+              checked={isKids}
+              onChange={isDefaultKids ? undefined : () => setIsKids(v => !v)}
+              disabled={isDefaultKids}
+            />
+          </div>
         </div>
         {isDefaultKids && (
           <p className="mt-2 w-full text-white/35 md:text-gray-400 text-[12px]">

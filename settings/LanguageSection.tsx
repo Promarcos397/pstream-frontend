@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { AppSettings } from '../types';
 import { DISPLAY_LANGUAGES, SUBTITLE_LANGUAGES } from '../constants';
 import { CheckIcon, CaretDownIcon } from '@phosphor-icons/react';
+import { useGlobalContext } from '../context/GlobalContext';
+import { DEFAULT_AVATAR } from '../constants';
+import KidsAvatar from '../components/profiles/KidsAvatar';
 
 interface LanguageSectionProps {
     settings: AppSettings;
@@ -11,9 +14,10 @@ interface LanguageSectionProps {
 
 const LanguageSection: React.FC<LanguageSectionProps> = ({ settings, updateSettings }) => {
     const { t } = useTranslation();
+    const { activeProfile } = useGlobalContext();
     const [pendingDisplay, setPendingDisplay] = useState(settings.displayLanguage);
     const [pendingSubtitle, setPendingSubtitle] = useState(settings.subtitleLanguage);
-    
+
     const hasChanges = pendingDisplay !== settings.displayLanguage || pendingSubtitle !== settings.subtitleLanguage;
 
     const handleSave = () => {
@@ -22,6 +26,19 @@ const LanguageSection: React.FC<LanguageSectionProps> = ({ settings, updateSetti
 
     return (
         <div className="text-white md:text-gray-900 animate-fadeIn space-y-12">
+
+            {activeProfile && (
+                <div className="flex items-center gap-2.5 -mt-6">
+                    <span className="text-[15px] text-white/50 md:text-gray-500 font-medium">
+                        {t('settings.forProfile', { defaultValue: 'For {{name}}', name: activeProfile.name })}
+                    </span>
+                    <div className="w-6 h-6 rounded overflow-hidden shrink-0">
+                        {activeProfile.isKids && !activeProfile.avatarUrl
+                            ? <KidsAvatar size={24} />
+                            : <img src={activeProfile.avatarUrl || DEFAULT_AVATAR} alt="" className="w-full h-full object-cover" />}
+                    </div>
+                </div>
+            )}
 
             {/* 1. Display Language */}
             <section>

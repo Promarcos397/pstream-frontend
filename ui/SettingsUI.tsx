@@ -1,7 +1,44 @@
 import React from 'react';
 import { CheckIcon, CaretDownIcon } from '@phosphor-icons/react';
 
-// --- Generic Toggle Switch ---
+// --- Netflix-style pill toggle switch ---
+// The one and only toggle-switch visual in the app: blue track when on,
+// white circular knob with a small blue checkmark inside when on. Every
+// on/off control (playback prefs, kids-profile flag, etc.) renders through
+// this so switches look identical everywhere.
+interface ToggleSwitchProps {
+    checked: boolean;
+    onChange?: () => void;
+    disabled?: boolean;
+    size?: 'sm' | 'md';
+}
+
+export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({ checked, onChange, disabled = false, size = 'md' }) => {
+    const w = size === 'sm' ? 44 : 52;
+    const h = size === 'sm' ? 26 : 30;
+    const knob = size === 'sm' ? 20 : 24;
+    const pad = 3;
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            disabled={disabled}
+            onClick={onChange}
+            style={{ width: w, height: h }}
+            className={`relative shrink-0 rounded-full transition-colors duration-200 ${checked ? 'bg-[#2684FF]' : 'bg-white/20'} ${disabled ? 'opacity-60' : ''} ${!onChange ? 'pointer-events-none' : ''}`}
+        >
+            <span
+                className="absolute top-1/2 -translate-y-1/2 rounded-full bg-white shadow-md flex items-center justify-center transition-all duration-200"
+                style={{ width: knob, height: knob, left: checked ? w - knob - pad : pad }}
+            >
+                {checked && <CheckIcon size={Math.round(knob * 0.55)} weight="bold" className="text-[#2684FF]" />}
+            </span>
+        </button>
+    );
+};
+
+// --- Generic Settings Row w/ Toggle ---
 interface ToggleProps {
     label: string;
     subLabel?: string;
@@ -26,10 +63,7 @@ export const SettingsToggle: React.FC<ToggleProps> = ({ label, subLabel, checked
             </div>
         </div>
 
-        {/* Netflix-style Checkbox */}
-        <div className={`w-6 h-6 border flex items-center justify-center transition-all duration-200 rounded-sm ${checked ? (darkTheme ? 'bg-white border-white' : 'bg-red-600 border-red-600 shadow-md') : (darkTheme ? 'bg-transparent border-white/30 group-hover:border-white/60' : 'bg-white border-gray-300 group-hover:border-gray-500')}`}>
-            <CheckIcon size={18} weight="bold" className={`${darkTheme ? 'text-black' : 'text-white'} transition-transform duration-300 ${checked ? 'scale-100' : 'scale-0'} stroke-[3px]`} />
-        </div>
+        <ToggleSwitch checked={checked} />
     </div>
 );
 

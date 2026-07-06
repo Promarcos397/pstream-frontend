@@ -11,6 +11,7 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import type { Movie } from '../types';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -465,9 +466,9 @@ const _getRecommendationsRaw = async (id: number | string, type: 'movie' | 'tv')
   return promise;
 };
 
-export const getRecommendations = async (id: number | string, type: 'movie' | 'tv') => {
+export const getRecommendations = async (id: number | string, type: 'movie' | 'tv'): Promise<Movie[]> => {
   const results = await _getRecommendationsRaw(id, type);
-  return applyKidsFilter(results);
+  return applyKidsFilter<Movie>(results);
 };
 
 export const getMovieKeywords = async (id: number | string, type: 'movie' | 'tv') => {
@@ -590,9 +591,11 @@ const _fetchDataRaw = async (url: string) => {
   return promise;
 };
 
-export const fetchData = async (url: string) => {
+export const fetchData = async (url: string): Promise<Movie[]> => {
   const results = await _fetchDataRaw(url);
-  return applyKidsFilter(results);
+  // Explicit <Movie> pins the element type — _fetchDataRaw is `any`, and an
+  // implicit generic call would otherwise infer `unknown[]` at every callsite.
+  return applyKidsFilter<Movie>(results);
 };
 
 export default tmdb;

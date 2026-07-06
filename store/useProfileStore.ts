@@ -16,6 +16,7 @@ interface ProfileRow {
   is_default?: boolean; // optional: predates the column on not-yet-remigrated DBs
   pin: string | null;
   sort_order: number;
+  avatar_history?: string[] | null; // optional: predates the column on not-yet-remigrated DBs
 }
 
 const rowToProfile = (r: ProfileRow): Profile => ({
@@ -26,7 +27,16 @@ const rowToProfile = (r: ProfileRow): Profile => ({
   isDefault: !!r.is_default,
   pin: r.pin,
   sortOrder: r.sort_order ?? 0,
+  avatarHistory: r.avatar_history || [],
 });
+
+const MAX_AVATAR_HISTORY = 20;
+
+const withAvatarUsed = (history: string[] | undefined, url: string | undefined): string[] => {
+  if (!url) return history || [];
+  const next = [url, ...(history || []).filter(u => u !== url)];
+  return next.slice(0, MAX_AVATAR_HISTORY);
+};
 
 // PostgREST's "relation not found" — thrown when the `profiles` table
 // migration hasn't been applied to this database yet.
@@ -193,22 +203,26 @@ export const useProfileStore = create<ProfileStore>()(
           is_kids: isKids,
           pin: pin || null,
           sort_order: sortOrder,
+          avatar_history: withAvatarUsed(undefined, avatarUrl),
         };
 
-        let { data, error } = await supabase
-          .from('profiles')
-          .insert(isDefault ? { ...basePayload, is_default: true } : basePayload)
-          .select()
-          .single();
+        let payload: Record<string, any> = isDefault ? { ...basePayload, is_default: true } : basePayload;
+        let { data, error } = await supabase.from('profiles').insert(payload).select().single();
 
-        // Databases migrated with the earlier revision of the SQL lack the
-        // is_default column — retry without it rather than failing the create.
-        if (error && isDefault && /is_default/i.test(error.message || '')) {
-          ({ data, error } = await supabase
-            .from('profiles')
-            .insert(basePayload)
-            .select()
-            .single());
+        // Databases migrated with an earlier revision of the SQL lack the
+        // is_default and/or avatar_history columns — retry without whichever
+        // one PostgREST rejected, rather than failing the create outright.
+        while (error && /column .* does not exist|could not find.*column/i.test(error.message || '')) {
+          if ('is_default' in payload && /is_default/i.test(error.message || '')) {
+            const { is_default: _omit, ...rest } = payload;
+            payload = rest;
+          } else if ('avatar_history' in payload && /avatar_history/i.test(error.message || '')) {
+            const { avatar_history: _omit, ...rest } = payload;
+            payload = rest;
+          } else {
+            break;
+          }
+          ({ data, error } = await supabase.from('profiles').insert(payload).select().single());
         }
 
         if (error || !data) {
@@ -233,10 +247,17 @@ export const useProfileStore = create<ProfileStore>()(
           const { isKids: _ignored, ...rest } = patch;
           patch = rest;
         }
+        // Picking a new avatar folds it into this profile's history (most
+        // recent first, deduped, capped) — powers the Choose Icon "History" row.
+        const nextAvatarHistory = patch.avatarUrl !== undefined
+          ? withAvatarUsed(target?.avatarHistory, patch.avatarUrl)
+          : undefined;
         // Optimistic local update.
         set(state => ({
           profiles: sortProfiles(
-            state.profiles.map(p => (p.id === id ? { ...p, ...patch } : p))
+            state.profiles.map(p => (p.id === id
+              ? { ...p, ...patch, ...(nextAvatarHistory ? { avatarHistory: nextAvatarHistory } : {}) }
+              : p))
           ),
         }));
         if (!user) return;
@@ -246,13 +267,24 @@ export const useProfileStore = create<ProfileStore>()(
         if (patch.avatarUrl !== undefined) dbPatch.avatar_url = patch.avatarUrl || null;
         if (patch.isKids !== undefined) dbPatch.is_kids = patch.isKids;
         if (patch.pin !== undefined) dbPatch.pin = patch.pin || null;
+        if (nextAvatarHistory) dbPatch.avatar_history = nextAvatarHistory;
         dbPatch.updated_at = new Date().toISOString();
 
-        const { error } = await supabase
+        let { error } = await supabase
           .from('profiles')
           .update(dbPatch)
           .eq('id', id)
           .eq('user_id', user.id);
+
+        // Database predates the avatar_history migration — retry without it.
+        if (error && /avatar_history/i.test(error.message || '')) {
+          const { avatar_history: _omit, ...rest } = dbPatch;
+          ({ error } = await supabase
+            .from('profiles')
+            .update(rest)
+            .eq('id', id)
+            .eq('user_id', user.id));
+        }
         if (error) console.error('[Profiles] update failed:', error.message);
       },
 

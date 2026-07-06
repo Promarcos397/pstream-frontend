@@ -97,6 +97,11 @@ const kidsTv = (extra = '', sort = 'popularity.desc') =>
   REQUESTS.fetchByGenre('tv', 10762, sort, extra);
 const network = (netIds: string | number, extra = '', sort = 'popularity.desc') =>
   REQUESTS.fetchByGenre('tv', 10762, sort, `&with_networks=${netIds}${extra}`);
+// Live-action kids TV — Kids genre minus Animation. Validated against TMDB:
+// Henry Danger, Victorious, Good Luck Charlie, Jessie, Goosebumps. This is
+// what keeps the catalog from being "just simple cartoons".
+const kidsTvLive = (extra = '', sort = 'popularity.desc') =>
+  REQUESTS.fetchByGenre('tv', 10762, sort, `&without_genres=16${extra}`);
 // Broad network row — anchored on Animation instead of Kids(10762) so flagship
 // shows tagged only Animation/Action-Adventure (Avatar, DuckTales, Adventure
 // Time) still appear; the client kids filter screens the remainder.
@@ -106,7 +111,10 @@ const networkAll = (netIds: string | number, sort = 'popularity.desc') =>
 /* ── Home rows — the flagship Kids experience ────────────────────────────── */
 
 const homeRows = (year: number): SmartRow[] => [
-  // Netflix Kids' own row names, backed by equivalent queries
+  // Netflix Kids' own row names, backed by equivalent queries.
+  // "Popular" leads like the reference home — a live-action-heavy pop mix
+  // (Henry Danger, Victorious…), not another cartoon row.
+  { key: 'kids-popular',      title: 'Popular',                     fetchUrl: kidsTvLive('&vote_count.gte=50') },
   { key: 'kids-funny',        title: 'Funny',                       fetchUrl: kidsTv('&with_genres=35') },
   { key: 'kids-good-vibes',   title: 'Good Vibes Only',             fetchUrl: movie(`&with_keywords=${KW.FRIENDSHIP}`) },
   { key: 'kids-originals',    title: 'Streaming Originals',         fetchUrl: network(NW.NETFLIX) },
@@ -144,6 +152,13 @@ const homeRows = (year: number): SmartRow[] => [
   { key: 'kids-sports',       title: 'Sports Stars',                fetchUrl: movieNoCert(`&with_keywords=${KW.SPORTS}`) },
   { key: 'kids-sing',         title: 'Singing & Dancing',           fetchUrl: REQUESTS.fetchByGenre('movie', 10402, 'popularity.desc', CERT_PG) },
 
+  // Live-action variety — real kids, real sets, no cartoons (TMDB-validated)
+  { key: 'kids-live-action',  title: 'Live-Action Favourites',      fetchUrl: kidsTvLive() },
+  { key: 'kids-nick-live',    title: 'Nickelodeon Live-Action',     fetchUrl: network(NW.NICKELODEON, '&without_genres=16') },
+  { key: 'kids-tween',        title: 'Sitcoms & Tween Faves',       fetchUrl: network(NW.DISNEY_CHANNEL, '&without_genres=16') },
+  { key: 'kids-gameshows',    title: 'Game Shows & Challenges',     fetchUrl: kidsTv('&with_genres=10764') },
+  { key: 'kids-live-films',   title: 'Live-Action Family Fun',      fetchUrl: movie('&without_genres=16') },
+
   // Freshness + quality anchors
   { key: 'kids-new-films',    title: `New Family Films of ${year}`, fetchUrl: movieNoCert(`&primary_release_date.gte=${year - 1}-01-01`) },
   { key: 'kids-new-series',   title: 'New Kids Series',             fetchUrl: kidsTv(`&first_air_date.gte=${year - 1}-01-01`) },
@@ -174,6 +189,7 @@ const movieRows = (year: number): SmartRow[] => [
   { key: 'kids-books',        title: 'From Beloved Books',          fetchUrl: movieNoCert(`&with_keywords=${KW.CHILDRENS_BOOK}`) },
   { key: 'kids-sing',         title: 'Singing & Dancing',           fetchUrl: REQUESTS.fetchByGenre('movie', 10402, 'popularity.desc', CERT_PG) },
   { key: 'kids-sports',       title: 'Sports Stars',                fetchUrl: movieNoCert(`&with_keywords=${KW.SPORTS}`) },
+  { key: 'kids-live-films',   title: 'Live-Action Family Fun',      fetchUrl: movie('&without_genres=16') },
   { key: 'kids-nick-movies',  title: 'Nickelodeon on the Big Screen', fetchUrl: REQUESTS.fetchByGenre('movie', 10751, 'popularity.desc', `&with_companies=${CO.NICKELODEON_MOVIES}`) },
   { key: 'kids-new-films',    title: `New Family Films of ${year}`, fetchUrl: movieNoCert(`&primary_release_date.gte=${year - 1}-01-01`) },
   { key: 'kids-top-films',    title: 'Critically Loved Family Films', fetchUrl: movieNoCert('&vote_count.gte=300', 'vote_average.desc') },
@@ -184,6 +200,7 @@ const movieRows = (year: number): SmartRow[] => [
 
 const tvRows = (year: number): SmartRow[] => [
   { key: 'kids-series',       title: 'Kids Series',                 fetchUrl: kidsTv('') },
+  { key: 'kids-popular',      title: 'Popular',                     fetchUrl: kidsTvLive('&vote_count.gte=50') },
   { key: 'kids-nick',         title: 'Nickelodeon Favourites',      fetchUrl: networkAll(NW.NICKELODEON) },
   { key: 'kids-funny',        title: 'Funny',                       fetchUrl: kidsTv('&with_genres=35') },
   { key: 'kids-disney-ch',    title: 'Disney Channel Hits',         fetchUrl: networkAll(NW.DISNEY_CHANNEL) },
@@ -198,6 +215,10 @@ const tvRows = (year: number): SmartRow[] => [
   { key: 'kids-dinos-tv',     title: 'Dinosaur World',              fetchUrl: kidsTv(`&with_keywords=${KW.DINOSAUR}`) },
   { key: 'kids-vehicles',     title: 'Cars, Trucks & Trains',       fetchUrl: kidsTv(`&with_keywords=${KW.VEHICLES}`) },
   { key: 'kids-scifi-tv',     title: 'Fantasy & Sci-Fi',            fetchUrl: kidsTv('&with_genres=10765') },
+  { key: 'kids-live-action',  title: 'Live-Action Favourites',      fetchUrl: kidsTvLive() },
+  { key: 'kids-nick-live',    title: 'Nickelodeon Live-Action',     fetchUrl: network(NW.NICKELODEON, '&without_genres=16') },
+  { key: 'kids-tween',        title: 'Sitcoms & Tween Faves',       fetchUrl: network(NW.DISNEY_CHANNEL, '&without_genres=16') },
+  { key: 'kids-gameshows',    title: 'Game Shows & Challenges',     fetchUrl: kidsTv('&with_genres=10764') },
   { key: 'kids-anime',        title: 'Anime for Kids',              fetchUrl: kidsTv(`&with_keywords=${KW.ANIME}`) },
   { key: 'kids-spooky-tv',    title: 'Spooky (But Not Too Scary)',  fetchUrl: kidsTv(`&with_keywords=${KW.SPOOKY}`) },
   { key: 'kids-new-series',   title: `New Kids Series of ${year}`,  fetchUrl: kidsTv(`&first_air_date.gte=${year - 1}-01-01`) },
@@ -442,6 +463,7 @@ export const buildKidsManifest = (
       { key: 'top10-movies',    title: 'Top 10 Films Today',  fetchUrl: REQUESTS.fetchTrendingMovies, type: 'top10' },
       { key: 'top10-tv',        title: 'Top 10 Series Today', fetchUrl: REQUESTS.fetchTrendingTV,     type: 'top10' },
       { key: 'kids-buzz',       title: 'Everyone Is Watching', fetchUrl: kidsTv('') },
+      { key: 'kids-live-action', title: 'Live-Action Favourites', fetchUrl: kidsTvLive('&vote_count.gte=50') },
       { key: 'kids-fresh-anim', title: 'Fresh Animation',     fetchUrl: anim(`&primary_release_date.gte=${year - 1}-01-01`) },
       { key: 'kids-top-films',  title: 'Critically Loved Family Films', fetchUrl: movieNoCert('&vote_count.gte=300', 'vote_average.desc') },
       { key: 'kids-top-series', title: 'Highest-Rated Kids Shows',      fetchUrl: kidsTv('&vote_count.gte=100', 'vote_average.desc') },
@@ -456,7 +478,7 @@ export const buildKidsManifest = (
   const pool = pageType === 'movie' ? movieRows(year)
              : pageType === 'tv'    ? tvRows(year)
              : homeRows(year);
-  const ANCHOR_COUNT = pageType === 'home' ? 5 : 4;
+  const ANCHOR_COUNT = pageType === 'home' ? 6 : 4; // home: Popular + the 5 signature rows
   const anchors   = pool.slice(0, ANCHOR_COUNT);
   const rotating  = seededShuffle(pool.slice(ANCHOR_COUNT), hash);
   // Home caps like the adult manifest (~24 rows); subpages keep their full pool.
@@ -465,10 +487,8 @@ export const buildKidsManifest = (
   manifest.push(...anchors, ...rotatingCapped);
 
   // ── Personalization: Top Picks + Because-you-watched, spliced on a rhythm ─
-  const personal = kidsPersonalRows(
-    pageType === 'new_popular' ? 'home' : pageType,
-    continueWatching, hash, profileName,
-  );
+  // (new_popular already returned above, so pageType is home|movie|tv here)
+  const personal = kidsPersonalRows(pageType, continueWatching, hash, profileName);
   personal.forEach((row, i) => {
     const at = Math.min(2 + i * 4, manifest.length); // rows 3, 7, 11
     manifest.splice(at, 0, row);

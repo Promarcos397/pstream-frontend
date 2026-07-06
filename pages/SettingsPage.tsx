@@ -4,8 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { useGlobalContext, DEFAULT_SETTINGS } from '../context/GlobalContext';
 import SettingsLayout from '../settings/SettingsLayout';
 import { LockSimpleIcon, CaretRightIcon } from '@phosphor-icons/react';
+import { Movie } from '../types';
 
-const SettingsPage: React.FC = () => {
+interface SettingsPageProps {
+    onSelectMovie: (movie: Movie, time?: number, videoId?: string) => void;
+    onPlay: (movie: Movie) => void;
+}
+
+const SettingsPage: React.FC<SettingsPageProps> = ({ onSelectMovie, onPlay }) => {
     const { settings, updateSettings, continueWatching, user } = useGlobalContext();
     const { t } = useTranslation();
     const navigate = useNavigate();
@@ -65,6 +71,8 @@ const SettingsPage: React.FC = () => {
             updateSettings={updateSettings}
             continueWatching={continueWatching}
             onReset={handleReset}
+            onSelectMovie={onSelectMovie}
+            onPlay={onPlay}
         />
     );
 };

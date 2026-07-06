@@ -5,6 +5,7 @@ import { fetchData, isUrlCached } from '../services/api';
 import { useGlobalContext } from '../context/GlobalContext';
 import { SHADOW_BANNED_IDS } from '../constants';
 import MovieCardTouch from './MovieCardTouch';
+import ContinueWatchingOptionsSheet from './ContinueWatchingOptionsSheet';
 // removing tablet and ipad styles and sidebar
 
 interface RowMobileProps {
@@ -26,7 +27,9 @@ const RowMobile: React.FC<RowMobileProps> = ({
   rowKey,
   index = 0
 }) => {
-  const { pageSeenIds, registerSeenIds } = useGlobalContext();
+  const { pageSeenIds, registerSeenIds, clearVideoState } = useGlobalContext();
+  const isContinueWatching = rowKey === 'continue-watching';
+  const [optionsMovie, setOptionsMovie] = useState<Movie | null>(null);
   const [movies, setMovies] = useState<Movie[]>([]);
   const [initialLoad, setInitialLoad] = useState(() => !data && !!fetchUrl && !isUrlCached(fetchUrl));
   const [isHidden, setIsHidden] = useState(false);
@@ -212,7 +215,13 @@ const RowMobile: React.FC<RowMobileProps> = ({
               ))
             : movies.map((movie, idx) => (
                 <div key={`${movie.id}-${idx}`} className="mr-2">
-                  <MovieCardTouch movie={movie} onSelect={onSelect} onPlay={onPlay} />
+                  <MovieCardTouch
+                    movie={movie}
+                    onSelect={onSelect}
+                    onPlay={onPlay}
+                    continueWatching={isContinueWatching}
+                    onOpenOptions={isContinueWatching ? setOptionsMovie : undefined}
+                  />
                 </div>
               ))
           }
@@ -220,6 +229,14 @@ const RowMobile: React.FC<RowMobileProps> = ({
           <div className="flex-none w-6 sm:w-10 h-full pointer-events-none" />
         </div>
       </div>
+
+      {isContinueWatching && (
+        <ContinueWatchingOptionsSheet
+          movie={optionsMovie}
+          onClose={() => setOptionsMovie(null)}
+          onRemove={(movie) => clearVideoState(movie.id)}
+        />
+      )}
     </motion.div>
   );
 };

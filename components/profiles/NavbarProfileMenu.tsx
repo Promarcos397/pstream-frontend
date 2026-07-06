@@ -179,7 +179,7 @@ const NavbarProfileMenu: React.FC = () => {
                   <MenuRow
                     icon={<UserIcon size={20} />}
                     label={t('nav.accountSettings', { defaultValue: 'Account' })}
-                    onClick={() => { setOpen(false); navigate('/settings'); }}
+                    onClick={() => { setOpen(false); navigate('/settings/overview'); }}
                   />
                 </div>
 

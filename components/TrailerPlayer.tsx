@@ -3,11 +3,12 @@ import YouTube from 'react-youtube';
 import { useTrailer } from '../hooks/useTrailer';
 import { useUIStore } from '../store/useUIStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { useTrailerHistoryStore } from '../store/useTrailerHistoryStore';
 import { Movie } from '../types';
 
 const YouTubePlayer = (YouTube as any).default || YouTube;
 
-const DEFAULT_CROP: Record<string, number> = { card: 1.35, hero: 1.15, modal: 1.35 };
+const DEFAULT_CROP: Record<string, number> = { card: 1.35, hero: 1.15, modal: 1.35, clips: 2.2 };
 
 const IS_WEBKIT =
   typeof window !== 'undefined' &&
@@ -18,7 +19,7 @@ const ARTIFICIAL_SCALE = IS_WEBKIT ? 2.2 : 5;
 
 interface TrailerPlayerProps {
     movie: Movie | null;
-    variant?: 'card' | 'hero' | 'modal';
+    variant?: 'card' | 'hero' | 'modal' | 'clips';
     cropFactor?: number;
     onEnded?: () => void;
     onErrored?: () => void;
@@ -30,6 +31,9 @@ interface TrailerPlayerProps {
     onPlayerReady?: (player: any) => void;
     /** Start the trailer at this specific time in seconds (overrides the default intro-skip) */
     initialSeekTime?: number;
+    /** Play this exact video instead of resolving one via useTrailer — used by
+     * the Clips feed, which resolves scene-clips through its own pipeline. */
+    videoIdOverride?: string;
 }
 
 export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
@@ -43,9 +47,11 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     onTimeUpdate,
     onPlayerReady,
     initialSeekTime,
+    videoIdOverride,
 }) => {
     const globalMute = useSettingsStore(s => s.globalMute);
-    const { videoId, isTeaser } = useTrailer(movie);
+    const { videoId: resolvedVideoId, isTeaser } = useTrailer(videoIdOverride ? null : movie);
+    const videoId = videoIdOverride ?? resolvedVideoId;
 
     const playerRef = useRef<any>(null);
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -78,10 +84,13 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     useEffect(() => {
         if (!playerRef.current || typeof playerRef.current.mute !== 'function') return;
         try {
-            if (globalMute) playerRef.current.mute();
+            // Unmute may only ever reach the active video — offscreen players
+            // preloading for the Clips feed must stay silent.
+            const isMyVideo = useUIStore.getState().activeVideoId === `${variant}-${movie?.id}`;
+            if (globalMute || !isMyVideo) playerRef.current.mute();
             else playerRef.current.unMute();
         } catch {}
-    }, [globalMute]);
+    }, [globalMute, variant, movie?.id]);
 
     const activeVideoId = useUIStore(s => s.activeVideoId);
     
@@ -93,15 +102,21 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
         const isDirect = videoId?.startsWith('http');
         
         if (isMyVideo) {
-            try { 
+            try {
                 if (playerRef.current && isLoaded) {
                     if (isDirect) {
-                        playerRef.current.muted = globalMute;
+                        // <video>'s muted attribute is already reactive via JSX
+                        // (muted={globalMute}) — just ensure playback continues.
                         playerRef.current.play().catch(() => {});
                     } else {
-                        // YouTube: Ensure player is ready for commands
+                        // YouTube: Ensure player is ready for commands. Sound is
+                        // restored separately once PLAYING is confirmed (see
+                        // handleStateChange) — calling unMute() together with
+                        // playVideo() here trips the browser's autoplay-with-
+                        // sound gate on a fresh/paused player and leaves it
+                        // stuck showing YouTube's own "tap to play" overlay.
                         if (typeof playerRef.current.getPlayerState === 'function') {
-                            playerRef.current.playVideo(); 
+                            playerRef.current.playVideo();
                         }
                     }
                 }
@@ -119,7 +134,11 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                 }
             } catch {}
         }
-    }, [activeVideoId, movie, variant, videoId, globalMute, isLoaded]);
+    // globalMute intentionally excluded — muting must never re-trigger this
+    // play/pause sync (it was calling playVideo()/interrupting playback on
+    // every mute toggle). Sound is handled by the dedicated mute effect above
+    // and, for YouTube, by handleStateChange once PLAYING is confirmed.
+    }, [activeVideoId, movie, variant, videoId, isLoaded]);
 
     const startTime = React.useMemo(() => {
         // If a specific seek time is provided (e.g. from hero timestamp), use it directly
@@ -153,11 +172,15 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     handlersRef.current = { onReady, onPlay, onEnded, onErrored, onTimeUpdate, onPlayerReady, globalMute, movie, videoId, activeVideoId, variant, isTeaser, initialSeekTime };
 
     const handleReady = React.useCallback((e: any) => {
-        const { globalMute, onReady, onPlayerReady, isTeaser, initialSeekTime } = handlersRef.current;
+        const { globalMute, onReady, onPlayerReady, isTeaser, initialSeekTime, movie, variant, activeVideoId } = handlersRef.current;
         playerRef.current = e.target;
-        
+
+        // Only the ACTIVE video may have sound — a player preloading offscreen
+        // (Clips mounts near-view slides early) must stay muted or you'd hear
+        // two clips at once for a moment.
+        const isMyVideo = activeVideoId === `${variant}-${movie?.id}`;
         try {
-            if (globalMute) e.target.mute();
+            if (globalMute || !isMyVideo) e.target.mute();
             else e.target.unMute();
         } catch {}
 
@@ -184,7 +207,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
     }, []);
 
     const handleStateChange = React.useCallback((e: any) => {
-        const { movie, onPlay, activeVideoId, variant } = handlersRef.current;
+        const { movie, onPlay, activeVideoId, variant, globalMute } = handlersRef.current;
         const YT_PLAYING = 1;
 
         // If player gets stuck in CUED or UNSTARTED while it's the active video, kick it.
@@ -199,6 +222,15 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
 
         if (e.data === YT_PLAYING) {
             onPlay?.();
+            // Real playback started — feeds "Trailers You've Watched" on My Netflix.
+            if (movie) useTrailerHistoryStore.getState().recordWatch(movie);
+            // Sound is restored here, now that the video is confirmed playing —
+            // unmuting an already-playing element doesn't trip the browser's
+            // autoplay gate the way unmuting-while-starting does.
+            const myVideoId = `${variant}-${movie.id}`;
+            if (activeVideoId === myVideoId) {
+                try { if (globalMute) e.target.mute(); else e.target.unMute(); } catch {}
+            }
             if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
             syncIntervalRef.current = setInterval(() => {
                 try {
@@ -257,7 +289,7 @@ export const TrailerPlayer: React.FC<TrailerPlayerProps> = ({
                         loop
                         playsInline
                         className="w-full h-full object-cover"
-                        onPlay={() => { onPlay?.(); setIsLoaded(true); }}
+                        onPlay={() => { onPlay?.(); setIsLoaded(true); if (movie) useTrailerHistoryStore.getState().recordWatch(movie); }}
                         onEnded={() => onEnded?.()}
                         onError={() => onErrored?.()}
                         onLoadedData={() => setIsLoaded(true)}

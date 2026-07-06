@@ -6,6 +6,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Movie } from '../types';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 // ─── BBFC Maturity Rating Badge ───────────────────────────────────────────────
 // U/PG → upward equilateral triangle; 12A / 12 / 15 / 18 / R18 → filled circle
@@ -139,6 +140,8 @@ interface BadgeOverlayProps {
 
 export const BadgeOverlay: React.FC<BadgeOverlayProps> = React.memo(({ badge, isBook }) => {
   const { t } = useTranslation();
+  const showNewContentBadges = useSettingsStore(s => s.settings.showNewContentBadges);
+  if (badge?.type === 'new' && !showNewContentBadges) return null;
   if (isBook) {
     return (
       <div className="absolute top-2 left-2 bg-black/50 border border-white/40 text-white px-2 py-0.5 text-[10px] font-medium uppercase backdrop-blur-sm">

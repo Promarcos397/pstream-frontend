@@ -1,5 +1,6 @@
 import React, { useState, useEffect, startTransition } from 'react';
-import { House, Bookmark, AirplayIcon, ScreencastIcon, ArrowSquareOutIcon } from '@phosphor-icons/react';
+import { House, AirplayIcon, ScreencastIcon, ArrowSquareOutIcon, BellIcon } from '@phosphor-icons/react';
+import { useNotifications } from '../hooks/useNotifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useSettingsStore } from '../store/useSettingsStore';
@@ -86,6 +87,10 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       void import('../pages/NewPopularPage');
       void import('../pages/MyListPage');
       void import('../pages/SettingsPage');
+      // Warm the Clips feed too: page chunk + starter titles + first few
+      // resolved clip videos, so the Clips tab opens playing instantly.
+      void import('../pages/ClipsPage');
+      void import('../services/ClipsService').then(m => m.warmClipsFeed());
     };
     if ('requestIdleCallback' in window) {
       const id = (window as any).requestIdleCallback(preload, { timeout: 3000 });
@@ -114,6 +119,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
       else if (tabId === 'movies') navigate('/browse/films');
       else if (tabId === 'new')  navigate('/latest');
       else if (tabId === 'list') navigate('/browse/my-list');
+      else if (tabId === 'clips') navigate('/clips');
       else if (tabId === 'language') navigate('/browse/language');
     });
   };
@@ -128,8 +134,18 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   const avatarLoaded  = useAvatarReady(avatarUrl);
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const isSettingsPage = location.pathname.startsWith('/settings');
+  // Bare /settings is the My Netflix feed — the only place the bell lives,
+  // like Netflix. Deeper settings pages keep their uncluttered headers.
+  const isMyNetflixPage = location.pathname.replace(/\/$/, '') === '/settings';
+  const { unreadCount } = useNotifications();
 
-  if (location.pathname === '/login') return null;
+  // Full-screen takeovers own their entire chrome (their own back header, no
+  // bottom nav) — Netflix does the same for its Notifications inbox.
+  if (location.pathname === '/login' || location.pathname === '/notifications') return null;
+
+  // Clips is an immersive full-bleed feed: the top header is hidden so video
+  // fills the screen edge-to-edge, but the bottom nav stays (like Netflix).
+  const isClipsPage = location.pathname === '/clips';
 
   // ── Bottom nav item set — Kids mode drops "My List" for a simpler 3-tab
   // layout (Home / Search / Profile), matching Netflix Kids' bottom bar.
@@ -188,11 +204,17 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
     onClick: () => clearSearchParamsAndGo('home'),
   };
 
-  const listItem: BottomNavItem = {
-    id: 'list',
-    icon: <Bookmark size={22} weight="regular" className="sm:w-[26px] sm:h-[26px] transition-transform group-hover:scale-105 duration-200" />,
-    label: t('nav.myList', { defaultValue: 'My List' }),
-    onClick: () => clearSearchParamsAndGo('list'),
+  const clipsItem: BottomNavItem = {
+    id: 'clips',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] shrink-0 transition-transform group-hover:scale-105 duration-200">
+        <rect x="3" y="4" width="14" height="14" rx="3" />
+        <path d="M10 8.5v5l4-2.5-4-2.5Z" fill="currentColor" stroke="none" />
+        <path d="M21 8v9a3 3 0 0 1-3 3H9" />
+      </svg>
+    ),
+    label: t('nav.clips', { defaultValue: 'Clips' }),
+    onClick: () => clearSearchParamsAndGo('clips'),
   };
 
   const searchItem: BottomNavItem = {
@@ -210,20 +232,23 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   const settingsItem: BottomNavItem = {
     id: 'settings',
     icon: profileIcon,
-    label: t('nav.profile', { defaultValue: 'Profile' }),
+    // Netflix labels this tab "My Netflix" (Kids keeps the simpler "Profile")
+    label: isKidsMode
+      ? t('nav.profile', { defaultValue: 'Profile' })
+      : t('nav.myNetflix', { defaultValue: 'My Netflix' }),
     onClick: () => clearSearchParamsAndGo('settings'),
   };
 
   const bottomNavItems: BottomNavItem[] = isKidsMode
     ? [homeItem, searchItem, settingsItem]
-    : [homeItem, listItem, searchItem, settingsItem];
+    : [homeItem, clipsItem, searchItem, settingsItem];
 
   // Tab order matches ['home', 'tv', 'movies', 'new', 'language'] all mapping
   // to the Home bubble — those sub-pages have no bottom-nav tab of their own.
   const activeBottomNavId = isSearchActive
     ? 'search'
-    : activeTab === 'list'
-      ? 'list'
+    : activeTab === 'clips'
+      ? 'clips'
       : activeTab === 'settings'
         ? 'settings'
         : 'home';
@@ -231,11 +256,11 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
   return (
     <>
 
-      {/* ── Mobile Top Header ──────────────────────────────────────────────── */}
-      {!isSearchActive ? (
+      {/* ── Mobile Top Header (hidden on the immersive Clips feed) ──────────── */}
+      {isClipsPage ? null : !isSearchActive ? (
         <header
           style={{ backgroundColor: `rgba(0, 0, 0, ${opacity})` }}
-          className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0"
+          className="fixed top-0 left-0 right-0 z-[80] px-[var(--app-x)] pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none translate-y-0"
         >
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center justify-start gap-2.5">
@@ -309,6 +334,20 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
 
             {/* Cast Icons */}
             <div className="flex items-center gap-3 shrink-0">
+              {isMyNetflixPage && !isKidsMode && activeProfile && (
+                <button
+                  onClick={() => navigate('/notifications')}
+                  className="relative p-1.5 flex items-center justify-center rounded-full text-white/85 hover:text-white active:bg-white/10 transition-colors active:scale-95"
+                  title={t('notifications.title', { defaultValue: 'Notifications' })}
+                >
+                  <BellIcon size={23} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-[#E50914] text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+              )}
               {isKidsMode && (
                 <button
                   onClick={() => activateProfile(null)}
@@ -343,7 +382,7 @@ const NavbarMobile: React.FC<NavbarMobileProps> = ({
           </div>
         </header>
       ) : (
-        <header className="fixed top-0 left-0 right-0 z-[80] px-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none bg-black/95 backdrop-blur-md">
+        <header className="fixed top-0 left-0 right-0 z-[80] px-[var(--app-x)] pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 transition-all duration-300 ease-out border-none shadow-none bg-black/95 backdrop-blur-md">
           <div className="flex items-center w-full px-1 animate-in fade-in duration-200">
             <div className="flex-1 flex items-center bg-[#222222] rounded-[4px] px-3.5 py-2.5 border border-white/[0.04]">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.0" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#8c8c8c] mr-3 shrink-0">

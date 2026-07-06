@@ -14,7 +14,7 @@ import WhosWatchingGate from './components/profiles/WhosWatchingGate';
 import ProfileSwitchOverlay from './components/profiles/ProfileSwitchOverlay';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const TAB_ORDER = ['home', 'tv', 'movies', 'new', 'list', 'language', 'settings'];
+const TAB_ORDER = ['home', 'tv', 'movies', 'new', 'list', 'clips', 'language', 'settings'];
 
 const pageVariants = {
   initial: (dir: 'left' | 'right') => ({
@@ -55,6 +55,8 @@ const ShowsPage        = lazy(() => import('./pages/ShowsPage'));
 const MoviesPage       = lazy(() => import('./pages/MoviesPage'));
 const NewPopularPage   = lazy(() => import('./pages/NewPopularPage'));
 const MyListPage       = lazy(() => import('./pages/MyListPage'));
+const ClipsPage        = lazy(() => import('./pages/ClipsPage'));
+const NotificationsFeedPage = lazy(() => import('./pages/NotificationsFeedPage'));
 const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage'));
 const SettingsPage     = lazy(() => import('./pages/SettingsPage'));
 const BrowseGridPage      = lazy(() => import('./pages/BrowseGridPage'));
@@ -245,6 +247,8 @@ const App: React.FC = () => {
       setPageTitle(t('nav.newTitle'));
     } else if (path === '/browse/my-list') {
       setPageTitle(t('nav.listTitle'));
+    } else if (path === '/clips') {
+      setPageTitle(t('nav.clips', { defaultValue: 'Clips' }));
     } else if (path === '/browse/language') {
       setPageTitle('Browse by Language');
     } else if (path.startsWith('/settings')) {
@@ -343,6 +347,7 @@ const App: React.FC = () => {
     if (path === '/browse/films') return 'movies';
     if (path === '/latest') return 'new';
     if (path === '/browse/my-list') return 'list';
+    if (path === '/clips') return 'clips';
     if (path === '/browse/language') return 'language';
     if (path.startsWith('/settings')) return 'settings';
     return 'home';
@@ -384,7 +389,7 @@ const App: React.FC = () => {
   const isWatching = location.pathname.startsWith('/watch');
   const isSettings = location.pathname.startsWith('/settings');
 
-  const knownRoutes = ['/', '/browse', '/browse/series', '/browse/films', '/latest', '/browse/my-list', '/browse/language', '/login', '/ghost', '/matrix'];
+  const knownRoutes = ['/', '/browse', '/browse/series', '/browse/films', '/latest', '/browse/my-list', '/browse/language', '/clips', '/notifications', '/login', '/ghost', '/matrix'];
   const is404Route = !knownRoutes.includes(backgroundLocation.pathname)
     && !backgroundLocation.pathname.startsWith('/settings')
     && !backgroundLocation.pathname.startsWith('/browse')
@@ -501,8 +506,10 @@ const App: React.FC = () => {
         <Route path="/browse/films" element={<MoviesPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} seekTime={heroSeekTime} onViewAll={handleViewAll} />} />
         <Route path="/latest" element={<NewPopularPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} onViewAll={handleViewAll} />} />
         <Route path="/browse/my-list" element={<MyListPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
+        <Route path="/clips" element={<ClipsPage onSelectMovie={handleSelectMovie} />} />
+        <Route path="/notifications" element={<NotificationsFeedPage onSelectMovie={handleSelectMovie} />} />
         <Route path="/browse/language" element={<BrowseLanguagePage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
-        <Route path="/settings/*" element={<SettingsPage />} />
+        <Route path="/settings/*" element={<SettingsPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/browse/:rowKey" element={<BrowseGridPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="*" element={<NotFoundPage onSelectMovie={handleSelectMovie} onPlay={handlePlay} />} />

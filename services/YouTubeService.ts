@@ -485,6 +485,231 @@ export const searchTrailers = async (
     return result;
 };
 
+// ─── Clip search (Clips feed) ─────────────────────────────────────────────────
+// The trailer scorer above actively PENALIZES "clip"/"scene" titles — the Clips
+// feed wants the opposite: real scene clips and behind-the-scenes moments.
+// Shares the same key rotation, throttle, and executeSearch as trailers.
+
+// ─── Real video aspect ratio (for Clips' full-bleed crop math) ────────────────
+// The public Data API doesn't expose a video's actual width/height, but the
+// no-auth oEmbed endpoint does (its `width`/`height` reflect the source's real
+// aspect — ~16/9 for standard uploads, ~9/16 for a genuinely vertical Short).
+// This lets Clips crop each slide correctly for whatever it actually got,
+// instead of assuming every result is 16:9 (which either over-zoomed true
+// verticals or under-covered non-16:9 sources — the "shorter than full
+// screen" bug).
+const ASPECT_CACHE_KEY = 'Pstream-youtube-aspect-cache-v1';
+const loadAspectCache = (): [string, number][] => {
+    try {
+        const saved = localStorage.getItem(ASPECT_CACHE_KEY);
+        if (saved) return Object.entries(JSON.parse(saved)) as [string, number][];
+    } catch (e) { }
+    return [];
+};
+const aspectCache = new Map<string, number>(loadAspectCache());
+const aspectInFlight = new Map<string, Promise<number>>();
+
+function saveAspectCache() {
+    try {
+        localStorage.setItem(ASPECT_CACHE_KEY, JSON.stringify(Object.fromEntries(aspectCache.entries())));
+    } catch (e) { }
+}
+
+const DEFAULT_ASPECT = 16 / 9;
+
+/** Real width/height ratio of a YouTube video (<1 means portrait/vertical). Falls back to 16:9 on any failure. */
+export async function getVideoAspect(videoId: string): Promise<number> {
+    if (aspectCache.has(videoId)) return aspectCache.get(videoId)!;
+    if (aspectInFlight.has(videoId)) return aspectInFlight.get(videoId)!;
+
+    const promise = (async () => {
+        try {
+            const { data } = await axios.get('https://www.youtube.com/oembed', {
+                params: { url: `https://www.youtube.com/watch?v=${videoId}`, format: 'json' },
+                timeout: 4000,
+            });
+            const aspect = data?.width && data?.height ? data.width / data.height : DEFAULT_ASPECT;
+            aspectCache.set(videoId, aspect);
+            saveAspectCache();
+            return aspect;
+        } catch {
+            aspectCache.set(videoId, DEFAULT_ASPECT);
+            return DEFAULT_ASPECT;
+        }
+    })();
+
+    aspectInFlight.set(videoId, promise);
+    const result = await promise;
+    aspectInFlight.delete(videoId);
+    return result;
+}
+
+const CLIP_CACHE_KEY = 'Pstream-youtube-clip-cache-v1';
+
+const loadClipCache = (): [string, string | null][] => {
+    try {
+        const saved = localStorage.getItem(CLIP_CACHE_KEY);
+        if (saved) return Object.entries(JSON.parse(saved)) as [string, string | null][];
+    } catch (e) { }
+    return [];
+};
+const clipResultCache = new Map<string, string | null>(loadClipCache());
+const clipInFlight = new Map<string, Promise<string | null>>();
+
+function saveClipCache() {
+    try {
+        localStorage.setItem(CLIP_CACHE_KEY, JSON.stringify(Object.fromEntries(clipResultCache.entries())));
+    } catch (e) { }
+}
+
+/** Score a candidate as a CLIP (scene / behind the scenes / featurette). */
+function scoreClipCandidate(options: SearchOptions, candidate: YTCandidate): number {
+    const q = normalizeText(options.title);
+    const t = normalizeText(candidate.title);
+    const c = normalizeText(candidate.channelTitle);
+
+    let score = 0;
+
+    // Title relevance — same shape as the trailer scorer
+    if (t.includes(q)) {
+        score += 50;
+    } else {
+        const qWords = q.split(/\s+/).filter(w => w.length > 2);
+        const tWords = new Set(t.split(/\s+/));
+        let overlap = 0;
+        for (const w of qWords) if (tWords.has(w)) overlap++;
+        score += qWords.length > 0 ? Math.round((overlap / qWords.length) * 30) : 0;
+        // A clip that doesn't even loosely match the title is worthless
+        if (overlap === 0) score -= 200;
+    }
+
+    // Strip query words before penalty matching (same trick as trailers)
+    let safeT = t;
+    let safeC = c;
+    for (const w of q.split(/\s+/).filter(w => w.length > 0)) {
+        const regex = new RegExp(`\\b${w}\\b`, 'gi');
+        safeT = safeT.replace(regex, '');
+        safeC = safeC.replace(regex, '');
+    }
+
+    // ── Clip-positive signals (inverted vs the trailer scorer) ──
+    if (/\bclip\b|\bscene\b/.test(t)) score += 60;
+    if (/behind\s+the\s+scenes|\bbts\b/.test(t)) score += 55;
+    if (/\bfeaturette\b|first\s+look|\bbloopers?\b|making\s+of/.test(t)) score += 45;
+    if (/\bofficial\b/.test(t)) score += 25;
+    if (/opening\s+scene|best\s+scenes?|top\s+10\s+moments/.test(t)) score += 20;
+
+    // Trailers/teasers are the FALLBACK here, not the goal
+    if (/\btrailer\b|\bteaser\b/.test(safeT)) score -= 40;
+
+    // ── Negative signals ──
+    // Spoiler clips — a discovery feed must never lead with how it ends
+    if (/ending\s+scene|final\s+scene|death\s+scene|post\s+credit|last\s+scene/i.test(safeT)) score -= 150;
+    // Comparison/evolution videos ("2004 VS 2022") are not scene clips
+    if (/\bvs\b|\bversus\b|comparison|evolution\s+of/i.test(safeT)) score -= 150;
+    if (/\b(reaction|review|breakdown|explained|recap|analysis|theory|easter\s*eggs|hidden\s*details)\b/i.test(safeT)) score -= 200;
+    if (/\b(fan\s*made|concept|fake|parody|spoof|edit|ai\s*generated)\b/i.test(safeT)) score -= 250;
+    if (/\bfull\s+(movie|episode|film)\b/i.test(safeT)) score -= 250;
+    if (/\b(hindi|tamil|telugu|dubbed|dublado|legendado|español|latino|vostfr|altyazı|sub\s*indo)\b/i.test(safeT) ||
+        /\b(hindi|tamil|telugu|dubbed|bollywood|desi|latino|dublado)\b/i.test(safeC)) score -= 150;
+
+    // Official studio/streamer channels are the best clip sources
+    const studios = /\b(netflix|hbo|max|hulu|paramount|sony|universal|warner|wb|fox|mgm|lionsgate|disney|apple\s*tv|peacock|amc|crunchyroll|prime|the\s*cw|cw\b|movieclips|rotten\s*tomatoes)\b/i;
+    const isOfficialChannel = studios.test(t) || studios.test(c);
+    if (isOfficialChannel) score += 80;
+
+    // "#shorts"/vertical tags are a real quality risk (generic fan clip-farms
+    // dominate this space), but not from a studio's own channel — an official
+    // account's vertical upload is exactly the full-bleed-native content the
+    // Clips feed wants most. Only penalize the tag when it ISN'T official.
+    if (/#shorts|\bshorts\b|tiktok|reels\b|\bvertical\b/i.test(safeT) && !isOfficialChannel) score -= 150;
+
+    return score;
+}
+
+/**
+ * Find the best real scene-clip / BTS video for a title.
+ * Returns a videoId or null (null is cached too, so we don't re-search misses).
+ */
+export const searchClip = async (options: SearchOptions): Promise<string | null> => {
+    const cacheKey = `${options.title}::${options.year || ''}::${options.type || ''}`;
+
+    if (clipResultCache.has(cacheKey)) return clipResultCache.get(cacheKey)!;
+    if (clipInFlight.has(cacheKey)) return clipInFlight.get(cacheKey)!;
+
+    const promise = (async () => {
+        const now = Date.now();
+        const wait = GLOBAL_SEARCH_THROTTLE_MS - (now - lastSearchTime);
+        if (wait > 0) await sleep(wait);
+        lastSearchTime = Date.now();
+
+        const query = `${options.title} ${options.year || ''} clip scene`;
+        let candidates: YTCandidate[] = [];
+        try {
+            candidates = await executeSearch(query, 8);
+        } catch (e: any) {
+            console.error('[YouTubeService] Clip query failed:', e.message);
+        }
+
+        if (candidates.length === 0) {
+            clipResultCache.set(cacheKey, null);
+            saveClipCache();
+            return null;
+        }
+
+        const scored = candidates
+            .map(cand => ({ ...cand, score: scoreClipCandidate(options, cand) }))
+            .sort((a, b) => b.score - a.score);
+
+        console.groupCollapsed(`[YouTubeService] 🎬 Clips "${options.title}" (${options.type ?? '?'}${options.year ? `, ${options.year}` : ''})`);
+        console.table(scored.slice(0, 8).map((cand, i) => ({
+            Rank: i === 0 ? '🏆' : `#${i + 1}`,
+            Score: cand.score,
+            Title: cand.title,
+            Channel: cand.channelTitle,
+            Link: `https://youtu.be/${cand.videoId}`,
+        })));
+        console.groupEnd();
+
+        // Below this bar every candidate is junk — report a miss so the
+        // caller falls back to the trailer pipeline instead of playing garbage.
+        if (scored[0].score < 40) {
+            clipResultCache.set(cacheKey, null);
+            saveClipCache();
+            return null;
+        }
+
+        // Among candidates that already clear the quality bar (close behind
+        // the top score, not just "any vertical video"), prefer a genuinely
+        // vertical one — it fills the Clips viewport natively with no crop,
+        // instead of the 16:9 zoom every horizontal source needs. This is a
+        // tiebreaker on top of quality, not a substitute for it, so it can't
+        // surface a vertical-but-junk "clipping channel" upload over a
+        // clean horizontal match.
+        const contenders = scored.filter(c => c.score >= 40 && c.score >= scored[0].score - 20).slice(0, 4);
+        if (contenders.length > 1) {
+            const aspects = await Promise.all(contenders.map(c => getVideoAspect(c.videoId)));
+            const verticalIdx = aspects.findIndex(a => a < 0.85);
+            if (verticalIdx > 0) {
+                const winner = contenders[verticalIdx].videoId;
+                clipResultCache.set(cacheKey, winner);
+                saveClipCache();
+                return winner;
+            }
+        }
+
+        const winner = scored[0].videoId;
+        clipResultCache.set(cacheKey, winner);
+        saveClipCache();
+        return winner;
+    })();
+
+    clipInFlight.set(cacheKey, promise);
+    const result = await promise;
+    clipInFlight.delete(cacheKey);
+    return result;
+};
+
 // Manual Premium Overrides: Map TMDB IDs to direct high-quality video URLs
 // Format: "tmdb-ID": "URL"
 export const PREMIUM_OVERRIDES: Record<string, string> = {
