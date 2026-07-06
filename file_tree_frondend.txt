@@ -1,332 +1,350 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-07-06 15:59:18
+# Generated: 2026-07-06 17:26:14
 # Root: /home/ibrahim/code/pstream/pstream-frontend
 
 pstream-frontend/
-├── assets
-│   ├── 404_assets
-│   │   ├── dim1-backdrop.jpeg
-│   │   ├── dim1-poster.jpeg
-│   │   ├── dim1-title.png
-│   │   ├── dim2-backdrop.jpeg
-│   │   ├── dim2-poster.jpeg
-│   │   ├── dim2-title.png
-│   │   ├── dim3-backdrop.jpeg
-│   │   ├── dim3-poster.jpeg
-│   │   ├── dim3-title.png
-│   │   ├── dim4-backdrop.jpeg
-│   │   ├── dim4-poster.jpeg
-│   │   ├── dim4-title.png
-│   │   ├── dim5-backdrop.jpeg
-│   │   ├── dim5-poster.jpeg
-│   │   ├── dim5-title.png
-│   │   ├── dim6-backdrop.jpeg
-│   │   ├── dim6-poster.jpeg
-│   │   └── dim6-title.png
-│   ├── fonts
-│   │   ├── Harmonia Sans Mono W01 Bold.otf
-│   │   ├── Harmonia Sans Mono W01 Bold.ttf
-│   │   ├── Harmonia Sans W01 Bold.otf
-│   │   ├── Harmonia Sans W01 Bold.ttf
-│   │   ├── Harmonia Sans W01 Regular.otf
-│   │   ├── Harmonia Sans W01 Regular.ttf
-│   │   ├── Harmonia Sans W06 Black Italic.otf
-│   │   ├── Harmonia Sans W06 Black Italic.ttf
-│   │   ├── Harmonia Sans W06 Condensed.otf
-│   │   ├── Harmonia Sans W06 Condensed.ttf
-│   │   ├── LeanerBold.otf
-│   │   ├── Morandi-W01-Regular.otf
-│   │   ├── netflix-sans-core-variable-full.woff2
-│   │   ├── netflix-sans.woff2
-│   │   ├── Niva-Bold _.ttf
-│   │   ├── ns-bd.woff2
-│   │   └── ns-md.woff2
-│   ├── logos
-│   │   ├── p-pstream-logo-with-background.svg
-│   │   ├── p-pstream-logo.svg
-│   │   └── pstream-logo.svg
-│   └── landing-bg.png
-├── components
-│   ├── intro
-│   │   ├── BootIntro.tsx
-│   │   ├── PIdentAnimation.tsx
-│   │   └── PstreamIntro.tsx
-│   ├── profiles
-│   │   ├── AddEditProfileModal.tsx
-│   │   ├── ChooseIconPageMobile.tsx
-│   │   ├── KidsAvatar.tsx
-│   │   ├── KidsBadge.tsx
-│   │   ├── NavbarProfileMenu.tsx
-│   │   ├── ProfileFormPageMobile.tsx
-│   │   ├── ProfileManager.tsx
-│   │   ├── ProfilePinPrompt.tsx
-│   │   ├── ProfileSheetMobile.tsx
-│   │   ├── ProfileSwitchOverlay.tsx
-│   │   └── WhosWatchingGate.tsx
-│   ├── AutoplayCountdown.tsx
-│   ├── BookHero.tsx
-│   ├── BottomNavMobile.tsx
-│   ├── CategorySubNav.tsx
-│   ├── CategorySubNavMobile.tsx
-│   ├── CharacterRow.tsx
-│   ├── CinemaPlayButton.tsx
-│   ├── ClipCard.tsx
-│   ├── ContinueWatchingOptionsSheet.tsx
-│   ├── EmbedPlayer.tsx
-│   ├── ErrorBoundary.tsx
-│   ├── ExploreSuggestions.tsx
-│   ├── Footer.tsx
-│   ├── HeroCarousel.tsx
-│   ├── HeroCarouselBackground.tsx
-│   ├── HeroCarouselContent.tsx
-│   ├── HeroMoreInfoButton.tsx
-│   ├── HeroSkeleton.tsx
-│   ├── InfoModal.tsx
-│   ├── InfoModalEpisodes.tsx
-│   ├── InfoModalEpisodesTouch.tsx
-│   ├── InfoModalRecommendations.tsx
-│   ├── InfoModalRecommendationsTouch.tsx
-│   ├── InfoModalTouch.tsx
-│   ├── Layout.tsx
-│   ├── LoginWall.tsx
-│   ├── ManifestSkeleton.tsx
-│   ├── MediaListItem.tsx
-│   ├── MobileHero.tsx
-│   ├── MovieCard.tsx
-│   ├── MovieCardBadges.tsx
-│   ├── MovieCardPopup.tsx
-│   ├── MovieCardRating.tsx
-│   ├── MovieCardTouch.tsx
-│   ├── Navbar.tsx
-│   ├── NavbarMobile.tsx
-│   ├── NewPopularSubNavMobile.tsx
-│   ├── NotificationsDropdown.tsx
-│   ├── PWAInstallPrompt.tsx
-│   ├── Row.tsx
-│   ├── RowMobile.tsx
-│   ├── SearchBar.tsx
-│   ├── ShareSheet.tsx
-│   ├── SpotlightCard.tsx
-│   ├── TooltipWrapper.tsx
-│   ├── TopTenRow.tsx
-│   ├── TopTenRowMobile.tsx
-│   ├── TrailerPlayer.tsx
-│   ├── VideoPlayer.tsx
-│   ├── VideoPlayerControls.tsx
-│   ├── VideoPlayerSettings.tsx
-│   └── VideoPlayerSettingsTouch.tsx
-├── context
-│   ├── GlobalContext.tsx
-│   ├── HeroColorContext.tsx
-│   └── TitleContext.tsx
-├── data
-│   ├── avatars.ts
-│   ├── genres.ts
-│   ├── languages.ts
-│   ├── notFoundDimensions.ts
-│   ├── pageGenres.ts
-│   ├── subtitles.ts
-│   └── themes.ts
-├── docs
-│   ├── frozen
-│   │   └── liquid-glass-bottom-nav.md
-│   └── reference
-│       └── netflix-profiles
-│           ├── 01-whos-watching-picker.png
-│           ├── 02-add-profile-modal-from-browse.png
-│           ├── 02b-add-profile-modal-from-account-profiles.png
-│           ├── 03-manage-profiles-edit-mode.png
-│           ├── 04-profile-lock-pin-entry.png
-│           ├── 05-in-session-navbar-dropdown.png
-│           ├── 06-account-profiles-page.png
-│           ├── 07-account-profiles-dropdown-open.png
-│           ├── 08-profile-settings-page.png
-│           └── 09-edit-profile-page.png
-├── hooks
-│   ├── genreManifestBuilder.ts
-│   ├── kidsManifestBuilder.ts
-│   ├── useAudioSilenceDetector.ts
-│   ├── useAvatarReady.ts
-│   ├── useCategoryLogo.ts
-│   ├── useDynamicManifest.ts
-│   ├── useEmbedLayout.ts
-│   ├── useHls.ts
-│   ├── useIsInTheaters.ts
-│   ├── useIsMobile.ts
-│   ├── useKeepAlive.ts
-│   ├── useLockBodyScroll.ts
-│   ├── useMovieData.ts
-│   ├── useNetworkQuality.ts
-│   ├── useNotifications.ts
-│   ├── usePrefersHover.ts
-│   ├── useScroll.ts
-│   ├── useSearch.ts
-│   ├── useSkipTimestamps.ts
-│   ├── useSubtitleStyle.ts
-│   ├── useTasteEngine.ts
-│   ├── useTitleLogo.ts
-│   ├── useTouchGestures.ts
-│   ├── useTrailer.ts
-│   └── useYouTubeCaptions.ts
-├── icons
-│   └── index.tsx
-├── locales
-│   ├── ar.json
-│   ├── de.json
-│   ├── en.json
-│   ├── es.json
-│   ├── fr.json
-│   ├── hi.json
-│   ├── it.json
-│   ├── ja.json
-│   ├── ko.json
-│   ├── nl.json
-│   ├── pl.json
-│   ├── pt.json
-│   ├── ru.json
-│   ├── sv.json
-│   ├── tr.json
-│   └── zh.json
-├── pages
-│   ├── BrowseGridPage.tsx
-│   ├── BrowseLanguagePage.tsx
-│   ├── CinemaPage.tsx
-│   ├── ClipsPage.tsx
-│   ├── GhostPage.tsx
-│   ├── HomePage.tsx
-│   ├── LoginPage.tsx
-│   ├── MoviesPage.tsx
-│   ├── MyListPage.tsx
-│   ├── NewPopularMobilePage.tsx
-│   ├── NewPopularPage.tsx
-│   ├── NotFoundPage.tsx
-│   ├── NotificationsFeedPage.tsx
-│   ├── ReadsPage.tsx
-│   ├── SearchResultsPage.tsx
-│   ├── SettingsPage.tsx
-│   └── ShowsPage.tsx
-├── public
-│   ├── assets
-│   │   └── logos
-│   │       ├── p-pstream-logo.svg
-│   │       └── pstream-logo.svg
-│   ├── fonts
-│   │   ├── Harmonia Sans Mono W01 Bold.otf
-│   │   ├── Harmonia Sans Mono W01 Bold.ttf
-│   │   ├── Harmonia Sans W01 Bold.otf
-│   │   ├── Harmonia Sans W01 Bold.ttf
-│   │   ├── Harmonia Sans W01 Regular.otf
-│   │   ├── Harmonia Sans W01 Regular.ttf
-│   │   ├── Harmonia Sans W06 Black Italic.otf
-│   │   ├── Harmonia Sans W06 Black Italic.ttf
-│   │   ├── Harmonia Sans W06 Condensed.otf
-│   │   ├── Harmonia Sans W06 Condensed.ttf
-│   │   ├── LeanerBold.otf
-│   │   ├── Morandi-W01-Regular.otf
-│   │   ├── netflix-sans-core-variable-full.woff2
-│   │   ├── netflix-sans.woff2
-│   │   ├── Niva-Bold _.ttf
-│   │   ├── ns-bd.woff2
-│   │   └── ns-md.woff2
-│   ├── icons
-│   │   ├── apple-touch-icon.png
-│   │   ├── icon-192.png
-│   │   ├── icon-512-maskable.png
-│   │   └── icon-512.png
-│   ├── _redirects
-│   ├── apple-touch-icon.png
-│   ├── favicon.svg
-│   ├── manifest.json
-│   ├── og-image.png
-│   ├── p-icon.svg
-│   ├── pstream-wordmark.svg
-│   ├── StandardGalacticAlphabet-Regular.ttf
-│   └── sw.js
-├── services
-│   ├── api.ts
-│   ├── ClipsService.ts
-│   ├── EmbedProviders.ts
-│   ├── ghostAuth.ts
-│   ├── GoatAPIService.ts
-│   ├── HeroEngine.ts
-│   ├── NetworkPriority.ts
-│   ├── ProviderHealthService.ts
-│   ├── SubtitleService.ts
-│   ├── supabaseClient.ts
-│   ├── tmdb.ts
-│   ├── YouTubeCaptionService.ts
-│   └── YouTubeService.ts
-├── settings
-│   ├── AccountDetailsSection.tsx
-│   ├── AccountSection.tsx
-│   ├── AppearanceSection.tsx
-│   ├── LanguageSection.tsx
-│   ├── MyNetflixSection.tsx
-│   ├── NotificationsSection.tsx
-│   ├── PlaceholderSection.tsx
-│   ├── PlaybackSection.tsx
-│   ├── PlaybackSettings.tsx
-│   ├── PrivacySection.tsx
-│   ├── ProfileSection.tsx
-│   ├── ProfileTransferSection.tsx
-│   ├── SettingsLayout.tsx
-│   ├── SettingsMenu.tsx
-│   ├── SubtitlePreview.tsx
-│   ├── SubtitleSection.tsx
-│   ├── SubtitleSettings.tsx
-│   └── ViewingActivitySection.tsx
-├── store
-│   ├── profileScope.ts
-│   ├── useAuthStore.ts
-│   ├── useCastStore.ts
-│   ├── useLibraryStore.ts
-│   ├── useProfileStore.ts
-│   ├── useSettingsStore.ts
-│   ├── useTrailerHistoryStore.ts
-│   ├── useUIStore.ts
-│   └── useWatchStore.ts
-├── supabase
-│   └── migrations
-│       ├── 20260702_multi_profiles.sql
-│       ├── 20260705_profile_avatar_history.sql
-│       └── 20260705b_profile_settings.sql
-├── tests
-│   └── iphone-compat.spec.ts
-├── types
-│   └── assets.d.ts
-├── ui
-│   └── SettingsUI.tsx
-├── utils
-│   ├── ambientColor.ts
-│   ├── avatarCache.ts
-│   ├── captions.ts
-│   ├── deviceHelper.ts
-│   ├── ebml.ts
-│   ├── mediaProbe.ts
-│   ├── mkvAudioExtractor.ts
-│   ├── scrollState.ts
-│   ├── search.ts
-│   └── streamCache.ts
-├── .antigravityignore
-├── .cursorignore
-├── .env
-├── .gitignore
-├── App.tsx
-├── constants.ts
-├── file_tree_frondend.txt
-├── i18n.ts
-├── index.css
-├── index.html
-├── index.tsx
-├── package.json
-├── piracy_megathread_decoded.md
-├── playwright.config.ts
-├── postcss.config.js
-├── tailwind.config.js
-├── tsconfig.json
-├── types.ts
-├── update_file_tree.py
-├── vite-env.d.ts
-└── vite.config.ts
+├── assets/
+│   ├── 404_assets/
+│   │   ├── dim1-backdrop.jpeg  (578.8KB)
+│   │   ├── dim1-poster.jpeg  (683.5KB)
+│   │   ├── dim1-title.png  (3.6MB)
+│   │   ├── dim2-backdrop.jpeg  (792.7KB)
+│   │   ├── dim2-poster.jpeg  (859.7KB)
+│   │   ├── dim2-title.png  (593.6KB)
+│   │   ├── dim3-backdrop.jpeg  (874.2KB)
+│   │   ├── dim3-poster.jpeg  (883.4KB)
+│   │   ├── dim3-title.png  (1.7MB)
+│   │   ├── dim4-backdrop.jpeg  (781.1KB)
+│   │   ├── dim4-poster.jpeg  (875.0KB)
+│   │   ├── dim4-title.png  (902.6KB)
+│   │   ├── dim5-backdrop.jpeg  (578.0KB)
+│   │   ├── dim5-poster.jpeg  (871.3KB)
+│   │   ├── dim5-title.png  (600.0KB)
+│   │   ├── dim6-backdrop.jpeg  (551.7KB)
+│   │   ├── dim6-poster.jpeg  (624.6KB)
+│   │   └── dim6-title.png  (589.7KB)
+│   ├── fonts/
+│   │   ├── Harmonia Sans Mono W01 Bold.otf  (64.5KB)
+│   │   ├── Harmonia Sans Mono W01 Bold.ttf  (38.1KB)
+│   │   ├── Harmonia Sans W01 Bold.otf  (62.9KB)
+│   │   ├── Harmonia Sans W01 Bold.ttf  (29.3KB)
+│   │   ├── Harmonia Sans W01 Regular.otf  (65.8KB)
+│   │   ├── Harmonia Sans W01 Regular.ttf  (29.9KB)
+│   │   ├── Harmonia Sans W06 Black Italic.otf  (229.8KB)
+│   │   ├── Harmonia Sans W06 Black Italic.ttf  (162.6KB)
+│   │   ├── Harmonia Sans W06 Condensed.otf  (216.4KB)
+│   │   ├── Harmonia Sans W06 Condensed.ttf  (157.3KB)
+│   │   ├── LeanerBold.otf  (51.9KB)
+│   │   ├── Morandi-W01-Regular.otf  (53.0KB)
+│   │   ├── netflix-sans-core-variable-full.woff2  (440.2KB)
+│   │   ├── netflix-sans.woff2  (440.2KB)
+│   │   ├── Niva-Bold _.ttf  (139.8KB)
+│   │   ├── ns-bd.woff2  (53.9KB)
+│   │   └── ns-md.woff2  (52.7KB)
+│   ├── logos/
+│   │   ├── p-pstream-logo-with-background.svg  (7 lines)
+│   │   ├── p-pstream-logo.svg  (7 lines)
+│   │   └── pstream-logo.svg  (7 lines)
+│   └── landing-bg.png  (3.0MB)
+├── components/
+│   ├── intro/
+│   │   ├── BootIntro.tsx  (126 lines)
+│   │   ├── PIdentAnimation.tsx  (387 lines)
+│   │   └── PstreamIntro.tsx  (338 lines)
+│   ├── profiles/
+│   │   ├── AddEditProfileModal.tsx  (286 lines)
+│   │   ├── ChooseIconPageMobile.tsx  (116 lines)
+│   │   ├── KidsAvatar.tsx  (29 lines)
+│   │   ├── KidsBadge.tsx  (97 lines)
+│   │   ├── NavbarProfileMenu.tsx  (204 lines)
+│   │   ├── ProfileFormPageMobile.tsx  (222 lines)
+│   │   ├── ProfileManager.tsx  (291 lines)
+│   │   ├── ProfilePinPrompt.tsx  (152 lines)
+│   │   ├── ProfileSheetMobile.tsx  (324 lines)
+│   │   ├── ProfileSwitchOverlay.tsx  (139 lines)
+│   │   └── WhosWatchingGate.tsx  (670 lines)
+│   ├── AutoplayCountdown.tsx  (50 lines)
+│   ├── BookHero.tsx  (15 lines)
+│   ├── BottomNavMobile.tsx  (60 lines)
+│   ├── CategorySubNav.tsx  (201 lines)
+│   ├── CategorySubNavMobile.tsx  (255 lines)
+│   ├── CharacterRow.tsx  (157 lines)
+│   ├── CinemaPlayButton.tsx  (302 lines)
+│   ├── ClipCard.tsx  (280 lines)
+│   ├── ContinueWatchingOptionsSheet.tsx  (75 lines)
+│   ├── EmbedPlayer.tsx  (478 lines)
+│   ├── ErrorBoundary.tsx  (81 lines)
+│   ├── ExploreSuggestions.tsx  (55 lines)
+│   ├── Footer.tsx  (98 lines)
+│   ├── HeroCarousel.tsx  (407 lines)
+│   ├── HeroCarouselBackground.tsx  (101 lines)
+│   ├── HeroCarouselContent.tsx  (127 lines)
+│   ├── HeroMoreInfoButton.tsx  (36 lines)
+│   ├── HeroSkeleton.tsx  (83 lines)
+│   ├── InfoModal.tsx  (705 lines)
+│   ├── InfoModalEpisodes.tsx  (208 lines)
+│   ├── InfoModalEpisodesTouch.tsx  (204 lines)
+│   ├── InfoModalRecommendations.tsx  (236 lines)
+│   ├── InfoModalRecommendationsTouch.tsx  (61 lines)
+│   ├── InfoModalTouch.tsx  (787 lines)
+│   ├── Layout.tsx  (52 lines)
+│   ├── LoginWall.tsx  (103 lines)
+│   ├── ManifestSkeleton.tsx  (55 lines)
+│   ├── MediaListItem.tsx  (89 lines)
+│   ├── MobileHero.tsx  (531 lines)
+│   ├── MovieCard.tsx  (454 lines)
+│   ├── MovieCardBadges.tsx  (266 lines)
+│   ├── MovieCardPopup.tsx  (432 lines)
+│   ├── MovieCardRating.tsx  (124 lines)
+│   ├── MovieCardTouch.tsx  (188 lines)
+│   ├── Navbar.tsx  (179 lines)
+│   ├── NavbarMobile.tsx  (423 lines)
+│   ├── NewPopularSubNavMobile.tsx  (123 lines)
+│   ├── NotificationsDropdown.tsx  (92 lines)
+│   ├── PWAInstallPrompt.tsx  (111 lines)
+│   ├── Row.tsx  (493 lines)
+│   ├── RowMobile.tsx  (244 lines)
+│   ├── SearchBar.tsx  (205 lines)
+│   ├── ShareSheet.tsx  (195 lines)
+│   ├── SpotlightCard.tsx  (676 lines)
+│   ├── TooltipWrapper.tsx  (48 lines)
+│   ├── TopTenRow.tsx  (1,172 lines)
+│   ├── TopTenRowMobile.tsx  (298 lines)
+│   ├── TrailerPlayer.tsx  (312 lines)
+│   ├── VideoPlayer.tsx  (2,055 lines)
+│   ├── VideoPlayerControls.tsx  (1,268 lines)
+│   ├── VideoPlayerSettings.tsx  (785 lines)
+│   └── VideoPlayerSettingsTouch.tsx  (638 lines)
+├── context/
+│   ├── GlobalContext.tsx  (295 lines)
+│   ├── HeroColorContext.tsx  (46 lines)
+│   └── TitleContext.tsx  (39 lines)
+├── data/
+│   ├── avatars.ts  (95 lines)
+│   ├── genres.ts  (576 lines)
+│   ├── languages.ts  (66 lines)
+│   ├── notFoundDimensions.ts  (134 lines)
+│   ├── pageGenres.ts  (149 lines)
+│   ├── subtitles.ts  (57 lines)
+│   └── themes.ts  (656 lines)
+├── docs/
+│   ├── frozen/
+│   │   └── liquid-glass-bottom-nav.md  (171 lines)
+│   └── reference/
+│       └── netflix-profiles/
+│           ├── 01-whos-watching-picker.png  (201.1KB)
+│           ├── 02-add-profile-modal-from-browse.png  (92.9KB)
+│           ├── 02b-add-profile-modal-from-account-profiles.png  (121.9KB)
+│           ├── 03-manage-profiles-edit-mode.png  (174.9KB)
+│           ├── 04-profile-lock-pin-entry.png  (63.4KB)
+│           ├── 05-in-session-navbar-dropdown.png  (1.8MB)
+│           ├── 06-account-profiles-page.png  (135.2KB)
+│           ├── 07-account-profiles-dropdown-open.png  (155.9KB)
+│           ├── 08-profile-settings-page.png  (123.7KB)
+│           └── 09-edit-profile-page.png  (145.1KB)
+├── hooks/
+│   ├── genreManifestBuilder.ts  (3,574 lines)
+│   ├── kidsManifestBuilder.ts  (501 lines)
+│   ├── useAudioSilenceDetector.ts  (152 lines)
+│   ├── useAvatarReady.ts  (30 lines)
+│   ├── useCategoryLogo.ts  (49 lines)
+│   ├── useDynamicManifest.ts  (451 lines)
+│   ├── useEmbedLayout.ts  (81 lines)
+│   ├── useHls.ts  (420 lines)
+│   ├── useIsInTheaters.ts  (80 lines)
+│   ├── useIsMobile.ts  (41 lines)
+│   ├── useKeepAlive.ts  (56 lines)
+│   ├── useLockBodyScroll.ts  (12 lines)
+│   ├── useMovieData.ts  (92 lines)
+│   ├── useNetworkQuality.ts  (83 lines)
+│   ├── useNotifications.ts  (165 lines)
+│   ├── usePrefersHover.ts  (29 lines)
+│   ├── useScroll.ts  (18 lines)
+│   ├── useSearch.ts  (120 lines)
+│   ├── useSkipTimestamps.ts  (96 lines)
+│   ├── useSubtitleStyle.ts  (97 lines)
+│   ├── useTasteEngine.ts  (69 lines)
+│   ├── useTitleLogo.ts  (35 lines)
+│   ├── useTouchGestures.ts  (84 lines)
+│   ├── useTrailer.ts  (143 lines)
+│   └── useYouTubeCaptions.ts  (106 lines)
+├── icons/
+│   └── index.tsx  (299 lines)
+├── locales/
+│   ├── ar.json  (472 lines)
+│   ├── de.json  (468 lines)
+│   ├── en.json  (468 lines)
+│   ├── es.json  (468 lines)
+│   ├── fr.json  (468 lines)
+│   ├── hi.json  (468 lines)
+│   ├── it.json  (469 lines)
+│   ├── ja.json  (467 lines)
+│   ├── ko.json  (467 lines)
+│   ├── nl.json  (468 lines)
+│   ├── pl.json  (470 lines)
+│   ├── pt.json  (468 lines)
+│   ├── ru.json  (470 lines)
+│   ├── sv.json  (468 lines)
+│   ├── tr.json  (467 lines)
+│   └── zh.json  (467 lines)
+├── pages/
+│   ├── BrowseGridPage.tsx  (252 lines)
+│   ├── BrowseLanguagePage.tsx  (322 lines)
+│   ├── CinemaPage.tsx  (144 lines)
+│   ├── ClipsPage.tsx  (92 lines)
+│   ├── GhostPage.tsx  (505 lines)
+│   ├── HomePage.tsx  (134 lines)
+│   ├── LoginPage.tsx  (671 lines)
+│   ├── MoviesPage.tsx  (117 lines)
+│   ├── MyListPage.tsx  (202 lines)
+│   ├── NewPopularMobilePage.tsx  (262 lines)
+│   ├── NewPopularPage.tsx  (85 lines)
+│   ├── NotFoundPage.tsx  (305 lines)
+│   ├── NotificationsFeedPage.tsx  (77 lines)
+│   ├── ReadsPage.tsx  (252 lines)
+│   ├── SearchResultsPage.tsx  (207 lines)
+│   ├── SettingsPage.tsx  (80 lines)
+│   └── ShowsPage.tsx  (123 lines)
+├── public/
+│   ├── assets/
+│   │   └── logos/
+│   │       ├── p-pstream-logo.svg  (7 lines)
+│   │       └── pstream-logo.svg  (7 lines)
+│   ├── fonts/
+│   │   ├── Harmonia Sans Mono W01 Bold.otf  (64.5KB)
+│   │   ├── Harmonia Sans Mono W01 Bold.ttf  (38.1KB)
+│   │   ├── Harmonia Sans W01 Bold.otf  (62.9KB)
+│   │   ├── Harmonia Sans W01 Bold.ttf  (29.3KB)
+│   │   ├── Harmonia Sans W01 Regular.otf  (65.8KB)
+│   │   ├── Harmonia Sans W01 Regular.ttf  (29.9KB)
+│   │   ├── Harmonia Sans W06 Black Italic.otf  (229.8KB)
+│   │   ├── Harmonia Sans W06 Black Italic.ttf  (162.6KB)
+│   │   ├── Harmonia Sans W06 Condensed.otf  (216.4KB)
+│   │   ├── Harmonia Sans W06 Condensed.ttf  (157.3KB)
+│   │   ├── LeanerBold.otf  (51.9KB)
+│   │   ├── Morandi-W01-Regular.otf  (53.0KB)
+│   │   ├── netflix-sans-core-variable-full.woff2  (440.2KB)
+│   │   ├── netflix-sans.woff2  (440.2KB)
+│   │   ├── Niva-Bold _.ttf  (139.8KB)
+│   │   ├── ns-bd.woff2  (53.9KB)
+│   │   └── ns-md.woff2  (52.7KB)
+│   ├── icons/
+│   │   ├── icon-192.png  (3.1KB)
+│   │   ├── icon-512-maskable.png  (3.1KB)
+│   │   └── icon-512.png  (3.1KB)
+│   ├── _redirects  (2 lines)
+│   ├── apple-touch-icon.png  (3.1KB)
+│   ├── favicon.svg  (7 lines)
+│   ├── manifest.json  (42 lines)
+│   ├── og-image.png  (12.5KB)
+│   ├── p-icon.svg  (7 lines)
+│   ├── pstream-wordmark.svg  (11 lines)
+│   ├── StandardGalacticAlphabet-Regular.ttf  (14.1KB)
+│   └── sw.js  (216 lines)
+├── services/
+│   ├── api.ts  (40 lines)
+│   ├── ClipsService.ts  (179 lines)
+│   ├── EmbedProviders.ts  (76 lines)
+│   ├── ghostAuth.ts  (68 lines)
+│   ├── GoatAPIService.ts  (89 lines)
+│   ├── HeroEngine.ts  (661 lines)
+│   ├── NetworkPriority.ts  (49 lines)
+│   ├── ProviderHealthService.ts  (89 lines)
+│   ├── SubtitleService.ts  (448 lines)
+│   ├── supabaseClient.ts  (13 lines)
+│   ├── tmdb.ts  (601 lines)
+│   ├── YouTubeCaptionService.ts  (22 lines)
+│   └── YouTubeService.ts  (752 lines)
+├── settings/
+│   ├── AccountDetailsSection.tsx  (197 lines)
+│   ├── AccountSection.tsx  (294 lines)
+│   ├── AppearanceSection.tsx  (46 lines)
+│   ├── LanguageSection.tsx  (132 lines)
+│   ├── MyNetflixSection.tsx  (257 lines)
+│   ├── NotificationsSection.tsx  (42 lines)
+│   ├── PlaceholderSection.tsx  (24 lines)
+│   ├── PlaybackSection.tsx  (72 lines)
+│   ├── PlaybackSettings.tsx  (47 lines)
+│   ├── PrivacySection.tsx  (84 lines)
+│   ├── ProfileSection.tsx  (121 lines)
+│   ├── ProfileTransferSection.tsx  (144 lines)
+│   ├── SettingsLayout.tsx  (440 lines)
+│   ├── SettingsMenu.tsx  (133 lines)
+│   ├── SubtitlePreview.tsx  (59 lines)
+│   ├── SubtitleSection.tsx  (44 lines)
+│   ├── SubtitleSettings.tsx  (144 lines)
+│   └── ViewingActivitySection.tsx  (100 lines)
+├── store/
+│   ├── profileScope.ts  (13 lines)
+│   ├── useAuthStore.ts  (473 lines)
+│   ├── useCastStore.ts  (164 lines)
+│   ├── useLibraryStore.ts  (153 lines)
+│   ├── useProfileStore.ts  (370 lines)
+│   ├── useSettingsStore.ts  (166 lines)
+│   ├── useTrailerHistoryStore.ts  (49 lines)
+│   ├── useUIStore.ts  (19 lines)
+│   └── useWatchStore.ts  (198 lines)
+├── supabase/
+│   └── migrations/
+│       ├── 20260702_multi_profiles.sql  (278 lines)
+│       ├── 20260705_profile_avatar_history.sql  (12 lines)
+│       └── 20260705b_profile_settings.sql  (62 lines)
+├── tests/
+│   └── iphone-compat.spec.ts  (185 lines)
+├── types/
+│   └── assets.d.ts  (24 lines)
+├── ui/
+│   └── SettingsUI.tsx  (215 lines)
+├── utils/
+│   ├── ambientColor.ts  (76 lines)
+│   ├── avatarCache.ts  (87 lines)
+│   ├── captions.ts  (153 lines)
+│   ├── deviceHelper.ts  (51 lines)
+│   ├── ebml.ts  (89 lines)
+│   ├── mediaProbe.ts  (201 lines)
+│   ├── mkvAudioExtractor.ts  (318 lines)
+│   ├── scrollState.ts  (99 lines)
+│   ├── search.ts  (18 lines)
+│   └── streamCache.ts  (130 lines)
+├── .antigravityignore  (29 lines)
+├── .cursorignore  (25 lines)
+├── .env  (23 lines)
+├── .gitignore  (67 lines)
+├── App.tsx  (596 lines)
+├── constants.ts  (305 lines)
+├── file_tree_frondend.txt  (350 lines)
+├── i18n.ts  (74 lines)
+├── index.css  (519 lines)
+├── index.html  (48 lines)
+├── index.tsx  (51 lines)
+├── package.json  (45 lines)
+├── piracy_megathread_decoded.md  (284 lines)
+├── playwright.config.ts  (53 lines)
+├── postcss.config.js  (6 lines)
+├── tailwind.config.js  (49 lines)
+├── tsconfig.json  (44 lines)
+├── types.ts  (157 lines)
+├── update_file_tree.py  (207 lines)
+├── vite-env.d.ts  (10 lines)
+└── vite.config.ts  (52 lines)
 
-# 32 directories, 293 files
+# 31 directories, 293 files, 52,928 total lines of code
+
+# Breakdown by extension (files, lines of code):
+#   .tsx          108 files    27,805 lines
+#   .ts            72 files    15,091 lines
+#   .json          19 files     7,624 lines
+#   .css            1 files       519 lines
+#   .md             2 files       455 lines
+#   .sql            3 files       352 lines
+#   .txt            1 files       350 lines
+#   .js             3 files       271 lines
+#   .py             1 files       207 lines
+#   (no ext)        5 files       146 lines
+#   .svg            8 files        60 lines
+#   .html           1 files        48 lines
+#   .jpeg          12 files
+#   .png           22 files
+#   .otf           14 files
+#   .ttf           13 files
+#   .woff2          8 files

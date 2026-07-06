@@ -1,6 +1,6 @@
 import { REQUESTS } from '../constants';
 import { Movie, TMDBResponse } from '../types';
-import { getMovieImages, getExternalIds, fetchData, isBlacklisted, isKidsSafe, isGlobalKidsModeActive } from './api';
+import { getMovieImages, getExternalIds, getMovieDetails, fetchData, isBlacklisted, isKidsSafe, isGlobalKidsModeActive } from './api';
 import tmdb from './tmdb';
 
 /**
@@ -557,7 +557,11 @@ class HeroEngineService {
           if (logo) logoUrl = `https://image.tmdb.org/t/p/w300${logo.file_path}`;
         }
 
-        const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id };
+        // List/discover endpoints (used to build `pool` above) never include
+        // certification — it only comes from the movie/tv details endpoint.
+        // Without this, the Hero's age-rating badge silently renders nothing.
+        const details = await getMovieDetails(selectedMovie.id, mediaType).catch(() => null);
+        const movieWithExtras = { ...selectedMovie, imdb_id: externals?.imdb_id, certification: details?.certification };
         const pkg: HeroPackage = {
           movie:    movieWithExtras,
           logoUrl,
