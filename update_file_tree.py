@@ -107,8 +107,10 @@ def count_entries(lines: list) -> tuple:
 
 
 def main():
-    # Accept optional path argument
-    root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(".").resolve()
+    # Accept optional path argument; default to the folder this script lives
+    # in (not the shell's CWD) — running it from the parent `pstream/` repo
+    # was scanning that parent instead of pstream-frontend.
+    root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parent
 
     if not root.exists():
         print(f"Error: path not found — {root}")

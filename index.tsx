@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import BootIntro from './components/intro/BootIntro';
 import { GlobalProvider } from './context/GlobalContext';
 import { TitleProvider } from './context/TitleContext';
 import { HeroColorProvider } from './context/HeroColorContext';
@@ -29,6 +30,8 @@ root.render(
       <ErrorBoundary>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <App />
+          {/* App-open ident (mobile only) — covers cold-boot loading, then fades */}
+          <BootIntro />
         </BrowserRouter>
       </ErrorBoundary>
     </GlobalProvider>

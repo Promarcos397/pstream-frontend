@@ -1,10 +1,8 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-06-28 13:13:19
-# Root: D:\coding-projects\streaming-app\pstream-frontend
+# Generated: 2026-07-06 15:59:18
+# Root: /home/ibrahim/code/pstream/pstream-frontend
 
 pstream-frontend/
-├── .claude
-│   └── settings.local.json
 ├── assets
 │   ├── 404_assets
 │   │   ├── dim1-backdrop.jpeg
@@ -49,12 +47,31 @@ pstream-frontend/
 │   │   └── pstream-logo.svg
 │   └── landing-bg.png
 ├── components
+│   ├── intro
+│   │   ├── BootIntro.tsx
+│   │   ├── PIdentAnimation.tsx
+│   │   └── PstreamIntro.tsx
+│   ├── profiles
+│   │   ├── AddEditProfileModal.tsx
+│   │   ├── ChooseIconPageMobile.tsx
+│   │   ├── KidsAvatar.tsx
+│   │   ├── KidsBadge.tsx
+│   │   ├── NavbarProfileMenu.tsx
+│   │   ├── ProfileFormPageMobile.tsx
+│   │   ├── ProfileManager.tsx
+│   │   ├── ProfilePinPrompt.tsx
+│   │   ├── ProfileSheetMobile.tsx
+│   │   ├── ProfileSwitchOverlay.tsx
+│   │   └── WhosWatchingGate.tsx
 │   ├── AutoplayCountdown.tsx
 │   ├── BookHero.tsx
+│   ├── BottomNavMobile.tsx
 │   ├── CategorySubNav.tsx
 │   ├── CategorySubNavMobile.tsx
 │   ├── CharacterRow.tsx
 │   ├── CinemaPlayButton.tsx
+│   ├── ClipCard.tsx
+│   ├── ContinueWatchingOptionsSheet.tsx
 │   ├── EmbedPlayer.tsx
 │   ├── ErrorBoundary.tsx
 │   ├── ExploreSuggestions.tsx
@@ -83,10 +100,12 @@ pstream-frontend/
 │   ├── Navbar.tsx
 │   ├── NavbarMobile.tsx
 │   ├── NewPopularSubNavMobile.tsx
+│   ├── NotificationsDropdown.tsx
 │   ├── PWAInstallPrompt.tsx
 │   ├── Row.tsx
 │   ├── RowMobile.tsx
 │   ├── SearchBar.tsx
+│   ├── ShareSheet.tsx
 │   ├── SpotlightCard.tsx
 │   ├── TooltipWrapper.tsx
 │   ├── TopTenRow.tsx
@@ -108,24 +127,44 @@ pstream-frontend/
 │   ├── pageGenres.ts
 │   ├── subtitles.ts
 │   └── themes.ts
+├── docs
+│   ├── frozen
+│   │   └── liquid-glass-bottom-nav.md
+│   └── reference
+│       └── netflix-profiles
+│           ├── 01-whos-watching-picker.png
+│           ├── 02-add-profile-modal-from-browse.png
+│           ├── 02b-add-profile-modal-from-account-profiles.png
+│           ├── 03-manage-profiles-edit-mode.png
+│           ├── 04-profile-lock-pin-entry.png
+│           ├── 05-in-session-navbar-dropdown.png
+│           ├── 06-account-profiles-page.png
+│           ├── 07-account-profiles-dropdown-open.png
+│           ├── 08-profile-settings-page.png
+│           └── 09-edit-profile-page.png
 ├── hooks
 │   ├── genreManifestBuilder.ts
+│   ├── kidsManifestBuilder.ts
 │   ├── useAudioSilenceDetector.ts
 │   ├── useAvatarReady.ts
+│   ├── useCategoryLogo.ts
 │   ├── useDynamicManifest.ts
 │   ├── useEmbedLayout.ts
 │   ├── useHls.ts
 │   ├── useIsInTheaters.ts
 │   ├── useIsMobile.ts
 │   ├── useKeepAlive.ts
+│   ├── useLockBodyScroll.ts
 │   ├── useMovieData.ts
 │   ├── useNetworkQuality.ts
+│   ├── useNotifications.ts
 │   ├── usePrefersHover.ts
 │   ├── useScroll.ts
 │   ├── useSearch.ts
 │   ├── useSkipTimestamps.ts
 │   ├── useSubtitleStyle.ts
 │   ├── useTasteEngine.ts
+│   ├── useTitleLogo.ts
 │   ├── useTouchGestures.ts
 │   ├── useTrailer.ts
 │   └── useYouTubeCaptions.ts
@@ -152,6 +191,7 @@ pstream-frontend/
 │   ├── BrowseGridPage.tsx
 │   ├── BrowseLanguagePage.tsx
 │   ├── CinemaPage.tsx
+│   ├── ClipsPage.tsx
 │   ├── GhostPage.tsx
 │   ├── HomePage.tsx
 │   ├── LoginPage.tsx
@@ -160,12 +200,11 @@ pstream-frontend/
 │   ├── NewPopularMobilePage.tsx
 │   ├── NewPopularPage.tsx
 │   ├── NotFoundPage.tsx
+│   ├── NotificationsFeedPage.tsx
 │   ├── ReadsPage.tsx
 │   ├── SearchResultsPage.tsx
 │   ├── SettingsPage.tsx
 │   └── ShowsPage.tsx
-├── playwright-report
-│   └── index.html
 ├── public
 │   ├── assets
 │   │   └── logos
@@ -190,6 +229,7 @@ pstream-frontend/
 │   │   ├── ns-bd.woff2
 │   │   └── ns-md.woff2
 │   ├── icons
+│   │   ├── apple-touch-icon.png
 │   │   ├── icon-192.png
 │   │   ├── icon-512-maskable.png
 │   │   └── icon-512.png
@@ -197,87 +237,14 @@ pstream-frontend/
 │   ├── apple-touch-icon.png
 │   ├── favicon.svg
 │   ├── manifest.json
+│   ├── og-image.png
 │   ├── p-icon.svg
 │   ├── pstream-wordmark.svg
 │   ├── StandardGalacticAlphabet-Regular.ttf
 │   └── sw.js
-├── scraped_docs
-│   ├── 111movies_com.md
-│   ├── 1embed_cc.md
-│   ├── 2embed_skin.md
-│   ├── api_xyra_stream_docs_streamhub.md
-│   ├── cinemaos_tech_embed.md
-│   ├── cinesrc_st.md
-│   ├── cinezo_live.md
-│   ├── embed_icefy_top.md
-│   ├── fmovies4u_com.md
-│   ├── goatapi_imreallydagoatt_workers_dev.md
-│   ├── mappletv_uk.md
-│   ├── primesrc_me.md
-│   ├── spencerdevs_xyz.md
-│   ├── streamvaultsrc_click.md
-│   ├── vidapi_xyz.md
-│   ├── vidcore_net.md
-│   ├── vidfast_in.md
-│   ├── vidfast_io.md
-│   ├── vidfast_me.md
-│   ├── vidfast_net.md
-│   ├── vidfast_pm.md
-│   ├── vidfast_pro.md
-│   ├── vidfast_xyz.md
-│   ├── vidflix_club.md
-│   ├── vidify_top.md
-│   ├── vidlink_pro.md
-│   ├── vidnest_fun.md
-│   ├── vidrock_net.md
-│   ├── vidsrc-me_su.md
-│   ├── vidsrc_su.md
-│   ├── vidsrc_to.md
-│   ├── vidsrcme_ru.md
-│   ├── vidup_to.md
-│   ├── vidzee_wtf.md
-│   ├── vixsrc_to.md
-│   ├── web_nxsha_app_embed.md
-│   ├── www_2embed_cc.md
-│   ├── www_videasy_to.md
-│   └── www_vidking_net.md
-├── scratch
-│   ├── analyze_curation.cjs
-│   ├── analyze_tmdb_results.cjs
-│   ├── audit_docs.py
-│   ├── check_subs.js
-│   ├── embed_sandbox.html
-│   ├── find_renegade_immortal.js
-│   ├── generate_custom_cases.cjs
-│   ├── generate_fixed_rows.cjs
-│   ├── hero_algo_check.cjs
-│   ├── inject_translations.js
-│   ├── launch_webkit.py
-│   ├── netflix_observation_mockup.html
-│   ├── player.min.js
-│   ├── player_fetched.html
-│   ├── populate_curation_data.cjs
-│   ├── provider_notes.md
-│   ├── read_watch_history.js
-│   ├── scrape_docs.py
-│   ├── test_curation_algorithm.cjs
-│   ├── test_direct_apis.py
-│   ├── test_keywords.cjs
-│   ├── test_player.html
-│   ├── test_search.js
-│   ├── test_shuffling.cjs
-│   ├── test_upsert.js
-│   ├── vidapi_test.html
-│   └── vidfast_test.html
-├── scripts
-│   ├── audit-genre-rows.mjs
-│   ├── check-content.mjs
-│   ├── discover-astrology.mjs
-│   ├── discover-black-stories-2.mjs
-│   ├── discover-black-stories-3.mjs
-│   └── discover-black-stories.mjs
 ├── services
 │   ├── api.ts
+│   ├── ClipsService.ts
 │   ├── EmbedProviders.ts
 │   ├── ghostAuth.ts
 │   ├── GoatAPIService.ts
@@ -290,9 +257,12 @@ pstream-frontend/
 │   ├── YouTubeCaptionService.ts
 │   └── YouTubeService.ts
 ├── settings
+│   ├── AccountDetailsSection.tsx
 │   ├── AccountSection.tsx
 │   ├── AppearanceSection.tsx
 │   ├── LanguageSection.tsx
+│   ├── MyNetflixSection.tsx
+│   ├── NotificationsSection.tsx
 │   ├── PlaceholderSection.tsx
 │   ├── PlaybackSection.tsx
 │   ├── PlaybackSettings.tsx
@@ -306,14 +276,20 @@ pstream-frontend/
 │   ├── SubtitleSettings.tsx
 │   └── ViewingActivitySection.tsx
 ├── store
+│   ├── profileScope.ts
 │   ├── useAuthStore.ts
 │   ├── useCastStore.ts
 │   ├── useLibraryStore.ts
+│   ├── useProfileStore.ts
 │   ├── useSettingsStore.ts
+│   ├── useTrailerHistoryStore.ts
 │   ├── useUIStore.ts
 │   └── useWatchStore.ts
-├── test-results
-│   └── .last-run.json
+├── supabase
+│   └── migrations
+│       ├── 20260702_multi_profiles.sql
+│       ├── 20260705_profile_avatar_history.sql
+│       └── 20260705b_profile_settings.sql
 ├── tests
 │   └── iphone-compat.spec.ts
 ├── types
@@ -321,6 +297,7 @@ pstream-frontend/
 ├── ui
 │   └── SettingsUI.tsx
 ├── utils
+│   ├── ambientColor.ts
 │   ├── avatarCache.ts
 │   ├── captions.ts
 │   ├── deviceHelper.ts
@@ -330,36 +307,26 @@ pstream-frontend/
 │   ├── scrollState.ts
 │   ├── search.ts
 │   └── streamCache.ts
-├── workers
 ├── .antigravityignore
 ├── .cursorignore
 ├── .env
-├── .env.local
 ├── .gitignore
-├── alldebrid_keys.txt
 ├── App.tsx
-├── client_secret_432066495032-1s1qo2tifqgldir2tf37bh2b50joisnv.apps.googleusercontent.com.json
 ├── constants.ts
-├── download (1).zip
-├── download.zip
 ├── file_tree_frondend.txt
 ├── i18n.ts
-├── iframe_auditor.html
 ├── index.css
 ├── index.html
 ├── index.tsx
 ├── package.json
-├── patch_builder.cjs
 ├── piracy_megathread_decoded.md
 ├── playwright.config.ts
 ├── postcss.config.js
 ├── tailwind.config.js
-├── test_all_genres.js
-├── test_custom_genres.js
 ├── tsconfig.json
 ├── types.ts
 ├── update_file_tree.py
 ├── vite-env.d.ts
 └── vite.config.ts
 
-# 30 directories, 328 files
+# 32 directories, 293 files
