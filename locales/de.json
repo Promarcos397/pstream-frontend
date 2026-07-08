@@ -245,8 +245,6 @@
         "closePlayer": "Player schließen",
         "rewind10s": "10s zurückspulen",
         "fastForward10s": "10s vorspulen",
-        "playbackSpeed": "Wiedergabegeschwindigkeit",
-        "speedLabel": "Geschwindigkeit ({{speed}}x)",
         "episodesBtn": "Folgen",
         "subtitleBtn": "Audio & Untertitel",
         "subtitleTitle": "Untertitel (S)",
@@ -281,7 +279,6 @@
         "play": "Abspielen",
         "skipCredits": "Abspann überspringen",
         "seasons": "Staffeln",
-        "normalSpeed": "Normal",
         "episodeCode": "S{{season}}:F{{episode}}"
     },
     "playback": {

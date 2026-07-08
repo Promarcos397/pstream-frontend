@@ -16,8 +16,6 @@ import {
     ArrowLeftIcon,
     CropIcon,
     GearIcon,
-    Gauge,
-    SpeedometerIcon,
 } from '@phosphor-icons/react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { Episode } from '../types';
@@ -83,8 +81,6 @@ interface VideoPlayerControlsProps {
     skipSegments?: SkipSegment[];
     onSkipSegment?: (segment: SkipSegment) => void;
     isEmbedFallback?: boolean;
-    playbackSpeed?: number;
-    onPlaybackSpeedChange?: (speed: number) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -269,66 +265,6 @@ const VolumePopup: React.FC<{
                     onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setIsDragging(true); }}
                     onTouchStart={(e) => { e.stopPropagation(); setIsDragging(true); }}
                 />
-            </div>
-        </div>
-    );
-};
-
-// ─── Playback Speed Popup ───────────────────────────────────────────────────
-const SpeedPopup: React.FC<{
-    playbackSpeed: number;
-    onPlaybackSpeedChange: (speed: number) => void;
-    onClose: () => void;
-    isMobile: boolean;
-}> = ({ playbackSpeed, onPlaybackSpeedChange, onClose, isMobile }) => {
-    const { t } = useTranslation();
-    const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-
-    return (
-        <div
-            className="absolute z-50 bg-[#262626] select-none animate-fadeIn"
-            style={{
-                bottom: isMobile ? '70px' : '60px',
-                right: 0,
-                borderRadius: isMobile ? 12 : 4,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-                width: isMobile ? 190 : 175,
-                overflow: 'hidden',
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-        >
-            {/* Options */}
-            <div className="flex flex-col py-1">
-                {speedOptions.map((speed) => {
-                    const isSelected = playbackSpeed === speed;
-                    return (
-                        <div
-                            key={speed}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onPlaybackSpeedChange(speed);
-                                onClose();
-                            }}
-                            className={`flex items-center justify-between px-4 cursor-pointer transition-colors duration-150 select-none ${
-                                isMobile ? 'py-3.5 active:bg-white/10' : 'py-2.5 hover:bg-white/10'
-                            } ${isSelected ? 'bg-white/5' : ''}`}
-                        >
-                            <span className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-white/70'}`}>
-                                {speed === 1.0 ? t('player.normalSpeed', { defaultValue: 'Normal' }) : `${speed}x`}
-                            </span>
-                            <div
-                                className={`w-[13px] h-[13px] rounded-full border-[1.5px] flex items-center justify-center transition-colors flex-shrink-0 ${
-                                    isSelected ? 'border-white bg-white' : 'border-white/25 bg-transparent'
-                                }`}
-                            >
-                                {isSelected && (
-                                    <div className="w-[5px] h-[5px] rounded-full bg-[#262626]" />
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
             </div>
         </div>
     );
@@ -563,8 +499,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     seekFlash = null, setSeekFlash,
     skipSegments = [], onSkipSegment,
     isEmbedFallback = false,
-    playbackSpeed = 1.0,
-    onPlaybackSpeedChange,
 }) => {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
@@ -575,24 +509,17 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
     const [hoverTime, setHoverTime] = useState(0);
     const [showVolume, setShowVolume] = useState(false);
     const [showNextEpPopup, setShowNextEpPopup] = useState(false);
-    const [showSpeedPopup, setShowSpeedPopup] = useState(false);
     const [dragProgress, setDragProgress] = useState(0);
 
     const isTV = mediaType === 'tv';
-    const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup || showSpeedPopup;
+    const isPanelOpen = activePanel !== 'none' || showVolume || showNextEpPopup;
 
     const ICON_SIZE = isMobile ? 40 : 48;
-    const isAnyLocalPopupOpen = showVolume || showNextEpPopup || showSpeedPopup;
+    const isAnyLocalPopupOpen = showVolume || showNextEpPopup;
 
     useEffect(() => {
         onControlsHoverChange?.(isHovering || isDragging || isAnyLocalPopupOpen);
     }, [isHovering, isDragging, isAnyLocalPopupOpen, onControlsHoverChange]);
-
-    useEffect(() => {
-        if (activePanel !== 'none') {
-            setShowSpeedPopup(false);
-        }
-    }, [activePanel]);
 
     const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
         e.stopPropagation();
@@ -687,17 +614,17 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
     const toggleSubtitles = () => {
         if (activePanel === 'audioSubtitles') setActivePanel?.('none');
-        else { setActivePanel?.('audioSubtitles'); setShowVolume(false); setShowNextEpPopup(false); setShowSpeedPopup(false); }
+        else { setActivePanel?.('audioSubtitles'); setShowVolume(false); setShowNextEpPopup(false); }
         onInteraction?.();
     };
     const toggleEpisodes = () => {
         if (activePanel === 'episodes' || activePanel === 'seasons') setActivePanel?.('none');
-        else { setActivePanel?.('episodes'); setShowVolume(false); setShowNextEpPopup(false); setShowSpeedPopup(false); }
+        else { setActivePanel?.('episodes'); setShowVolume(false); setShowNextEpPopup(false); }
         onInteraction?.();
     };
     const togglePlayback = () => {
         if (activePanel === 'playback') setActivePanel?.('none');
-        else { setActivePanel?.('playback'); setShowVolume(false); setShowNextEpPopup(false); setShowSpeedPopup(false); }
+        else { setActivePanel?.('playback'); setShowVolume(false); setShowNextEpPopup(false); }
         onInteraction?.();
     };
 
@@ -705,9 +632,8 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
 
     const isEpisodesActive = activePanel === 'episodes' || activePanel === 'seasons';
     const isSubtitlesActive = activePanel === 'audioSubtitles';
-    const isSpeedActive = showSpeedPopup;
     const isPlaybackActive = activePanel === 'playback';
-    const isAnyPanelOpen = isEpisodesActive || isSubtitlesActive || isSpeedActive || isPlaybackActive;
+    const isAnyPanelOpen = isEpisodesActive || isSubtitlesActive || isPlaybackActive;
 
     const getMobileIconOpacity = (isActive: boolean) => {
         if (!isMobile) return '';
@@ -1009,28 +935,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                         <div className="pointer-events-auto flex items-center justify-between relative">
                             {isMobile ? (
                                 <div className="w-full flex items-center justify-around gap-2 px-3 sm:px-6 min-w-0">
-                                    {/* Playback Speed */}
-                                    <div className="relative">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setShowSpeedPopup(prev => !prev); }}
-                                            onMouseDown={() => onInteraction?.()}
-                                            className={mobileBtnCls(isSpeedActive)}
-                                            aria-label={t('player.playbackSpeed')}
-                                            title={t('player.playbackSpeed')}
-                                        >
-                                            <SpeedometerIcon size={24} weight={isSpeedActive ? "fill" : "bold"} className="flex-shrink-0" />
-                                            <span className="font-netflix truncate max-w-[65px] sm:max-w-none">{t('player.speedLabel', { speed: playbackSpeed })}</span>
-                                        </button>
-                                        {showSpeedPopup && (
-                                            <SpeedPopup 
-                                                playbackSpeed={playbackSpeed}
-                                                onPlaybackSpeedChange={onPlaybackSpeedChange ?? (() => {})}
-                                                onClose={() => setShowSpeedPopup(false)}
-                                                isMobile={isMobile}
-                                            />
-                                        )}
-                                    </div>
-
                                     {/* Episodes explorer */}
                                     {isTV && onEpisodesClick && (
                                         <div className="relative">
@@ -1213,26 +1117,6 @@ const VideoPlayerControls: React.FC<VideoPlayerControlsProps> = ({
                                                 </button>
                                             </div>
                                         )}
-
-                                        <div className="relative">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setShowSpeedPopup(prev => !prev); }}
-                                                onMouseDown={() => onInteraction?.()}
-                                                className={`${btn} ${getMobileIconOpacity(isSpeedActive)}`}
-                                                aria-label={t('player.playbackSpeed')}
-                                                title={t('player.playbackSpeed')}
-                                            >
-                                                <Gauge size={ICON_SIZE} weight="bold" />
-                                            </button>
-                                            {showSpeedPopup && (
-                                                <SpeedPopup 
-                                                    playbackSpeed={playbackSpeed}
-                                                    onPlaybackSpeedChange={onPlaybackSpeedChange ?? (() => {})}
-                                                    onClose={() => setShowSpeedPopup(false)}
-                                                    isMobile={isMobile}
-                                                />
-                                            )}
-                                        </div>
 
                                         <div className="relative">
                                             <button

@@ -245,8 +245,6 @@
         "closePlayer": "Fechar reprodutor",
         "rewind10s": "Recuar 10s",
         "fastForward10s": "Avançar 10s",
-        "playbackSpeed": "Velocidade de reprodução",
-        "speedLabel": "Velocidade ({{speed}}x)",
         "episodesBtn": "Episódios",
         "subtitleBtn": "Áudio e legendas",
         "subtitleTitle": "Legendas (S)",
@@ -281,7 +279,6 @@
         "play": "Reproduzir",
         "skipCredits": "Pular créditos",
         "seasons": "Temporadas",
-        "normalSpeed": "Normal",
         "episodeCode": "T{{season}}:Ep{{episode}}"
     },
     "playback": {

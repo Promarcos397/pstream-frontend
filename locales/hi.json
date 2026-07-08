@@ -245,8 +245,6 @@
         "closePlayer": "प्लेयर बंद करें",
         "rewind10s": "10 सेकंड पीछे",
         "fastForward10s": "10 सेकंड आगे",
-        "playbackSpeed": "प्लेबैक गति",
-        "speedLabel": "गति ({{speed}}x)",
         "episodesBtn": "एपिसोड",
         "subtitleBtn": "ऑडियो और सबटाइटल",
         "subtitleTitle": "सबटाइटल (S)",
@@ -281,7 +279,6 @@
         "play": "चलाएं",
         "skipCredits": "क्रेडिट छोड़ें",
         "seasons": "सीज़न",
-        "normalSpeed": "सामान्य",
         "episodeCode": "S{{season}}:E{{episode}}"
     },
     "playback": {

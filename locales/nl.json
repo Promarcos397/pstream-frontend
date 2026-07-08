@@ -245,8 +245,6 @@
         "closePlayer": "Speler sluiten",
         "rewind10s": "10s terugspoelen",
         "fastForward10s": "10s vooruitspoelen",
-        "playbackSpeed": "Afspeelsnelheid",
-        "speedLabel": "Snelheid ({{speed}}x)",
         "episodesBtn": "Afleveringen",
         "subtitleBtn": "Audio & ondertitels",
         "subtitleTitle": "Ondertitels (S)",
@@ -281,7 +279,6 @@
         "play": "Afspelen",
         "skipCredits": "Aftiteling overslaan",
         "seasons": "Seizoenen",
-        "normalSpeed": "Normaal",
         "episodeCode": "S{{season}}:Afl{{episode}}"
     },
     "playback": {

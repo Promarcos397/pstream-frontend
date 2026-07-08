@@ -245,8 +245,6 @@
         "closePlayer": "Close player",
         "rewind10s": "Rewind 10s",
         "fastForward10s": "Fast-forward 10s",
-        "playbackSpeed": "Playback Speed",
-        "speedLabel": "Speed ({{speed}}x)",
         "episodesBtn": "Episodes",
         "subtitleBtn": "Audio & Subtitles",
         "subtitleTitle": "Subtitles (S)",
@@ -281,7 +279,6 @@
         "play": "Play",
         "skipCredits": "Skip Credits",
         "seasons": "Seasons",
-        "normalSpeed": "Normal",
         "episodeCode": "S{{season}}:E{{episode}}"
     },
     "playback": {

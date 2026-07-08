@@ -244,8 +244,6 @@
         "closePlayer": "Oynatıcıyı kapat",
         "rewind10s": "10s geri sar",
         "fastForward10s": "10s ileri sar",
-        "playbackSpeed": "Oynatma hızı",
-        "speedLabel": "Hız ({{speed}}x)",
         "episodesBtn": "Bölümler",
         "subtitleBtn": "Ses ve altyazı",
         "subtitleTitle": "Altyazı (S)",
@@ -280,7 +278,6 @@
         "play": "Oynat",
         "skipCredits": "Jeneriği atla",
         "seasons": "Sezonlar",
-        "normalSpeed": "Normal",
         "episodeCode": "S{{season}}:B{{episode}}"
     },
     "playback": {

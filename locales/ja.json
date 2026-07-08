@@ -244,8 +244,6 @@
         "closePlayer": "プレーヤーを閉じる",
         "rewind10s": "10秒戻る",
         "fastForward10s": "10秒進む",
-        "playbackSpeed": "再生速度",
-        "speedLabel": "速度 ({{speed}}x)",
         "episodesBtn": "エピソード",
         "subtitleBtn": "音声 & 字幕",
         "subtitleTitle": "字幕 (S)",
@@ -280,7 +278,6 @@
         "play": "再生",
         "skipCredits": "エンドクレジットをスキップ",
         "seasons": "シーズン",
-        "normalSpeed": "標準",
         "episodeCode": "S{{season}}:E{{episode}}"
     },
     "playback": {

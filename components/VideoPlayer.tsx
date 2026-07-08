@@ -202,7 +202,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(true);
     const [currentTime, setCurrentTime] = useState(0);
-    const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
     const currentTimeRef = useRef(0);
     
     // SAFETY LOCK 1: Prevents double-firing of "Next Episode" 
@@ -803,16 +802,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         setIsStreamM3U8(!!candidate.isM3U8);
         setStreamReferer(activeReferer || null);
     }, [allSources]);
-
-    const handlePlaybackSpeedChange = useCallback((speed: number) => {
-        setPlaybackSpeed(speed);
-        if (embedControllerRef.current?.setSpeed) {
-            embedControllerRef.current.setSpeed(speed);
-        }
-        if (videoRef.current) {
-            videoRef.current.playbackRate = speed;
-        }
-    }, []);
 
     const handleEpisodeSelect = useCallback(async (ep: Episode, seasonNum?: number, episodes?: Episode[]) => {
         // Lock out any accidental triggers while mounting
@@ -1581,7 +1570,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 activePanel={activePanel}
                 providerIndex={embedProviderIndex}
                 onProviderIndexChange={setEmbedProviderIndex}
-                playbackSpeed={playbackSpeed}
                 startTime={(() => {
                     if (mediaType === 'tv') {
                         const prog = getEpisodeProgress(movie.id, playingSeasonNumber, currentEpisode);
@@ -1839,8 +1827,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                         buffered={bufferedAmount}
                         isBuffering={isBuffering}
                         title={title}
-                        playbackSpeed={playbackSpeed}
-                        onPlaybackSpeedChange={handlePlaybackSpeedChange}
                         episodeNumber={mediaType === 'tv' ? currentEpisode : undefined}
                         episodeName={mediaType === 'tv' ? currentEpisodeName : undefined}
                         showAutoplayCountdown={showAutoplayCountdown}

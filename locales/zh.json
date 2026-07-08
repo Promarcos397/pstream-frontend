@@ -244,8 +244,6 @@
         "closePlayer": "关闭播放器",
         "rewind10s": "后退10秒",
         "fastForward10s": "前进10秒",
-        "playbackSpeed": "播放速度",
-        "speedLabel": "速度 ({{speed}}x)",
         "episodesBtn": "剧集",
         "subtitleBtn": "音频和字幕",
         "subtitleTitle": "字幕 (S)",
@@ -280,7 +278,6 @@
         "play": "播放",
         "skipCredits": "跳过片尾字幕",
         "seasons": "季",
-        "normalSpeed": "正常",
         "episodeCode": "第{{season}}季第{{episode}}集"
     },
     "playback": {

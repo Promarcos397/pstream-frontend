@@ -11,8 +11,6 @@ export interface EmbedController {
     setMuted: (muted: boolean, vol?: number) => void;
     /** Set volume level (0.0 – 1.0) without touching the mute flag */
     setVolume: (level: number) => void;
-    /** Set playback speed/rate */
-    setSpeed: (rate: number) => void;
     /** Get the current iframe element */
     getIframe: () => HTMLIFrameElement | null;
 }
@@ -37,7 +35,6 @@ interface EmbedPlayerProps {
     startProviderIndex?: number;
     providerIndex?: number;
     onProviderIndexChange?: (index: number) => void;
-    playbackSpeed?: number;
     /** Mutable ref object that receives control functions */
     controllerRef?: React.MutableRefObject<EmbedController | null>;
 }
@@ -61,7 +58,6 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     startProviderIndex = 0,
     providerIndex,
     onProviderIndexChange,
-    playbackSpeed = 1.0,
     controllerRef
 }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -237,30 +233,13 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         win.postMessage({ command: play ? 'play' : 'pause' }, '*');
     }, []);
 
-    const broadcastSpeed = useCallback((rate: number) => {
-        const win = iframeRef.current?.contentWindow;
-        if (!win) return;
-        // Broadcast all common message formats for speed:
-        win.postMessage({ command: 'speed', rate }, '*');
-        win.postMessage({ command: 'speed', value: rate }, '*');
-        win.postMessage({ command: 'playbackRate', rate }, '*');
-        win.postMessage({ command: 'playbackRate', value: rate }, '*');
-        win.postMessage({ command: 'setSpeed', rate }, '*');
-        win.postMessage({ command: 'setPlaybackRate', rate }, '*');
-        console.log(`[EmbedPlayer] Playback Rate / Speed → ${rate}x`);
-    }, []);
-
     const handleIframeLoad = useCallback(() => {
-        console.log(`[EmbedPlayer] Iframe onLoad event fired. Sending initial play state and speed.`);
-        if (playbackSpeed !== undefined) {
-            broadcastSpeed(playbackSpeed);
-            setTimeout(() => broadcastSpeed(playbackSpeed), 200);
-        }
+        console.log(`[EmbedPlayer] Iframe onLoad event fired. Sending initial play state.`);
         if (isPlaying) {
             broadcastPlayPause(true);
             setTimeout(() => broadcastPlayPause(true), 200);
         }
-    }, [isPlaying, playbackSpeed, broadcastPlayPause, broadcastSpeed]);
+    }, [isPlaying, broadcastPlayPause]);
 
     const broadcastSeek = useCallback((time: number) => {
         const win = iframeRef.current?.contentWindow;
@@ -314,14 +293,13 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             },
             setMuted: broadcastMute,
             setVolume: broadcastVolume,
-            setSpeed: broadcastSpeed,
             getIframe: () => iframeRef.current,
         };
         return () => {
             controllerRef.current = null;
             if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
         };
-    }, [controllerRef, broadcastSeek, broadcastMute, broadcastVolume, broadcastSpeed, currentProvider]);
+    }, [controllerRef, broadcastSeek, broadcastMute, broadcastVolume, currentProvider]);
 
     // React to parent's isPlaying state — skip mount so we don't send pause before the iframe loads
     const hasMountedPlayRef = useRef(false);
@@ -329,13 +307,6 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
         if (!hasMountedPlayRef.current) { hasMountedPlayRef.current = true; return; }
         broadcastPlayPause(isPlaying);
     }, [isPlaying, broadcastPlayPause]);
-
-    // React to parent's playbackSpeed state
-    useEffect(() => {
-        if (playbackSpeed !== undefined) {
-            broadcastSpeed(playbackSpeed);
-        }
-    }, [playbackSpeed, broadcastSpeed]);
 
     // ── postMessage listener — VidFast event format only ──────────────────────
     // VidFast event shape:

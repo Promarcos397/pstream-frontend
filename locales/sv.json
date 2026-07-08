@@ -245,8 +245,6 @@
         "closePlayer": "Stäng spelaren",
         "rewind10s": "Spola tillbaka 10s",
         "fastForward10s": "Spola fram 10s",
-        "playbackSpeed": "Uppspelningshastighet",
-        "speedLabel": "Hastighet ({{speed}}x)",
         "episodesBtn": "Avsnitt",
         "subtitleBtn": "Ljud & undertexter",
         "subtitleTitle": "Undertexter (S)",
@@ -281,7 +279,6 @@
         "play": "Spela",
         "skipCredits": "Hoppa över eftertextning",
         "seasons": "Säsonger",
-        "normalSpeed": "Normal",
         "episodeCode": "S{{season}}:A{{episode}}"
     },
     "playback": {

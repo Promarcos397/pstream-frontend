@@ -249,8 +249,6 @@
         "closePlayer": "إغلاق المشغّل",
         "rewind10s": "رجوع 10 ثوانٍ",
         "fastForward10s": "تقديم 10 ثوانٍ",
-        "playbackSpeed": "سرعة التشغيل",
-        "speedLabel": "السرعة ({{speed}}x)",
         "episodesBtn": "الحلقات",
         "subtitleBtn": "الصوت والترجمة",
         "subtitleTitle": "الترجمة (S)",
@@ -285,7 +283,6 @@
         "play": "تشغيل",
         "skipCredits": "تخطي التتر",
         "seasons": "المواسم",
-        "normalSpeed": "عادي",
         "episodeCode": "م{{season}}:ح{{episode}}"
     },
     "playback": {

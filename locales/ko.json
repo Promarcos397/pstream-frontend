@@ -244,8 +244,6 @@
         "closePlayer": "플레이어 닫기",
         "rewind10s": "10초 뒤로",
         "fastForward10s": "10초 앞으로",
-        "playbackSpeed": "재생 속도",
-        "speedLabel": "속도 ({{speed}}x)",
         "episodesBtn": "에피소드",
         "subtitleBtn": "오디오 및 자막",
         "subtitleTitle": "자막 (S)",
@@ -280,7 +278,6 @@
         "play": "재생",
         "skipCredits": "엔딩 크레딧 건너뛰기",
         "seasons": "시즌",
-        "normalSpeed": "기본",
         "episodeCode": "S{{season}}:E{{episode}}"
     },
     "playback": {

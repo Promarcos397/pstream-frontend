@@ -247,8 +247,6 @@
         "closePlayer": "Zamknij odtwarzacz",
         "rewind10s": "Cofnij 10s",
         "fastForward10s": "Przewiń 10s",
-        "playbackSpeed": "Prędkość odtwarzania",
-        "speedLabel": "Prędkość ({{speed}}x)",
         "episodesBtn": "Odcinki",
         "subtitleBtn": "Audio i napisy",
         "subtitleTitle": "Napisy (S)",
@@ -283,7 +281,6 @@
         "play": "Odtwórz",
         "skipCredits": "Pomiń napisy końcowe",
         "seasons": "Sezony",
-        "normalSpeed": "Normalnie",
         "episodeCode": "S{{season}}:Odc{{episode}}"
     },
     "playback": {

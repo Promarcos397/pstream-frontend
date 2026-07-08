@@ -247,8 +247,6 @@
         "closePlayer": "Закрыть плеер",
         "rewind10s": "Назад 10с",
         "fastForward10s": "Вперёд 10с",
-        "playbackSpeed": "Скорость воспроизведения",
-        "speedLabel": "Скорость ({{speed}}x)",
         "episodesBtn": "Эпизоды",
         "subtitleBtn": "Аудио и субтитры",
         "subtitleTitle": "Субтитры (S)",
@@ -283,7 +281,6 @@
         "play": "Воспроизвести",
         "skipCredits": "Пропустить титры",
         "seasons": "Сезоны",
-        "normalSpeed": "Обычная",
         "episodeCode": "С{{season}}:Э{{episode}}"
     },
     "playback": {
