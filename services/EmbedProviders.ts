@@ -72,20 +72,23 @@ export const TIER_1_PROVIDERS: EmbedProvider[] = [
     },
 ];
 
-// ─── EMBED KILL SWITCH (STEP ZERO) ──────────────────────────────────────────
-// The entire embed subsystem is disabled. Playback no longer routes through
-// third-party iframe embeds (VidFast, etc.). This flag is the SINGLE SOURCE OF
-// TRUTH — flip it back to `true` to revive embeds.
+// ─── EMBED FALLBACK SWITCH ──────────────────────────────────────────────────
+// Embeds are no longer the primary playback path — the player resolves a real
+// stream from the backend first and only falls back to an iframe when that
+// returns nothing (see VideoPlayer.tsx).
 //
-// While `false`:
-//   • ALL_EMBED_PROVIDERS is empty
-//   • <EmbedPlayer> returns null and is never mounted (see EmbedPlayer.tsx)
-//   • VideoPlayer never enters embed-fallback mode (see VideoPlayer.tsx)
-// Everything else in this file (TIER_1_PROVIDERS, buildUrl, etc.) is now dead
-// code, kept intact only so the switch can be reversed cleanly.
-export const EMBEDS_ENABLED = false;
+// They are enabled as a safety net because backend resolution currently fails
+// from the Space's host: vixsrc.to and friends are behind Cloudflare, which
+// blocks datacenter IPs outright. Verified 2026-07-18 — HuggingFace (AWS),
+// Cloudflare Workers, allorigins and corsproxy all get 403 from two different
+// continents, while a residential IP gets 200. Until the backend scrapes via
+// residential egress, embeds are the only thing that plays.
+//
+// Set to false once direct resolution is reliable; the player already prefers
+// direct sources whenever they resolve, so this only controls the safety net.
+export const EMBEDS_ENABLED = true;
 
-// Flat list for easy iteration — empty while embeds are killed.
+// Flat list for easy iteration.
 export const ALL_EMBED_PROVIDERS = EMBEDS_ENABLED
     ? [...TIER_1_PROVIDERS].filter(p => p !== undefined)
     : [];

@@ -1,5 +1,5 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-07-18 14:40:15
+# Generated: 2026-07-18 20:36:21
 # Root: /home/ibrahim/code/pstream/pstream-frontend
 
 pstream-frontend/
@@ -113,7 +113,7 @@ pstream-frontend/
 │   ├── TopTenRow.tsx  (1,172 lines)
 │   ├── TopTenRowMobile.tsx  (298 lines)
 │   ├── TrailerPlayer.tsx  (312 lines)
-│   ├── VideoPlayer.tsx  (2,182 lines)
+│   ├── VideoPlayer.tsx  (2,197 lines)
 │   ├── VideoPlayerControls.tsx  (1,152 lines)
 │   ├── VideoPlayerSettings.tsx  (785 lines)
 │   └── VideoPlayerSettingsTouch.tsx  (638 lines)
@@ -246,7 +246,7 @@ pstream-frontend/
 ├── services/
 │   ├── api.ts  (40 lines)
 │   ├── ClipsService.ts  (179 lines)
-│   ├── EmbedProviders.ts  (91 lines)
+│   ├── EmbedProviders.ts  (94 lines)
 │   ├── ghostAuth.ts  (68 lines)
 │   ├── GoatAPIService.ts  (89 lines)
 │   ├── HeroEngine.ts  (661 lines)
@@ -330,11 +330,11 @@ pstream-frontend/
 ├── vite-env.d.ts  (10 lines)
 └── vite.config.ts  (52 lines)
 
-# 32 directories, 294 files, 52,892 total lines of code
+# 32 directories, 294 files, 52,910 total lines of code
 
 # Breakdown by extension (files, lines of code):
-#   .tsx          108 files    27,793 lines
-#   .ts            72 files    15,106 lines
+#   .tsx          108 files    27,808 lines
+#   .ts            72 files    15,109 lines
 #   .json          20 files     7,583 lines
 #   .css            1 files       519 lines
 #   .md             2 files       455 lines

@@ -284,8 +284,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<number | null>(null);
     const [selectedSubtitleTrackId, setSelectedSubtitleTrackId] = useState<number | null>(null);
 
-    // STEP ZERO: embeds are killed — this stays false permanently (EMBEDS_ENABLED=false).
-    const [useEmbedFallback, setUseEmbedFallback] = useState(EMBEDS_ENABLED);
+    // Always start on the direct path. This only flips to true if backend
+    // resolution yields no playable source and embeds are enabled as a net.
+    const [useEmbedFallback, setUseEmbedFallback] = useState(false);
     const [embedProviderIndex, setEmbedProviderIndex] = useState(0);
 
     const embedSourcesMapped = useMemo(() => {
@@ -390,7 +391,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         sourceFailureCooldownRef.current.clear();
         hasPlayedOnceRef.current = false; 
         reportedSuccessRef.current = null;
-        setUseEmbedFallback(EMBEDS_ENABLED); // STEP ZERO: never re-enables embeds while killed
+        setUseEmbedFallback(false); // new title/episode → try the direct path again
         setEmbedProviderIndex(0);
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
@@ -939,6 +940,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
 
                 if (!data?.success || sources.length === 0) {
                     console.warn('[VideoPlayer] No playable source:', data?.error);
+                    if (EMBEDS_ENABLED) {
+                        // Backend resolution failed — fall back to the embed so
+                        // the user still gets playback rather than an error.
+                        console.info('[VideoPlayer] ↩︎ Falling back to embed player');
+                        setUseEmbedFallback(true);
+                        return;
+                    }
                     setIsBuffering(false);
                     setError(data?.error || 'No stream found. All providers are currently unavailable.');
                     return;
@@ -949,6 +957,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
             } catch (e: any) {
                 if (cancelled || e?.name === 'AbortError') return;
                 console.error('[VideoPlayer] Stream resolve failed:', e);
+                if (EMBEDS_ENABLED) {
+                    console.info('[VideoPlayer] ↩︎ Backend unreachable — falling back to embed player');
+                    setUseEmbedFallback(true);
+                    return;
+                }
                 setIsBuffering(false);
                 setError('Could not reach the stream service. Please try again.');
             }
@@ -1685,19 +1698,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 toggleFullscreen();
             }}
         >
-            {/* STEP ONE: the real player. Driven by useHls from the backend-resolved stream. */}
+            {/* Primary player: direct stream resolved from the backend, driven by useHls.
+                Hidden (not unmounted) in embed mode so playback state survives a fallback. */}
             <video
                 ref={videoRef}
                 className="absolute inset-0 w-full h-full bg-black"
-                style={{ objectFit: videoFit }}
+                style={{ objectFit: videoFit, display: useEmbedFallback ? 'none' : 'block' }}
                 playsInline
                 autoPlay
                 preload="auto"
                 onClick={(e) => e.stopPropagation()}
             />
 
-            {/* STEP ZERO: embed subsystem killed — <EmbedPlayer> never mounts while EMBEDS_ENABLED=false. */}
-            {EMBEDS_ENABLED && (
+            {/* Fallback player: mounts only when direct resolution produced nothing,
+                so the two never play at once. */}
+            {EMBEDS_ENABLED && useEmbedFallback && (
             <EmbedPlayer
                 tmdbId={String(movie.id)}
                 imdbId={movie.imdb_id}
