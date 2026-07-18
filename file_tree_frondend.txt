@@ -1,8 +1,10 @@
 # P-Stream Frontend — File Tree
-# Generated: 2026-07-06 17:26:14
+# Generated: 2026-07-18 14:40:15
 # Root: /home/ibrahim/code/pstream/pstream-frontend
 
 pstream-frontend/
+├── .claude/
+│   └── settings.local.json  (7 lines)
 ├── assets/
 │   ├── 404_assets/
 │   │   ├── dim1-backdrop.jpeg  (578.8KB)
@@ -72,7 +74,7 @@ pstream-frontend/
 │   ├── CinemaPlayButton.tsx  (302 lines)
 │   ├── ClipCard.tsx  (280 lines)
 │   ├── ContinueWatchingOptionsSheet.tsx  (75 lines)
-│   ├── EmbedPlayer.tsx  (478 lines)
+│   ├── EmbedPlayer.tsx  (455 lines)
 │   ├── ErrorBoundary.tsx  (81 lines)
 │   ├── ExploreSuggestions.tsx  (55 lines)
 │   ├── Footer.tsx  (98 lines)
@@ -111,8 +113,8 @@ pstream-frontend/
 │   ├── TopTenRow.tsx  (1,172 lines)
 │   ├── TopTenRowMobile.tsx  (298 lines)
 │   ├── TrailerPlayer.tsx  (312 lines)
-│   ├── VideoPlayer.tsx  (2,055 lines)
-│   ├── VideoPlayerControls.tsx  (1,268 lines)
+│   ├── VideoPlayer.tsx  (2,182 lines)
+│   ├── VideoPlayerControls.tsx  (1,152 lines)
 │   ├── VideoPlayerSettings.tsx  (785 lines)
 │   └── VideoPlayerSettingsTouch.tsx  (638 lines)
 ├── context/
@@ -171,22 +173,22 @@ pstream-frontend/
 ├── icons/
 │   └── index.tsx  (299 lines)
 ├── locales/
-│   ├── ar.json  (472 lines)
-│   ├── de.json  (468 lines)
-│   ├── en.json  (468 lines)
-│   ├── es.json  (468 lines)
-│   ├── fr.json  (468 lines)
-│   ├── hi.json  (468 lines)
-│   ├── it.json  (469 lines)
-│   ├── ja.json  (467 lines)
-│   ├── ko.json  (467 lines)
-│   ├── nl.json  (468 lines)
-│   ├── pl.json  (470 lines)
-│   ├── pt.json  (468 lines)
-│   ├── ru.json  (470 lines)
-│   ├── sv.json  (468 lines)
-│   ├── tr.json  (467 lines)
-│   └── zh.json  (467 lines)
+│   ├── ar.json  (469 lines)
+│   ├── de.json  (465 lines)
+│   ├── en.json  (465 lines)
+│   ├── es.json  (465 lines)
+│   ├── fr.json  (465 lines)
+│   ├── hi.json  (465 lines)
+│   ├── it.json  (466 lines)
+│   ├── ja.json  (464 lines)
+│   ├── ko.json  (464 lines)
+│   ├── nl.json  (465 lines)
+│   ├── pl.json  (467 lines)
+│   ├── pt.json  (465 lines)
+│   ├── ru.json  (467 lines)
+│   ├── sv.json  (465 lines)
+│   ├── tr.json  (464 lines)
+│   └── zh.json  (464 lines)
 ├── pages/
 │   ├── BrowseGridPage.tsx  (252 lines)
 │   ├── BrowseLanguagePage.tsx  (322 lines)
@@ -244,7 +246,7 @@ pstream-frontend/
 ├── services/
 │   ├── api.ts  (40 lines)
 │   ├── ClipsService.ts  (179 lines)
-│   ├── EmbedProviders.ts  (76 lines)
+│   ├── EmbedProviders.ts  (91 lines)
 │   ├── ghostAuth.ts  (68 lines)
 │   ├── GoatAPIService.ts  (89 lines)
 │   ├── HeroEngine.ts  (661 lines)
@@ -312,7 +314,7 @@ pstream-frontend/
 ├── .gitignore  (67 lines)
 ├── App.tsx  (596 lines)
 ├── constants.ts  (305 lines)
-├── file_tree_frondend.txt  (350 lines)
+├── file_tree_frondend.txt  (352 lines)
 ├── i18n.ts  (74 lines)
 ├── index.css  (519 lines)
 ├── index.html  (48 lines)
@@ -328,16 +330,16 @@ pstream-frontend/
 ├── vite-env.d.ts  (10 lines)
 └── vite.config.ts  (52 lines)
 
-# 31 directories, 293 files, 52,928 total lines of code
+# 32 directories, 294 files, 52,892 total lines of code
 
 # Breakdown by extension (files, lines of code):
-#   .tsx          108 files    27,805 lines
-#   .ts            72 files    15,091 lines
-#   .json          19 files     7,624 lines
+#   .tsx          108 files    27,793 lines
+#   .ts            72 files    15,106 lines
+#   .json          20 files     7,583 lines
 #   .css            1 files       519 lines
 #   .md             2 files       455 lines
 #   .sql            3 files       352 lines
-#   .txt            1 files       350 lines
+#   .txt            1 files       352 lines
 #   .js             3 files       271 lines
 #   .py             1 files       207 lines
 #   (no ext)        5 files       146 lines

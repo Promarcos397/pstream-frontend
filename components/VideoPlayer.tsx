@@ -13,11 +13,12 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { SubtitleService } from '../services/SubtitleService';
 import { reportStreamError, reportStreamSuccess } from '../services/ProviderHealthService';
 import { useSkipTimestamps, SkipSegment } from '../hooks/useSkipTimestamps';
+import { useHls } from '../hooks/useHls';
 import VideoPlayerControls from './VideoPlayerControls';
 import VideoPlayerSettings from './VideoPlayerSettings';
 import VideoPlayerSettingsTouch from './VideoPlayerSettingsTouch';
 import { EmbedPlayer, EmbedController } from './EmbedPlayer';
-import { ALL_EMBED_PROVIDERS } from '../services/EmbedProviders';
+import { ALL_EMBED_PROVIDERS, EMBEDS_ENABLED } from '../services/EmbedProviders';
 import { ArrowLeftIcon } from '@phosphor-icons/react';
 import { parseSubtitles, CaptionCueType } from '../utils/captions';
 
@@ -267,6 +268,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const MAX_STREAM_RETRIES = 3;
     const retryCountRef = useRef(0);
     const [retryCount, setRetryCount] = useState(0);
+    // Bumped to force a re-resolve; forceResolveRef adds ?force=1 so the
+    // backend busts its Redis entry instead of handing back the dead URL.
+    const [resolveNonce, setResolveNonce] = useState(0);
+    const forceResolveRef = useRef(false);
     const retryCooldownUntilRef = useRef(0);
     const sourceFailureCooldownRef = useRef<Map<string, number>>(new Map());
     const cacheKeyRef = useRef<import('../utils/streamCache').CacheKey | null>(null);
@@ -279,7 +284,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
     const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<number | null>(null);
     const [selectedSubtitleTrackId, setSelectedSubtitleTrackId] = useState<number | null>(null);
 
-    const [useEmbedFallback, setUseEmbedFallback] = useState(true);
+    // STEP ZERO: embeds are killed — this stays false permanently (EMBEDS_ENABLED=false).
+    const [useEmbedFallback, setUseEmbedFallback] = useState(EMBEDS_ENABLED);
     const [embedProviderIndex, setEmbedProviderIndex] = useState(0);
 
     const embedSourcesMapped = useMemo(() => {
@@ -384,8 +390,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         sourceFailureCooldownRef.current.clear();
         hasPlayedOnceRef.current = false; 
         reportedSuccessRef.current = null;
-        setUseEmbedFallback(true); 
-        setEmbedProviderIndex(0); 
+        setUseEmbedFallback(EMBEDS_ENABLED); // STEP ZERO: never re-enables embeds while killed
+        setEmbedProviderIndex(0);
     }, [movie.id, mediaType, playingSeasonNumber, currentEpisode]);
 
     const toggleFullscreen = useCallback(() => {
@@ -889,6 +895,68 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, [streamUrl]);
 
+    // ─── STEP ONE: resolve a playable stream from the Giga backend ──────────
+    // This is the call that was missing entirely — the player previously only
+    // ever rendered a third-party embed. The backend races its extractors and
+    // returns raw HLS/MP4 sources, which applyStreamResult hands to useHls.
+    useEffect(() => {
+        let cancelled = false;
+        const controller = new AbortController();
+
+        (async () => {
+            setError(null);
+            setIsBuffering(true);
+            setLoadingMessage('Finding stream...');
+
+            const type = mediaType === 'tv' ? 'tv' : 'movie';
+            const year = (movie.release_date || movie.first_air_date || '').slice(0, 4);
+
+            const params = new URLSearchParams({
+                tmdbId: String(movie.id),
+                type,
+                title: movie.title || movie.name || '',
+            });
+            if (year) params.set('year', year);
+            if (movie.imdb_id) params.set('imdbId', movie.imdb_id);
+            if (type === 'tv') {
+                params.set('season', String(playingSeasonNumber));
+                params.set('episode', String(currentEpisode));
+            }
+            if (forceResolveRef.current) {
+                params.set('force', '1');
+                forceResolveRef.current = false;
+            }
+
+            try {
+                const res = await fetch(`${GIGA_BACKEND_URL}/api/stream?${params.toString()}`, {
+                    signal: controller.signal,
+                });
+                const data = await res.json();
+                if (cancelled) return;
+
+                // Embeds are dead (step zero) — only real, playable URLs count.
+                const sources = (data?.sources || []).filter((s: any) => s?.url && !s.isEmbed);
+
+                if (!data?.success || sources.length === 0) {
+                    console.warn('[VideoPlayer] No playable source:', data?.error);
+                    setIsBuffering(false);
+                    setError(data?.error || 'No stream found. All providers are currently unavailable.');
+                    return;
+                }
+
+                console.info(`[VideoPlayer] ✅ ${sources.length} source(s) via ${data.provider}`);
+                applyStreamResult(sources, data.subtitles || [], data.referer);
+            } catch (e: any) {
+                if (cancelled || e?.name === 'AbortError') return;
+                console.error('[VideoPlayer] Stream resolve failed:', e);
+                setIsBuffering(false);
+                setError('Could not reach the stream service. Please try again.');
+            }
+        })();
+
+        return () => { cancelled = true; controller.abort(); };
+    }, [movie.id, mediaType, playingSeasonNumber, currentEpisode, resolveNonce, applyStreamResult]);
+
     useEffect(() => {
         let cancelled = false;
 
@@ -1001,8 +1069,67 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
         }
     }, [captions, settings.showSubtitles, settings.subtitleLanguage, duration]);
 
-    const changeQuality = useCallback((_level: number) => {}, []);
-    const changeAudioTrack = useCallback((_trackId: number) => {}, []);
+    // ─── STEP ONE: real HLS playback ────────────────────────────────────────
+    // Drives the <video> element from the backend-resolved stream. Sources
+    // flagged noProxy are streamed straight from the CDN; the rest go through
+    // /proxy/stream (applyStreamResult decides which and builds streamUrl).
+    // useHls also auto-selects the preferred audio track on MANIFEST_PARSED,
+    // which matters because VixSrc masters default to Italian audio.
+    const {
+        isBuffering: hlsBuffering,
+        qualityLevels: hlsQualityLevels,
+        currentQuality: hlsCurrentQuality,
+        audioTracks: hlsAudioTracks,
+        currentAudioTrack: hlsCurrentAudioTrack,
+        changeQuality,
+        changeAudioTrack,
+    } = useHls(videoRef, {
+        streamUrl,
+        isM3U8: isStreamM3U8,
+        streamReferer,
+        autoPlay: true,
+        preferredAudioLanguage: (settings.subtitleLanguage || 'en').toLowerCase().split('-')[0],
+        onManifestParsed: () => {
+            setIsVideoReady(true);
+            setLoadingMessage('');
+        },
+        onFatalError: (type, details, statusCode) => {
+            const src = allSources[currentSourceIndex];
+            reportStreamError({
+                provider: src?.provider || 'unknown',
+                providerId: src?.providerId || 'unknown',
+                tmdbId: String(movie.id),
+                type: mediaType === 'tv' ? 'tv' : 'movie',
+                error: `${type}: ${details}`,
+                errorCode: statusCode,
+            }).catch(() => {});
+        },
+        // Dead or expired URL — put this source on cooldown and move to the next
+        // one; if none are left, ask the backend for a freshly resolved set.
+        onTokenExpired: () => {
+            const dead = allSources[currentSourceIndex];
+            if (dead) {
+                const key = `${dead.providerId || dead.provider || 'unknown'}::${dead.url || ''}`;
+                sourceFailureCooldownRef.current.set(key, Date.now() + SOURCE_FAILURE_COOLDOWN_MS);
+            }
+            const nextIndex = currentSourceIndex + 1;
+            if (allSources[nextIndex]) {
+                handleSourceChange(nextIndex);
+            } else {
+                forceResolveRef.current = true;
+                setResolveNonce(n => n + 1);
+            }
+        },
+        onError: (msg) => setError(msg),
+    });
+
+    // Mirror hls.js state into the existing player state so the settings
+    // panels (quality / audio pickers) keep working unchanged.
+    useEffect(() => { setQualityLevels(hlsQualityLevels); }, [hlsQualityLevels]);
+    useEffect(() => { setCurrentQualityLevel(hlsCurrentQuality); }, [hlsCurrentQuality]);
+    useEffect(() => { setAudioTracks(hlsAudioTracks); }, [hlsAudioTracks]);
+    useEffect(() => { setCurrentAudioTrack(hlsCurrentAudioTrack); }, [hlsCurrentAudioTrack]);
+    useEffect(() => { if (streamUrl) setIsBuffering(hlsBuffering); }, [hlsBuffering, streamUrl]);
 
     useEffect(() => {
         const video = videoRef.current;
@@ -1558,6 +1685,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                 toggleFullscreen();
             }}
         >
+            {/* STEP ONE: the real player. Driven by useHls from the backend-resolved stream. */}
+            <video
+                ref={videoRef}
+                className="absolute inset-0 w-full h-full bg-black"
+                style={{ objectFit: videoFit }}
+                playsInline
+                autoPlay
+                preload="auto"
+                onClick={(e) => e.stopPropagation()}
+            />
+
+            {/* STEP ZERO: embed subsystem killed — <EmbedPlayer> never mounts while EMBEDS_ENABLED=false. */}
+            {EMBEDS_ENABLED && (
             <EmbedPlayer
                 tmdbId={String(movie.id)}
                 imdbId={movie.imdb_id}
@@ -1635,6 +1775,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ movie, season = 1, episode = 
                     setError('All streaming providers have failed. Please try again later.');
                 }}
             />
+            )}
 
             {/* ── Center HUD Feedback Indicator Overlay ── */}
             {hudMessage && (

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { ALL_EMBED_PROVIDERS } from '../services/EmbedProviders';
+import { ALL_EMBED_PROVIDERS, EMBEDS_ENABLED } from '../services/EmbedProviders';
 import { reportStreamError } from '../services/ProviderHealthService';
 import { useEmbedLayout } from '../hooks/useEmbedLayout';
 
@@ -60,6 +60,12 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
     onProviderIndexChange,
     controllerRef
 }) => {
+    // ─── STEP ZERO KILL SWITCH ──────────────────────────────────────────────
+    // Embeds are disabled — this component is inert and renders nothing.
+    // EMBEDS_ENABLED is a compile-time constant, so this branch is stable
+    // across every render and does not violate the rules of hooks.
+    if (!EMBEDS_ENABLED) return null;
+
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [localProviderIndex, setLocalProviderIndex] = useState(startProviderIndex);
 

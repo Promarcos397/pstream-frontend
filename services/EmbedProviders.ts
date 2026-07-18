@@ -72,5 +72,20 @@ export const TIER_1_PROVIDERS: EmbedProvider[] = [
     },
 ];
 
-// Flat list for easy iteration
-export const ALL_EMBED_PROVIDERS = [...TIER_1_PROVIDERS].filter(p => p !== undefined);
+// ─── EMBED KILL SWITCH (STEP ZERO) ──────────────────────────────────────────
+// The entire embed subsystem is disabled. Playback no longer routes through
+// third-party iframe embeds (VidFast, etc.). This flag is the SINGLE SOURCE OF
+// TRUTH — flip it back to `true` to revive embeds.
+//
+// While `false`:
+//   • ALL_EMBED_PROVIDERS is empty
+//   • <EmbedPlayer> returns null and is never mounted (see EmbedPlayer.tsx)
+//   • VideoPlayer never enters embed-fallback mode (see VideoPlayer.tsx)
+// Everything else in this file (TIER_1_PROVIDERS, buildUrl, etc.) is now dead
+// code, kept intact only so the switch can be reversed cleanly.
+export const EMBEDS_ENABLED = false;
+
+// Flat list for easy iteration — empty while embeds are killed.
+export const ALL_EMBED_PROVIDERS = EMBEDS_ENABLED
+    ? [...TIER_1_PROVIDERS].filter(p => p !== undefined)
+    : [];
