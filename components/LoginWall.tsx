@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabaseClient';
+import { validateSignupEmail } from '../utils/emailValidation';
 
 export const LoginWall: React.FC = () => {
   const { t } = useTranslation();
@@ -20,8 +21,17 @@ export const LoginWall: React.FC = () => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
+        // Screen the address before it becomes a send — bounced confirmation
+        // emails count against the project's sending reputation.
+        const check = validateSignupEmail(email);
+        if (!check.valid) {
+          setError(check.reason || 'Please enter a valid email address.');
+          setLoading(false);
+          return;
+        }
+
         const { error } = await supabase.auth.signUp({
-          email,
+          email: email.trim().toLowerCase(),
           password,
           options: {
             emailRedirectTo: window.location.origin + '/'

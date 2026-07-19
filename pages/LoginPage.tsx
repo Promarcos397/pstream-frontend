@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import logo from '../assets/logos/pstream-logo.svg';
 import landingBg from '../assets/landing-bg.png';
 import { supabase } from '../services/supabaseClient';
+import { validateSignupEmail } from '../utils/emailValidation';
 import { useAuthStore } from '../store/useAuthStore';
 import Footer from '../components/Footer';
 import { fetchData } from '../services/api';
@@ -97,8 +98,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ initialView, initialEmail, onClos
     setLoading(true);
     try {
       if (view === 'signup') {
+        // Screen the address before it becomes a send — bounced confirmation
+        // emails count against the project's sending reputation.
+        const check = validateSignupEmail(email);
+        if (!check.valid) {
+          setError(check.reason || 'Please enter a valid email address.');
+          setLoading(false);
+          return;
+        }
+
         const { error: err } = await supabase.auth.signUp({
-          email,
+          email: email.trim().toLowerCase(),
           password,
           options: {
             data: {
